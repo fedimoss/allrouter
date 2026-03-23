@@ -467,6 +467,12 @@ func generateDefaultSidebarConfig(userRole int) string {
 		"midjourney": true,
 		"task":       true,
 	}
+	//商家区域 -所有用户都能访问
+	defaultConfig["merchant"] = map[string]interface{}{
+		"enabled":       true,
+		"oauth":         true,
+		"certification": true,
+	}
 
 	// 个人中心区域 - 所有用户都可以访问
 	defaultConfig["personal"] = map[string]interface{}{

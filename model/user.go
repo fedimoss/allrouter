@@ -123,6 +123,12 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 		"topup":    true,
 		"personal": true,
 	}
+	//商家区域 -所有用户都可以访问
+	defaultConfig["merchant"] = map[string]interface{}{
+		"enabled":       true,
+		"oauth":         true,
+		"certification": true,
+	}
 
 	// 管理员区域 - 根据角色决定
 	if userRole == common.RoleAdminUser {
@@ -394,16 +400,42 @@ func (user *User) Insert(inviterId int) error {
 		// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
 		user.SetSetting(defaultSetting)
 	}
-
-	result := DB.Create(user)
+	tx := DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	result := tx.Create(user)
 	if result.Error != nil {
+		tx.Rollback()
 		return result.Error
 	}
 
 	// 用户创建成功后，根据角色初始化边栏配置
 	// 需要重新获取用户以确保有正确的ID和Role
 	var createdUser User
-	if err := DB.Where("username = ?", user.Username).First(&createdUser).Error; err == nil {
+	if err := tx.Where("username = ?", user.Username).First(&createdUser).Error; err == nil {
+		//查询cli_user有没有id
+		clis, err := GetCliUserByCon(&CliUser{
+			UserId: strconv.Itoa(createdUser.Id),
+		})
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		if len(clis) != 0 {
+			tx.Rollback()
+			return errors.New("cli user already exists ")
+		}
+		_, err = InsertNewCliUser(strconv.Itoa(createdUser.Id), tx)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err = tx.Commit().Error; err != nil {
+			return err
+		}
 		// 生成基于角色的默认边栏配置
 		defaultSidebarConfig := generateDefaultSidebarConfigForRole(createdUser.Role)
 		if defaultSidebarConfig != "" {

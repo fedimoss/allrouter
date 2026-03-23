@@ -58,6 +58,15 @@ const (
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
+const (
+	AuthCodex       = 1001
+	AuthAnthropic   = 1002
+	AuthAntigravity = 1003
+	AuthGeminiCli   = 1004
+	AuthKimi        = 1005
+	AuthQwen        = 1006
+	AuthIFlow       = 1007
+)
 
 var ChannelBaseURLs = []string{
 	"",                                    // 0

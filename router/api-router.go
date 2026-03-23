@@ -369,5 +369,28 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
+		//CLI Proxy API接口集成进allrouter中
+		voRoute := apiRouter.Group("/v0")
+		voRoute.Use(middleware.UserAuth())
+		{
+			//
+			managementRoute := voRoute.Group("/management")
+			//managementRoute.Use(middleware.CriticalRateLimit()) //关键接口限流中间件”，用来防刷、防爆破
+			managementRoute.GET("/qwen-auth-url", controller.GetQwenAuthUrl)
+			managementRoute.GET("/codex-auth-url", controller.GetCodexAuthUrl)
+			managementRoute.GET("/anthropic-auth-url", controller.GetAnthropicAuthUrl)
+			managementRoute.GET("/antigravity-auth-url", controller.GetAntigravityAuthUrl)
+			managementRoute.GET("/gemini-cli-auth-url", middleware.CriticalRateLimit(), controller.GetGeminiCliAuthUrl)
+			managementRoute.GET("/kimi-auth-url", controller.GetKimiAuthUrl)
+			managementRoute.POST("/iflow-auth-url", controller.IflowAuth)
+			managementRoute.POST("/oauth-callback", controller.OAuthCallBack)
+			managementRoute.GET("/get-auth-status", controller.GetAuthStatus)
+			managementRoute.GET("/useroauths", middleware.CriticalRateLimit(), controller.GetUserOAuths)
+			managementRoute.DELETE("/oauthDelete/:id", middleware.CriticalRateLimit(), controller.DeleteOAuth)
+			managementRoute.GET("/downloadoauth", middleware.CriticalRateLimit(), controller.DownloadOauth)
+			managementRoute.POST("/auth-files/status", middleware.CriticalRateLimit(), controller.UpdateAuthFileStatus)
+			managementRoute.GET("/get-oauth-success-count", middleware.CriticalRateLimit(), controller.GetUserAuthSuccessCount)
+		}
+
 	}
 }

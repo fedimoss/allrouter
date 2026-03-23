@@ -563,6 +563,9 @@ const TopUp = () => {
   }, [statusState?.status]);
 
   const renderAmount = () => {
+    // if (payWay === 'stripe') {
+    //   return `${amount} $`;
+    // }
     return amount + ' ' + t('元');
   };
 

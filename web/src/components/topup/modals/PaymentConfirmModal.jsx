@@ -44,6 +44,13 @@ const PaymentConfirmModal = ({
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
   const originalAmount = hasDiscount ? amountNumber / discountRate : 0;
   const discountAmount = hasDiscount ? originalAmount - amountNumber : 0;
+  const formatAmount = (value, { negative = false } = {}) => {
+    const numericValue = Number(value || 0).toFixed(2);
+    if (payWay === 'stripe') {
+      return `${negative ? '-' : ''}$${numericValue}`;
+    }
+    return `${negative ? '- ' : ''}${numericValue} ${t('元')}`;
+  };
   return (
     <Modal
       title={
@@ -97,7 +104,8 @@ const PaymentConfirmModal = ({
                     {t('原价')}：
                   </Text>
                   <Text delete className='text-slate-500 dark:text-slate-400'>
-                    {`${originalAmount.toFixed(2)} ${t('元')}`}
+                      {`${originalAmount.toFixed(2)} ${t('元')}`}
+
                   </Text>
                 </div>
                 <div className='flex justify-between items-center'>

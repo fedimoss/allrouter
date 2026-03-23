@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -44,72 +44,75 @@ import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import CustomOAuthSetting from './CustomOAuthSetting';
 
+const defaultInputs = {
+  PasswordLoginEnabled: '',
+  PasswordRegisterEnabled: '',
+  EmailVerificationEnabled: '',
+  GitHubOAuthEnabled: '',
+  GitHubClientId: '',
+  GitHubClientSecret: '',
+  'discord.enabled': '',
+  'discord.client_id': '',
+  'discord.client_secret': '',
+  'oidc.enabled': '',
+  'oidc.client_id': '',
+  'oidc.client_secret': '',
+  'oidc.well_known': '',
+  'oidc.authorization_endpoint': '',
+  'oidc.token_endpoint': '',
+  'oidc.user_info_endpoint': '',
+  Notice: '',
+  SMTPServer: '',
+  SMTPPort: '',
+  SMTPAccount: '',
+  SMTPFrom: '',
+  SMTPToken: '',
+  WorkerUrl: '',
+  WorkerValidKey: '',
+  WorkerAllowHttpImageRequestEnabled: '',
+  Footer: '',
+  WeChatAuthEnabled: '',
+  WeChatServerAddress: '',
+  WeChatServerToken: '',
+  WeChatAccountQRCodeImageURL: '',
+  TurnstileCheckEnabled: '',
+  TurnstileSiteKey: '',
+  TurnstileSecretKey: '',
+  RegisterEnabled: '',
+  'passkey.enabled': '',
+  'passkey.rp_display_name': '',
+  'passkey.rp_id': '',
+  'passkey.origins': [],
+  'passkey.allow_insecure_origin': '',
+  'passkey.user_verification': 'preferred',
+  'passkey.attachment_preference': '',
+  EmailDomainRestrictionEnabled: '',
+  EmailAliasRestrictionEnabled: '',
+  SMTPSSLEnabled: '',
+  EmailDomainWhitelist: [],
+  TelegramOAuthEnabled: '',
+  TelegramBotToken: '',
+  TelegramBotName: '',
+  LinuxDOOAuthEnabled: '',
+  LinuxDOClientId: '',
+  LinuxDOClientSecret: '',
+  LinuxDOMinimumTrustLevel: '',
+  ServerAddress: '',
+  CLIServerAddress: '',
+  CLIProxyAPIPassword: '',
+  'fetch_setting.enable_ssrf_protection': true,
+  'fetch_setting.allow_private_ip': '',
+  'fetch_setting.domain_filter_mode': false,
+  'fetch_setting.ip_filter_mode': false,
+  'fetch_setting.domain_list': [],
+  'fetch_setting.ip_list': [],
+  'fetch_setting.allowed_ports': [],
+  'fetch_setting.apply_ip_filter_for_domain': false,
+};
+
 const SystemSetting = () => {
   const { t } = useTranslation();
-  let [inputs, setInputs] = useState({
-    PasswordLoginEnabled: '',
-    PasswordRegisterEnabled: '',
-    EmailVerificationEnabled: '',
-    GitHubOAuthEnabled: '',
-    GitHubClientId: '',
-    GitHubClientSecret: '',
-    'discord.enabled': '',
-    'discord.client_id': '',
-    'discord.client_secret': '',
-    'oidc.enabled': '',
-    'oidc.client_id': '',
-    'oidc.client_secret': '',
-    'oidc.well_known': '',
-    'oidc.authorization_endpoint': '',
-    'oidc.token_endpoint': '',
-    'oidc.user_info_endpoint': '',
-    Notice: '',
-    SMTPServer: '',
-    SMTPPort: '',
-    SMTPAccount: '',
-    SMTPFrom: '',
-    SMTPToken: '',
-    WorkerUrl: '',
-    WorkerValidKey: '',
-    WorkerAllowHttpImageRequestEnabled: '',
-    Footer: '',
-    WeChatAuthEnabled: '',
-    WeChatServerAddress: '',
-    WeChatServerToken: '',
-    WeChatAccountQRCodeImageURL: '',
-    TurnstileCheckEnabled: '',
-    TurnstileSiteKey: '',
-    TurnstileSecretKey: '',
-    RegisterEnabled: '',
-    'passkey.enabled': '',
-    'passkey.rp_display_name': '',
-    'passkey.rp_id': '',
-    'passkey.origins': [],
-    'passkey.allow_insecure_origin': '',
-    'passkey.user_verification': 'preferred',
-    'passkey.attachment_preference': '',
-    EmailDomainRestrictionEnabled: '',
-    EmailAliasRestrictionEnabled: '',
-    SMTPSSLEnabled: '',
-    EmailDomainWhitelist: [],
-    TelegramOAuthEnabled: '',
-    TelegramBotToken: '',
-    TelegramBotName: '',
-    LinuxDOOAuthEnabled: '',
-    LinuxDOClientId: '',
-    LinuxDOClientSecret: '',
-    LinuxDOMinimumTrustLevel: '',
-    ServerAddress: '',
-    // SSRF防护配置
-    'fetch_setting.enable_ssrf_protection': true,
-    'fetch_setting.allow_private_ip': '',
-    'fetch_setting.domain_filter_mode': false, // true 白名单，false 黑名单
-    'fetch_setting.ip_filter_mode': false, // true 白名单，false 黑名单
-    'fetch_setting.domain_list': [],
-    'fetch_setting.ip_list': [],
-    'fetch_setting.allowed_ports': [],
-    'fetch_setting.apply_ip_filter_for_domain': false,
-  });
+  let [inputs, setInputs] = useState(defaultInputs);
 
   const [originInputs, setOriginInputs] = useState({});
   const [loading, setLoading] = useState(false);
@@ -213,19 +216,20 @@ const SystemSetting = () => {
         }
         newInputs[item.key] = item.value;
       });
-      setInputs(newInputs);
-      setOriginInputs(newInputs);
+      const mergedInputs = { ...defaultInputs, ...newInputs };
+      setInputs(mergedInputs);
+      setOriginInputs(mergedInputs);
       // 同步模式布尔到本地状态
       if (
         typeof newInputs['fetch_setting.domain_filter_mode'] !== 'undefined'
       ) {
-        setDomainFilterMode(!!newInputs['fetch_setting.domain_filter_mode']);
+        setDomainFilterMode(!!mergedInputs['fetch_setting.domain_filter_mode']);
       }
-      if (typeof newInputs['fetch_setting.ip_filter_mode'] !== 'undefined') {
-        setIpFilterMode(!!newInputs['fetch_setting.ip_filter_mode']);
+      if (typeof mergedInputs['fetch_setting.ip_filter_mode'] !== 'undefined') {
+        setIpFilterMode(!!mergedInputs['fetch_setting.ip_filter_mode']);
       }
       if (formApiRef.current) {
-        formApiRef.current.setValues(newInputs);
+        formApiRef.current.setValues(mergedInputs);
       }
       setIsLoaded(true);
     } else {
@@ -315,6 +319,22 @@ const SystemSetting = () => {
   const submitServerAddress = async () => {
     let ServerAddress = removeTrailingSlash(inputs.ServerAddress);
     await updateOptions([{ key: 'ServerAddress', value: ServerAddress }]);
+  };
+  const submitCLIProxy = async () => {
+    let CLIServerAddress = removeTrailingSlash(inputs.CLIServerAddress);
+    const cliProxyAPIPassword = inputs.CLIProxyAPIPassword ?? '';
+    const options = [{ key: 'CLIServerAddress', value: CLIServerAddress }];
+    if (cliProxyAPIPassword !== '') {
+      options.push({
+        key: 'CLIProxyAPIPassword',
+        value: cliProxyAPIPassword,
+      });
+    }
+    await updateOptions(options);
+    if (cliProxyAPIPassword !== '') {
+      setInputs((prev) => ({ ...prev, CLIProxyAPIPassword: '' }));
+      formApiRef.current?.setValue('CLIProxyAPIPassword', '');
+    }
   };
 
   const submitSMTP = async () => {
@@ -730,6 +750,33 @@ const SystemSetting = () => {
                   <Button onClick={submitServerAddress}>
                     {t('更新服务器地址')}
                   </Button>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+ 
+                  >
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Input
+                        field='CLIServerAddress'
+                        label={t('CLI Proxy API服务地址')}
+                        placeholder='http://127.0.0.1:8173'
+                        extraText={t(
+                          '该服务地址会影响CLI API的请求，可以设置成内网地址',
+                        )}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Input
+                        field='CLIProxyAPIPassword'
+                        label={t('CLI Proxy API服务密码')}
+                        type='password'
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                        extraText={t('留空则不修改现有服务密码')}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitCLIProxy}>
+                    {t('更新CLI服务地址')}
+                  </Button>                
                 </Form.Section>
               </Card>
 
