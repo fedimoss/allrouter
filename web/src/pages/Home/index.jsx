@@ -416,7 +416,7 @@ const Home = () => {
                         <section className='landing-v2-hero'>
                             <div className='landing-v2-hero-content'>
                                 <h1>
-                                    {t('一套 API，')}
+                                    {t('一套API，')}
                                     <br />
                                     <span>{t('畅连所有 AI。')}</span>
                                 </h1>

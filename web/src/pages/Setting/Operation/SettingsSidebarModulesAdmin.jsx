@@ -45,6 +45,11 @@ export default function SettingsSidebarModulesAdmin(props) {
       playground: true,
       chat: true,
     },
+    merchant: {
+      enabled: true,
+      oauth: true,
+      certification: true,
+    },
     console: {
       enabled: true,
       detail: true,
@@ -105,6 +110,11 @@ export default function SettingsSidebarModulesAdmin(props) {
         enabled: true,
         playground: true,
         chat: true,
+      },
+      merchant: {
+        enabled: true,
+        oauth: true,
+        certification: true,
       },
       console: {
         enabled: true,
@@ -179,6 +189,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         // 使用默认配置
         const defaultModules = {
           chat: { enabled: true, playground: true, chat: true },
+          merchant: { enabled: true, oauth: true, certification: true },
           console: {
             enabled: true,
             detail: true,
@@ -233,6 +244,23 @@ export default function SettingsSidebarModulesAdmin(props) {
           description: t('绘图任务记录'),
         },
         { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
+      ],
+    },
+    {
+      key: 'merchant',
+      title: t('商家入驻区域'),
+      description: t('商家接入与认证管理'),
+      modules: [
+        {
+          key: 'oauth',
+          title: t('OAuth授权'),
+          description: t('商家授权与接入'),
+        },
+        {
+          key: 'certification',
+          title: t('认证文件'),
+          description: t('商家资质与认证材料'),
+        },
       ],
     },
     {

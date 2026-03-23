@@ -31,6 +31,11 @@ export const DEFAULT_ADMIN_CONFIG = {
     playground: true,
     chat: true,
   },
+  merchant: {
+    enabled: true,
+    oauth: true,
+    certification: true,
+  },
   console: {
     enabled: true,
     detail: true,

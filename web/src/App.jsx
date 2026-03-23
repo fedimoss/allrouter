@@ -45,6 +45,8 @@ import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
 import Subscription from './pages/Subscription';
+import Oauth from './pages/Oauth';
+import CertificationDocument from './pages/CertificationDocument';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
@@ -233,6 +235,16 @@ function App() {
           }
         />
         <Route
+          path='/console/oauth'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Oauth />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/oauth/oidc'
           element={
             <Suspense fallback={<Loading></Loading>}>
@@ -254,6 +266,16 @@ function App() {
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <DynamicOAuth2Callback />
             </Suspense>
+          }
+        />
+        <Route
+          path='/console/certification'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <CertificationDocument />
+              </Suspense>
+            </PrivateRoute>
           }
         />
         <Route

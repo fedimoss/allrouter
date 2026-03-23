@@ -49,6 +49,8 @@ const routerMap = {
   deployment: '/console/deployment',
   playground: '/console/playground',
   personal: '/console/personal',
+  oauth: '/console/oauth',
+  certification: '/console/certification',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -121,6 +123,27 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     t,
     isModuleVisible,
   ]);
+
+  const merchantItems = useMemo(() => {
+    const items = [
+      {
+        text: t('OAuth授权'),
+        itemKey: 'oauth',
+      },
+      {
+        text: t('认证文件'),
+        itemKey: 'certification',
+      },
+    ];
+
+    // 根据配置过滤项目
+    const filteredItems = items.filter((item) => {
+      const configVisible = isModuleVisible('merchant', item.itemKey);
+      return configVisible;
+    });
+
+    return filteredItems;
+  }, [t, isModuleVisible]);
 
   const financeItems = useMemo(() => {
     const items = [
@@ -458,6 +481,19 @@ const SiderBar = ({ onNavigate = () => {} }) => {
                   <div className='sidebar-group-label'>{t('控制台')}</div>
                 )}
                 {workspaceItems.map((item) => renderNavItem(item))}
+              </div>
+            </>
+          )}
+
+          {/* 商家入驻区域 */}
+          {hasSectionVisibleModules('merchant') && (
+            <>
+              <Divider className='sidebar-divider' />
+              <div>
+                {!collapsed && (
+                  <div className='sidebar-group-label'>{t('商家入驻')}</div>
+                )}
+                {merchantItems.map((item) => renderNavItem(item))}
               </div>
             </>
           )}
