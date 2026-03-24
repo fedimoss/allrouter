@@ -37,13 +37,13 @@ import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
-
 const { Text } = Typography;
 
 // 状态映射配置
 const STATUS_CONFIG = {
   success: { type: 'success', key: '成功' },
   pending: { type: 'warning', key: '待支付' },
+  failed: { type: 'danger', key: '失败' },
   expired: { type: 'danger', key: '已过期' },
 };
 
@@ -51,8 +51,11 @@ const STATUS_CONFIG = {
 const PAYMENT_METHOD_MAP = {
   stripe: 'Stripe',
   creem: 'Creem',
+  waffo: 'Waffo',
   alipay: '支付宝',
   wxpay: '微信',
+  redemptionCode: '兑换码',
+  redemption_code: '兑换码',
 };
 
 const TopupHistoryModal = ({ visible, onCancel, t }) => {
@@ -62,7 +65,6 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
-
   const isMobile = useIsMobile();
 
   const loadTopups = async (currentPage, currentPageSize) => {
@@ -82,7 +84,6 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         Toast.error({ content: message || t('加载失败') });
       }
     } catch (error) {
-      console.error('Load topups error:', error);
       Toast.error({ content: t('加载账单失败') });
     } finally {
       setLoading(false);
@@ -152,10 +153,17 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
     return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
   };
 
-  const isSubscriptionTopup = (record) => {
+  const getBizType = (record) => {
+    if (record?.biz_type) {
+      return record.biz_type;
+    }
     const tradeNo = (record?.trade_no || '').toLowerCase();
-    return Number(record?.amount || 0) === 0 && tradeNo.startsWith('sub');
+    return Number(record?.amount || 0) === 0 && tradeNo.startsWith('sub')
+      ? 'subscription'
+      : 'payment';
   };
+
+  const isSubscriptionTopup = (record) => getBizType(record) === 'subscription';
 
   // 检查是否为管理员
   const userIsAdmin = useMemo(() => isAdmin(), []);
@@ -198,10 +206,16 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('支付金额'),
         dataIndex: 'money',
         key: 'money',
-        render: (money, record) => <Text type='danger'>
-          {record.payment_method==="stripe" ?'$' : '¥'}
-          {money.toFixed(2)}
-          </Text>,
+        render: (money, record) => {
+          const normalizedMoney = Number(money || 0);
+          const prefix = normalizedMoney <= 0 ? '' : record.payment_method === 'stripe' ? '$' : '¥';
+          return (
+            <Text type='danger'>
+              {prefix}
+              {normalizedMoney.toFixed(2)}
+            </Text>
+          );
+        },
       },
       {
         title: t('状态'),
@@ -217,17 +231,21 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('操作'),
         key: 'action',
         render: (_, record) => {
-          if (record.status !== 'pending') return null;
-          return (
-            <Button
-              size='small'
-              type='primary'
-              theme='outline'
-              onClick={() => confirmAdminComplete(record.trade_no)}
-            >
-              {t('补单')}
-            </Button>
-          );
+          const actions = [];
+          if (record.status === 'pending') {
+            actions.push(
+              <Button
+                key="complete"
+                size='small'
+                type='primary'
+                theme='outline'
+                onClick={() => confirmAdminComplete(record.trade_no)}
+              >
+                {t('补单')}
+              </Button>
+            );
+          }
+          return actions.length > 0 ? <>{actions}</> : null;
         },
       });
     }

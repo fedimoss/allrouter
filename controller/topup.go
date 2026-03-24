@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -48,16 +47,54 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	// 如果启用了 Waffo 支付，添加到支付方法列表
+	enableWaffo := setting.WaffoEnabled &&
+		((!setting.WaffoSandbox &&
+			setting.WaffoApiKey != "" &&
+			setting.WaffoPrivateKey != "" &&
+			setting.WaffoPublicCert != "") ||
+			(setting.WaffoSandbox &&
+				setting.WaffoSandboxApiKey != "" &&
+				setting.WaffoSandboxPrivateKey != "" &&
+				setting.WaffoSandboxPublicCert != ""))
+	if enableWaffo {
+		hasWaffo := false
+		for _, method := range payMethods {
+			if method["type"] == "waffo" {
+				hasWaffo = true
+				break
+			}
+		}
+
+		if !hasWaffo {
+			waffoMethod := map[string]string{
+				"name":      "Waffo (Global Payment)",
+				"type":      "waffo",
+				"color":     "rgba(var(--semi-blue-5), 1)",
+				"min_topup": strconv.Itoa(setting.WaffoMinTopUp),
+			}
+			payMethods = append(payMethods, waffoMethod)
+		}
+	}
+
 	data := gin.H{
 		"enable_online_topup": operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != "",
 		"enable_stripe_topup": setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
 		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
-		"creem_products":      setting.CreemProducts,
-		"pay_methods":         payMethods,
-		"min_topup":           operation_setting.MinTopUp,
-		"stripe_min_topup":    setting.StripeMinTopUp,
-		"amount_options":      operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":            operation_setting.GetPaymentSetting().AmountDiscount,
+		"enable_waffo_topup":  enableWaffo,
+		"waffo_pay_methods": func() interface{} {
+			if enableWaffo {
+				return setting.GetWaffoPayMethods()
+			}
+			return nil
+		}(),
+		"creem_products":   setting.CreemProducts,
+		"pay_methods":      payMethods,
+		"min_topup":        operation_setting.MinTopUp,
+		"stripe_min_topup": setting.StripeMinTopUp,
+		"waffo_min_topup":  setting.WaffoMinTopUp,
+		"amount_options":   operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":         operation_setting.GetPaymentSetting().AmountDiscount,
 	}
 	common.ApiSuccess(c, data)
 }
@@ -189,8 +226,9 @@ func RequestEpay(c *gin.Context) {
 		Money:         payMoney,
 		TradeNo:       tradeNo,
 		PaymentMethod: req.PaymentMethod,
+		BizType:       model.TopUpBizTypePayment,
 		CreateTime:    time.Now().Unix(),
-		Status:        "pending",
+		Status:        common.TopUpStatusPending,
 	}
 	err = topUp.Insert()
 	if err != nil {
@@ -204,27 +242,42 @@ func RequestEpay(c *gin.Context) {
 var orderLocks sync.Map
 var createLock sync.Mutex
 
+// refCountedMutex 带引用计数的互斥锁，确保最后一个使用者才从 map 中删除
+type refCountedMutex struct {
+	mu       sync.Mutex
+	refCount int
+}
+
 // LockOrder 尝试对给定订单号加锁
 func LockOrder(tradeNo string) {
-	lock, ok := orderLocks.Load(tradeNo)
-	if !ok {
-		createLock.Lock()
-		defer createLock.Unlock()
-		lock, ok = orderLocks.Load(tradeNo)
-		if !ok {
-			lock = new(sync.Mutex)
-			orderLocks.Store(tradeNo, lock)
-		}
+	createLock.Lock()
+	var rcm *refCountedMutex
+	if v, ok := orderLocks.Load(tradeNo); ok {
+		rcm = v.(*refCountedMutex)
+	} else {
+		rcm = &refCountedMutex{}
+		orderLocks.Store(tradeNo, rcm)
 	}
-	lock.(*sync.Mutex).Lock()
+	rcm.refCount++
+	createLock.Unlock()
+	rcm.mu.Lock()
 }
 
 // UnlockOrder 释放给定订单号的锁
 func UnlockOrder(tradeNo string) {
-	lock, ok := orderLocks.Load(tradeNo)
-	if ok {
-		lock.(*sync.Mutex).Unlock()
+	v, ok := orderLocks.Load(tradeNo)
+	if !ok {
+		return
 	}
+	rcm := v.(*refCountedMutex)
+	rcm.mu.Unlock()
+
+	createLock.Lock()
+	rcm.refCount--
+	if rcm.refCount == 0 {
+		orderLocks.Delete(tradeNo)
+	}
+	createLock.Unlock()
 }
 
 func EpayNotify(c *gin.Context) {
@@ -264,12 +317,7 @@ func EpayNotify(c *gin.Context) {
 		return
 	}
 	verifyInfo, err := client.Verify(params)
-	if err == nil && verifyInfo.VerifyStatus {
-		_, err := c.Writer.Write([]byte("success"))
-		if err != nil {
-			log.Println("易支付回调写入失败")
-		}
-	} else {
+	if err != nil || !verifyInfo.VerifyStatus {
 		_, err := c.Writer.Write([]byte("fail"))
 		if err != nil {
 			log.Println("易支付回调写入失败")
@@ -282,33 +330,19 @@ func EpayNotify(c *gin.Context) {
 		log.Println(verifyInfo)
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
-		topUp := model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo)
-		if topUp == nil {
-			log.Printf("易支付回调未找到订单: %v", verifyInfo)
+		if err := model.RechargeEpay(verifyInfo.ServiceTradeNo); err != nil {
+			log.Printf("易支付回调处理失败: %v, tradeNo=%s", err, verifyInfo.ServiceTradeNo)
+			_, _ = c.Writer.Write([]byte("fail"))
 			return
 		}
-		if topUp.Status == "pending" {
-			topUp.Status = "success"
-			err := topUp.Update()
-			if err != nil {
-				log.Printf("易支付回调更新订单失败: %v", topUp)
-				return
-			}
-			//user, _ := model.GetUserById(topUp.UserId, false)
-			//user.Quota += topUp.Amount * 500000
-			dAmount := decimal.NewFromInt(int64(topUp.Amount))
-			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
-			err = model.IncreaseUserQuota(topUp.UserId, quotaToAdd, true)
-			if err != nil {
-				log.Printf("易支付回调更新用户失败: %v", topUp)
-				return
-			}
-			log.Printf("易支付回调更新用户成功 %v", topUp)
-			model.RecordLog(topUp.UserId, model.LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money))
+		_, err := c.Writer.Write([]byte("success"))
+		if err != nil {
+			log.Println("易支付回调写入失败")
 		}
+		log.Printf("易支付回调处理成功，订单号: %s", verifyInfo.ServiceTradeNo)
 	} else {
 		log.Printf("易支付异常回调: %v", verifyInfo)
+		_, _ = c.Writer.Write([]byte("fail"))
 	}
 }
 
