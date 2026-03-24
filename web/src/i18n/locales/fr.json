@@ -3402,6 +3402,30 @@
     "集中管理 OAuth 生成的认证文件，监控健康状态，配置模型别名与过滤规则。": "Gérez de manière centralisée les fichiers de certification générés par OAuth, surveillez l'état de santé, configurez les alias de modèle et les règles de filtrage.",
     "商家入驻": "Inscription des commerçants",
     "OAuth授权": "Autorisation OAuth",
-    "认证文件": "Fichiers d'authentification"
+    "认证文件": "Fichiers d'authentification",
+    "邮箱/用户名": "Email/Nom d'utilisateur",
+    "邮箱验证码":"Code de vérification par email",
+    "请输入 6 位验证码": "Veuillez entrer le code de vérification à 6 chiffres",
+    "发送验证码": "Envoyer le code de vérification",
+    "设置密码": "Définir le mot de passe",
+    "至少 8 位，包含字母和数字": "Au moins 8 caractères, incluant des lettres et des chiffres",
+    "请再次输入密码": "Veuillez saisir à nouveau votre mot de passe",
+    "注册即表示您同意": "En vous inscrivant, vous acceptez les",
+    "注册成功": "Inscription réussie",
+    "注册失败，请重试": "L'inscription a échoué, veuillez réessayer",
+
+    "请输入邮箱或用户名": "Veuillez entrer votre email ou nom d'utilisateur",
+    "或使用以下方式登录": "Ou connectez-vous avec l'une des méthodes suivantes",
+    "请输入用户名/邮箱和密码": "Veuillez entrer votre nom d'utilisateur/email et votre mot de passe",
+    "Google 登录": "Connexion avec Google",
+    "微信登录": "Connexion avec WeChat",
+    "登录即表示您同意": "En vous connectant, vous acceptez les",
+    "服务条款": "Conditions d'utilisation",
+    "AI API 路由市场": "Marché de routage API AI",
+    "为每一次调用找到最优路径": "Trouver le chemin optimal pour chaque appel",
+    "一站式 AI 模型路由市场，自营渠道 + 第三方商户生态，为每一次 API 调用找到最优路线。": "Un marché de routage de modèles AI monopole, avec des canaux propres + un écosystème de commerçants tiers, pour trouver le meilleur itinéraire pour chaque appel API.",
+    "50+ 模型，OpenAI 兼容接入": "50+ modèles, compatibilité OpenAI",
+    "多渠道比价，自动路由最优": "Comparaison de prix sur plusieurs canaux, routage automatique optimal",
+    "自营品质保障，99.9% 可用性": "Garantie de qualité autonome, disponibilité 99.9%"
   }
 }

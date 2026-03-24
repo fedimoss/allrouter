@@ -43,6 +43,8 @@ export const DEFAULT_ADMIN_CONFIG = {
     log: true,
     midjourney: true,
     task: true,
+    playground: true,
+    pricing: true,
   },
   personal: {
     enabled: true,
@@ -54,6 +56,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     channel: true,
     models: true,
     deployment: true,
+    billing: true,
     redemption: true,
     user: true,
     subscription: true,

@@ -61,14 +61,20 @@ import {
 import {
   LayoutDashboard,
   TerminalSquare,
+  MessageCircleMore,
   MessageSquare,
   Key,
+  KeyRound,
+  FileBox,
   BarChart3,
+  ClipboardList,
   Image as ImageIcon,
   CheckSquare,
   CreditCard,
+  Dock,
   Layers,
   Gift,
+  Megaphone,
   User,
   Settings,
   CircleUser,
@@ -76,7 +82,9 @@ import {
   Server,
   CalendarClock,
   ShieldCheck,
+  BriefcaseBusiness,
   FileCheck,
+  AlignEndHorizontal,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -108,7 +116,7 @@ import {
 export function getLucideIcon(key, selected = false) {
   const size = 16;
   const strokeWidth = 2;
-  const SELECTED_COLOR = 'var(--semi-color-primary)';
+  const SELECTED_COLOR = 'rgb(9 254 247 / 100%)'; // 选中时的图标颜色
   const iconColor = selected ? SELECTED_COLOR : 'currentColor';
   const commonProps = {
     size,
@@ -119,25 +127,27 @@ export function getLucideIcon(key, selected = false) {
   // 根据不同的key返回不同的图标
   switch (key) {
     case 'detail':
-      return <LayoutDashboard {...commonProps} color={iconColor} />;
+      return <AlignEndHorizontal {...commonProps} color={iconColor} />;
     case 'playground':
-      return <TerminalSquare {...commonProps} color={iconColor} />;
+      return <MessageCircleMore {...commonProps} color={iconColor} />;
     case 'chat':
       return <MessageSquare {...commonProps} color={iconColor} />;
     case 'token':
-      return <Key {...commonProps} color={iconColor} />;
+      return <KeyRound {...commonProps} color={iconColor} />;
+    case 'pricing':
+      return <FileBox {...commonProps} color={iconColor} />;
     case 'log':
-      return <BarChart3 {...commonProps} color={iconColor} />;
+      return <ClipboardList {...commonProps} color={iconColor} />;
     case 'midjourney':
       return <ImageIcon {...commonProps} color={iconColor} />;
     case 'task':
       return <CheckSquare {...commonProps} color={iconColor} />;
     case 'topup':
-      return <CreditCard {...commonProps} color={iconColor} />;
+      return <Dock {...commonProps} color={iconColor} />;
     case 'channel':
       return <Layers {...commonProps} color={iconColor} />;
     case 'redemption':
-      return <Gift {...commonProps} color={iconColor} />;
+      return <Megaphone {...commonProps} color={iconColor} />;
     case 'user':
     case 'personal':
       return <User {...commonProps} color={iconColor} />;
@@ -145,12 +155,14 @@ export function getLucideIcon(key, selected = false) {
       return <Package {...commonProps} color={iconColor} />;
     case 'deployment':
       return <Server {...commonProps} color={iconColor} />;
+    case 'billing':
+      return <CreditCard {...commonProps} color={iconColor} />;
     case 'subscription':
       return <CalendarClock {...commonProps} color={iconColor} />;
     case 'setting':
       return <Settings {...commonProps} color={iconColor} />;
     case 'oauth':
-      return <ShieldCheck {...commonProps} color={iconColor} />;
+      return <BriefcaseBusiness {...commonProps} color={iconColor} />;
     case 'certification':
       return <FileCheck {...commonProps} color={iconColor} />;
     default:
