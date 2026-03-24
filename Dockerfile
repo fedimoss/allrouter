@@ -19,7 +19,7 @@ ENV GOPROXY=https://goproxy.cn,https://goproxy.io,direct
 WORKDIR /build
 
 ADD go.mod go.sum ./
-RUN go mod download
+RUN go mod tidy
 
 COPY . .
 COPY --from=builder /build/dist ./web/dist
