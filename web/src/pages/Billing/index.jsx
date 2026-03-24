@@ -18,11 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import Dashboard from '../../components/dashboard';
+import Billing from '../../components/billing';
 
 const Detail = () => (
   <div className='px-2'>
-    <Dashboard />
+    <Billing />
   </div>
 );
 

@@ -87,6 +87,7 @@ const NotificationSettings = ({
       channel: true,
       models: true,
       deployment: true,
+      billing: true,
       subscription: true,
       redemption: true,
       user: true,
@@ -171,6 +172,7 @@ const NotificationSettings = ({
         channel: true,
         models: true,
         deployment: true,
+        billing: true,
         subscription: true,
         redemption: true,
         user: true,
@@ -308,6 +310,11 @@ const NotificationSettings = ({
           key: 'redemption',
           title: t('兑换码管理'),
           description: t('兑换码生成管理'),
+        },
+        {
+          key: 'billing',
+          title: t('账单管理'),
+          description: t('账单和支付管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
         {

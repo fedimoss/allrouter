@@ -22,8 +22,8 @@ import { Route, Routes, useLocation, useParams } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
 import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
-import RegisterForm from './components/auth/RegisterForm';
-import LoginForm from './components/auth/LoginForm';
+import LoginPage from './pages/Login';
+import RegisterPage from './pages/Login/register';
 import NotFound from './pages/NotFound';
 import Forbidden from './pages/Forbidden';
 import Setting from './pages/Setting';
@@ -46,6 +46,7 @@ import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
 import Subscription from './pages/Subscription';
 import Oauth from './pages/Oauth';
+import Billing from './pages/Billing';
 import CertificationDocument from './pages/CertificationDocument';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
@@ -175,6 +176,14 @@ function App() {
           }
         />
         <Route
+          path='/console/billing'
+          element={
+            <PrivateRoute>
+              <Billing />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/console/user'
           element={
             <AdminRoute>
@@ -195,7 +204,7 @@ function App() {
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <AuthRedirect>
-                <LoginForm />
+                <LoginPage />
               </AuthRedirect>
             </Suspense>
           }
@@ -205,7 +214,7 @@ function App() {
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <AuthRedirect>
-                <RegisterForm />
+                <RegisterPage />
               </AuthRedirect>
             </Suspense>
           }

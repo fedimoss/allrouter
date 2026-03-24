@@ -73,6 +73,7 @@ const PageLayout = () => {
         location.pathname === '/docs' || location.pathname.startsWith('/docs/');
     const showSider = isConsoleRoute && (!isMobile || drawerOpen);
     const shouldShowHeader = location.pathname !== '/';
+    const shouldSplitConsoleLayout = isConsoleRoute && !isMobile;
 
     useEffect(() => {
         if (isMobile && drawerOpen && collapsed) {
@@ -123,6 +124,100 @@ const PageLayout = () => {
         }
     }, [i18n]);
 
+    if (shouldSplitConsoleLayout) {
+        return (
+            <Layout
+                className='app-layout'
+                style={{
+                    display: 'flex',
+                    flexDirection: 'row',
+                    overflow: 'hidden',
+                }}
+            >
+                {showSider && (
+                    <Sider
+                        className='app-sider'
+                        style={{
+                            position: 'relative',
+                            left: 'auto',
+                            top: 0,
+                            zIndex: 2,
+                            border: 'none',
+                            paddingRight: '0',
+                            width: 'var(--sidebar-current-width)',
+                            flex: '0 0 var(--sidebar-current-width)',
+                            height: '100vh',
+                        }}
+                    >
+                        <SiderBar onNavigate={() => {}} />
+                    </Sider>
+                )}
+                <Layout
+                    style={{
+                        minWidth: 0,
+                        flex: '1 1 auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                    }}
+                >
+                    {shouldShowHeader && (
+                        <Header
+                            style={{
+                                padding: 0,
+                                height: 'auto',
+                                lineHeight: 'normal',
+                                position: 'relative',
+                                width: '100%',
+                                top: 'auto',
+                                zIndex: 3,
+                                flex: '0 0 auto',
+                            }}
+                        >
+                            <HeaderBar
+                                onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
+                                drawerOpen={drawerOpen}
+                            />
+                        </Header>
+                    )}
+                    <Content
+                        style={{
+                            flex: '1 1 auto',
+                            overflowY: isDocsRoute ? 'visible' : 'auto',
+                            WebkitOverflowScrolling: 'touch',
+                            padding: shouldInnerPadding ? '24px' : '0',
+                            position: 'relative',
+                            minWidth: 0,
+                        }}
+                    >
+                        <div
+                            style={{
+                                minHeight: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                            }}
+                        >
+                            <div style={{ flex: '1 0 auto' }}>
+                                <App />
+                            </div>
+                            {!shouldHideFooter && (
+                                <div
+                                    style={{
+                                        width: '100%',
+                                        marginTop: 'auto',
+                                    }}
+                                >
+                                    <FooterBar />
+                                </div>
+                            )}
+                        </div>
+                    </Content>
+                </Layout>
+                <ToastContainer />
+            </Layout>
+        );
+    }
+
     return (
         <Layout
             className='app-layout'
@@ -140,6 +235,7 @@ const PageLayout = () => {
                         lineHeight: 'normal',
                         position: 'fixed',
                         width: '100%',
+                        left: 0,
                         top: 0,
                         zIndex: 100,
                     }}
@@ -198,18 +294,28 @@ const PageLayout = () => {
                             position: 'relative',
                         }}
                     >
-                        <App />
-                    </Content>
-                    {!shouldHideFooter && (
-                        <Layout.Footer
+                        <div
                             style={{
-                                flex: '0 0 auto',
-                                width: '100%',
+                                minHeight: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
                             }}
                         >
-                            <FooterBar />
-                        </Layout.Footer>
-                    )}
+                            <div style={{ flex: '1 0 auto' }}>
+                                <App />
+                            </div>
+                            {!shouldHideFooter && (
+                                <div
+                                    style={{
+                                        width: '100%',
+                                        marginTop: 'auto',
+                                    }}
+                                >
+                                    <FooterBar />
+                                </div>
+                            )}
+                        </div>
+                    </Content>
                 </Layout>
             </Layout>
             <ToastContainer />

@@ -19,13 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { Breadcrumb } from '@douyinfe/semi-ui';
 import { useHeaderBar } from '../../../hooks/common/useHeaderBar';
 import { useNotifications } from '../../../hooks/common/useNotifications';
-import { useNavigation } from '../../../hooks/common/useNavigation';
 import NoticeModal from '../NoticeModal';
 import MobileMenuButton from './MobileMenuButton';
-import HeaderLogo from './HeaderLogo';
-import Navigation from './Navigation';
 import ActionButtons from './ActionButtons';
 import ThemeToggle from './ThemeToggle';
 import LanguageSelector from './LanguageSelector';
@@ -38,7 +36,6 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         statusState,
         isMobile,
         collapsed,
-        logoLoaded,
         currentLang,
         isLoading,
         systemName,
@@ -46,10 +43,8 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         isNewYear,
         isSelfUseMode,
         docsLink,
-        isDemoSiteMode,
         isConsoleRoute,
         theme,
-        headerNavModules,
         pricingRequireAuth,
         logout,
         handleLanguageChange,
@@ -67,7 +62,6 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         getUnreadKeys,
     } = useNotifications(statusState);
 
-    const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
     const isPublicRoute = !isConsoleRoute;
     const docsLangPrefix = currentLang.startsWith('zh') ? 'zh' : 'en';
     const docsHref = docsLink || `https://allrouter.ai/${docsLangPrefix}/docs`;
@@ -78,6 +72,39 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     const headerClassName = isPublicRoute
         ? 'landing-v2-nav landing-v2-nav-shell'
         : 'landing-v2-nav landing-v2-nav-shell landing-v2-nav-console';
+
+    const breadcrumbLabelMap = {
+        '/console': t('数据看板'),
+        '/console/playground': t('操练场'),
+        '/console/token': t('令牌管理'),
+        '/pricing': t('模型广场'),
+        '/console/log': t('操作日志'),
+        '/console/midjourney': t('绘图日志'),
+        '/console/task': t('任务日志'),
+        '/console/topup': t('钱包'),
+        '/console/personal': t('个人设置'),
+        '/console/channel': t('渠道管理'),
+        '/console/subscription': t('订阅管理'),
+        '/console/models': t('模型管理'),
+        '/console/deployment': t('模型部署'),
+        '/console/billing': t('账单管理'),
+        '/console/user': t('用户管理'),
+        '/console/setting': t('系统设置'),
+        '/console/redemption': t('兑换码'),
+        '/console/oauth': t('OAuth 授权'),
+        '/console/certification': t('认证文件'),
+    };
+
+    const pathname = location.pathname;
+    const currentLabel =
+        pathname.startsWith('/console/chat')
+            ? t('聊天')
+            : breadcrumbLabelMap[pathname] || t('控制台');
+    const breadcrumbItems = [
+        { label: t('首页'), to: '/' },
+        { label: t('控制台'), to: '/console' },
+        { label: currentLabel },
+    ];
 
     return (
         <header className={headerClassName}>
@@ -151,7 +178,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             ) : (
                 <div className='w-full px-2'>
                     <div className='flex items-center justify-between h-16'>
-                        <div className='flex items-center'>
+                        <div className='flex items-center min-w-0 flex-1 gap-2'>
                             <MobileMenuButton
                                 isConsoleRoute={isConsoleRoute}
                                 isMobile={isMobile}
@@ -160,46 +187,40 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
                                 onToggle={handleMobileMenuToggle}
                                 t={t}
                             />
-
-                            <HeaderLogo
-                                isMobile={isMobile}
-                                isConsoleRoute={isConsoleRoute}
-                                logo={logo}
-                                logoLoaded={logoLoaded}
-                                isLoading={isLoading}
-                                systemName={systemName}
-                                isSelfUseMode={isSelfUseMode}
-                                isDemoSiteMode={isDemoSiteMode}
+                            <div className='header-console-breadcrumb-wrap hidden md:flex'>
+                                <Breadcrumb
+                                    separator='/'
+                                    className='header-console-breadcrumb'
+                                >
+                                    {breadcrumbItems.map((item, index) => {
+                                        const isLast = index === breadcrumbItems.length - 1;
+                                        return (
+                                            <Breadcrumb.Item key={`${item.label}-${index}`}>
+                                                {item.to && !isLast ? (
+                                                    <Link to={item.to}>{item.label}</Link>
+                                                ) : (
+                                                    <span className='header-console-breadcrumb-current'>
+                                                        {item.label}
+                                                    </span>
+                                                )}
+                                            </Breadcrumb.Item>
+                                        );
+                                    })}
+                                </Breadcrumb>
+                            </div>
+                        </div>
+                            <ActionButtons
+                                isNewYear={isNewYear}
+                                unreadCount={unreadCount}
+                                onNoticeOpen={handleNoticeOpen}
+                                theme={theme}
+                                onThemeToggle={handleThemeToggle}
+                                currentLang={currentLang}
+                                onLanguageChange={handleLanguageChange}
                                 t={t}
                             />
                         </div>
-
-                        <Navigation
-                            mainNavLinks={mainNavLinks}
-                            isMobile={isMobile}
-                            isLoading={isLoading}
-                            userState={userState}
-                            pricingRequireAuth={pricingRequireAuth}
-                        />
-
-                        <ActionButtons
-                            isNewYear={isNewYear}
-                            unreadCount={unreadCount}
-                            onNoticeOpen={handleNoticeOpen}
-                            theme={theme}
-                            onThemeToggle={handleThemeToggle}
-                            currentLang={currentLang}
-                            onLanguageChange={handleLanguageChange}
-                            userState={userState}
-                            isLoading={isLoading}
-                            isMobile={isMobile}
-                            isSelfUseMode={isSelfUseMode}
-                            logout={logout}
-                            navigate={navigate}
-                            t={t}
-                        />
                     </div>
-                </div>
             )}
         </header>
     );
