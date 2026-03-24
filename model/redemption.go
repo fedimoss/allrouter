@@ -7,7 +7,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
-
 	"gorm.io/gorm"
 )
 
@@ -129,6 +128,8 @@ func Redeem(key string, userId int) (quota int, err error) {
 		keyCol = `"key"`
 	}
 	common.RandomSleep()
+	now := common.GetTimestamp()
+
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(keyCol+" = ?", key).First(redemption).Error
 		if err != nil {
@@ -140,7 +141,26 @@ func Redeem(key string, userId int) (quota int, err error) {
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
 			return errors.New("该兑换码已过期")
 		}
+		tradeNo := fmt.Sprintf("RDM-%d-%d-%s", redemption.Id, userId, common.GetRandomString(8))
 		err = tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
+		if err != nil {
+			return err
+		}
+
+		//新增账单表数据
+		topUp := &TopUp{
+			Amount:        int64(redemption.Quota),
+			UserId:        userId,
+			Money:         0,
+			TradeNo:       tradeNo,
+			PaymentMethod: "redemptionCode",
+			BizType:       TopUpBizTypeRedemption,
+			SourceID:      redemption.Id,
+			CreateTime:    now,
+			CompleteTime:  now,
+			Status:        common.TopUpStatusSuccess,
+		}
+		err = topUp.InsertTx(tx)
 		if err != nil {
 			return err
 		}
@@ -154,6 +174,7 @@ func Redeem(key string, userId int) (quota int, err error) {
 		common.SysError("redemption failed: " + err.Error())
 		return 0, ErrRedeemFailed
 	}
+	asyncIncrUserQuotaCache(userId, redemption.Quota)
 	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
 	return redemption.Quota, nil
 }

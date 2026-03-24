@@ -53,6 +53,8 @@ const PAYMENT_METHOD_MAP = {
   creem: 'Creem',
   alipay: '支付宝',
   wxpay: '微信',
+  redemptionCode: '兑换码',
+  redemption_code: '兑换码',
 };
 
 const TopupHistoryModal = ({ visible, onCancel, t }) => {
@@ -152,10 +154,17 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
     return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
   };
 
-  const isSubscriptionTopup = (record) => {
+  const getBizType = (record) => {
+    if (record?.biz_type) {
+      return record.biz_type;
+    }
     const tradeNo = (record?.trade_no || '').toLowerCase();
-    return Number(record?.amount || 0) === 0 && tradeNo.startsWith('sub');
+    return Number(record?.amount || 0) === 0 && tradeNo.startsWith('sub')
+      ? 'subscription'
+      : 'payment';
   };
+
+  const isSubscriptionTopup = (record) => getBizType(record) === 'subscription';
 
   // 检查是否为管理员
   const userIsAdmin = useMemo(() => isAdmin(), []);
@@ -198,10 +207,16 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('支付金额'),
         dataIndex: 'money',
         key: 'money',
-        render: (money, record) => <Text type='danger'>
-          {record.payment_method==="stripe" ?'$' : '¥'}
-          {money.toFixed(2)}
-          </Text>,
+        render: (money, record) => {
+          const normalizedMoney = Number(money || 0);
+          const prefix = normalizedMoney <= 0 ? '' : record.payment_method === 'stripe' ? '$' : '¥';
+          return (
+            <Text type='danger'>
+              {prefix}
+              {normalizedMoney.toFixed(2)}
+            </Text>
+          );
+        },
       },
       {
         title: t('状态'),
@@ -217,7 +232,9 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('操作'),
         key: 'action',
         render: (_, record) => {
-          if (record.status !== 'pending') return null;
+          if (record.status !== 'pending' || getBizType(record) !== 'payment') {
+            return null;
+          }
           return (
             <Button
               size='small'

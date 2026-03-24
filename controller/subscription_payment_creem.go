@@ -114,6 +114,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 
 	checkoutUrl, err := genCreemLink(referenceId, product, user.Email, user.Username)
 	if err != nil {
+		_ = model.ExpireSubscriptionOrder(referenceId)
 		log.Printf("获取Creem支付链接失败: %v", err)
 		c.JSON(200, gin.H{"message": "error", "data": "拉起支付失败"})
 		return

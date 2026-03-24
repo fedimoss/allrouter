@@ -109,6 +109,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		Money:         chargedMoney,
 		TradeNo:       referenceId,
 		PaymentMethod: PaymentMethodStripe,
+		BizType:       model.TopUpBizTypePayment,
 		CreateTime:    time.Now().Unix(),
 		Status:        common.TopUpStatusPending,
 	}
@@ -165,25 +166,31 @@ func StripeWebhook(c *gin.Context) {
 		return
 	}
 
+	var handlerErr error
 	switch event.Type {
 	case stripe.EventTypeCheckoutSessionCompleted:
-		sessionCompleted(event)
+		handlerErr = sessionCompleted(event)
 	case stripe.EventTypeCheckoutSessionExpired:
-		sessionExpired(event)
+		handlerErr = sessionExpired(event)
 	default:
 		log.Printf("不支持的Stripe Webhook事件类型: %s\n", event.Type)
+	}
+	if handlerErr != nil {
+		log.Printf("Stripe Webhook处理失败: %v\n", handlerErr)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
 	}
 
 	c.Status(http.StatusOK)
 }
 
-func sessionCompleted(event stripe.Event) {
+func sessionCompleted(event stripe.Event) error {
 	customerId := event.GetObjectValue("customer")
 	referenceId := event.GetObjectValue("client_reference_id")
 	status := event.GetObjectValue("status")
 	if "complete" != status {
 		log.Println("错误的Stripe Checkout完成状态:", status, ",", referenceId)
-		return
+		return nil
 	}
 
 	// Try complete subscription order first
@@ -196,64 +203,67 @@ func sessionCompleted(event stripe.Event) {
 		"event_type":   string(event.Type),
 	}
 	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload)); err == nil {
-		return
+		return nil
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
-		log.Println("complete subscription order failed:", err.Error(), referenceId)
-		return
+		return err
 	}
 
 	err := model.Recharge(referenceId, customerId)
 	if err != nil {
-		log.Println(err.Error(), referenceId)
-		return
+		return err
 	}
 
 	total, _ := strconv.ParseFloat(event.GetObjectValue("amount_total"), 64)
 	currency := strings.ToUpper(event.GetObjectValue("currency"))
 	log.Printf("收到款项：%s, %.2f(%s)", referenceId, total/100, currency)
+	return nil
 }
 
-func sessionExpired(event stripe.Event) {
+func sessionExpired(event stripe.Event) error {
 	referenceId := event.GetObjectValue("client_reference_id")
 	status := event.GetObjectValue("status")
 	if "expired" != status {
 		log.Println("错误的Stripe Checkout过期状态:", status, ",", referenceId)
-		return
+		return nil
 	}
 
 	if len(referenceId) == 0 {
 		log.Println("未提供支付单号")
-		return
+		return nil
 	}
 
 	// Subscription order expiration
 	LockOrder(referenceId)
 	defer UnlockOrder(referenceId)
 	if err := model.ExpireSubscriptionOrder(referenceId); err == nil {
-		return
+		return nil
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
-		log.Println("过期订阅订单失败", referenceId, ", err:", err.Error())
-		return
+		return err
 	}
 
 	topUp := model.GetTopUpByTradeNo(referenceId)
 	if topUp == nil {
 		log.Println("充值订单不存在", referenceId)
-		return
+		return nil
 	}
 
+	if topUp.Status == common.TopUpStatusExpired {
+		log.Println("充值订单已是过期状态", referenceId)
+		return nil
+	}
 	if topUp.Status != common.TopUpStatusPending {
 		log.Println("充值订单状态错误", referenceId)
+		return nil
 	}
 
 	topUp.Status = common.TopUpStatusExpired
 	err := topUp.Update()
 	if err != nil {
-		log.Println("过期充值订单失败", referenceId, ", err:", err.Error())
-		return
+		return err
 	}
 
 	log.Println("充值订单已过期", referenceId)
+	return nil
 }
 
 // genStripeLink generates a Stripe Checkout session URL for payment.

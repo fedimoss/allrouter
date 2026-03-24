@@ -585,6 +585,8 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 				Money:         order.Money,
 				TradeNo:       order.TradeNo,
 				PaymentMethod: order.PaymentMethod,
+				BizType:       TopUpBizTypeSubscription,
+				SourceID:      order.Id,
 				CreateTime:    order.CreateTime,
 				CompleteTime:  now,
 				Status:        common.TopUpStatusSuccess,
@@ -596,6 +598,12 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	topup.Money = order.Money
 	if topup.PaymentMethod == "" {
 		topup.PaymentMethod = order.PaymentMethod
+	}
+	if topup.BizType == "" {
+		topup.BizType = TopUpBizTypeSubscription
+	}
+	if topup.SourceID == 0 {
+		topup.SourceID = order.Id
 	}
 	if topup.CreateTime == 0 {
 		topup.CreateTime = order.CreateTime
