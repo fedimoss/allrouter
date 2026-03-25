@@ -48,7 +48,7 @@ const DashboardHeader = ({
         >
           {getGreeting}
         </h2>
-        <p className='text-sm m-2' style={{color:'rgb(100 116 139 / 100%)'}}>今天是 {getDateNow()}，系统运行正常，今日已产生 3 次请求。</p>
+        <p className='text-sm m-2' style={{color:'rgb(100 116 139 / 100%)'}}>今天是 {getDateNow()}，系统运行正常。</p>
       </div>
       
       <div className='flex gap-3'>
