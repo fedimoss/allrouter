@@ -19,9 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import TaskLogsTable from '../../components/table/task-logs';
+import './task-v2.css';
 
 const Task = () => (
-  <div className='mt-[60px] px-2'>
+  <div className='tasklog-v2-page mt-[10px] px-2'>
     <TaskLogsTable />
   </div>
 );

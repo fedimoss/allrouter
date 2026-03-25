@@ -30,9 +30,12 @@ import {
   Columns3,
   Copy as CopyIcon,
   FileText,
+  Image as ImageIcon,
+  Plus,
   RefreshCw,
   RotateCcw,
   Search,
+  Sparkles,
   X,
 } from 'lucide-react';
 import { timestamp2string } from '../../../helpers';
@@ -674,93 +677,121 @@ const MjLogsPage = () => {
       <div className='mjlog-v2'>
         <div className='mjlog-v2-shell'>
           <div className='mjlog-v2-stack'>
-            <section className='mjlog-v2-hero'>
-              <div className='mjlog-v2-hero-copy'>
-                <span className='mjlog-v2-eyebrow'>{logsData.t('控制台 / 日志中心')}</span>
-                <h2 className='mjlog-v2-title'>{logsData.t('Midjourney 任务记录')}</h2>
-                <p className='mjlog-v2-description'>
-                  {logsData.t('集中查看绘图任务的提交时间、执行状态、失败原因与结果图片。')}
-                </p>
+            <section className='mjlog-v2-header'>
+              <div className='mjlog-v2-header-main'>
+                <div className='mjlog-v2-header-icon'>
+                  <ImageIcon size={20} />
+                </div>
+                <div className='mjlog-v2-header-copy'>
+                  <h2 className='mjlog-v2-header-title'>
+                    {logsData.t('Midjourney 任务记录')}
+                  </h2>
+                  <p className='mjlog-v2-header-description'>
+                    {logsData.t('查看所有图像生成任务的调用记录与结果预览')}
+                  </p>
+                </div>
               </div>
-              <div className='mjlog-v2-source-tabs'>
-                <span className='mjlog-v2-source-pill mjlog-v2-source-pill-active'>Midjourney</span>
-                <span className='mjlog-v2-source-pill'>DALL-E 3</span>
-                <span className='mjlog-v2-source-pill'>+ 更多渠道</span>
+              <div className='mjlog-v2-header-tags'>
+                <span className='mjlog-v2-header-tag mjlog-v2-header-tag-violet'>
+                  <Sparkles size={14} />
+                  Midjourney
+                </span>
+                <span className='mjlog-v2-header-tag mjlog-v2-header-tag-emerald'>
+                  <ImageIcon size={14} />
+                  DALL-E 3
+                </span>
+                <span className='mjlog-v2-header-tag mjlog-v2-header-tag-dashed'>
+                  <Plus size={14} />
+                  {logsData.t('更多渠道')}
+                </span>
               </div>
             </section>
 
             <section className='mjlog-v2-filter-card'>
-              <form className='mjlog-v2-filter-form' onSubmit={(event) => {
-                event.preventDefault();
-                logsData.refresh();
-              }}>
-                <div className='mjlog-v2-filter-grid'>
-                  <label className='mjlog-v2-filter-field'>
-                    <CalendarDays size={16} />
-                    <div className='mjlog-v2-range-wrap'>
-                      <input
-                        type='datetime-local'
-                        step='1'
-                        value={toDateTimeLocalValue(filters.dateRange?.[0])}
-                        onClick={handleDateTimeInputClick}
-                        onChange={(event) => onDateChange(0, event.target.value)}
-                      />
-                      <span className='mjlog-v2-range-separator'>→</span>
-                      <input
-                        type='datetime-local'
-                        step='1'
-                        value={toDateTimeLocalValue(filters.dateRange?.[1])}
-                        onClick={handleDateTimeInputClick}
-                        onChange={(event) => onDateChange(1, event.target.value)}
-                      />
-                    </div>
-                  </label>
-                  <label className='mjlog-v2-filter-field'>
-                    <Search size={16} />
-                    <input
-                      type='text'
-                      value={filters.mj_id}
-                      placeholder={logsData.t('任务 ID')}
-                      onChange={(event) => onFieldChange('mj_id', event.target.value)}
-                    />
-                  </label>
-                  {logsData.isAdminUser ? (
-                    <label className='mjlog-v2-filter-field'>
+              <form
+                className='mjlog-v2-filter-form'
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  logsData.refresh();
+                }}
+              >
+                <div className='mjlog-v2-filter-row'>
+                  <div className='mjlog-v2-filter-grid'>
+                    <label className='mjlog-v2-filter-field mjlog-v2-filter-field-range'>
+                      <CalendarDays size={16} />
+                      <div className='mjlog-v2-range-wrap'>
+                        <input
+                          type='datetime-local'
+                          step='1'
+                          value={toDateTimeLocalValue(filters.dateRange?.[0])}
+                          onClick={handleDateTimeInputClick}
+                          onChange={(event) => onDateChange(0, event.target.value)}
+                        />
+                        <span className='mjlog-v2-range-separator'>→</span>
+                        <input
+                          type='datetime-local'
+                          step='1'
+                          value={toDateTimeLocalValue(filters.dateRange?.[1])}
+                          onClick={handleDateTimeInputClick}
+                          onChange={(event) => onDateChange(1, event.target.value)}
+                        />
+                      </div>
+                    </label>
+                    <label className='mjlog-v2-filter-field mjlog-v2-filter-field-search'>
                       <Search size={16} />
                       <input
                         type='text'
-                        value={filters.channel_id}
-                        placeholder={logsData.t('渠道 ID')}
-                        onChange={(event) => onFieldChange('channel_id', event.target.value)}
+                        value={filters.mj_id}
+                        placeholder={logsData.t('任务 ID')}
+                        onChange={(event) => onFieldChange('mj_id', event.target.value)}
                       />
                     </label>
-                  ) : null}
-                </div>
-                <div className='mjlog-v2-filter-actions'>
-                  <button type='submit' className='mjlog-v2-primary-button' disabled={logsData.loading}>
-                    {logsData.loading ? <RefreshCw size={16} className='mjlog-v2-spin' /> : <Search size={16} />}
-                    {logsData.t('查询')}
-                  </button>
-                  <button
-                    type='button'
-                    className='mjlog-v2-secondary-button'
-                    onClick={() => {
-                      const next = cloneFilters(initialFilters.current);
-                      setFiltersAndSync(next);
-                      logsData.refresh();
-                    }}
-                  >
-                    <RotateCcw size={16} />
-                    {logsData.t('重置')}
-                  </button>
-                  <button
-                    type='button'
-                    className='mjlog-v2-secondary-button'
-                    onClick={() => setColumnSelectorOpen(true)}
-                  >
-                    <Columns3 size={16} />
-                    {logsData.t('列设置')}
-                  </button>
+                    {logsData.isAdminUser ? (
+                      <label className='mjlog-v2-filter-field mjlog-v2-filter-field-search'>
+                        <Search size={16} />
+                        <input
+                          type='text'
+                          value={filters.channel_id}
+                          placeholder={logsData.t('渠道 ID')}
+                          onChange={(event) => onFieldChange('channel_id', event.target.value)}
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                  <div className='mjlog-v2-filter-actions'>
+                    <button
+                      type='submit'
+                      className='mjlog-v2-primary-button'
+                      disabled={logsData.loading}
+                    >
+                      {logsData.loading ? (
+                        <RefreshCw size={16} className='mjlog-v2-spin' />
+                      ) : (
+                        <Search size={16} />
+                      )}
+                      {logsData.t('查询')}
+                    </button>
+                    <button
+                      type='button'
+                      className='mjlog-v2-secondary-button'
+                      onClick={() => {
+                        const next = cloneFilters(initialFilters.current);
+                        setFiltersAndSync(next);
+                        logsData.refresh();
+                      }}
+                    >
+                      <RotateCcw size={16} />
+                      {logsData.t('重置')}
+                    </button>
+                    <button
+                      type='button'
+                      className='mjlog-v2-secondary-button'
+                      onClick={() => setColumnSelectorOpen(true)}
+                    >
+                      <Columns3 size={16} />
+                      {logsData.t('列设置')}
+                    </button>
+                  </div>
                 </div>
               </form>
             </section>
