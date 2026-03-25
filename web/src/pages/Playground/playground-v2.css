@@ -20,7 +20,6 @@
   min-height: 100%;
   color: var(--pg-text);
   background: var(--pg-bg);
-  outline: 5px solid red; /* DEBUG TEST - remove me */
 }
 
 html.dark .playground-v2 {
