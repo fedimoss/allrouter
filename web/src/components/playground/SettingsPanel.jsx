@@ -105,6 +105,7 @@ const SettingsPanel = ({
                   placeholder={t('请选择模型')}
                   selection
                   filter={selectFilter}
+                  searchPosition='dropdown'
                   optionList={models}
                   value={inputs.model}
                   disabled={customRequestMode}
@@ -124,6 +125,7 @@ const SettingsPanel = ({
                   placeholder={t('请选择分组')}
                   selection
                   filter={selectFilter}
+                  searchPosition='dropdown'
                   optionList={groups}
                   value={inputs.group}
                   disabled={customRequestMode}

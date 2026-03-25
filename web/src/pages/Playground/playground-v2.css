@@ -376,6 +376,10 @@ html.dark .playground-v2-pill {
   max-height: none;
   overflow-y: visible;
   overflow-x: visible;
+  border: 1px solid var(--pg-border);
+  border-radius: 8px;
+  background: var(--pg-surface);
+  box-shadow: none;
 }
 
 .playground-v2-select.semi-select::-webkit-scrollbar,
@@ -387,11 +391,12 @@ html.dark .playground-v2-pill {
 .playground-v2-select.semi-select .semi-select-selection,
 .playground-v2-select .semi-select-selection {
   position: relative;
-  min-height: 40px;
-  border: 1px solid var(--pg-border);
-  border-radius: 8px;
-  background: var(--pg-surface);
-  
+  min-height: 38px;
+  margin-left: 0;
+  padding-left: 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
@@ -403,6 +408,24 @@ html.dark .playground-v2-pill {
 
 .playground-v2-select.semi-select:hover .semi-select-selection,
 .playground-v2-select:hover .semi-select-selection {
+  border-color: transparent;
+}
+
+.playground-v2-select.semi-select:hover,
+.playground-v2-select:hover .semi-select,
+.playground-v2-select.semi-select:active,
+.playground-v2-select:active .semi-select,
+.playground-v2-select.semi-select:focus,
+.playground-v2-select:focus .semi-select,
+.playground-v2-select.semi-select.semi-select-focus,
+.playground-v2-select .semi-select.semi-select-focus,
+.playground-v2-select.semi-select.semi-select-open,
+.playground-v2-select .semi-select.semi-select-open {
+  background: var(--pg-surface);
+}
+
+.playground-v2-select.semi-select:hover,
+.playground-v2-select:hover .semi-select {
   border-color: #cbd5e1;
 }
 
@@ -410,13 +433,21 @@ html.dark .playground-v2-pill {
 .playground-v2-select .semi-select.semi-select-focus .semi-select-selection,
 .playground-v2-select.semi-select.semi-select-open .semi-select-selection,
 .playground-v2-select .semi-select.semi-select-open .semi-select-selection {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.playground-v2-select.semi-select.semi-select-focus,
+.playground-v2-select .semi-select.semi-select-focus,
+.playground-v2-select.semi-select.semi-select-open,
+.playground-v2-select .semi-select.semi-select-open {
   border-color: var(--brand-cyan, #09fef7);
   box-shadow: 0 0 0 2px rgba(9, 254, 247, 0.25);
 }
 
 .playground-v2-select .semi-select-selection-text,
 .playground-v2-select .semi-select-selection-placeholder {
-  padding-right: 34px;
+  padding-right: 8px;
   font-size: 14px;
   color: var(--pg-text);
 }
@@ -429,8 +460,13 @@ html.dark .playground-v2-pill {
   display: flex;
   align-items: center;
   justify-content: center;
-  right: 10px;
-  width: 20px;
+  position: static;
+  align-self: stretch;
+  width: 34px;
+  min-height: 38px;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  background: var(--pg-surface);
   color: #94a3b8;
 }
 
