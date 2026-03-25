@@ -19,10 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import TokensTable from '../../components/table/tokens';
+import './token-v2.css';
 
 const Token = () => {
   return (
-    <div className='mt-[60px] px-2'>
+    <div className='token-v2-page mt-[10px] px-2'>
       <TokensTable />
     </div>
   );

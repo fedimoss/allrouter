@@ -31,7 +31,7 @@ import {
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   Button,
-  SideSheet,
+  Modal,
   Space,
   Spin,
   Typography,
@@ -278,8 +278,8 @@ const EditTokenModal = (props) => {
   };
 
   return (
-    <SideSheet
-      placement={isEdit ? 'right' : 'left'}
+    <Modal
+      className='token-v2-edit-modal'
       title={
         <Space>
           {isEdit ? (
@@ -296,9 +296,9 @@ const EditTokenModal = (props) => {
           </Title>
         </Space>
       }
-      bodyStyle={{ padding: '0' }}
       visible={props.visiable}
-      width={isMobile ? '100%' : 600}
+      bodyStyle={{ padding: '0' }}
+      width={isMobile ? 'calc(100vw - 24px)' : 760}
       footer={
         <div className='flex justify-end bg-white'>
           <Space>
@@ -324,6 +324,7 @@ const EditTokenModal = (props) => {
         </div>
       }
       closeIcon={null}
+      maskClosable={!loading}
       onCancel={() => handleCancel()}
     >
       <Spin spinning={loading}>
@@ -579,7 +580,7 @@ const EditTokenModal = (props) => {
           )}
         </Form>
       </Spin>
-    </SideSheet>
+    </Modal>
   );
 };
 
