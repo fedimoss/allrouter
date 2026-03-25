@@ -76,6 +76,8 @@ const NotificationSettings = ({
       log: true,
       midjourney: true,
       task: true,
+      invitation: true,
+      exchange: true,
     },
     personal: {
       enabled: true,
@@ -165,6 +167,8 @@ const NotificationSettings = ({
         log: true,
         midjourney: true,
         task: true,
+        invitation: true,
+        exchange: true,
       },
       personal: { enabled: true, topup: true, personal: true },
       admin: {

@@ -46,6 +46,8 @@ import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
 import Subscription from './pages/Subscription';
 import Oauth from './pages/Oauth';
+import Invitation from './pages/Invitation';
+import Exchange from './pages/Exchange';
 import Billing from './pages/Billing';
 import CertificationDocument from './pages/CertificationDocument';
 import OAuth2Callback from './components/auth/OAuth2Callback';
@@ -249,6 +251,26 @@ function App() {
             <PrivateRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <Oauth />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/invitation'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Invitation />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/exchange'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Exchange />
               </Suspense>
             </PrivateRoute>
           }

@@ -50,6 +50,11 @@ export default function SettingsSidebarModulesAdmin(props) {
       oauth: true,
       certification: true,
     },
+    marketing: {
+      enabled: true,
+      invitation: true,
+      exchange: true,
+    },
     console: {
       enabled: true,
       detail: true,
@@ -115,6 +120,11 @@ export default function SettingsSidebarModulesAdmin(props) {
         enabled: true,
         oauth: true,
         certification: true,
+      },
+      marketing: {
+        enabled: true,
+        invitation: true,
+        exchange: true,
       },
       console: {
         enabled: true,
@@ -190,6 +200,11 @@ export default function SettingsSidebarModulesAdmin(props) {
         const defaultModules = {
           chat: { enabled: true, playground: true, chat: true },
           merchant: { enabled: true, oauth: true, certification: true },
+          marketing: {
+            enabled: true,
+            invitation: true,
+            exchange: true,
+          },
           console: {
             enabled: true,
             detail: true,
@@ -261,6 +276,15 @@ export default function SettingsSidebarModulesAdmin(props) {
           title: t('认证文件'),
           description: t('商家资质与认证材料'),
         },
+      ],
+    },
+    {
+      key: 'marketing',
+      title: t('营销区域'),
+      description: t('邀请和兑换功能'),
+      modules: [
+        { key: 'invitation', title: t('邀请奖励'), description: t('邀请新用户奖励') },
+        { key: 'exchange', title: t('兑换码'), description: t('兑换码管理') },
       ],
     },
     {

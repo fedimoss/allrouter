@@ -36,6 +36,11 @@ export const DEFAULT_ADMIN_CONFIG = {
     oauth: true,
     certification: true,
   },
+  marketing: {
+    enabled: true,
+    invitation: true,
+    exchange: true,
+  },
   console: {
     enabled: true,
     detail: true,

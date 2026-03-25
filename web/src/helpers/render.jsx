@@ -74,7 +74,7 @@ import {
   Dock,
   Layers,
   Gift,
-  Megaphone,
+  Ticket,
   User,
   Settings,
   CircleUser,
@@ -147,7 +147,7 @@ export function getLucideIcon(key, selected = false) {
     case 'channel':
       return <Layers {...commonProps} color={iconColor} />;
     case 'redemption':
-      return <Megaphone {...commonProps} color={iconColor} />;
+      return <Ticket {...commonProps} color={iconColor} />;
     case 'user':
     case 'personal':
       return <User {...commonProps} color={iconColor} />;
@@ -163,6 +163,8 @@ export function getLucideIcon(key, selected = false) {
       return <Settings {...commonProps} color={iconColor} />;
     case 'oauth':
       return <BriefcaseBusiness {...commonProps} color={iconColor} />;
+    case 'marketing':
+        return <Gift {...commonProps} color={iconColor} />;
     case 'certification':
       return <FileCheck {...commonProps} color={iconColor} />;
     default:

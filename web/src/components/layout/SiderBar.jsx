@@ -54,6 +54,8 @@ const routerMap = {
   oauth: '/console/oauth',
   certification: '/console/certification',
   billing: '/console/billing',
+  invitation: '/console/invitation',
+  exchange: '/console/exchange'
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -192,14 +194,22 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const revenueMarketingItems = useMemo(() => {
     const items = [
       {
-        text: t('兑换码'),
-        itemKey: 'redemption',
-        to: '/redemption',
-        className: isAdmin() ? '' : 'tableHiddle',
+        text: t('邀请奖励'),
+        itemKey: 'invitation',
       },
+      {
+        text: t('兑换码'),
+        itemKey: 'exchange',
+      },
+      // {
+      //   text: t('兑换码'),
+      //   itemKey: 'redemption',
+      //   to: '/redemption',
+      //   className: isAdmin() ? '' : 'tableHiddle',
+      // },
     ];
 
-    return items.filter((item) => isModuleVisible('admin', item.itemKey));
+    return items.filter((item) => isModuleVisible('marketing', item.itemKey));
   }, [isAdmin(), t, isModuleVisible]);
 
   const adminItems = useMemo(() => {
@@ -232,6 +242,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('账单管理'),
         itemKey: 'billing',
         to: '/billing',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('兑换码管理'),
+        itemKey: 'redemption',
+        to: '/redemption',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
@@ -599,7 +615,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
                   renderSubItem({
                     itemKey: 'marketing',
                     text: t('营销活动'),
-                    iconKey: 'redemption',
+                    iconKey: 'marketing',
                     items: revenueMarketingItems,
                   })}
               </div>

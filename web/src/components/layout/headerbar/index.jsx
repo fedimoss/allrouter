@@ -90,8 +90,10 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         '/console/billing': t('账单管理'),
         '/console/user': t('用户管理'),
         '/console/setting': t('系统设置'),
-        '/console/redemption': t('兑换码'),
+        '/console/redemption': t('兑换码管理'),
         '/console/oauth': t('OAuth 授权'),
+        '/console/invitation': t('邀请奖励'),
+        '/console/exchange': t('兑换码'),
         '/console/certification': t('认证文件'),
     };
 
