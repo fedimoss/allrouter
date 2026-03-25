@@ -88,6 +88,7 @@ export const useLogsData = () => {
     quota: 0,
     token: 0,
   });
+  const [errorCount, setErrorCount] = useState(0);
 
   // Form state
   const [formApi, setFormApi] = useState(null);
@@ -110,8 +111,8 @@ export const useLogsData = () => {
   const getDefaultColumnVisibility = () => {
     return {
       [COLUMN_KEYS.TIME]: true,
-      [COLUMN_KEYS.CHANNEL]: isAdminUser,
-      [COLUMN_KEYS.USERNAME]: isAdminUser,
+      [COLUMN_KEYS.CHANNEL]: false,
+      [COLUMN_KEYS.USERNAME]: false,
       [COLUMN_KEYS.TOKEN]: true,
       [COLUMN_KEYS.GROUP]: true,
       [COLUMN_KEYS.TYPE]: true,
@@ -120,7 +121,7 @@ export const useLogsData = () => {
       [COLUMN_KEYS.PROMPT]: true,
       [COLUMN_KEYS.COMPLETION]: true,
       [COLUMN_KEYS.COST]: true,
-      [COLUMN_KEYS.RETRY]: isAdminUser,
+      [COLUMN_KEYS.RETRY]: false,
       [COLUMN_KEYS.IP]: true,
       [COLUMN_KEYS.DETAILS]: true,
     };
@@ -259,6 +260,43 @@ export const useLogsData = () => {
     };
   };
 
+  const buildLogQueryUrl = (
+    page = activePage,
+    size = pageSize,
+    customLogType = null,
+  ) => {
+    const {
+      username,
+      token_name,
+      model_name,
+      start_timestamp,
+      end_timestamp,
+      channel,
+      group,
+      request_id,
+      logType: formLogType,
+    } = getFormValues();
+
+    const currentLogType =
+      customLogType !== null
+        ? customLogType
+        : formLogType !== undefined
+          ? formLogType
+          : logType;
+
+    const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+    const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+
+    let url = '';
+    if (isAdminUser) {
+      url = `/api/log/?p=${page}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
+    } else {
+      url = `/api/log/self/?p=${page}&page_size=${size}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
+    }
+
+    return encodeURI(url);
+  };
+
   // Statistics functions
   const getLogSelfStat = async () => {
     const {
@@ -313,13 +351,23 @@ export const useLogsData = () => {
       return;
     }
     setLoadingStat(true);
-    if (isAdminUser) {
-      await getLogStat();
-    } else {
-      await getLogSelfStat();
-    }
+    await Promise.all([
+      isAdminUser ? getLogStat() : getLogSelfStat(),
+      loadErrorCount(),
+    ]);
     setShowStat(true);
     setLoadingStat(false);
+  };
+
+  const loadErrorCount = async () => {
+    const url = buildLogQueryUrl(1, 1, 5);
+    const res = await API.get(url);
+    const { success, message, data } = res.data;
+    if (success) {
+      setErrorCount(data?.total || 0);
+    } else {
+      showError(message);
+    }
   };
 
   // User info function
@@ -693,35 +741,7 @@ export const useLogsData = () => {
   // Load logs function
   const loadLogs = async (startIdx, pageSize, customLogType = null) => {
     setLoading(true);
-
-    let url = '';
-    const {
-      username,
-      token_name,
-      model_name,
-      start_timestamp,
-      end_timestamp,
-      channel,
-      group,
-      request_id,
-      logType: formLogType,
-    } = getFormValues();
-
-    const currentLogType =
-      customLogType !== null
-        ? customLogType
-        : formLogType !== undefined
-          ? formLogType
-          : logType;
-
-    let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-    let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    if (isAdminUser) {
-      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
-    } else {
-      url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
-    }
-    url = encodeURI(url);
+    const url = buildLogQueryUrl(startIdx, pageSize, customLogType);
     const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
@@ -747,7 +767,7 @@ export const useLogsData = () => {
     localStorage.setItem('page-size', size + '');
     setPageSize(size);
     setActivePage(1);
-    loadLogs(activePage, size)
+    loadLogs(1, size)
       .then()
       .catch((reason) => {
         showError(reason);
@@ -757,8 +777,7 @@ export const useLogsData = () => {
   // Refresh function
   const refresh = async () => {
     setActivePage(1);
-    handleEyeClick();
-    await loadLogs(1, pageSize);
+    await Promise.all([handleEyeClick(), loadLogs(1, pageSize)]);
   };
 
   // Copy text function
@@ -809,6 +828,7 @@ export const useLogsData = () => {
     pageSize,
     logType,
     stat,
+    errorCount,
     isAdminUser,
 
     // Form state
