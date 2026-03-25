@@ -75,8 +75,11 @@ export const useMessageEdit = (
         msg.id === editingMessageId ? { ...msg, content: newContent } : msg,
       );
 
-      // 处理用户消息编辑后的重新生成
-      if (targetMessage.role === MESSAGE_ROLES.USER) {
+      // 处理用户 / system 消息编辑后的重新生成
+      if (
+        targetMessage.role === MESSAGE_ROLES.USER ||
+        targetMessage.role === MESSAGE_ROLES.SYSTEM
+      ) {
         const hasSubsequentAssistantReply =
           messageIndex < prevMessages.length - 1 &&
           prevMessages[messageIndex + 1].role === MESSAGE_ROLES.ASSISTANT;

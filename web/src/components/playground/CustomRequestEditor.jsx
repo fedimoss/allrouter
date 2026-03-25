@@ -17,16 +17,55 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect } from 'react';
-import {
-  TextArea,
-  Typography,
-  Button,
-  Switch,
-  Banner,
-} from '@douyinfe/semi-ui';
-import { Code, Edit, Check, X, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Check, Code2, RotateCcw, TriangleAlert, Wand2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
+const ToggleSwitch = ({ checked, onChange }) => {
+  return (
+    <button
+      type='button'
+      className='playground-v2-switch'
+      data-active={checked}
+      onClick={() => onChange(!checked)}
+      aria-pressed={checked}
+    />
+  );
+};
+
+const buildTemplate = (type, defaultPayload) => {
+  if (type === 'default') {
+    return defaultPayload ? JSON.stringify(defaultPayload, null, 2) : '';
+  }
+
+  if (type === 'openai') {
+    return JSON.stringify(
+      {
+        model: 'gpt-4o',
+        messages: [],
+        stream: true,
+        temperature: 0.7,
+      },
+      null,
+      2,
+    );
+  }
+
+  if (type === 'anthropic') {
+    return JSON.stringify(
+      {
+        model: 'claude-3-5-sonnet',
+        messages: [],
+        stream: true,
+        temperature: 0.7,
+      },
+      null,
+      2,
+    );
+  }
+
+  return '';
+};
 
 const CustomRequestEditor = ({
   customRequestMode,
@@ -36,38 +75,34 @@ const CustomRequestEditor = ({
   defaultPayload,
 }) => {
   const { t } = useTranslation();
+  const [localValue, setLocalValue] = useState(customRequestBody || '');
   const [isValid, setIsValid] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  const [localValue, setLocalValue] = useState(customRequestBody || '');
 
-  // 当切换到自定义模式时，用默认payload初始化
+  const defaultTemplate = useMemo(
+    () => buildTemplate('default', defaultPayload),
+    [defaultPayload],
+  );
+
   useEffect(() => {
-    if (
-      customRequestMode &&
-      (!customRequestBody || customRequestBody.trim() === '')
-    ) {
-      const defaultJson = defaultPayload
-        ? JSON.stringify(defaultPayload, null, 2)
-        : '';
-      setLocalValue(defaultJson);
-      onCustomRequestBodyChange(defaultJson);
+    if (customRequestMode && (!customRequestBody || customRequestBody.trim() === '')) {
+      setLocalValue(defaultTemplate);
+      onCustomRequestBodyChange(defaultTemplate);
     }
   }, [
     customRequestMode,
-    defaultPayload,
     customRequestBody,
+    defaultTemplate,
     onCustomRequestBodyChange,
   ]);
 
-  // 同步外部传入的customRequestBody到本地状态
   useEffect(() => {
-    if (customRequestBody !== localValue) {
+    if ((customRequestBody || '') !== localValue) {
       setLocalValue(customRequestBody || '');
       validateJson(customRequestBody || '');
     }
   }, [customRequestBody]);
 
-  // 验证JSON格式
   const validateJson = (value) => {
     if (!value.trim()) {
       setIsValid(true);
@@ -90,125 +125,141 @@ const CustomRequestEditor = ({
   const handleValueChange = (value) => {
     setLocalValue(value);
     validateJson(value);
-    // 始终保存用户输入，让预览逻辑处理JSON解析错误
     onCustomRequestBodyChange(value);
   };
 
-  const handleModeToggle = (enabled) => {
-    onCustomRequestModeChange(enabled);
-    if (enabled && defaultPayload) {
-      const defaultJson = JSON.stringify(defaultPayload, null, 2);
-      setLocalValue(defaultJson);
-      onCustomRequestBodyChange(defaultJson);
-    }
-  };
-
-  const formatJson = () => {
+  const handleFormatJson = () => {
     try {
       const parsed = JSON.parse(localValue);
       const formatted = JSON.stringify(parsed, null, 2);
       setLocalValue(formatted);
-      onCustomRequestBodyChange(formatted);
       setIsValid(true);
       setErrorMessage('');
+      onCustomRequestBodyChange(formatted);
     } catch (error) {
-      // 如果格式化失败，保持原样
+      validateJson(localValue);
     }
   };
 
+  const handleReset = () => {
+    setLocalValue(defaultTemplate);
+    validateJson(defaultTemplate);
+    onCustomRequestBodyChange(defaultTemplate);
+  };
+
+  const applyTemplate = (type) => {
+    const nextValue = buildTemplate(type, defaultPayload);
+    setLocalValue(nextValue);
+    validateJson(nextValue);
+    onCustomRequestBodyChange(nextValue);
+  };
+
   return (
-    <div className='space-y-4'>
-      {/* 自定义模式开关 */}
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-2'>
-          <Code size={16} className='text-gray-500' />
-          <Typography.Text strong className='text-sm'>
-            {t('自定义请求体模式')}
-          </Typography.Text>
+    <div className='playground-v2-settings-section'>
+      <div className='playground-v2-toggle-row'>
+        <div>
+          <div className='playground-v2-field-label'>
+            <Code2 size={16} />
+            {t('自定义请求体（JSON）')}
+          </div>
+          <div className='playground-v2-field-hint'>
+            {t(
+              '启用后，界面参数仅作为参考，最终会以这里编辑的 JSON 直接发送请求。',
+            )}
+          </div>
         </div>
-        <Switch
+
+        <ToggleSwitch
           checked={customRequestMode}
-          onChange={handleModeToggle}
-          checkedText={t('开')}
-          uncheckedText={t('关')}
-          size='small'
+          onChange={onCustomRequestModeChange}
         />
       </div>
 
       {customRequestMode && (
-        <>
-          {/* 提示信息 */}
-          <Banner
-            type='warning'
-            description={t(
-              '启用此模式后，将使用您自定义的请求体发送API请求，模型配置面板的参数设置将被忽略。',
-            )}
-            icon={<AlertTriangle size={16} />}
-            className='!rounded-lg'
-            closeIcon={null}
+        <div className='playground-v2-settings-stack mt-4'>
+          <div className='playground-v2-warning'>
+            <div className='flex items-start gap-3'>
+              <TriangleAlert size={16} className='mt-0.5 flex-shrink-0' />
+              <span>
+                {t('请确保 JSON 有效，且与目标模型的接口字段兼容。')}
+              </span>
+            </div>
+          </div>
+
+          <div className='playground-v2-json-actions'>
+            <button
+              type='button'
+              className='playground-v2-button-secondary'
+              onClick={() => applyTemplate('default')}
+            >
+              <Wand2 size={14} />
+              {t('默认模板')}
+            </button>
+
+            <button
+              type='button'
+              className='playground-v2-button-secondary'
+              onClick={() => applyTemplate('openai')}
+            >
+              {t('OpenAI 兼容')}
+            </button>
+
+            <button
+              type='button'
+              className='playground-v2-button-secondary'
+              onClick={() => applyTemplate('anthropic')}
+            >
+              {t('Anthropic')}
+            </button>
+          </div>
+
+          <div className='playground-v2-inline-row'>
+            <span
+              className={
+                isValid ? 'playground-v2-pill' : 'playground-v2-outline-pill'
+              }
+            >
+              {isValid ? <Check size={14} /> : <X size={14} />}
+              {isValid ? t('JSON 可发送') : t('JSON 有错误')}
+            </span>
+
+            <div className='playground-v2-json-actions'>
+              <button
+                type='button'
+                className='playground-v2-button-secondary'
+                onClick={handleFormatJson}
+                disabled={!isValid}
+              >
+                {t('格式化')}
+              </button>
+
+              <button
+                type='button'
+                className='playground-v2-button-secondary'
+                onClick={handleReset}
+              >
+                <RotateCcw size={14} />
+                {t('重置')}
+              </button>
+            </div>
+          </div>
+
+          <textarea
+            className='playground-v2-json-editor'
+            value={localValue}
+            onChange={(event) => handleValueChange(event.target.value)}
+            placeholder='{"model":"gpt-4o","messages":[],"stream":true}'
           />
 
-          {/* JSON编辑器 */}
-          <div>
-            <div className='flex items-center justify-between mb-2'>
-              <Typography.Text strong className='text-sm'>
-                {t('请求体 JSON')}
-              </Typography.Text>
-              <div className='flex items-center gap-2'>
-                {isValid ? (
-                  <div className='flex items-center gap-1 text-green-600'>
-                    <Check size={14} />
-                    <Typography.Text className='text-xs'>
-                      {t('格式正确')}
-                    </Typography.Text>
-                  </div>
-                ) : (
-                  <div className='flex items-center gap-1 text-red-600'>
-                    <X size={14} />
-                    <Typography.Text className='text-xs'>
-                      {t('格式错误')}
-                    </Typography.Text>
-                  </div>
-                )}
-                <Button
-                  theme='borderless'
-                  type='tertiary'
-                  size='small'
-                  icon={<Edit size={14} />}
-                  onClick={formatJson}
-                  disabled={!isValid}
-                  className='!rounded-lg'
-                >
-                  {t('格式化')}
-                </Button>
-              </div>
-            </div>
-
-            <TextArea
-              value={localValue}
-              onChange={handleValueChange}
-              placeholder='{"model": "gpt-4o", "messages": [...], ...}'
-              autosize={{ minRows: 8, maxRows: 20 }}
-              className={`custom-request-textarea !rounded-lg font-mono text-sm ${!isValid ? '!border-red-500' : ''}`}
-              style={{
-                fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-                lineHeight: '1.5',
-              }}
-            />
-
-            {!isValid && errorMessage && (
-              <Typography.Text type='danger' className='text-xs mt-1 block'>
-                {errorMessage}
-              </Typography.Text>
-            )}
-
-            <Typography.Text className='text-xs text-gray-500 mt-2 block'>
-              {t(
-                '请输入有效的JSON格式的请求体。您可以参考预览面板中的默认请求体格式。',
-              )}
-            </Typography.Text>
+          <div className='playground-v2-inline-row'>
+            <span className='playground-v2-field-hint'>
+              {errorMessage || t('长度：{{length}} 字符', { length: localValue.length })}
+            </span>
+            <span className='playground-v2-field-hint'>
+              {t('默认预览可作为快速起点')}
+            </span>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

@@ -3465,6 +3465,12 @@
     "一站式 AI 模型路由市场，自营渠道 + 第三方商户生态，为每一次 API 调用找到最优路线。": "A one-stop AI model routing marketplace with self-operated channels + third-party merchant ecosystem, finding the optimal route for each API call.",
     "50+ 模型，OpenAI 兼容接入": "50+ models, OpenAI compatible integration",
     "多渠道比价，自动路由最优": "Multi-channel price comparison, automatic optimal routing",
-    "自营品质保障，99.9% 可用性": "Self-operated quality assurance, 99.9% availability"
+    "自营品质保障，99.9% 可用性": "Self-operated quality assurance, 99.9% availability",
+    "OpenAI 兼容": "OpenAI Compatible",
+    "上传图片（占位）": "Upload Image (Placeholder)",
+    "当前角色": "Current role",
+    "添加图片": "Add Image",
+    "打开调试": "Open debug",
+    "自定义请求体（JSON）": "Custom request body (JSON)"
   }
 }
