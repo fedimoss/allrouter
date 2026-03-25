@@ -17,11 +17,32 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Input, Typography, Button, Switch } from '@douyinfe/semi-ui';
-import { IconFile } from '@douyinfe/semi-icons';
-import { FileText, Plus, X, Image } from 'lucide-react';
+import React, { useRef } from 'react';
+import { Toast } from '@douyinfe/semi-ui';
+import { Image, Plus, Upload, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+const ToggleSwitch = ({ checked, disabled, onChange }) => {
+  return (
+    <button
+      type='button'
+      className='playground-v2-switch'
+      data-active={checked}
+      data-disabled={disabled}
+      disabled={disabled}
+      onClick={() => !disabled && onChange(!checked)}
+      aria-pressed={checked}
+    />
+  );
+};
 
 const ImageUrlInput = ({
   imageUrls,
@@ -31,110 +52,142 @@ const ImageUrlInput = ({
   disabled = false,
 }) => {
   const { t } = useTranslation();
+  const fileInputRef = useRef(null);
+
+  const normalizedUrls = Array.isArray(imageUrls) ? imageUrls : [];
+  const activeCount = normalizedUrls.filter((url) => url && url.trim()).length;
+
   const handleAddImageUrl = () => {
-    const newUrls = [...imageUrls, ''];
-    onImageUrlsChange(newUrls);
+    onImageUrlsChange([...(normalizedUrls.length ? normalizedUrls : []), '']);
   };
 
   const handleUpdateImageUrl = (index, value) => {
-    const newUrls = [...imageUrls];
-    newUrls[index] = value;
-    onImageUrlsChange(newUrls);
+    const nextUrls = [...normalizedUrls];
+    nextUrls[index] = value;
+    onImageUrlsChange(nextUrls);
   };
 
   const handleRemoveImageUrl = (index) => {
-    const newUrls = imageUrls.filter((_, i) => i !== index);
-    onImageUrlsChange(newUrls);
+    const nextUrls = normalizedUrls.filter((_, currentIndex) => currentIndex !== index);
+    onImageUrlsChange(nextUrls);
+  };
+
+  const handleFileUpload = async (event) => {
+    const files = Array.from(event.target.files || []);
+
+    if (files.length === 0) {
+      return;
+    }
+
+    try {
+      const uploadedImages = await Promise.all(files.map(readFileAsDataUrl));
+      onImageUrlsChange([...(normalizedUrls || []), ...uploadedImages]);
+      Toast.success({
+        content: t('图片已添加'),
+        duration: 2,
+      });
+    } catch (error) {
+      console.error('Failed to load uploaded images:', error);
+      Toast.error({
+        content: t('图片加载失败'),
+        duration: 2,
+      });
+    } finally {
+      event.target.value = '';
+    }
   };
 
   return (
-    <div className={disabled ? 'opacity-50' : ''}>
-      <div className='flex items-center justify-between mb-2'>
-        <div className='flex items-center gap-2'>
-          <Image
-            size={16}
-            className={
-              imageEnabled && !disabled ? 'text-blue-500' : 'text-gray-400'
-            }
-          />
-          <Typography.Text strong className='text-sm'>
-            {t('图片地址')}
-          </Typography.Text>
-          {disabled && (
-            <Typography.Text className='text-xs text-orange-600'>
-              ({t('已在自定义模式中忽略')})
-            </Typography.Text>
-          )}
-        </div>
-        <div className='flex items-center gap-2'>
-          <Switch
-            checked={imageEnabled}
-            onChange={onImageEnabledChange}
-            checkedText={t('启用')}
-            uncheckedText={t('停用')}
-            size='small'
-            className='flex-shrink-0'
-            disabled={disabled}
-          />
-          <Button
-            icon={<Plus size={14} />}
-            size='small'
-            theme='solid'
-            type='primary'
-            onClick={handleAddImageUrl}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
-            disabled={!imageEnabled || disabled}
-          />
-        </div>
-      </div>
-
-      {!imageEnabled ? (
-        <Typography.Text className='text-xs text-gray-500 mb-2 block'>
-          {disabled
-            ? t('图片功能在自定义请求体模式下不可用')
-            : t('启用后可添加图片URL进行多模态对话')}
-        </Typography.Text>
-      ) : imageUrls.length === 0 ? (
-        <Typography.Text className='text-xs text-gray-500 mb-2 block'>
-          {disabled
-            ? t('图片功能在自定义请求体模式下不可用')
-            : t('点击 + 按钮添加图片URL进行多模态对话')}
-        </Typography.Text>
-      ) : (
-        <Typography.Text className='text-xs text-gray-500 mb-2 block'>
-          {t('已添加')} {imageUrls.length} {t('张图片')}
-          {disabled ? ` (${t('自定义模式下不可用')})` : ''}
-        </Typography.Text>
-      )}
-
-      <div
-        className={`space-y-2 max-h-32 overflow-y-auto image-list-scroll ${!imageEnabled || disabled ? 'opacity-50' : ''}`}
-      >
-        {imageUrls.map((url, index) => (
-          <div key={index} className='flex items-center gap-2'>
-            <div className='flex-1'>
-              <Input
-                placeholder={`https://example.com/image${index + 1}.jpg`}
-                value={url}
-                onChange={(value) => handleUpdateImageUrl(index, value)}
-                className='!rounded-lg'
-                size='small'
-                prefix={<IconFile size='small' />}
-                disabled={!imageEnabled || disabled}
-              />
-            </div>
-            <Button
-              icon={<X size={12} />}
-              size='small'
-              theme='borderless'
-              type='danger'
-              onClick={() => handleRemoveImageUrl(index)}
-              className='!rounded-full !w-6 !h-6 !p-0 !min-w-0 !text-red-500 hover:!bg-red-50 flex-shrink-0'
-              disabled={!imageEnabled || disabled}
-            />
+    <div className='playground-v2-settings-section'>
+      <div className='playground-v2-toggle-row'>
+        <div>
+          <div className='playground-v2-field-label'>
+            <Image size={16} />
+            {t('多模态输入')}
           </div>
-        ))}
+          <div className='playground-v2-field-hint'>
+            {disabled
+              ? t('自定义请求体模式下，图片输入不会参与请求体生成。')
+              : t('支持图片 URL、文件上传和在输入框中直接粘贴图片。')}
+          </div>
+        </div>
+
+        <ToggleSwitch
+          checked={imageEnabled}
+          disabled={disabled}
+          onChange={onImageEnabledChange}
+        />
       </div>
+
+      {imageEnabled && (
+        <div className='playground-v2-settings-stack mt-4'>
+          {normalizedUrls.length > 0 && (
+            <div className='playground-v2-image-list'>
+            {normalizedUrls.map((url, index) => (
+              <div key={`${index}-${url}`} className='playground-v2-image-row'>
+                <input
+                  type='text'
+                  className='playground-v2-text-input'
+                  placeholder={`https://example.com/image-${index + 1}.jpg`}
+                  disabled={disabled}
+                  value={url}
+                  onChange={(event) =>
+                    handleUpdateImageUrl(index, event.target.value)
+                  }
+                />
+
+                <button
+                  type='button'
+                  className='playground-v2-image-remove-button'
+                  onClick={() => handleRemoveImageUrl(index)}
+                  disabled={disabled}
+                  aria-label={t('删除')}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+          )}
+
+          <div className='playground-v2-image-actions'>
+            <button
+              type='button'
+              className='playground-v2-image-add-button'
+              onClick={handleAddImageUrl}
+              disabled={disabled}
+            >
+              <Plus size={14} />
+              {t('添加图片')}
+            </button>
+
+            <button
+              type='button'
+              className='playground-v2-image-upload-button'
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled}
+            >
+              <Upload size={14} />
+              {t('上传图片（占位）')}
+            </button>
+
+            {activeCount > 0 && (
+              <span className='playground-v2-outline-pill'>
+                {t('已附加 {{count}} 张图片', { count: activeCount })}
+              </span>
+            )}
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type='file'
+            accept='image/*'
+            multiple
+            className='hidden'
+            onChange={handleFileUpload}
+          />
+        </div>
+      )}
     </div>
   );
 };

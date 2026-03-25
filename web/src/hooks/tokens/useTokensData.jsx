@@ -42,6 +42,10 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [searching, setSearching] = useState(false);
   const [searchMode, setSearchMode] = useState(false); // 是否处于搜索结果视图
+  const [searchCriteria, setSearchCriteria] = useState({
+    searchKeyword: '',
+    searchToken: '',
+  });
 
   // Selection state
   const [selectedKeys, setSelectedKeys] = useState([]);
@@ -68,7 +72,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
 
   // Get form values helper function
   const getFormValues = () => {
-    const formValues = formApi ? formApi.getValues() : {};
+    const formValues = formApi ? formApi.getValues() : searchCriteria;
     return {
       searchKeyword: formValues.searchKeyword || '',
       searchToken: formValues.searchToken || '',
@@ -281,15 +285,23 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   };
 
   // Search tokens function
-  const searchTokens = async (page = 1, size = pageSize) => {
+  const searchTokens = async (page = 1, size = pageSize, overrides = null) => {
     const normalizedPage = Number.isInteger(page) && page > 0 ? page : 1;
     const normalizedSize =
       Number.isInteger(size) && size > 0 ? size : pageSize;
 
-    const { searchKeyword, searchToken } = getFormValues();
+    const rawValues = overrides || getFormValues();
+    const searchKeyword = rawValues.searchKeyword || '';
+    const searchToken = rawValues.searchToken || '';
+
+    setSearchCriteria({
+      searchKeyword,
+      searchToken,
+    });
+
     if (searchKeyword === '' && searchToken === '') {
       setSearchMode(false);
-      await loadTokens(1);
+      await loadTokens(1, normalizedSize);
       return;
     }
     setSearching(true);
@@ -324,7 +336,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   // Page handlers
   const handlePageChange = (page) => {
     if (searchMode) {
-      searchTokens(page, pageSize).then();
+      searchTokens(page, pageSize, searchCriteria).then();
     } else {
       loadTokens(page, pageSize).then();
     }
@@ -333,7 +345,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const handlePageSizeChange = async (size) => {
     setPageSize(size);
     if (searchMode) {
-      await searchTokens(1, size);
+      await searchTokens(1, size, searchCriteria);
     } else {
       await loadTokens(1, size);
     }
@@ -457,6 +469,8 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     setFormApi,
     formInitValues,
     getFormValues,
+    searchCriteria,
+    setSearchCriteria,
 
     // Functions
     loadTokens,

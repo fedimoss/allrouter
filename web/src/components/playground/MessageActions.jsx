@@ -18,13 +18,35 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Tooltip } from '@douyinfe/semi-ui';
-import { RefreshCw, Copy, Trash2, UserCheck, Edit } from 'lucide-react';
+import { Tooltip } from '@douyinfe/semi-ui';
+import { Copy, Edit, RefreshCw, Trash2, UserCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
+const ActionButton = ({
+  icon,
+  label,
+  onClick,
+  disabled = false,
+  danger = false,
+}) => {
+  return (
+    <Tooltip content={label} position='top'>
+      <button
+        type='button'
+        className='playground-v2-action-button'
+        data-danger={danger}
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={label}
+      >
+        {icon}
+      </button>
+    </Tooltip>
+  );
+};
 
 const MessageActions = ({
   message,
-  styleState,
   onMessageReset,
   onMessageCopy,
   onMessageDelete,
@@ -47,103 +69,58 @@ const MessageActions = ({
     !isEditing;
 
   return (
-    <div className='flex items-center gap-0.5'>
+    <div className='playground-v2-message-actions'>
       {!isLoading && (
-        <Tooltip
-          content={shouldDisableActions ? t('操作暂时被禁用') : t('重试')}
-          position='top'
-        >
-          <Button
-            theme='borderless'
-            type='tertiary'
-            size='small'
-            icon={<RefreshCw size={styleState.isMobile ? 12 : 14} />}
-            onClick={() => !shouldDisableActions && onMessageReset(message)}
-            disabled={shouldDisableActions}
-            className={`!rounded-full ${shouldDisableActions ? '!text-gray-300 !cursor-not-allowed' : '!text-gray-400 hover:!text-blue-600 hover:!bg-blue-50'} ${styleState.isMobile ? '!w-6 !h-6' : '!w-7 !h-7'} !p-0 transition-all`}
-            aria-label={t('重试')}
-          />
-        </Tooltip>
+        <ActionButton
+          icon={<RefreshCw size={14} />}
+          label={shouldDisableActions ? t('操作暂时被禁用') : t('重试')}
+          disabled={shouldDisableActions}
+          onClick={() => !shouldDisableActions && onMessageReset(message)}
+        />
       )}
 
       {message.content && (
-        <Tooltip content={t('复制')} position='top'>
-          <Button
-            theme='borderless'
-            type='tertiary'
-            size='small'
-            icon={<Copy size={styleState.isMobile ? 12 : 14} />}
-            onClick={() => onMessageCopy(message)}
-            className={`!rounded-full !text-gray-400 hover:!text-green-600 hover:!bg-green-50 ${styleState.isMobile ? '!w-6 !h-6' : '!w-7 !h-7'} !p-0 transition-all`}
-            aria-label={t('复制')}
-          />
-        </Tooltip>
+        <ActionButton
+          icon={<Copy size={14} />}
+          label={t('复制')}
+          onClick={() => onMessageCopy(message)}
+        />
       )}
 
       {canEdit && (
-        <Tooltip
-          content={shouldDisableActions ? t('操作暂时被禁用') : t('编辑')}
-          position='top'
-        >
-          <Button
-            theme='borderless'
-            type='tertiary'
-            size='small'
-            icon={<Edit size={styleState.isMobile ? 12 : 14} />}
-            onClick={() => !shouldDisableActions && onMessageEdit(message)}
-            disabled={shouldDisableActions}
-            className={`!rounded-full ${shouldDisableActions ? '!text-gray-300 !cursor-not-allowed' : '!text-gray-400 hover:!text-yellow-600 hover:!bg-yellow-50'} ${styleState.isMobile ? '!w-6 !h-6' : '!w-7 !h-7'} !p-0 transition-all`}
-            aria-label={t('编辑')}
-          />
-        </Tooltip>
+        <ActionButton
+          icon={<Edit size={14} />}
+          label={shouldDisableActions ? t('操作暂时被禁用') : t('编辑')}
+          disabled={shouldDisableActions}
+          onClick={() => !shouldDisableActions && onMessageEdit(message)}
+        />
       )}
 
       {canToggleRole && !isLoading && (
-        <Tooltip
-          content={
+        <ActionButton
+          icon={<UserCheck size={14} />}
+          label={
             shouldDisableActions
               ? t('操作暂时被禁用')
               : message.role === 'assistant'
                 ? t('切换为System角色')
                 : t('切换为Assistant角色')
           }
-          position='top'
-        >
-          <Button
-            theme='borderless'
-            type='tertiary'
-            size='small'
-            icon={<UserCheck size={styleState.isMobile ? 12 : 14} />}
-            onClick={() =>
-              !shouldDisableActions && onRoleToggle && onRoleToggle(message)
-            }
-            disabled={shouldDisableActions}
-            className={`!rounded-full ${shouldDisableActions ? '!text-gray-300 !cursor-not-allowed' : message.role === 'system' ? '!text-purple-500 hover:!text-purple-700 hover:!bg-purple-50' : '!text-gray-400 hover:!text-purple-600 hover:!bg-purple-50'} ${styleState.isMobile ? '!w-6 !h-6' : '!w-7 !h-7'} !p-0 transition-all`}
-            aria-label={
-              message.role === 'assistant'
-                ? t('切换为System角色')
-                : t('切换为Assistant角色')
-            }
-          />
-        </Tooltip>
+          disabled={shouldDisableActions}
+          onClick={() =>
+            !shouldDisableActions && onRoleToggle && onRoleToggle(message)
+          }
+        />
       )}
 
       {!isLoading && (
-        <Tooltip
-          content={shouldDisableActions ? t('操作暂时被禁用') : t('删除')}
-          position='top'
-        >
-          <Button
-            theme='borderless'
-            type='tertiary'
-            size='small'
-            icon={<Trash2 size={styleState.isMobile ? 12 : 14} />}
-            onClick={() => !shouldDisableActions && onMessageDelete(message)}
-            disabled={shouldDisableActions}
-            className={`!rounded-full ${shouldDisableActions ? '!text-gray-300 !cursor-not-allowed' : '!text-gray-400 hover:!text-red-600 hover:!bg-red-50'} ${styleState.isMobile ? '!w-6 !h-6' : '!w-7 !h-7'} !p-0 transition-all`}
-            aria-label={t('删除')}
-          />
-        </Tooltip>
+        <ActionButton
+          icon={<Trash2 size={14} />}
+          label={shouldDisableActions ? t('操作暂时被禁用') : t('删除')}
+          disabled={shouldDisableActions}
+          danger
+          onClick={() => !shouldDisableActions && onMessageDelete(message)}
+        />
       )}
     </div>
   );

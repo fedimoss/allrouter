@@ -84,14 +84,11 @@ export const OptimizedDebugPanel = React.memo(
   DebugPanel,
   (prevProps, nextProps) => {
     return (
-      prevProps.show === nextProps.show &&
-      prevProps.activeTab === nextProps.activeTab &&
+      prevProps.activeDebugTab === nextProps.activeDebugTab &&
       JSON.stringify(prevProps.debugData) ===
         JSON.stringify(nextProps.debugData) &&
-      JSON.stringify(prevProps.previewPayload) ===
-        JSON.stringify(nextProps.previewPayload) &&
       prevProps.customRequestMode === nextProps.customRequestMode &&
-      prevProps.showDebugPanel === nextProps.showDebugPanel
+      prevProps.customRequestBody === nextProps.customRequestBody
     );
   },
 );

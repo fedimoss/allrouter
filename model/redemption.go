@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -146,10 +147,15 @@ func Redeem(key string, userId int) (quota int, err error) {
 		if err != nil {
 			return err
 		}
+		//将quota额度换算成账单中的moeny和amount（在使用兑换码时，amount且用美元 进行结算）
+
+		moneyDecimal := decimal.NewFromInt(int64(redemption.Quota)).Div(decimal.NewFromFloat(common.QuotaPerUnit))
+
+		part := moneyDecimal.Round(0).IntPart() //四舍五入
 
 		//新增账单表数据
 		topUp := &TopUp{
-			Amount:        int64(redemption.Quota),
+			Amount:        part,
 			UserId:        userId,
 			Money:         0,
 			TradeNo:       tradeNo,

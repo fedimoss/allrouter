@@ -17,28 +17,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback, useContext, useEffect } from 'react';
+import { Toast } from '@douyinfe/semi-ui';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
 
-// Context
+import './playground-v2.css';
+
 import { UserContext } from '../../context/User';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
-
-// hooks
 import { usePlaygroundState } from '../../hooks/playground/usePlaygroundState';
 import { useMessageActions } from '../../hooks/playground/useMessageActions';
 import { useApiRequest } from '../../hooks/playground/useApiRequest';
 import { useSyncMessageAndCustomBody } from '../../hooks/playground/useSyncMessageAndCustomBody';
 import { useMessageEdit } from '../../hooks/playground/useMessageEdit';
 import { useDataLoader } from '../../hooks/playground/useDataLoader';
-
-// Constants and utils
-import {
-  MESSAGE_ROLES,
-  ERROR_MESSAGES,
-} from '../../constants/playground.constants';
+import { MESSAGE_ROLES, ERROR_MESSAGES } from '../../constants/playground.constants';
 import {
   getLogo,
   stringToColor,
@@ -48,9 +42,8 @@ import {
   getTextContent,
   buildApiPayload,
   encodeToBase64,
+  formatMessageForAPI,
 } from '../../helpers';
-
-// Components
 import {
   OptimizedSettingsPanel,
   OptimizedDebugPanel,
@@ -58,7 +51,6 @@ import {
   OptimizedMessageActions,
 } from '../../components/playground/OptimizedComponents';
 import ChatArea from '../../components/playground/ChatArea';
-import FloatingButtons from '../../components/playground/FloatingButtons';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 
 // 生成头像
@@ -66,6 +58,7 @@ const generateAvatarDataUrl = (username) => {
   if (!username) {
     return 'https://lf3-static.bytednsdoc.com/obj/eden-cn/ptlz_zlp/ljhwZthlaukjlkulzlp/docs-icon.png';
   }
+
   const firstLetter = username[0].toUpperCase();
   const bgColor = stringToColor(username);
   const svg = `
@@ -74,7 +67,22 @@ const generateAvatarDataUrl = (username) => {
       <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="16" fill="#ffffff" font-family="sans-serif">${firstLetter}</text>
     </svg>
   `;
+
   return `data:image/svg+xml;base64,${encodeToBase64(svg)}`;
+};
+
+const normalizeOutgoingMessage = (payload) => {
+  if (typeof payload === 'string') {
+    return {
+      content: payload,
+      role: MESSAGE_ROLES.USER,
+    };
+  }
+
+  return {
+    content: payload?.content || '',
+    role: payload?.role || MESSAGE_ROLES.USER,
+  };
 };
 
 const Playground = () => {
@@ -94,7 +102,6 @@ const Playground = () => {
     showSettings,
     models,
     groups,
-    status,
     message,
     debugData,
     activeDebugTab,
@@ -110,7 +117,6 @@ const Playground = () => {
     setShowSettings,
     setModels,
     setGroups,
-    setStatus,
     setMessage,
     setDebugData,
     setActiveDebugTab,
@@ -176,7 +182,81 @@ const Playground = () => {
     },
   };
 
-  // 消息操作
+  function onMessageSend(payload) {
+    const { content, role } = normalizeOutgoingMessage(payload);
+    const trimmedContent = content.trim();
+    const validImageUrls = (inputs.imageUrls || []).filter(
+      (url) => url && url.trim() !== '',
+    );
+    const canAttachImages =
+      role === MESSAGE_ROLES.USER &&
+      inputs.imageEnabled &&
+      validImageUrls.length > 0;
+
+    if (!trimmedContent && !canAttachImages) {
+      return;
+    }
+
+    const outgoingContent =
+      role === MESSAGE_ROLES.USER
+        ? buildMessageContent(trimmedContent, validImageUrls, inputs.imageEnabled)
+        : trimmedContent;
+
+    const outgoingMessage = createMessage(role, outgoingContent);
+    const loadingMessage = createLoadingAssistantMessage();
+
+    if (customRequestMode && customRequestBody) {
+      try {
+        const customPayload = JSON.parse(customRequestBody);
+
+        setMessage((prevMessage) => {
+          const newMessages = [...prevMessage, outgoingMessage, loadingMessage];
+          const payloadToSend = {
+            ...customPayload,
+            messages: newMessages
+              .filter((item) => item.status !== 'loading')
+              .map(formatMessageForAPI),
+          };
+
+          if (payloadToSend.stream === undefined) {
+            payloadToSend.stream = inputs.stream;
+          }
+
+          sendRequest(payloadToSend, payloadToSend.stream !== false);
+          setTimeout(() => saveMessagesImmediately(newMessages), 0);
+          return newMessages;
+        });
+        return;
+      } catch (error) {
+        console.error('自定义请求体JSON解析失败:', error);
+        Toast.error(ERROR_MESSAGES.JSON_PARSE_ERROR);
+        return;
+      }
+    }
+
+    setMessage((prevMessage) => {
+      const newMessages = [...prevMessage, outgoingMessage];
+      const payloadToSend = buildApiPayload(
+        newMessages,
+        null,
+        inputs,
+        parameterEnabled,
+      );
+
+      sendRequest(payloadToSend, inputs.stream);
+
+      if (canAttachImages) {
+        setTimeout(() => {
+          handleInputChange('imageEnabled', false);
+        }, 100);
+      }
+
+      const messagesWithLoading = [...newMessages, loadingMessage];
+      setTimeout(() => saveMessagesImmediately(messagesWithLoading), 0);
+      return messagesWithLoading;
+    });
+  }
+
   const messageActions = useMessageActions(
     message,
     setMessage,
@@ -196,31 +276,32 @@ const Playground = () => {
         }
       }
 
-      // 默认预览逻辑
-      let messages = [...message];
+      let previewMessages = [...message];
 
       // 如果存在用户消息
       if (
         !(
-          messages.length === 0 ||
-          messages.every((msg) => msg.role !== MESSAGE_ROLES.USER)
+          previewMessages.length === 0 ||
+          previewMessages.every((item) => item.role !== MESSAGE_ROLES.USER)
         )
       ) {
-        // 处理最后一个用户消息的图片
-        for (let i = messages.length - 1; i >= 0; i--) {
-          if (messages[i].role === MESSAGE_ROLES.USER) {
+        for (let index = previewMessages.length - 1; index >= 0; index -= 1) {
+          if (previewMessages[index].role === MESSAGE_ROLES.USER) {
             if (inputs.imageEnabled && inputs.imageUrls) {
               const validImageUrls = inputs.imageUrls.filter(
                 (url) => url.trim() !== '',
               );
               if (validImageUrls.length > 0) {
-                const textContent = getTextContent(messages[i]) || '示例消息';
-                const content = buildMessageContent(
+                const textContent = getTextContent(previewMessages[index]) || '示例消息';
+                const contentWithImages = buildMessageContent(
                   textContent,
                   validImageUrls,
                   true,
                 );
-                messages[i] = { ...messages[i], content };
+                previewMessages[index] = {
+                  ...previewMessages[index],
+                  content: contentWithImages,
+                };
               }
             }
             break;
@@ -228,91 +309,23 @@ const Playground = () => {
         }
       }
 
-      return buildApiPayload(messages, null, inputs, parameterEnabled);
+      return buildApiPayload(previewMessages, null, inputs, parameterEnabled);
     } catch (error) {
       console.error('构造预览请求体失败:', error);
       return null;
     }
-  }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody]);
+  }, [customRequestBody, customRequestMode, inputs, message, parameterEnabled]);
 
-  // 发送消息
-  function onMessageSend(content, attachment) {
-    console.log('attachment: ', attachment);
-
-    // 创建用户消息和加载消息
-    const userMessage = createMessage(MESSAGE_ROLES.USER, content);
-    const loadingMessage = createLoadingAssistantMessage();
-
-    // 如果是自定义请求体模式
-    if (customRequestMode && customRequestBody) {
-      try {
-        const customPayload = JSON.parse(customRequestBody);
-
-        setMessage((prevMessage) => {
-          const newMessages = [...prevMessage, userMessage, loadingMessage];
-
-          // 发送自定义请求体
-          sendRequest(customPayload, customPayload.stream !== false);
-
-          // 发送消息后保存，传入新消息列表
-          setTimeout(() => saveMessagesImmediately(newMessages), 0);
-
-          return newMessages;
-        });
-        return;
-      } catch (error) {
-        console.error('自定义请求体JSON解析失败:', error);
-        Toast.error(ERROR_MESSAGES.JSON_PARSE_ERROR);
-        return;
-      }
-    }
-
-    // 默认模式
-    const validImageUrls = inputs.imageUrls.filter((url) => url.trim() !== '');
-    const messageContent = buildMessageContent(
-      content,
-      validImageUrls,
-      inputs.imageEnabled,
-    );
-    const userMessageWithImages = createMessage(
-      MESSAGE_ROLES.USER,
-      messageContent,
-    );
-
-    setMessage((prevMessage) => {
-      const newMessages = [...prevMessage, userMessageWithImages];
-
-      const payload = buildApiPayload(
-        newMessages,
-        null,
-        inputs,
-        parameterEnabled,
-      );
-      sendRequest(payload, inputs.stream);
-
-      // 禁用图片模式
-      if (inputs.imageEnabled) {
-        setTimeout(() => {
-          handleInputChange('imageEnabled', false);
-        }, 100);
-      }
-
-      // 发送消息后保存，传入新消息列表（包含用户消息和加载消息）
-      const messagesWithLoading = [...newMessages, loadingMessage];
-      setTimeout(() => saveMessagesImmediately(messagesWithLoading), 0);
-
-      return messagesWithLoading;
-    });
-  }
-
-  // 切换推理展开状态
   const toggleReasoningExpansion = useCallback(
     (messageId) => {
       setMessage((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg.id === messageId && msg.role === MESSAGE_ROLES.ASSISTANT
-            ? { ...msg, isReasoningExpanded: !msg.isReasoningExpanded }
-            : msg,
+        prevMessages.map((item) =>
+          item.id === messageId && item.role === MESSAGE_ROLES.ASSISTANT
+            ? {
+                ...item,
+                isReasoningExpanded: !item.isReasoningExpanded,
+              }
+            : item,
         ),
       );
     },
@@ -321,12 +334,12 @@ const Playground = () => {
 
   // 渲染函数
   const renderCustomChatContent = useCallback(
-    ({ message, className }) => {
-      const isCurrentlyEditing = editingMessageId === message.id;
+    ({ message: currentMessage, className }) => {
+      const isCurrentlyEditing = editingMessageId === currentMessage.id;
 
       return (
         <OptimizedMessageContent
-          message={message}
+          message={currentMessage}
           className={className}
           styleState={styleState}
           onToggleReasoningExpansion={toggleReasoningExpansion}
@@ -339,21 +352,20 @@ const Playground = () => {
       );
     },
     [
-      styleState,
       editingMessageId,
       editValue,
-      handleEditSave,
       handleEditCancel,
+      handleEditSave,
       setEditValue,
+      styleState,
       toggleReasoningExpansion,
     ],
   );
 
   const renderChatBoxAction = useCallback(
-    (props) => {
-      const { message: currentMessage } = props;
+    ({ message: currentMessage }) => {
       const isAnyMessageGenerating = message.some(
-        (msg) => msg.status === 'loading' || msg.status === 'incomplete',
+        (item) => item.status === 'loading' || item.status === 'incomplete',
       );
       const isCurrentlyEditing = editingMessageId === currentMessage.id;
 
@@ -371,7 +383,7 @@ const Playground = () => {
         />
       );
     },
-    [messageActions, styleState, message, editingMessageId, handleMessageEdit],
+    [editingMessageId, handleMessageEdit, message, messageActions, styleState],
   );
 
   // Effects
@@ -408,49 +420,45 @@ const Playground = () => {
 
     return () => clearTimeout(timer);
   }, [
-    message,
-    inputs,
-    parameterEnabled,
-    customRequestMode,
-    customRequestBody,
     constructPreviewPayload,
-    setPreviewPayload,
+    customRequestBody,
+    customRequestMode,
+    inputs,
+    message,
+    parameterEnabled,
     setDebugData,
+    setPreviewPayload,
   ]);
 
   // 自动保存配置
   useEffect(() => {
     debouncedSaveConfig();
   }, [
+    customRequestBody,
+    customRequestMode,
+    debouncedSaveConfig,
     inputs,
     parameterEnabled,
     showDebugPanel,
-    customRequestMode,
-    customRequestBody,
-    debouncedSaveConfig,
   ]);
 
-  // 清空对话的处理函数
   const handleClearMessages = useCallback(() => {
     setMessage([]);
-    // 清空对话后保存，传入空数组
     setTimeout(() => saveMessagesImmediately([]), 0);
-  }, [setMessage, saveMessagesImmediately]);
+  }, [saveMessagesImmediately, setMessage]);
 
-  // 处理粘贴图片
   const handlePasteImage = useCallback(
     (base64Data) => {
       if (!inputs.imageEnabled) {
         return;
       }
-      // 添加图片到 imageUrls 数组
+
       const newUrls = [...(inputs.imageUrls || []), base64Data];
       handleInputChange('imageUrls', newUrls);
     },
-    [inputs.imageEnabled, inputs.imageUrls, handleInputChange],
+    [handleInputChange, inputs.imageEnabled, inputs.imageUrls],
   );
 
-  // Playground Context 值
   const playgroundContextValue = {
     onPasteImage: handlePasteImage,
     imageUrls: inputs.imageUrls || [],
@@ -459,20 +467,60 @@ const Playground = () => {
 
   return (
     <PlaygroundProvider value={playgroundContextValue}>
-      <div className='h-full'>
-        <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
-          {(showSettings || !isMobile) && (
-            <Layout.Sider
-              className={`
-              bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
-              ${
-                isMobile
-                  ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                  : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
-              }
-            `}
-              width={isMobile ? '100%' : 320}
-            >
+      <div className='playground-v2 h-full'>
+        <div className={`playground-v2-shell ${isMobile ? 'pt-[72px]' : ''}`}>
+          <div className='playground-v2-content'>
+            {!isMobile && (
+              <div className='min-h-0'>
+                <OptimizedSettingsPanel
+                  inputs={inputs}
+                  parameterEnabled={parameterEnabled}
+                  models={models}
+                  groups={groups}
+                  styleState={styleState}
+                  showSettings={showSettings}
+                  showDebugPanel={showDebugPanel}
+                  customRequestMode={customRequestMode}
+                  customRequestBody={customRequestBody}
+                  onInputChange={handleInputChange}
+                  onParameterToggle={handleParameterToggle}
+                  onCloseSettings={() => setShowSettings(false)}
+                  onConfigImport={handleConfigImport}
+                  onConfigReset={handleConfigReset}
+                  onCustomRequestModeChange={setCustomRequestMode}
+                  onCustomRequestBodyChange={setCustomRequestBody}
+                  previewPayload={previewPayload}
+                  messages={message}
+                />
+              </div>
+            )}
+
+            <div className='min-h-0'>
+              <ChatArea
+                chatRef={chatRef}
+                message={message}
+                inputs={inputs}
+                styleState={styleState}
+                roleInfo={roleInfo}
+                onMessageSend={onMessageSend}
+                onStopGenerator={onStopGenerator}
+                onClearMessages={handleClearMessages}
+                onToggleDebugPanel={() => setShowDebugPanel((prev) => !prev)}
+                onToggleSettings={() => setShowSettings(true)}
+                renderCustomChatContent={renderCustomChatContent}
+                renderChatBoxAction={renderChatBoxAction}
+              />
+            </div>
+          </div>
+        </div>
+
+        {isMobile && showSettings && (
+          <>
+            <div
+              className='playground-v2-overlay'
+              onClick={() => setShowSettings(false)}
+            />
+            <div className='playground-v2-mobile-sheet'>
               <OptimizedSettingsPanel
                 inputs={inputs}
                 parameterEnabled={parameterEnabled}
@@ -493,70 +541,26 @@ const Playground = () => {
                 previewPayload={previewPayload}
                 messages={message}
               />
-            </Layout.Sider>
-          )}
-
-          <Layout.Content className='relative flex-1 overflow-hidden'>
-            <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
-              <div className='flex-1 flex flex-col'>
-                <ChatArea
-                  chatRef={chatRef}
-                  message={message}
-                  inputs={inputs}
-                  styleState={styleState}
-                  showDebugPanel={showDebugPanel}
-                  roleInfo={roleInfo}
-                  onMessageSend={onMessageSend}
-                  onMessageCopy={messageActions.handleMessageCopy}
-                  onMessageReset={messageActions.handleMessageReset}
-                  onMessageDelete={messageActions.handleMessageDelete}
-                  onStopGenerator={onStopGenerator}
-                  onClearMessages={handleClearMessages}
-                  onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-                  renderCustomChatContent={renderCustomChatContent}
-                  renderChatBoxAction={renderChatBoxAction}
-                />
-              </div>
-
-              {/* 调试面板 - 桌面端 */}
-              {showDebugPanel && !isMobile && (
-                <div className='w-96 flex-shrink-0 h-full'>
-                  <OptimizedDebugPanel
-                    debugData={debugData}
-                    activeDebugTab={activeDebugTab}
-                    onActiveDebugTabChange={setActiveDebugTab}
-                    styleState={styleState}
-                    customRequestMode={customRequestMode}
-                  />
-                </div>
-              )}
             </div>
+          </>
+        )}
 
-            {/* 调试面板 - 移动端覆盖层 */}
-            {showDebugPanel && isMobile && (
-              <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
-                <OptimizedDebugPanel
-                  debugData={debugData}
-                  activeDebugTab={activeDebugTab}
-                  onActiveDebugTabChange={setActiveDebugTab}
-                  styleState={styleState}
-                  showDebugPanel={showDebugPanel}
-                  onCloseDebugPanel={() => setShowDebugPanel(false)}
-                  customRequestMode={customRequestMode}
-                />
-              </div>
-            )}
-
-            {/* 浮动按钮 */}
-            <FloatingButtons
-              styleState={styleState}
-              showSettings={showSettings}
-              showDebugPanel={showDebugPanel}
-              onToggleSettings={() => setShowSettings(!showSettings)}
-              onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
+        {showDebugPanel && (
+          <>
+            <div
+              className='playground-v2-overlay'
+              onClick={() => setShowDebugPanel(false)}
             />
-          </Layout.Content>
-        </Layout>
+            <OptimizedDebugPanel
+              debugData={debugData}
+              activeDebugTab={activeDebugTab}
+              onActiveDebugTabChange={setActiveDebugTab}
+              customRequestMode={customRequestMode}
+              customRequestBody={customRequestBody}
+              onCloseDebugPanel={() => setShowDebugPanel(false)}
+            />
+          </>
+        )}
       </div>
     </PlaygroundProvider>
   );
