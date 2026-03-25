@@ -26,6 +26,7 @@ import DashboardHeader from './DashboardHeader';
 import StatsCards from './StatsCards';
 import ChartsPanel from './ChartsPanel';
 import ApiInfoPanel from './ApiInfoPanel';
+import ModelHeatRankingPanel from './ModelHeatRankingPanel';
 import AnnouncementsPanel from './AnnouncementsPanel';
 import FaqPanel from './FaqPanel';
 import UptimePanel from './UptimePanel';
@@ -45,8 +46,6 @@ import {
 } from '../../constants/dashboard.constants';
 import {
   getTrendSpec,
-  handleCopyUrl,
-  handleSpeedTest,
   getUptimeStatusColor,
   getUptimeStatusText,
   renderMonitorList,
@@ -138,6 +137,8 @@ const Dashboard = () => {
     initChart();
   }, []);
 
+  const dashboardMainPanelHeight = dashboardData.hasApiInfoPanel ? 606 : 384;
+
   return (
     <div className='h-full'>
       <DashboardHeader
@@ -171,34 +172,47 @@ const Dashboard = () => {
       />
 
       {/* API信息和图表面板 */}
-      <div className='mb-4'>
-        <div
-          className={`grid grid-cols-1 gap-4 ${dashboardData.hasApiInfoPanel ? 'lg:grid-cols-4' : ''}`}
-        >
-          <ChartsPanel
-            activeChartTab={dashboardData.activeChartTab}
-            setActiveChartTab={dashboardData.setActiveChartTab}
-            spec_line={dashboardCharts.spec_line}
-            spec_model_line={dashboardCharts.spec_model_line}
-            spec_pie={dashboardCharts.spec_pie}
-            spec_rank_bar={dashboardCharts.spec_rank_bar}
-            CARD_PROPS={CARD_PROPS}
-            CHART_CONFIG={CHART_CONFIG}
-            FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
-            hasApiInfoPanel={dashboardData.hasApiInfoPanel}
-            t={dashboardData.t}
-          />
+      <div className='mb-4 dashboard-main-panels' style={{ '--dashboard-main-height': `${dashboardMainPanelHeight}px` }}>
+        <div className='dashboard-main-panels-grid'>
+          <div
+            className={
+              dashboardData.hasApiInfoPanel ? 'dashboard-main-left has-right' : 'dashboard-main-left full'
+            }
+          >
+            <ChartsPanel
+              activeChartTab={dashboardData.activeChartTab}
+              setActiveChartTab={dashboardData.setActiveChartTab}
+              spec_line={dashboardCharts.spec_line}
+              spec_model_line={dashboardCharts.spec_model_line}
+              spec_pie={dashboardCharts.spec_pie}
+              spec_rank_bar={dashboardCharts.spec_rank_bar}
+              CARD_PROPS={CARD_PROPS}
+              CHART_CONFIG={CHART_CONFIG}
+              FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
+              hasApiInfoPanel={dashboardData.hasApiInfoPanel}
+              t={dashboardData.t}
+              panelHeight={dashboardData.hasApiInfoPanel ? dashboardMainPanelHeight : undefined}
+            />
+          </div>
 
           {dashboardData.hasApiInfoPanel && (
-            <ApiInfoPanel
-              apiInfoData={apiInfoData}
-              handleCopyUrl={(url) => handleCopyUrl(url, dashboardData.t)}
-              handleSpeedTest={handleSpeedTest}
-              CARD_PROPS={CARD_PROPS}
-              FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
-              ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
-              t={dashboardData.t}
-            />
+            <div className='dashboard-main-right'>
+              <div className='dashboard-main-right-item'>
+                <ModelHeatRankingPanel
+                  CARD_PROPS={CARD_PROPS}
+                  t={dashboardData.t}
+                  className='h-full'
+                />
+              </div>
+              <div className='dashboard-main-right-item'>
+                <ApiInfoPanel
+                  apiInfoData={apiInfoData}
+                  CARD_PROPS={CARD_PROPS}
+                  t={dashboardData.t}
+                  className='h-full'
+                />
+              </div>
+            </div>
           )}
         </div>
       </div>

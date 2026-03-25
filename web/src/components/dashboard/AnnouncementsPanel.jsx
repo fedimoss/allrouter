@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -17,109 +17,95 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Card, Tag, Timeline, Empty } from '@douyinfe/semi-ui';
-import { Bell } from 'lucide-react';
-import { marked } from 'marked';
+import React, { useMemo } from 'react';
 import {
-  IllustrationConstruction,
-  IllustrationConstructionDark,
-} from '@douyinfe/semi-illustrations';
-import ScrollableContainer from '../common/ui/ScrollableContainer';
+  BellRing,
+} from 'lucide-react';
+import { marked } from 'marked';
 
-const AnnouncementsPanel = ({
-  announcementData,
-  announcementLegendData,
-  CARD_PROPS,
-  ILLUSTRATION_SIZE,
-  t,
-}) => {
-  return (
-    <Card
-      {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-2'
-      title={
-        <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 w-full'>
-          <div className='flex items-center gap-2'>
-            <Bell size={16} />
-            {t('系统公告')}
-            <Tag color='white' shape='circle'>
-              {t('显示最新20条')}
-            </Tag>
-          </div>
-          {/* 图例 */}
-          <div className='flex flex-wrap gap-3 text-xs'>
-            {announcementLegendData.map((legend, index) => (
-              <div key={index} className='flex items-center gap-1'>
-                <div
-                  className='w-2 h-2 rounded-full'
-                  style={{
-                    backgroundColor:
-                      legend.color === 'grey'
-                        ? '#8b9aa7'
-                        : legend.color === 'blue'
-                          ? '#3b82f6'
-                          : legend.color === 'green'
-                            ? '#10b981'
-                            : legend.color === 'orange'
-                              ? '#f59e0b'
-                              : legend.color === 'red'
-                                ? '#ef4444'
-                                : '#8b9aa7',
-                  }}
-                />
-                <span className='text-gray-600'>{legend.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+import './index.scss';
+
+const normalizeType = (item = {}) => {
+  const raw = String(item?.type || item?.category || '').toLowerCase();
+  if (raw.includes('important')) return { code: 'IMPORTANT', className: 'status-label--important', text: '重要' };
+  if (raw.includes('alert') || raw.includes('warning')) return { code: 'ALERT', className: 'status-label--alert', text: '告警' };
+  if (raw.includes('bulletin')) return { code: 'BULLETIN', className: 'status-label--bulletin', text: '公告' };
+  if (raw.includes('notice')) return { code: 'NOTICE', className: 'status-label--notice', text: '通知' };
+  return { code: 'NOTICE', className: 'status-label--notice', text: '通知' };
+};
+
+const plainText = (value) =>
+  String(value || '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const AnnouncementsPanel = ({ announcementData = [],announcementLegendData, t }) => {
+  const displayList = useMemo(() => {
+    return announcementData.slice(0, 20).map((item, index) => {
+      const typeInfo = normalizeType(item);
+      const content = plainText(item.content || item.title || '');
+      const extra = plainText(item.extra || '');
+      const relative = plainText(item.relative || '');
+      const time = plainText(item.time || item.publishDate || '');
+      const metaParts = [];
+      if (relative || time) {
+        metaParts.push(`发布于：${relative ? `${relative} ` : ''}${time}`.trim());
       }
-      bodyStyle={{ padding: 0 }}
-    >
-      <ScrollableContainer maxHeight='24rem'>
-        {announcementData.length > 0 ? (
-          <Timeline mode='left'>
-            {announcementData.map((item, idx) => {
-              const htmlExtra = item.extra ? marked.parse(item.extra) : '';
-              return (
-                <Timeline.Item
-                  key={idx}
-                  type={item.type || 'default'}
-                  time={`${item.relative ? item.relative + ' ' : ''}${item.time}`}
-                  extra={
-                    item.extra ? (
-                      <div
-                        className='text-xs text-gray-500'
-                        dangerouslySetInnerHTML={{ __html: htmlExtra }}
-                      />
-                    ) : null
-                  }
-                >
-                  <div>
-                    <div
-                      dangerouslySetInnerHTML={{
-                        __html: marked.parse(item.content || ''),
-                      }}
-                    />
-                  </div>
-                </Timeline.Item>
-              );
-            })}
-          </Timeline>
+      if (typeInfo.text) {
+        metaParts.push(`分类：${typeInfo.text}`);
+      }
+
+      return {
+        id: item.id || `announcement-${index}`,
+        title: content || t('暂无系统公告'),
+        meta: metaParts.join(' · '),
+        code: typeInfo.code,
+        className: typeInfo.className,
+        extra,
+      };
+    });
+  }, [announcementData, t]);
+
+  return (
+    <section className='custom-card lg:col-span-2'>
+      <div className='custom-card__header'>
+        <div className='header-left'>
+          <BellRing style={{ color: '#3370ff' }} />
+          <span>{t('系统公告')}</span>
+        </div>
+        <div className='header-extra'>{t('最新20条')}</div>
+      </div>
+      <div className="custom-card__tags">
+          <div className="tag tag--active">全部</div>
+          {announcementLegendData.map((legend) => (
+            <div key={legend.label} className="tag ">
+              {legend.label}
+            </div>
+          ))}
+        </div>
+      <div className='flex1-content'>
+        {displayList.length > 0 ? (
+          displayList.slice(0, 2).map((item) => (
+            <div key={item.id} className='list-item'>
+              <span className='list-item__title'>{item.title}</span>
+              <div className='list-item__meta'>{item.meta}</div>
+              {item.extra ? <div className='list-item__meta'>{item.extra}</div> : null}
+              <span className={`status-label ${item.className}`}>{item.code}</span>
+            </div>
+          ))
         ) : (
-          <div className='flex justify-center items-center py-8'>
+          <div className="flex justify-center items-center w-full h-full">
             <Empty
-              image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-              darkModeImage={
-                <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
-              }
+              image={<IllustrationConstruction style={{ width: '90px', height: '90px' }} />}
               title={t('暂无系统公告')}
               description={t('请联系管理员在系统设置中配置公告信息')}
             />
           </div>
         )}
-      </ScrollableContainer>
-    </Card>
+      </div>
+      
+    </section>
   );
 };
 
