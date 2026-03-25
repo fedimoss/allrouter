@@ -78,7 +78,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         '/console/playground': t('操练场'),
         '/console/token': t('令牌管理'),
         '/pricing': t('模型广场'),
-        '/console/log': t('操作日志'),
+        '/console/log': t('使用日志'),
         '/console/midjourney': t('绘图日志'),
         '/console/task': t('任务日志'),
         '/console/topup': t('钱包'),

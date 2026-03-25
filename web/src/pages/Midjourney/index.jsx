@@ -19,9 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import MjLogsTable from '../../components/table/mj-logs';
+import './midjourney-v2.css';
 
 const Midjourney = () => (
-  <div className='mt-[60px] px-2'>
+  <div className='mjlog-v2-page mt-[10px] px-2'>
     <MjLogsTable />
   </div>
 );
