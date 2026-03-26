@@ -27,7 +27,7 @@ const { Text } = Typography;
 const RedemptionsDescription = ({ compactMode, setCompactMode, t }) => {
   return (
     <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <div className='flex items-center text-orange-500'>
+      <div className='flex items-center' style={{ color: 'var(--semi-color-warning)' }}>
         <Ticket size={16} className='mr-2' />
         <Text>{t('兑换码管理')}</Text>
       </div>

@@ -65,7 +65,7 @@ const UptimePanel = ({
     //         size='small'
     //         theme='borderless'
     //         type='tertiary'
-    //         className='text-gray-500 hover:text-blue-500 hover:bg-blue-50 !rounded-full'
+    //         className='!rounded-full !text-[var(--semi-color-text-2)] hover:!text-[var(--semi-color-primary)] hover:!bg-[var(--semi-color-primary-light-default)]'
     //       />
     //     </div>
     //   }
@@ -133,7 +133,7 @@ const UptimePanel = ({
 
     //   {/* 图例 */}
     //   {uptimeData.length > 0 && (
-    //     <div className='p-3 bg-gray-50 rounded-b-2xl'>
+    //     <div className='rounded-b-2xl p-3' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
     //       <div className='flex flex-wrap gap-3 text-xs justify-center'>
     //         {uptimeLegendData.map((legend, index) => (
     //           <div key={index} className='flex items-center gap-1'>
@@ -141,7 +141,7 @@ const UptimePanel = ({
     //               className='w-2 h-2 rounded-full'
     //               style={{ backgroundColor: legend.color }}
     //             />
-    //             <span className='text-gray-600'>{legend.label}</span>
+    //             <span style={{ color: 'var(--semi-color-text-1)' }}>{legend.label}</span>
     //           </div>
     //         ))}
     //       </div>
@@ -161,7 +161,7 @@ const UptimePanel = ({
           size='small'
           theme='borderless'
           type='tertiary'
-          className='text-gray-500 hover:text-blue-500 hover:bg-blue-50 !rounded-full'
+          className='!rounded-full !text-[var(--semi-color-text-2)] hover:!text-[var(--semi-color-primary)] hover:!bg-[var(--semi-color-primary-light-default)]'
         />
       </div>
       <div className="flex1-content">
@@ -226,7 +226,7 @@ const UptimePanel = ({
 
        {/* 图例 */}
         {uptimeData.length > 0 && (
-          <div className='p-3 bg-gray-50 rounded-b-2xl'>
+          <div className='rounded-b-2xl p-3' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
             <div className='flex flex-wrap gap-3 text-xs justify-center'>
               {uptimeLegendData.map((legend, index) => (
                 <div key={index} className='flex items-center gap-1'>
@@ -234,7 +234,7 @@ const UptimePanel = ({
                     className='w-2 h-2 rounded-full'
                     style={{ backgroundColor: legend.color }}
                   />
-                  <span className='text-gray-600'>{legend.label}</span>
+                  <span style={{ color: 'var(--semi-color-text-1)' }}>{legend.label}</span>
                 </div>
               ))}
             </div>

@@ -79,7 +79,7 @@ const StatsCards = ({ groupedStatsData, loading, CARD_PROPS }) => {
             <span style={{color:'rgb(100 116 139 / 100%)'}}>{t('本月预算使用率')}</span>
             <span className='font-semibold text-slate-600'>{budgetUsagePct}%</span>
           </div>
-          <div className='h-2 rounded-full bg-slate-200 mt-1 overflow-hidden'>
+          <div className='mt-1 overflow-hidden'>
             <Progress percent={budgetUsagePct} aria-label="disk usage" />
           </div>
         </div>

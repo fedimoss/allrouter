@@ -29,7 +29,7 @@ const ApiInfoPanel = ({ apiInfoData = [], handleCopyUrl, t }) => {
     <div className='dashboard-card'>
       <div className='card-header'>
         <div className='header-title'>
-          <Share2 size={20} color='#0891b2' />
+          <Share2 size={20} color='var(--semi-color-primary)' />
           <span>{t('API\u4fe1\u606f')}</span>
         </div>
         <button className='header-link'>{t('\u8be6\u60c5')}</button>

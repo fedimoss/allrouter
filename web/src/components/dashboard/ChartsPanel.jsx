@@ -1,4 +1,4 @@
-﻿/*
+/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -72,13 +72,13 @@ const ChartsPanel = ({
               value={activeChartTab}
               onChange={(value) => setActiveChartTab(String(value))}
               optionList={chartTypeOptions}
-              style={{ width: 148,backgroundColor: 'rgb(248 250 252 / 100%)',border:'1px solid rgb(203 213 225 / 100%)' }}
+              style={{ width: 148, backgroundColor: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)', borderRadius: 12, color: 'var(--semi-color-text-0)' }}
             />
             <Select
               value={timeRange}
               onChange={(value) => setTimeRange(String(value))}
               optionList={timeRangeOptions}
-              style={{ width: 148,backgroundColor: 'rgb(248 250 252 / 100%)',border:'1px solid rgb(203 213 225 / 100%)' }}
+              style={{ width: 148, backgroundColor: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)', borderRadius: 12, color: 'var(--semi-color-text-0)' }}
             />
             <Button
               theme='borderless'

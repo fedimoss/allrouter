@@ -30,7 +30,9 @@ body {
   color: var(--semi-color-text-0);
   background-color: var(--semi-color-bg-0);
 }
-
+p{
+  margin-bottom: 0 !important;
+}
 .app-layout {
   height: 100vh;
   height: 100dvh;
@@ -738,6 +740,17 @@ html.dark .sbg-variant-green {
   --semi-color-primary-light-default: rgba(52, 211, 153, 0.14);
   --semi-color-primary-light-hover: rgba(52, 211, 153, 0.22);
   --semi-color-primary-light-active: rgba(52, 211, 153, 0.3);
+}
+.common-input{
+  background-color: #fff;
+  border-color: rgb(203 213 225 / 100%);
+  padding: 0 10px;
+  font-size: 14px;
+}
+.dark .common-input{
+  background-color: rgb(15 23 42 / 100%);
+  border-color: rgb(49, 56, 73);
+  color: var(--semi-color-text-0);
 }
 
 /* Tabs组件样式 */

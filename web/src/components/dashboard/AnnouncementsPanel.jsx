@@ -96,7 +96,7 @@ const AnnouncementsPanel = ({
     <section className='custom-card lg:col-span-2'>
       <div className='custom-card__header'>
         <div className='header-left'>
-          <BellRing style={{ color: '#3370ff' }} />
+          <BellRing style={{ color: 'var(--semi-color-primary)' }} />
           <span>{t('\u7cfb\u7edf\u516c\u544a')}</span>
         </div>
         <div className='header-extra'>{t('\u6700\u65b020\u6761')}</div>
