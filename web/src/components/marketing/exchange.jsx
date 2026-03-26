@@ -56,48 +56,7 @@ import { useIsMobile } from '../../hooks/common/useIsMobile';
 const { Text, Title } = Typography;
 
 // 静态兑换记录
-const STATIC_RECORDS = [
-  {
-    id: 1,
-    redeem_time: '2026-03-15 09:32',
-    code: 'ALLR-2026-WELCOME',
-    type: '新用户礼包',
-    value: '$5.00',
-    status: 'redeemed',
-    account_status: 'arrived',
-    txn_id: 'txn_rc_78a1',
-  },
-  {
-    id: 2,
-    redeem_time: '2026-03-12 14:18',
-    code: 'ALLR-2026-SPRING',
-    type: '春季活动',
-    value: '$10.00',
-    status: 'redeemed',
-    account_status: 'pending',
-    txn_id: 'txn_rc_78b2',
-  },
-  {
-    id: 3,
-    redeem_time: '2026-02-28 20:05',
-    code: 'ALLR-BETA-VIP01',
-    type: 'VIP体验',
-    value: '7天VIP',
-    status: 'expired',
-    account_status: 'failed',
-    txn_id: 'txn_rc_78c3',
-  },
-  {
-    id: 4,
-    redeem_time: '2026-03-01 11:42',
-    code: 'ALLR-2026-CODE5',
-    type: '代码补贴',
-    value: '$3.00',
-    status: 'redeemed',
-    account_status: 'arrived',
-    txn_id: 'txn_rc_78d4',
-  },
-];
+const STATIC_RECORDS = [];
 
 const STATUS_MAP = {
   redeemed: {
@@ -335,7 +294,7 @@ const Exchange = () => {
               <Input
                 value={redemptionCode}
                 onChange={setRedemptionCode}
-                placeholder={t('请输入兑换码 (如 ALLR-XXXX-XXXX)')}
+                placeholder={t('请输入兑换码')}
                 size='large'
                 className='flex-1 !rounded-xl !bg-slate-50 dark:!bg-slate-800 !border-slate-300 dark:!border-slate-700 !text-lg'
                 style={{ fontFamily: 'monospace', letterSpacing: '0.08em' }}
@@ -365,7 +324,7 @@ const Exchange = () => {
                   className='text-slate-400 flex-shrink-0'
                 />
                 <Text type='tertiary' size='small'>
-                  {t('兑换码不区分大小写，输入后点击"立即兑换"即可领取对应权益')}
+                  {t('兑换码不区分大小写，输入后点击立即兑换即可领取对应权益')}
                 </Text>
               </div>
               {topUpLink && (
@@ -457,12 +416,6 @@ const Exchange = () => {
             columns={columns}
             dataSource={STATIC_RECORDS}
             rowKey='id'
-            pagination={{
-              currentPage: 1,
-              pageSize: 10,
-              total: 24,
-              pageSizeOpts: [10, 20, 50],
-            }}
           />
         </div>
 

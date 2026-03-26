@@ -17,8 +17,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo, useState } from 'react';
-import { Button, Card, Pagination, Select, Table, Tag, Typography } from '@douyinfe/semi-ui';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Badge,
+  Button,
+  Card,
+  Empty,
+  Input,
+  Modal,
+  Pagination,
+  Select,
+  Table,
+  Tag,
+  Toast,
+  Typography,
+} from '@douyinfe/semi-ui';
+import {
+  IllustrationNoResult,
+  IllustrationNoResultDark,
+} from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
 import {
   BarChart3,
@@ -27,20 +44,21 @@ import {
   Clock3,
   Coins,
   Download,
-  List,
+  History,
   ReceiptText,
 } from 'lucide-react';
+import { IconSearch } from '@douyinfe/semi-icons';
+import { API, timestamp2string } from '../../helpers';
+import { isAdmin } from '../../helpers/utils';
 
 const { Text, Title } = Typography;
-
-const PAGE_SIZE = 6;
 
 const SUMMARY_CARDS = [
   {
     key: 'monthCost',
     title: '本月消费',
-    value: '$128.50',
-    description: '较上月 +12.8%',
+    value: '$0.00',
+    description: '较上月 +0%',
     icon: BadgeDollarSign,
     iconClassName: 'text-cyan-600',
     iconWrapClassName: 'bg-cyan-50',
@@ -48,7 +66,7 @@ const SUMMARY_CARDS = [
   {
     key: 'settled',
     title: '已结算',
-    value: '$96.30',
+    value: '$0.00',
     description: '2026 年 3 月',
     icon: CalendarCheck2,
     iconClassName: 'text-violet-600',
@@ -57,7 +75,7 @@ const SUMMARY_CARDS = [
   {
     key: 'totalCost',
     title: '累计消费',
-    value: '$1,245.80',
+    value: '$0.00',
     description: '自 2025-06 至今',
     icon: Coins,
     iconClassName: 'text-amber-600',
@@ -74,260 +92,264 @@ const SUMMARY_CARDS = [
   },
 ];
 
-const BILLING_ROWS = [
-  {
-    key: '1',
-    time: '2026-03-18 09:42',
-    model: 'GPT-4-Turbo',
-    provider: 'OpenAI 官方',
-    inputTokens: 2340,
-    outputTokens: 1856,
-    cost: '$0.0580',
-    status: '已结算',
-    colorClassName: 'bg-emerald-400',
-  },
-  {
-    key: '2',
-    time: '2026-03-18 08:15',
-    model: 'Claude 3.5 Sonnet',
-    provider: 'Anthropic',
-    inputTokens: 5120,
-    outputTokens: 3472,
-    cost: '$0.0412',
-    status: '已结算',
-    colorClassName: 'bg-orange-400',
-  },
-  {
-    key: '3',
-    time: '2026-03-17 22:30',
-    model: 'GPT-4o',
-    provider: 'OpenAI 官方',
-    inputTokens: 8192,
-    outputTokens: 2048,
-    cost: '$0.0310',
-    status: '已结算',
-    colorClassName: 'bg-blue-400',
-  },
-  {
-    key: '4',
-    time: '2026-03-17 18:05',
-    model: 'Gemini 1.5 Pro',
-    provider: 'Google AI',
-    inputTokens: 12800,
-    outputTokens: 4096,
-    cost: '$0.0720',
-    status: '已结算',
-    colorClassName: 'bg-violet-400',
-  },
-  {
-    key: '5',
-    time: '2026-03-17 14:52',
-    model: 'DeepSeek-V3',
-    provider: 'DeepSeek',
-    inputTokens: 6400,
-    outputTokens: 5120,
-    cost: '$0.0086',
-    status: '待结算',
-    colorClassName: 'bg-cyan-400',
-  },
-  {
-    key: '6',
-    time: '2026-03-17 10:28',
-    model: 'Claude 3 Opus',
-    provider: 'Anthropic',
-    inputTokens: 3200,
-    outputTokens: 2816,
-    cost: '$0.1320',
-    status: '已结算',
-    colorClassName: 'bg-orange-400',
-  },
-  {
-    key: '7',
-    time: '2026-03-16 21:10',
-    model: 'GPT-4.1',
-    provider: 'OpenAI 官方',
-    inputTokens: 4890,
-    outputTokens: 2604,
-    cost: '$0.0440',
-    status: '已结算',
-    colorClassName: 'bg-sky-400',
-  },
-  {
-    key: '8',
-    time: '2026-03-16 14:36',
-    model: 'Gemini 2.0 Flash',
-    provider: 'Google AI',
-    inputTokens: 2760,
-    outputTokens: 1320,
-    cost: '$0.0094',
-    status: '已结算',
-    colorClassName: 'bg-indigo-400',
-  },
-  {
-    key: '9',
-    time: '2026-03-16 09:12',
-    model: 'DeepSeek-R1',
-    provider: 'DeepSeek',
-    inputTokens: 7140,
-    outputTokens: 6540,
-    cost: '$0.0158',
-    status: '待结算',
-    colorClassName: 'bg-teal-400',
-  },
-  {
-    key: '10',
-    time: '2026-03-15 19:44',
-    model: 'Claude 3.7 Sonnet',
-    provider: 'Anthropic',
-    inputTokens: 5900,
-    outputTokens: 4010,
-    cost: '$0.0575',
-    status: '已结算',
-    colorClassName: 'bg-amber-400',
-  },
-  {
-    key: '11',
-    time: '2026-03-15 11:08',
-    model: 'GPT-4o-mini',
-    provider: 'OpenAI 官方',
-    inputTokens: 9320,
-    outputTokens: 4880,
-    cost: '$0.0186',
-    status: '已结算',
-    colorClassName: 'bg-emerald-400',
-  },
-  {
-    key: '12',
-    time: '2026-03-15 08:23',
-    model: 'Gemini 1.5 Pro',
-    provider: 'Google AI',
-    inputTokens: 4250,
-    outputTokens: 2380,
-    cost: '$0.0284',
-    status: '已结算',
-    colorClassName: 'bg-purple-400',
-  },
-];
-
-const DAILY_COSTS = [
-  { label: '3月2日', amount: '$15.20', percent: 60 },
-  { label: '3月3日', amount: '$22.80', percent: 85 },
-  { label: '3月4日', amount: '$8.50', percent: 35 },
-  { label: '3月5日', amount: '$26.40', percent: 100 },
-  { label: '3月6日', amount: '$19.70', percent: 75 },
-  { label: '3月7日', amount: '$24.36', percent: 92 },
-  { label: '今天', amount: '$11.54', percent: 45, highlight: true },
+const DAILY_COST_VALUES = [
+  { amount: '$15.20', percent: 60 },
+  { amount: '$22.80', percent: 85 },
+  { amount: '$8.50', percent: 35 },
+  { amount: '$26.40', percent: 100 },
+  { amount: '$19.70', percent: 75 },
+  { amount: '$24.36', percent: 92 },
+  { amount: '$11.54', percent: 45 },
 ];
 
 const TIME_RANGE_OPTIONS = [
   { value: 'current_month', label: '本月' },
   { value: 'last_month', label: '上月' },
-  { value: 'last_three_months', label: '近三月' },
+  { value: 'last_three_months', label: '近三个月' },
   { value: 'custom', label: '自定义' },
 ];
 
-const MODEL_OPTIONS = [
-  { value: 'all', label: '全部模型' },
-  { value: 'GPT-4-Turbo', label: 'GPT-4-Turbo' },
-  { value: 'GPT-4o', label: 'GPT-4o' },
-  { value: 'Claude 3.5 Sonnet', label: 'Claude 3.5 Sonnet' },
-  { value: 'Claude 3 Opus', label: 'Claude 3 Opus' },
-  { value: 'Claude 3.7 Sonnet', label: 'Claude 3.7 Sonnet' },
-  { value: 'Gemini 1.5 Pro', label: 'Gemini 1.5 Pro' },
-  { value: 'Gemini 2.0 Flash', label: 'Gemini 2.0 Flash' },
-  { value: 'DeepSeek-V3', label: 'DeepSeek-V3' },
-  { value: 'DeepSeek-R1', label: 'DeepSeek-R1' },
-  { value: 'GPT-4.1', label: 'GPT-4.1' },
-  { value: 'GPT-4o-mini', label: 'GPT-4o-mini' },
-];
+const STATUS_CONFIG = {
+  success: { type: 'success', key: '成功' },
+  pending: { type: 'warning', key: '待支付' },
+  failed: { type: 'danger', key: '失败' },
+  expired: { type: 'danger', key: '已过期' },
+};
 
-const formatNumber = (value) => value.toLocaleString('en-US');
+const PAYMENT_METHOD_MAP = {
+  stripe: 'Stripe',
+  creem: 'Creem',
+  waffo: 'Waffo',
+  alipay: '支付宝',
+  wxpay: '微信',
+  redemptionCode: '兑换码',
+  redemption_code: '兑换码',
+};
+
+const HISTORY_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 const Billing = () => {
   const { t } = useTranslation();
   const [activeRange, setActiveRange] = useState('current_month');
-  const [selectedModel, setSelectedModel] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [activePage, setActivePage] = useState(1);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyRows, setHistoryRows] = useState([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
+  const [historyKeyword, setHistoryKeyword] = useState('');
+  const userIsAdmin = useMemo(() => isAdmin(), []);
+
+  const loadTopups = async (page, pageSize, keyword) => {
+    setHistoryLoading(true);
+    try {
+      const base = userIsAdmin ? '/api/user/topup' : '/api/user/topup/self';
+      const qs =
+        `p=${page}&page_size=${pageSize}` +
+        (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '');
+      const res = await API.get(`${base}?${qs}`);
+      const { success, message, data } = res.data;
+      if (success) {
+        setHistoryRows(data.items || []);
+        setHistoryTotal(data.total || 0);
+      } else {
+        Toast.error({ content: message || t('加载失败') });
+      }
+    } catch (error) {
+      Toast.error({ content: t('加载账单失败') });
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTopups(activePage, historyPageSize, historyKeyword);
+  }, [activePage, historyPageSize, historyKeyword, userIsAdmin]);
+
+  const handleAdminComplete = async (tradeNo) => {
+    try {
+      const res = await API.post('/api/user/topup/complete', {
+        trade_no: tradeNo,
+      });
+      const { success, message } = res.data;
+      if (success) {
+        Toast.success({ content: t('补单成功') });
+        await loadTopups(activePage, historyPageSize, historyKeyword);
+      } else {
+        Toast.error({ content: message || t('补单失败') });
+      }
+    } catch (error) {
+      Toast.error({ content: t('补单失败') });
+    }
+  };
+
+  const confirmAdminComplete = (tradeNo) => {
+    Modal.confirm({
+      title: t('确认补单'),
+      content: t('是否将该订单标记为成功并为用户入账？'),
+      onOk: () => handleAdminComplete(tradeNo),
+    });
+  };
+
+  const getBizType = (record) => {
+    if (record?.biz_type) return record.biz_type;
+    const tradeNo = (record?.trade_no || '').toLowerCase();
+    return Number(record?.amount || 0) === 0 && tradeNo.startsWith('sub')
+      ? 'subscription'
+      : 'payment';
+  };
+
+  const isSubscriptionTopup = (record) => getBizType(record) === 'subscription';
+
+  const renderStatusBadge = (status) => {
+    const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
+    return (
+      <span className='flex items-center justify-center gap-2'>
+        <Badge dot type={config.type} />
+        <span>{t(config.key)}</span>
+      </span>
+    );
+  };
+
+  const renderPaymentMethod = (paymentMethod) => {
+    const displayName = PAYMENT_METHOD_MAP[paymentMethod];
+    return <Text>{displayName ? t(displayName) : paymentMethod || '-'}</Text>;
+  };
+
+  const statusOptions = useMemo(
+    () => [
+      { value: 'all', label: t('全部状态') },
+      { value: 'success', label: t('成功') },
+      { value: 'pending', label: t('待支付') },
+      { value: 'failed', label: t('失败') },
+      { value: 'expired', label: t('已过期') },
+    ],
+    [t],
+  );
 
   const filteredRows = useMemo(() => {
-    if (selectedModel === 'all') {
-      return BILLING_ROWS;
+    if (selectedStatus === 'all') {
+      return historyRows;
     }
-    return BILLING_ROWS.filter((row) => row.model === selectedModel);
-  }, [selectedModel]);
+    return historyRows.filter((row) => row.status === selectedStatus);
+  }, [historyRows, selectedStatus]);
 
-  const pagedRows = useMemo(() => {
-    const start = (activePage - 1) * PAGE_SIZE;
-    return filteredRows.slice(start, start + PAGE_SIZE);
-  }, [activePage, filteredRows]);
+  const dailyCosts = useMemo(() => {
+    const today = new Date();
+    return DAILY_COST_VALUES.map((item, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() - (DAILY_COST_VALUES.length - 1 - index));
+      const isToday = index === DAILY_COST_VALUES.length - 1;
+      return {
+        ...item,
+        label: isToday ? t('今天') : `${date.getMonth() + 1}月${date.getDate()}日`,
+        highlight: isToday,
+      };
+    });
+  }, [t]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  const startIndex = filteredRows.length === 0 ? 0 : (activePage - 1) * PAGE_SIZE + 1;
-  const endIndex = Math.min(activePage * PAGE_SIZE, filteredRows.length);
+  const startIndex =
+    historyTotal === 0 ? 0 : (activePage - 1) * historyPageSize + 1;
+  const endIndex = Math.min(activePage * historyPageSize, historyTotal);
 
-  const columns = [
-    {
-      title: t('时间'),
-      dataIndex: 'time',
-      render: (text) => <span className='whitespace-nowrap text-slate-600'>{text}</span>,
-    },
-    {
-      title: t('模型名称'),
-      dataIndex: 'model',
-      render: (_, record) => (
-        <div className='inline-flex items-center gap-2'>
-          <span className={`h-2.5 w-2.5 rounded-full ${record.colorClassName}`} />
-          <span className='font-medium text-slate-800'>{record.model}</span>
-        </div>
-      ),
-    },
-    {
-      title: t('渠道'),
-      dataIndex: 'provider',
-      render: (text) => <span className='text-slate-500'>{text}</span>,
-    },
-    {
-      title: t('输入 Tokens'),
-      dataIndex: 'inputTokens',
-      align: 'right',
-      render: (value) => <span className='font-mono text-slate-600'>{formatNumber(value)}</span>,
-    },
-    {
-      title: t('输出 Tokens'),
-      dataIndex: 'outputTokens',
-      align: 'right',
-      render: (value) => <span className='font-mono text-slate-600'>{formatNumber(value)}</span>,
-    },
-    {
-      title: t('费用'),
-      dataIndex: 'cost',
-      align: 'right',
-      render: (value) => <span className='font-mono font-semibold text-slate-800'>{value}</span>,
-    },
-    {
-      title: t('状态'),
-      dataIndex: 'status',
-      align: 'center',
-      render: (status) => (
-        <Tag
-          color={status === '已结算' ? 'green' : 'yellow'}
-          shape='circle'
-          size='small'
-          className='billing-status-tag'
-        >
-          {status}
-        </Tag>
-      ),
-    },
-  ];
+  const columns = useMemo(() => {
+    const baseColumns = [
+      {
+        title: t('订单号'),
+        dataIndex: 'trade_no',
+        key: 'trade_no',
+        render: (text) => <Text copyable>{text}</Text>,
+      },
+      {
+        title: t('支付方式'),
+        dataIndex: 'payment_method',
+        key: 'payment_method',
+        render: renderPaymentMethod,
+      },
+      {
+        title: t('充值额度'),
+        dataIndex: 'amount',
+        key: 'amount',
+        render: (_, record) =>
+          isSubscriptionTopup(record) ? (
+            <Tag color='purple' shape='circle' size='small'>
+              {t('订阅套餐')}
+            </Tag>
+          ) : (
+            <span className='flex items-center gap-1'>
+              <Coins size={16} />
+              <Text>{record.amount}</Text>
+            </span>
+          ),
+      },
+      {
+        title: t('支付金额'),
+        dataIndex: 'money',
+        key: 'money',
+        render: (money, record) => {
+          const normalizedMoney = Number(money || 0);
+          const prefix =
+            normalizedMoney <= 0
+              ? ''
+              : record.payment_method === 'stripe'
+                ? '$'
+                : '￥';
+          return (
+            <Text type='danger'>
+              {prefix}
+              {normalizedMoney.toFixed(2)}
+            </Text>
+          );
+        },
+      },
+      {
+        title: t('状态'),
+        dataIndex: 'status',
+        key: 'status',
+        align: 'center',
+        render: renderStatusBadge,
+      },
+      {
+        title: t('创建时间'),
+        dataIndex: 'create_time',
+        key: 'create_time',
+        render: (time) => (
+          <span className='whitespace-nowrap text-slate-600'>
+            {timestamp2string(time)}
+          </span>
+        ),
+      },
+    ];
+
+    if (userIsAdmin) {
+      baseColumns.push({
+        title: t('操作'),
+        key: 'action',
+        align: 'center',
+        render: (_, record) =>
+          record.status === 'pending' ? (
+            <Button
+              size='small'
+              type='primary'
+              theme='outline'
+              onClick={() => confirmAdminComplete(record.trade_no)}
+            >
+              {t('补单')}
+            </Button>
+          ) : null,
+      });
+    }
+
+    return baseColumns;
+  }, [t, userIsAdmin]);
 
   const handleRangeChange = (value) => {
     setActiveRange(value);
     setActivePage(1);
   };
 
-  const handleModelChange = (value) => {
-    setSelectedModel(value);
+  const handleStatusChange = (value) => {
+    setSelectedStatus(value);
     setActivePage(1);
   };
 
@@ -348,9 +370,6 @@ const Billing = () => {
               </div>
             </div>
           </div>
-          <div className='billing-page__hero-note rounded-xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-cyan-700'>
-            {t('当前展示为静态示例数据，后续可直接替换为接口返回结果。')}
-          </div>
         </div>
       </div>
 
@@ -365,8 +384,12 @@ const Billing = () => {
             >
               <div className='flex items-start justify-between gap-4'>
                 <div className='min-w-0'>
-                  <div className='mb-3 text-sm font-medium text-slate-500'>{t(item.title)}</div>
-                  <div className='text-3xl font-bold leading-none text-slate-900'>{item.value}</div>
+                  <div className='mb-3 text-sm font-medium text-slate-500'>
+                    {t(item.title)}
+                  </div>
+                  <div className='text-3xl font-bold leading-none text-slate-900'>
+                    {item.value}
+                  </div>
                   <div className='mt-3 text-xs text-slate-400'>
                     {item.key === 'pending' ? (
                       <span className='inline-flex items-center gap-1 text-emerald-500'>
@@ -378,7 +401,9 @@ const Billing = () => {
                     )}
                   </div>
                 </div>
-                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${item.iconWrapClassName}`}>
+                <div
+                  className={`flex h-11 w-11 items-center justify-center rounded-xl ${item.iconWrapClassName}`}
+                >
                   <Icon size={20} className={item.iconClassName} />
                 </div>
               </div>
@@ -393,7 +418,9 @@ const Billing = () => {
       >
         <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
-            <span className='text-sm font-medium text-slate-600'>{t('时间范围：')}</span>
+            <span className='text-sm font-medium text-slate-600'>
+              {t('时间范围')}
+            </span>
             <div className='billing-filter-card__range inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-1'>
               {TIME_RANGE_OPTIONS.map((option) => {
                 const active = activeRange === option.value;
@@ -418,12 +445,9 @@ const Billing = () => {
 
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
             <Select
-              value={selectedModel}
-              onChange={handleModelChange}
-              optionList={MODEL_OPTIONS.map((item) => ({
-                label: item.label,
-                value: item.value,
-              }))}
+              value={selectedStatus}
+              onChange={handleStatusChange}
+              optionList={statusOptions}
               className='billing-filter-card__select min-w-[220px]'
             />
             <Button
@@ -444,19 +468,43 @@ const Billing = () => {
       >
         <div className='flex items-center justify-between border-b border-slate-100 px-6 py-4'>
           <div className='flex items-center gap-2 text-slate-800'>
-            <List size={18} className='text-cyan-500' />
+            <History size={18} className='text-cyan-500' />
             <span className='text-lg font-bold'>{t('消费明细')}</span>
           </div>
-          <span className='text-xs text-slate-400'>
-            {t('共 {{count}} 条记录', { count: filteredRows.length })}
-          </span>
+          <div className='flex items-center gap-3'>
+            <span className='text-xs text-slate-400'>
+              {t('共 {{count}} 条记录', { count: historyTotal })}
+            </span>
+            <Input
+              prefix={<IconSearch />}
+              placeholder={t('搜索订单号')}
+              value={historyKeyword}
+              onChange={(value) => {
+                setHistoryKeyword(value);
+                setActivePage(1);
+              }}
+              showClear
+              style={{ width: 220 }}
+            />
+          </div>
         </div>
         <Table
           className='billing-table'
           columns={columns}
-          dataSource={pagedRows}
+          dataSource={filteredRows}
+          loading={historyLoading}
+          rowKey='id'
           pagination={false}
-          empty={t('暂无账单记录')}
+          empty={
+            <Empty
+              image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+              darkModeImage={
+                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+              }
+              description={t('暂无充值记录')}
+              style={{ padding: 30 }}
+            />
+          }
         />
       </Card>
 
@@ -472,7 +520,7 @@ const Billing = () => {
           <span className='text-xs text-slate-400'>2026 年 3 月</span>
         </div>
         <div className='grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7'>
-          {DAILY_COSTS.map((item) => (
+          {dailyCosts.map((item) => (
             <div
               key={item.label}
               className={`billing-daily-card__item rounded-xl border p-3 text-center ${
@@ -502,7 +550,10 @@ const Billing = () => {
                   className={`billing-daily-card__bar mt-auto w-full rounded-sm ${
                     item.highlight ? 'bg-cyan-600' : 'bg-cyan-500'
                   }`}
-                  style={{ height: `${item.percent}%`, marginTop: `${100 - item.percent}%` }}
+                  style={{
+                    height: `${item.percent}%`,
+                    marginTop: `${100 - item.percent}%`,
+                  }}
                 />
               </div>
             </div>
@@ -515,20 +566,34 @@ const Billing = () => {
           {t('显示第 {{start}} - {{end}} 条，共 {{total}} 条', {
             start: startIndex,
             end: endIndex,
-            total: filteredRows.length,
+            total: historyTotal,
           })}
         </Text>
-        <Pagination
-          total={filteredRows.length}
-          pageSize={PAGE_SIZE}
-          currentPage={activePage}
-          onPageChange={setActivePage}
-          showSizeChanger={false}
-        />
+        <div className='flex items-center gap-3'>
+          <Select
+            value={historyPageSize}
+            onChange={(value) => {
+              setHistoryPageSize(value);
+              setActivePage(1);
+            }}
+            optionList={HISTORY_PAGE_SIZE_OPTIONS.map((value) => ({
+              label: t('{{count}} 条/页', { count: value }),
+              value,
+            }))}
+            insetLabel={t('每页')}
+            className='min-w-[120px]'
+          />
+          <Pagination
+            total={historyTotal}
+            pageSize={historyPageSize}
+            currentPage={activePage}
+            onPageChange={setActivePage}
+            showSizeChanger={false}
+          />
+        </div>
       </div>
     </div>
   );
 };
 
 export default Billing;
-

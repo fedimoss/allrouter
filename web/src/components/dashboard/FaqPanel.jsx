@@ -20,106 +20,62 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Empty, Collapse } from '@douyinfe/semi-ui';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
+import {
+  IllustrationConstruction,
+  IllustrationConstructionDark,
+} from '@douyinfe/semi-illustrations';
 import { marked } from 'marked';
 
 import './index.scss';
 
-const FaqPanel = ({
-  faqData,
-  CARD_PROPS,
-  FLEX_CENTER_GAP2,
-  ILLUSTRATION_SIZE,
-  t,
-}) => {
+const FAQ_TAGS = ['\u63a5\u53e3', '\u8ba1\u8d39', '\u5b89\u5168'];
+
+const FaqPanel = ({ faqData = [], ILLUSTRATION_SIZE, t }) => {
   return (
-    // <Card
-    //   {...CARD_PROPS}
-    //   className='shadow-sm !rounded-2xl lg:col-span-1'
-    //   title={
-    //     <div className={FLEX_CENTER_GAP2}>
-    //       <HelpCircle size={16} />
-    //       {t('常见问答')}
-    //     </div>
-    //   }
-    //   bodyStyle={{ padding: 0 }}
-    // >
-    //   <ScrollableContainer maxHeight='24rem'>
-    //     {faqData.length > 0 ? (
-    //       <Collapse
-    //         accordion
-    //         expandIcon={<IconPlus />}
-    //         collapseIcon={<IconMinus />}
-    //       >
-    //         {faqData.map((item, index) => (
-    //           <Collapse.Panel
-    //             key={index}
-    //             header={item.question}
-    //             itemKey={index.toString()}
-    //           >
-    //             <div
-    //               dangerouslySetInnerHTML={{
-    //                 __html: marked.parse(item.answer || ''),
-    //               }}
-    //             />
-    //           </Collapse.Panel>
-    //         ))}
-    //       </Collapse>
-    //     ) : (
-    //       <div className='flex justify-center items-center py-8'>
-    //         <Empty
-    //           image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-    //           darkModeImage={
-    //             <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
-    //           }
-    //           title={t('暂无常见问答')}
-    //           description={t('请联系管理员在系统设置中配置常见问答')}
-    //         />
-    //       </div>
-    //     )}
-    //   </ScrollableContainer>
-    // </Card>
-    <section className="custom-card">
-      <div className="custom-card__header">
-        <div className="header-left">
-          <IconHelpCircle style={{ color: '#14b8a6',fontSize: '24px' }} />
-          <span>{t('常见问答')}</span>
+    <section className='custom-card'>
+      <div className='custom-card__header'>
+        <div className='header-left'>
+          <IconHelpCircle style={{ color: '#14b8a6', fontSize: '24px' }} />
+          <span>{t('\u5e38\u89c1\u95ee\u7b54')}</span>
         </div>
-        <div className="header-extra">{t('分类')}</div>
+        <div className='header-extra'>{t('\u5206\u7c7b')}</div>
       </div>
 
-      <div className="custom-card__tags">
-        <div className="tag tag--active">{t('全部')}</div>
-        {['接口', '计费', '安全'].map(t => <div key={t} className="tag">{t}</div>)}
+      <div className='custom-card__tags'>
+        <div className='tag tag--active'>{t('\u5168\u90e8')}</div>
+        {FAQ_TAGS.map((item) => (
+          <div key={item} className='tag'>
+            {t(item)}
+          </div>
+        ))}
       </div>
-      <div className="flex1-content">
-        {
-          faqData.length > 0 ? (
-            <Collapse>
-              {faqData.map((item, index) => (
-                <Collapse.Panel
-                  key={index}
-                  header={item.question}
-                  itemKey={index.toString()}
-                >
-                  <div
-                    dangerouslySetInnerHTML={{
-                      __html: marked.parse(item.answer || ''),
-                    }}
-                  />
-                </Collapse.Panel>
-              ))}
-            </Collapse>
-          ) : (
-            <Empty
-              image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-              darkModeImage={
-                <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
-              }
-              title={t('暂无常见问答')}
-              description={t('请联系管理员在系统设置中配置常见问答')}
-            />
-          )
-        }
+      <div className='flex1-content'>
+        {faqData.length > 0 ? (
+          <Collapse>
+            {faqData.map((item, index) => (
+              <Collapse.Panel
+                key={index}
+                header={item.question}
+                itemKey={index.toString()}
+              >
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: marked.parse(item.answer || ''),
+                  }}
+                />
+              </Collapse.Panel>
+            ))}
+          </Collapse>
+        ) : (
+          <Empty
+            image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
+            darkModeImage={
+              <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
+            }
+            title={t('\u6682\u65e0\u5e38\u89c1\u95ee\u7b54')}
+            description={t('\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458\u5728\u7cfb\u7edf\u8bbe\u7f6e\u4e2d\u914d\u7f6e\u5e38\u89c1\u95ee\u7b54')}
+          />
+        )}
       </div>
     </section>
   );

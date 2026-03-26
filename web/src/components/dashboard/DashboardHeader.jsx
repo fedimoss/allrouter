@@ -36,7 +36,7 @@ const DashboardHeader = ({
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
-    return `${year} 年 ${month} 月 ${day} 日`;
+    return `${year} ${t('年')} ${month} ${t('月')} ${day} ${t('日')}`;
   }
 
   return (
@@ -48,12 +48,12 @@ const DashboardHeader = ({
         >
           {getGreeting}
         </h2>
-        <p className='text-sm m-2' style={{color:'rgb(100 116 139 / 100%)'}}>今天是 {getDateNow()}，系统运行正常。</p>
+        <p className='text-sm m-2' style={{color:'rgb(100 116 139 / 100%)'}}>{t('今天是')} {getDateNow()}，{t('系统运行正常。')}</p>
       </div>
       
       <div className='flex gap-3'>
         <Input
-          placeholder='请输入关键词搜索'
+          placeholder={t('请输入关键词搜索')}
           size='large'
           prefix={<Search size={16} style={{color:'rgb(148 163 184 / 100%)'}} />}
           onFocus={showSearchModal}
