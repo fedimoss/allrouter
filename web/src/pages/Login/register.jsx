@@ -262,36 +262,38 @@ export default function RegisterPage() {
       registerInputs.verification_code || '',
     ).trim();
 
-    if (!username) return showInfo(t('\u8bf7\u8f93\u5165\u7528\u6237\u540d'));
+    if (!username) return showInfo(t('请输入用户名'));
     if (!email)
-      return showInfo(t('\u8bf7\u8f93\u5165\u90ae\u7bb1\u5730\u5740'));
+      return showInfo(t('请输入邮箱地址'));
     if (!isValidEmail(email)) {
       flashEmailError();
       return showInfo(
-        t('\u8bf7\u8f93\u5165\u6b63\u786e\u7684\u90ae\u7bb1\u5730\u5740'),
+        t('请输入正确的邮箱地址'),
       );
     }
     if (showEmailVerification && !verificationCode) {
       return showInfo(
-        t('\u8bf7\u8f93\u5165\u90ae\u7bb1\u9a8c\u8bc1\u7801\uff01'),
+        t('请输入邮箱验证码！'),
       );
     }
-    if (showEmailVerification && !/^\d{6}$/.test(verificationCode)) {
-      return showInfo(t('\u8bf7\u8f93\u5165 6 \u4f4d\u9a8c\u8bc1\u7801'));
+    if (showEmailVerification && verificationCode.length !== 6) {
+      return showInfo(
+        t('请输入 6 位验证码'),
+      );
     }
-    if (!password) return showInfo(t('\u8bf7\u8f93\u5165\u5bc6\u7801'));
+    if (!password) return showInfo(t('请输入密码'));
     if (!isStrongPassword(password)) {
       return showInfo(
         t(
-          '\u81f3\u5c11 8 \u4f4d\uff0c\u5305\u542b\u5b57\u6bcd\u548c\u6570\u5b57',
+          '至少 8 位，包含字母和数字',
         ),
       );
     }
     if (!password2)
-      return showInfo(t('\u8bf7\u518d\u6b21\u8f93\u5165\u5bc6\u7801'));
+      return showInfo(t('请再次输入密码'));
     if (password !== password2)
       return showInfo(
-        t('\u4e24\u6b21\u8f93\u5165\u7684\u5bc6\u7801\u4e0d\u4e00\u81f4'),
+        t('两次输入的密码不一致'),
       );
 
     setRegisterLoading(true);
