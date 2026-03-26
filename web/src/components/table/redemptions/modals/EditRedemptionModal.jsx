@@ -51,6 +51,14 @@ import {
 
 const { Text, Title } = Typography;
 
+const themedFieldStyle = {
+  width: '100%',
+  backgroundColor: 'var(--semi-color-bg-0)',
+  border: '1px solid var(--semi-color-border)',
+  color: 'var(--semi-color-text-0)',
+  borderRadius: 8,
+};
+
 const EditRedemptionModal = (props) => {
   const { t } = useTranslation();
   const isEdit = props.editingRedemption.id !== undefined;
@@ -184,7 +192,7 @@ const EditRedemptionModal = (props) => {
         visible={props.visiable}
         width={isMobile ? '100%' : 600}
         footer={
-          <div className='flex justify-end bg-white'>
+          <div className='flex justify-end' style={{ backgroundColor: 'var(--semi-color-bg-0)' }}>
             <Space>
               <Button
                 theme='solid'
@@ -230,7 +238,7 @@ const EditRedemptionModal = (props) => {
                       <Text className='text-lg font-medium'>
                         {t('基本信息')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='text-xs' style={{ color: 'var(--semi-color-text-1)' }}>
                         {t('设置兑换码的基本信息')}
                       </div>
                     </div>
@@ -242,7 +250,7 @@ const EditRedemptionModal = (props) => {
                         field='name'
                         label={t('名称')}
                         placeholder={t('请输入名称')}
-                        style={{ width: '100%' }}
+                        style={themedFieldStyle}
                         rules={
                           !isEdit
                             ? []
@@ -257,7 +265,7 @@ const EditRedemptionModal = (props) => {
                         label={t('过期时间')}
                         type='dateTime'
                         placeholder={t('选择过期时间（可选，留空为永久）')}
-                        style={{ width: '100%' }}
+                        style={themedFieldStyle}
                         showClear
                       />
                     </Col>
@@ -278,7 +286,7 @@ const EditRedemptionModal = (props) => {
                       <Text className='text-lg font-medium'>
                         {t('额度设置')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='text-xs' style={{ color: 'var(--semi-color-text-1)' }}>
                         {t('设置兑换码的额度和数量')}
                       </div>
                     </div>
@@ -290,7 +298,7 @@ const EditRedemptionModal = (props) => {
                         field='quota'
                         label={t('额度')}
                         placeholder={t('请输入额度')}
-                        style={{ width: '100%' }}
+                        style={themedFieldStyle}
                         type='number'
                         rules={[
                           { required: true, message: t('请输入额度') },
@@ -334,7 +342,7 @@ const EditRedemptionModal = (props) => {
                               },
                             },
                           ]}
-                          style={{ width: '100%' }}
+                          style={themedFieldStyle}
                           showClear
                         />
                       </Col>

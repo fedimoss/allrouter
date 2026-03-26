@@ -22,7 +22,6 @@ import NewYearButton from './NewYearButton';
 import NotificationButton from './NotificationButton';
 import ThemeToggle from './ThemeToggle';
 import LanguageSelector from './LanguageSelector';
-import UserArea from './UserArea';
 
 const ActionButtons = ({
   isNewYear,
@@ -32,24 +31,11 @@ const ActionButtons = ({
   onThemeToggle,
   currentLang,
   onLanguageChange,
-  userState,
-  isLoading,
-  isMobile,
-  isSelfUseMode,
-  logout,
-  navigate,
   t,
 }) => {
   return (
     <div className='flex items-center gap-2 md:gap-3'>
       <NewYearButton isNewYear={isNewYear} />
-
-      <NotificationButton
-        unreadCount={unreadCount}
-        onNoticeOpen={onNoticeOpen}
-        t={t}
-      />
-
       <ThemeToggle theme={theme} onThemeToggle={onThemeToggle} t={t} />
 
       <LanguageSelector
@@ -57,14 +43,9 @@ const ActionButtons = ({
         onLanguageChange={onLanguageChange}
         t={t}
       />
-
-      <UserArea
-        userState={userState}
-        isLoading={isLoading}
-        isMobile={isMobile}
-        isSelfUseMode={isSelfUseMode}
-        logout={logout}
-        navigate={navigate}
+      <NotificationButton
+        unreadCount={unreadCount}
+        onNoticeOpen={onNoticeOpen}
         t={t}
       />
     </div>

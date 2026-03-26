@@ -62,7 +62,13 @@ const RedemptionsFilters = ({
             prefix={<IconSearch />}
             placeholder={t('关键字(id或者名称)')}
             showClear
-            pure
+            className='redemption-filter-input'
+            style={{
+              backgroundColor: 'var(--semi-color-bg-0)',
+              border: '1px solid var(--semi-color-border)',
+              color: 'var(--semi-color-text-0)',
+              borderRadius: 8,
+            }}
             size='small'
           />
         </div>

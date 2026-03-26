@@ -133,23 +133,26 @@ export const useMessageActions = (
 
         if (messageIndex === -1) return prevMessages;
 
-        if (targetMessage.role === 'user') {
+        if (
+          targetMessage.role === 'user' ||
+          targetMessage.role === 'system'
+        ) {
           const newMessages = prevMessages.slice(0, messageIndex);
           const contentToSend = getTextContent(targetMessage);
 
           setTimeout(() => {
-            onMessageSend(contentToSend);
+            onMessageSend({
+              content: contentToSend,
+              role: targetMessage.role,
+            });
           }, 100);
 
           return newMessages;
-        } else if (
-          targetMessage.role === 'assistant' ||
-          targetMessage.role === 'system'
-        ) {
+        } else if (targetMessage.role === 'assistant') {
           let userMessageIndex = messageIndex - 1;
           while (
             userMessageIndex >= 0 &&
-            prevMessages[userMessageIndex].role !== 'user'
+            !['user', 'system'].includes(prevMessages[userMessageIndex].role)
           ) {
             userMessageIndex--;
           }
@@ -160,7 +163,10 @@ export const useMessageActions = (
             const contentToSend = getTextContent(userMessage);
 
             setTimeout(() => {
-              onMessageSend(contentToSend);
+              onMessageSend({
+                content: contentToSend,
+                role: userMessage.role,
+              });
             }, 100);
 
             return newMessages;
@@ -202,7 +208,8 @@ export const useMessageActions = (
 
             let updatedMessages;
             if (
-              targetMessage.role === 'user' &&
+              (targetMessage.role === 'user' ||
+                targetMessage.role === 'system') &&
               messageIndex < prevMessages.length - 1
             ) {
               const nextMessage = prevMessages[messageIndex + 1];

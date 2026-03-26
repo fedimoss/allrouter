@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef } from 'react';
-import { Button, Typography, Toast, Modal, Dropdown } from '@douyinfe/semi-ui';
-import { Download, Upload, RotateCcw, Settings2 } from 'lucide-react';
+import { Toast, Modal } from '@douyinfe/semi-ui';
+import { Download, Upload, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   exportConfig,
@@ -33,7 +33,6 @@ const ConfigManager = ({
   currentConfig,
   onConfigImport,
   onConfigReset,
-  styleState,
   messages,
 }) => {
   const { t } = useTranslation();
@@ -155,116 +154,41 @@ const ConfigManager = ({
     return t('暂无保存的配置');
   };
 
-  const dropdownItems = [
-    {
-      node: 'item',
-      name: 'export',
-      onClick: handleExport,
-      children: (
-        <div className='flex items-center gap-2'>
-          <Download size={14} />
-          {t('导出配置')}
-        </div>
-      ),
-    },
-    {
-      node: 'item',
-      name: 'import',
-      onClick: handleImportClick,
-      children: (
-        <div className='flex items-center gap-2'>
-          <Upload size={14} />
-          {t('导入配置')}
-        </div>
-      ),
-    },
-    {
-      node: 'divider',
-    },
-    {
-      node: 'item',
-      name: 'reset',
-      onClick: handleReset,
-      children: (
-        <div className='flex items-center gap-2 text-red-600'>
-          <RotateCcw size={14} />
-          {t('重置配置')}
-        </div>
-      ),
-    },
-  ];
-
-  if (styleState.isMobile) {
-    // 移动端显示简化的下拉菜单
-    return (
-      <>
-        <Dropdown
-          trigger='click'
-          position='bottomLeft'
-          showTick
-          menu={dropdownItems}
-        >
-          <Button
-            icon={<Settings2 size={14} />}
-            theme='borderless'
-            type='tertiary'
-            size='small'
-            className='!rounded-lg !text-gray-600 hover:!text-blue-600 hover:!bg-blue-50'
-          />
-        </Dropdown>
-
-        <input
-          ref={fileInputRef}
-          type='file'
-          accept='.json'
-          onChange={handleFileChange}
-          style={{ display: 'none' }}
-        />
-      </>
-    );
-  }
-
-  // 桌面端显示紧凑的按钮组
   return (
-    <div className='space-y-3'>
-      {/* 配置状态信息和重置按钮 */}
-      <div className='flex items-center justify-between'>
-        <Typography.Text className='text-xs text-gray-500'>
-          {getConfigStatus()}
-        </Typography.Text>
-        <Button
-          icon={<RotateCcw size={12} />}
-          size='small'
-          theme='borderless'
-          type='danger'
-          onClick={handleReset}
-          className='!rounded-full !text-xs !px-2'
-        />
+    <>
+      <div className='playground-v2-config-grid'>
+        <button
+          type='button'
+          className='playground-v2-config-button'
+          onClick={handleImportClick}
+        >
+          <Upload size={14} />
+          {t('导入')}
+        </button>
+
+        <button
+          type='button'
+          className='playground-v2-config-button'
+          onClick={handleExport}
+        >
+          <Download size={14} />
+          {t('导出')}
+        </button>
       </div>
 
-      {/* 导出和导入按钮 */}
-      <div className='flex gap-2'>
-        <Button
-          icon={<Download size={12} />}
-          size='small'
-          theme='solid'
-          type='primary'
-          onClick={handleExport}
-          className='!rounded-lg flex-1 !text-xs !h-7'
-        >
-          {t('导出')}
-        </Button>
+      <div className='playground-v2-settings-footer'>
+        <span className='playground-v2-field-hint'>
+          {getConfigStatus()}
+        </span>
 
-        <Button
-          icon={<Upload size={12} />}
-          size='small'
-          theme='outline'
-          type='primary'
-          onClick={handleImportClick}
-          className='!rounded-lg flex-1 !text-xs !h-7'
+        <button
+          type='button'
+          className='playground-v2-link-button'
+          onClick={handleReset}
         >
-          {t('导入')}
-        </Button>
+          <RotateCcw size={14} />
+          {t('重置配置')}
+        </button>
       </div>
 
       <input
@@ -274,7 +198,7 @@ const ConfigManager = ({
         onChange={handleFileChange}
         style={{ display: 'none' }}
       />
-    </div>
+    </>
   );
 };
 

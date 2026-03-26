@@ -38,7 +38,6 @@ import RechargeCard from './RechargeCard';
 import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
-import TopupHistoryModal from './modals/TopupHistoryModal';
 
 const TopUp = () => {
   const { t } = useTranslation();
@@ -90,9 +89,6 @@ const TopUp = () => {
   const [affLink, setAffLink] = useState('');
   const [openTransfer, setOpenTransfer] = useState(false);
   const [transferAmount, setTransferAmount] = useState(0);
-
-  // 账单Modal状态
-  const [openHistory, setOpenHistory] = useState(false);
 
   // 订阅相关
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
@@ -570,10 +566,9 @@ const TopUp = () => {
     showSuccess(t('邀请链接已复制到剪切板'));
   };
 
-  // URL 参数自动打开账单弹窗（支付回跳时触发）
+  // URL 参数处理（支付回跳时清理参数）
   useEffect(() => {
     if (searchParams.get('show_history') === 'true') {
-      setOpenHistory(true);
       searchParams.delete('show_history');
       setSearchParams(searchParams, { replace: true });
     }
@@ -678,14 +673,6 @@ const TopUp = () => {
     setOpenTransfer(false);
   };
 
-  const handleOpenHistory = () => {
-    setOpenHistory(true);
-  };
-
-  const handleHistoryCancel = () => {
-    setOpenHistory(false);
-  };
-
   const handleCreemCancel = () => {
     setCreemOpen(false);
     setSelectedCreemProduct(null);
@@ -747,13 +734,6 @@ const TopUp = () => {
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
       />
 
-      {/* 充值账单模态框 */}
-      <TopupHistoryModal
-        visible={openHistory}
-        onCancel={handleHistoryCancel}
-        t={t}
-      />
-
       {/* Creem 充值确认模态框 */}
       <Modal
         title={t('确定要充值 $')}
@@ -783,7 +763,7 @@ const TopUp = () => {
       </Modal>
 
       {/* 主布局区域 */}
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+      <div>
         <RechargeCard
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}
@@ -821,7 +801,6 @@ const TopUp = () => {
           renderQuota={renderQuota}
           statusLoading={statusLoading}
           topupInfo={topupInfo}
-          onOpenHistory={handleOpenHistory}
           subscriptionLoading={subscriptionLoading}
           subscriptionPlans={subscriptionPlans}
           billingPreference={billingPreference}
@@ -830,14 +809,14 @@ const TopUp = () => {
           allSubscriptions={allSubscriptions}
           reloadSubscriptionSelf={getSubscriptionSelf}
         />
-        <InvitationCard
+        {/* <InvitationCard
           t={t}
           userState={userState}
           renderQuota={renderQuota}
           setOpenTransfer={setOpenTransfer}
           affLink={affLink}
           handleAffLinkClick={handleAffLinkClick}
-        />
+        /> */}
       </div>
     </div>
   );

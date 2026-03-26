@@ -42,7 +42,7 @@ const FooterBar = () => {
 
     const customFooter = useMemo(
         () => (
-            <footer className='relative h-auto py-16 px-6 md:px-24 w-full flex flex-col items-center justify-between overflow-hidden'>
+            <footer className='relative h-auto md:px-24 w-full flex flex-col items-center justify-between overflow-hidden' style={{borderTop:'1px solid rgb(226 232 240 / 100%)',paddingTop:'26px',marginTop:'40px'}}>
                 <div className='absolute hidden md:block top-[204px] left-[-100px] w-[151px] h-[151px] rounded-full bg-[#FFD166]'></div>
                 <div className='absolute md:hidden bottom-[20px] left-[-50px] w-[80px] h-[80px] rounded-full bg-[#FFD166] opacity-60'></div>
 
@@ -188,9 +188,9 @@ const FooterBar = () => {
                     </div>
                 )}
 
-                <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-6'>
+                <div className='flex flex-col md:flex-row items-center justify-center w-full max-w-[1110px] gap-6'>
                     <div className='flex flex-wrap items-center gap-2'>
-                        <Typography.Text className='text-sm !text-semi-color-text-1'>
+                        <Typography.Text className='text-sm !text-semi-color-text-3'>
                             © {currentYear} {systemName}. {t('版权所有')}
                         </Typography.Text>
                     </div>
