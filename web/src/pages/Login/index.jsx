@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Turnstile from 'react-turnstile';
-import { Button, Checkbox, ColorPicker, Input, Modal } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Input, Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { FaBolt, FaShieldHalved, FaStore } from 'react-icons/fa6';
 import { SiGoogle } from 'react-icons/si';
@@ -177,8 +177,12 @@ export default function LoginPage() {
 
     const username = String(loginInputs.username || '').trim();
     const password = String(loginInputs.password || '');
-    if (!username || !password) {
-      showError(t('请输入用户名/邮箱和密码'));
+    if (!username) {
+      showInfo(t('\u8bf7\u8f93\u5165\u90ae\u7bb1\u6216\u7528\u6237\u540d'));
+      return;
+    }
+    if (!password) {
+      showInfo(t('\u8bf7\u8f93\u5165\u5bc6\u7801'));
       return;
     }
 
@@ -231,11 +235,16 @@ export default function LoginPage() {
   };
 
   const onSubmitWeChatVerificationCode = async () => {
+    const code = String(wechatVerificationCode || '').trim();
+    if (!code) {
+      showInfo(t('\u8bf7\u8f93\u5165\u9a8c\u8bc1\u7801'));
+      return;
+    }
     if (!ensureTurnstileReady()) return;
     setWechatCodeSubmitLoading(true);
     try {
       const res = await API.get(
-        `/api/oauth/wechat?code=${encodeURIComponent(wechatVerificationCode)}`,
+        `/api/oauth/wechat?code=${encodeURIComponent(code)}`,
       );
       const { success, message, data } = res.data;
       if (success) {
@@ -243,14 +252,14 @@ export default function LoginPage() {
         localStorage.setItem('user', JSON.stringify(data));
         setUserData(data);
         updateAPI();
-        showSuccess(t('登录成功'));
+        showSuccess(t('\u767b\u5f55\u6210\u529f'));
         setShowWeChatLoginModal(false);
         navigate('/console');
       } else {
         showError(message);
       }
     } catch {
-      showError(t('登录失败，请重试'));
+      showError(t('\u767b\u5f55\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5'));
     } finally {
       setWechatCodeSubmitLoading(false);
     }
@@ -470,7 +479,9 @@ export default function LoginPage() {
                 />
               ) : null}
               <div style={{ marginBottom: 12 }}>
-                {t('微信扫码关注公众号，输入“验证码”获取验证码（3 分钟内有效）')}
+                {t(
+                  '微信扫码关注公众号，输入“验证码”获取验证码（3 分钟内有效）',
+                )}
               </div>
             </div>
 

@@ -58,7 +58,7 @@ const StatsCards = ({ groupedStatsData, loading, CARD_PROPS }) => {
   const hourAnomaly = 0;
 
   const budgetUsagePct = 24;
-  const pointsUsedPct = 50;
+  const pointsUsedPct = 0;
 
   const cards = [
     {
@@ -165,7 +165,7 @@ const StatsCards = ({ groupedStatsData, loading, CARD_PROPS }) => {
     {
       key: 'points-quota',
       title: t('积分额度'),
-      value: '1,000 / 2,000',
+      value: '0 / 0',
       icon: <BadgePercent />,
       iconColor: '#a855f7',
       iconBg: 'rgba(250, 245, 255, 1)',
@@ -180,7 +180,7 @@ const StatsCards = ({ groupedStatsData, loading, CARD_PROPS }) => {
             />
           </div>
           <div className='text-[12px] text-slate-600 mt-2' style={{color:'rgb(100 116 139 / 100%)'}}>
-            {t('预计可用')} 30 {t('天')}
+            {t('预计可用')} 0 {t('天')}
           </div>
         </div>
       ),

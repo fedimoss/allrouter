@@ -23,12 +23,7 @@ import Turnstile from 'react-turnstile';
 import { Button, Checkbox, Input } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { FaBolt, FaShieldHalved, FaStore } from 'react-icons/fa6';
-import {
-  IconKey,
-  IconLock,
-  IconMail,
-  IconUser,
-} from '@douyinfe/semi-icons';
+import { IconKey, IconLock, IconMail, IconUser } from '@douyinfe/semi-icons';
 
 import { StatusContext } from '../../context/Status';
 import {
@@ -43,29 +38,33 @@ import './auth-v2.css';
 
 function scorePasswordStrength(password) {
   if (!password) return { score: 0, levelClass: '', text: '', color: '' };
-
   let score = 0;
   if (password.length >= 8) score++;
   if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
   if (/\d/.test(password)) score++;
   if (/[^a-zA-Z0-9]/.test(password)) score++;
-
   const levels = [
     { cls: 'weak', text: '弱 · 建议增加长度和复杂度', color: '#ef4444' },
     { cls: 'medium', text: '一般 · 建议添加特殊字符', color: '#f59e0b' },
     { cls: 'strong', text: '强', color: '#10b981' },
     { cls: 'strong', text: '非常强', color: '#10b981' },
   ];
-
   const idx = Math.min(score, levels.length) - 1;
   if (idx < 0) return { score: 0, levelClass: '', text: '', color: '' };
-
   return {
     score,
     levelClass: levels[idx].cls,
     text: levels[idx].text,
     color: levels[idx].color,
   };
+}
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+function isStrongPassword(password) {
+  return (
+    password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password)
+  );
 }
 
 export default function RegisterPage() {
@@ -211,16 +210,24 @@ export default function RegisterPage() {
     };
   }, [disableSendCode, countdown]);
 
+  const flashEmailError = () => {
+    setRegEmailFlashError(true);
+    setTimeout(() => setRegEmailFlashError(false), 2000);
+  };
+
   const sendVerificationCode = async () => {
     const email = String(registerInputs.email || '').trim();
-    if (!email) return;
-    if (!email.includes('@')) {
-      setRegEmailFlashError(true);
-      setTimeout(() => setRegEmailFlashError(false), 2000);
+    if (!email) {
+      flashEmailError();
+      showInfo(t('请输入邮箱地址'));
+      return;
+    }
+    if (!isValidEmail(email)) {
+      flashEmailError();
+      showInfo(t('请输入正确的邮箱地址'));
       return;
     }
     if (!ensureTurnstileReady()) return;
-
     setVerificationCodeLoading(true);
     try {
       const res = await API.get(
@@ -230,7 +237,7 @@ export default function RegisterPage() {
       );
       const { success, message } = res.data;
       if (success) {
-        showSuccess(t('验证码已发送，请查收'));
+        showSuccess(t('验证码发送成功，请检查邮箱！'));
         setDisableSendCode(true);
       } else {
         showError(message);
@@ -255,15 +262,37 @@ export default function RegisterPage() {
       registerInputs.verification_code || '',
     ).trim();
 
-    if (!username) return showInfo(t('请输入用户名'));
-    if (!email || !email.includes('@')) {
-      return showInfo(t('请输入正确的邮箱地址'));
+    if (!username) return showInfo(t('\u8bf7\u8f93\u5165\u7528\u6237\u540d'));
+    if (!email)
+      return showInfo(t('\u8bf7\u8f93\u5165\u90ae\u7bb1\u5730\u5740'));
+    if (!isValidEmail(email)) {
+      flashEmailError();
+      return showInfo(
+        t('\u8bf7\u8f93\u5165\u6b63\u786e\u7684\u90ae\u7bb1\u5730\u5740'),
+      );
     }
     if (showEmailVerification && !verificationCode) {
-      return showInfo(t('请输入邮箱验证码'));
+      return showInfo(
+        t('\u8bf7\u8f93\u5165\u90ae\u7bb1\u9a8c\u8bc1\u7801\uff01'),
+      );
     }
-    if (!password) return showInfo(t('请输入密码'));
-    if (password !== password2) return showInfo(t('两次输入的密码不一致'));
+    if (showEmailVerification && !/^\d{6}$/.test(verificationCode)) {
+      return showInfo(t('\u8bf7\u8f93\u5165 6 \u4f4d\u9a8c\u8bc1\u7801'));
+    }
+    if (!password) return showInfo(t('\u8bf7\u8f93\u5165\u5bc6\u7801'));
+    if (!isStrongPassword(password)) {
+      return showInfo(
+        t(
+          '\u81f3\u5c11 8 \u4f4d\uff0c\u5305\u542b\u5b57\u6bcd\u548c\u6570\u5b57',
+        ),
+      );
+    }
+    if (!password2)
+      return showInfo(t('\u8bf7\u518d\u6b21\u8f93\u5165\u5bc6\u7801'));
+    if (password !== password2)
+      return showInfo(
+        t('\u4e24\u6b21\u8f93\u5165\u7684\u5bc6\u7801\u4e0d\u4e00\u81f4'),
+      );
 
     setRegisterLoading(true);
     try {
@@ -430,9 +459,7 @@ export default function RegisterPage() {
                       loading={verificationCodeLoading}
                       disabled={disableSendCode || verificationCodeLoading}
                     >
-                      {disableSendCode
-                        ? `${countdown}s`
-                        : t('发送验证码')}
+                      {disableSendCode ? `${countdown}s` : t('发送验证码')}
                     </Button>
                   </div>
                 </div>
