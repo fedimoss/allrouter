@@ -35,7 +35,6 @@ import {
   Badge,
   Input,
   Empty,
-  Modal,
   Toast,
 } from '@douyinfe/semi-ui';
 import {
@@ -57,7 +56,6 @@ import { IconGift, IconSearch } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
 import { API, timestamp2string } from '../../helpers';
-import { isAdmin } from '../../helpers/utils';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
 
 const { Text } = Typography;
@@ -141,7 +139,6 @@ const RechargeCard = ({
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPageSize, setHistoryPageSize] = useState(10);
   const [historyKeyword, setHistoryKeyword] = useState('');
-  const userIsAdmin = useMemo(() => isAdmin(), []);
 
   useEffect(() => {
     if (initialTabSetRef.current) return;
@@ -160,13 +157,12 @@ const RechargeCard = ({
   const loadTopups = async (currentPage, currentPageSize) => {
     setHistoryLoading(true);
     try {
-      const base = userIsAdmin ? '/api/user/topup' : '/api/user/topup/self';
       const qs =
         `p=${currentPage}&page_size=${currentPageSize}` +
         (historyKeyword
           ? `&keyword=${encodeURIComponent(historyKeyword)}`
           : '');
-      const res = await API.get(`${base}?${qs}`);
+      const res = await API.get(`/api/user/topup/self?${qs}`);
       const { success, message, data } = res.data;
       if (success) {
         setTopups(data.items || []);
@@ -197,32 +193,6 @@ const RechargeCard = ({
   const handleHistoryKeywordChange = (value) => {
     setHistoryKeyword(value);
     setHistoryPage(1);
-  };
-
-  // 管理员补单
-  const handleAdminComplete = async (tradeNo) => {
-    try {
-      const res = await API.post('/api/user/topup/complete', {
-        trade_no: tradeNo,
-      });
-      const { success, message } = res.data;
-      if (success) {
-        Toast.success({ content: t('补单成功') });
-        await loadTopups(historyPage, historyPageSize);
-      } else {
-        Toast.error({ content: message || t('补单失败') });
-      }
-    } catch (e) {
-      Toast.error({ content: t('补单失败') });
-    }
-  };
-
-  const confirmAdminComplete = (tradeNo) => {
-    Modal.confirm({
-      title: t('确认补单'),
-      content: t('是否将该订单标记为成功并为用户入账？'),
-      onOk: () => handleAdminComplete(tradeNo),
-    });
   };
 
   const renderStatusBadge = (status) => {
@@ -313,37 +283,14 @@ const RechargeCard = ({
       },
     ];
 
-    if (userIsAdmin) {
-      cols.push({
-        title: t('操作'),
-        key: 'action',
-        render: (_, record) => {
-          if (record.status === 'pending') {
-            return (
-              <Button
-                size='small'
-                type='primary'
-                theme='outline'
-                onClick={() => confirmAdminComplete(record.trade_no)}
-              >
-                {t('补单')}
-              </Button>
-            );
-          }
-          return null;
-        },
-      });
-    }
-
     cols.push({
       title: t('创建时间'),
       dataIndex: 'create_time',
       key: 'create_time',
       render: (time) => timestamp2string(time),
     });
-
     return cols;
-  }, [t, userIsAdmin]);
+  }, [t]);
 
   const topupContent = (
     <div className='space-y-6'>
