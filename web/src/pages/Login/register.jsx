@@ -23,12 +23,7 @@ import Turnstile from 'react-turnstile';
 import { Button, Checkbox, Input } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { FaBolt, FaShieldHalved, FaStore } from 'react-icons/fa6';
-import {
-  IconKey,
-  IconLock,
-  IconMail,
-  IconUser,
-} from '@douyinfe/semi-icons';
+import { IconKey, IconLock, IconMail, IconUser } from '@douyinfe/semi-icons';
 
 import { StatusContext } from '../../context/Status';
 import {
@@ -43,29 +38,33 @@ import './auth-v2.css';
 
 function scorePasswordStrength(password) {
   if (!password) return { score: 0, levelClass: '', text: '', color: '' };
-
   let score = 0;
   if (password.length >= 8) score++;
   if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
   if (/\d/.test(password)) score++;
   if (/[^a-zA-Z0-9]/.test(password)) score++;
-
   const levels = [
     { cls: 'weak', text: '弱 · 建议增加长度和复杂度', color: '#ef4444' },
     { cls: 'medium', text: '一般 · 建议添加特殊字符', color: '#f59e0b' },
     { cls: 'strong', text: '强', color: '#10b981' },
     { cls: 'strong', text: '非常强', color: '#10b981' },
   ];
-
   const idx = Math.min(score, levels.length) - 1;
   if (idx < 0) return { score: 0, levelClass: '', text: '', color: '' };
-
   return {
     score,
     levelClass: levels[idx].cls,
     text: levels[idx].text,
     color: levels[idx].color,
   };
+}
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+function isStrongPassword(password) {
+  return (
+    password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password)
+  );
 }
 
 export default function RegisterPage() {
@@ -211,16 +210,24 @@ export default function RegisterPage() {
     };
   }, [disableSendCode, countdown]);
 
+  const flashEmailError = () => {
+    setRegEmailFlashError(true);
+    setTimeout(() => setRegEmailFlashError(false), 2000);
+  };
+
   const sendVerificationCode = async () => {
     const email = String(registerInputs.email || '').trim();
-    if (!email) return;
-    if (!email.includes('@')) {
-      setRegEmailFlashError(true);
-      setTimeout(() => setRegEmailFlashError(false), 2000);
+    if (!email) {
+      flashEmailError();
+      showInfo(t('请输入邮箱地址'));
+      return;
+    }
+    if (!isValidEmail(email)) {
+      flashEmailError();
+      showInfo(t('请输入正确的邮箱地址'));
       return;
     }
     if (!ensureTurnstileReady()) return;
-
     setVerificationCodeLoading(true);
     try {
       const res = await API.get(
@@ -230,7 +237,7 @@ export default function RegisterPage() {
       );
       const { success, message } = res.data;
       if (success) {
-        showSuccess(t('验证码已发送，请查收'));
+        showSuccess(t('验证码发送成功，请检查邮箱！'));
         setDisableSendCode(true);
       } else {
         showError(message);
@@ -256,14 +263,38 @@ export default function RegisterPage() {
     ).trim();
 
     if (!username) return showInfo(t('请输入用户名'));
-    if (!email || !email.includes('@')) {
-      return showInfo(t('请输入正确的邮箱地址'));
+    if (!email)
+      return showInfo(t('请输入邮箱地址'));
+    if (!isValidEmail(email)) {
+      flashEmailError();
+      return showInfo(
+        t('请输入正确的邮箱地址'),
+      );
     }
     if (showEmailVerification && !verificationCode) {
-      return showInfo(t('请输入邮箱验证码'));
+      return showInfo(
+        t('请输入邮箱验证码！'),
+      );
+    }
+    if (showEmailVerification && verificationCode.length !== 6) {
+      return showInfo(
+        t('请输入 6 位验证码'),
+      );
     }
     if (!password) return showInfo(t('请输入密码'));
-    if (password !== password2) return showInfo(t('两次输入的密码不一致'));
+    if (!isStrongPassword(password)) {
+      return showInfo(
+        t(
+          '至少 8 位，包含字母和数字',
+        ),
+      );
+    }
+    if (!password2)
+      return showInfo(t('请再次输入密码'));
+    if (password !== password2)
+      return showInfo(
+        t('两次输入的密码不一致'),
+      );
 
     setRegisterLoading(true);
     try {
@@ -430,9 +461,7 @@ export default function RegisterPage() {
                       loading={verificationCodeLoading}
                       disabled={disableSendCode || verificationCodeLoading}
                     >
-                      {disableSendCode
-                        ? `${countdown}s`
-                        : t('发送验证码')}
+                      {disableSendCode ? `${countdown}s` : t('发送验证码')}
                     </Button>
                   </div>
                 </div>

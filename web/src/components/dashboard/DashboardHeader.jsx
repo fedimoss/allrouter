@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Input } from '@douyinfe/semi-ui';
-import { RefreshCw, Search, FileText, Plus, Info } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Button,Input } from '@douyinfe/semi-ui';
+import { RefreshCw, Search,FileText,Plus ,Info} from 'lucide-react';
 
 const DashboardHeader = ({
   getGreeting,
@@ -30,6 +31,7 @@ const DashboardHeader = ({
   dataExportDefaultTime,
   t,
 }) => {
+  const navigate = useNavigate();
   const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
 
   const getDateNow = () => {
@@ -50,13 +52,16 @@ const DashboardHeader = ({
         return t('最近 24 小时');
     }
   };
+  const toPage = () => {
+    navigate('/console/playground');
+  }
 
   return (
     <div className='flex items-center justify-between mb-4'>
       <div>
         <h2
           className='text-2xl font-semibold text-gray-800 transition-opacity duration-1000 ease-in-out'
-          style={{ opacity: greetingVisible ? 1 : 0 }}
+          style={{ opacity: greetingVisible ? 1 : 0,color: 'var(--semi-color-text-0)' }}
         >
           {getGreeting}
         </h2>
@@ -65,7 +70,7 @@ const DashboardHeader = ({
         </p>
         <div
           className='ml-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs'
-          style={{ color: 'rgb(100 116 139 / 100%)' }}
+          style={{ color: 'rgb(100 116 139 / 100%)',marginTop: '8px' }}
         >
           <Info size={14} />
           <span>
@@ -82,12 +87,7 @@ const DashboardHeader = ({
           size='large'
           prefix={<Search size={16} style={{color:'rgb(148 163 184 / 100%)'}} />}
           onFocus={showSearchModal}
-          style={{
-            backgroundColor: '#fff',
-            borderColor: 'rgb(203 213 225 / 100%)',
-            padding: '0 10px',
-            fontSize: '14px',
-          }}
+          className="common-input"
         />
         <Button
           theme='outline'
@@ -103,6 +103,7 @@ const DashboardHeader = ({
           className='theme-btn'
           size='large'
           icon={<Plus size={16} />}
+          onClick={toPage}
         >
           {t('新建任务')}
         </Button>

@@ -296,7 +296,7 @@ const Exchange = () => {
                 onChange={setRedemptionCode}
                 placeholder={t('请输入兑换码')}
                 size='large'
-                className='flex-1 !rounded-xl !bg-slate-50 dark:!bg-slate-800 !border-slate-300 dark:!border-slate-700 !text-lg'
+                className='flex-1 !text-lg [&_.semi-input-wrapper]:!rounded-xl [&_.semi-input-wrapper]:!bg-[var(--semi-color-bg-0)] [&_.semi-input-wrapper]:!border-[var(--semi-color-border)] [&_.semi-input-wrapper_input]:!text-[var(--semi-color-text-0)] [&_.semi-input-clearBtn]:!text-[var(--semi-color-text-2)]'
                 style={{ fontFamily: 'monospace', letterSpacing: '0.08em' }}
                 onEnterPress={handleRedeem}
                 showClear
@@ -367,11 +367,11 @@ const Exchange = () => {
                 type='dateRange'
                 density='compact'
                 placeholder={[t('开始时间'), t('结束时间')]}
-                className='md:!min-w-[260px] [&_.semi-datepicker-range-input]:!bg-white dark:[&_.semi-datepicker-range-input]:!bg-slate-800 [&_.semi-datepicker-range-input]:!border-slate-200 dark:[&_.semi-datepicker-range-input]:!border-slate-700 [&_.semi-datepicker-range-input]:!rounded-lg [&_input]:!cursor-pointer'
+                className='md:!min-w-[260px] [&_.semi-datepicker-range-input]:!rounded-lg [&_.semi-datepicker-range-input]:!bg-[var(--semi-color-bg-0)] [&_.semi-datepicker-range-input]:!border-[var(--semi-color-border)] [&_.semi-datepicker-range-input_input]:!text-[var(--semi-color-text-0)] [&_.semi-datepicker-range-input_input]:!cursor-pointer [&_.semi-datepicker-range-input-separator]:!text-[var(--semi-color-text-2)] [&_.semi-input-suffix]:!text-[var(--semi-color-text-2)]'
               />
               <Select
                 placeholder={t('全部状态')}
-                className='!bg-white dark:!bg-slate-800 !border-slate-200 dark:!border-slate-700 !rounded-lg !cursor-pointer md:!min-w-[130px]'
+                className='md:!min-w-[130px] !cursor-pointer [&_.semi-select]:!rounded-lg [&_.semi-select]:!bg-[var(--semi-color-bg-0)] [&_.semi-select]:!border-[var(--semi-color-border)] [&_.semi-select-selection-text]:!text-[var(--semi-color-text-0)] [&_.semi-select-placeholder]:!text-[var(--semi-color-text-2)] [&_.semi-select-arrow]:!text-[var(--semi-color-text-2)]'
                 optionList={[
                   { value: '', label: t('全部状态') },
                   { value: 'arrived', label: t('已到账') },
@@ -381,7 +381,7 @@ const Exchange = () => {
               />
               <Select
                 placeholder={t('全部类型')}
-                className='!bg-white dark:!bg-slate-800 !border-slate-200 dark:!border-slate-700 !rounded-lg !cursor-pointer md:!min-w-[130px]'
+                className='md:!min-w-[130px] !cursor-pointer [&_.semi-select]:!rounded-lg [&_.semi-select]:!bg-[var(--semi-color-bg-0)] [&_.semi-select]:!border-[var(--semi-color-border)] [&_.semi-select-selection-text]:!text-[var(--semi-color-text-0)] [&_.semi-select-placeholder]:!text-[var(--semi-color-text-2)] [&_.semi-select-arrow]:!text-[var(--semi-color-text-2)]'
                 optionList={[
                   { value: '', label: t('全部类型') },
                   { value: 'quota', label: t('额度') },
@@ -404,7 +404,7 @@ const Exchange = () => {
                 type='tertiary'
                 theme='outline'
                 icon={<RotateCcw size={14} />}
-                className='!rounded-lg !bg-white dark:!bg-slate-800 !border-slate-200 dark:!border-slate-600 !text-slate-600 dark:!text-slate-300'
+                className='!rounded-lg [&_.semi-button-content]:!text-[var(--semi-color-text-1)]' style={{ backgroundColor: 'var(--semi-color-bg-0)', borderColor: 'var(--semi-color-border)' }}
               >
                 {t('重置')}
               </Button>

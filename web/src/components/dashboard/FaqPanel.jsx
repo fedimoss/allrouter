@@ -35,7 +35,7 @@ const FaqPanel = ({ faqData = [], ILLUSTRATION_SIZE, t }) => {
     <section className='custom-card'>
       <div className='custom-card__header'>
         <div className='header-left'>
-          <IconHelpCircle style={{ color: '#14b8a6', fontSize: '24px' }} />
+          <IconHelpCircle style={{ color: 'var(--semi-color-primary)', fontSize: '24px' }} />
           <span>{t('\u5e38\u89c1\u95ee\u7b54')}</span>
         </div>
         <div className='header-extra'>{t('\u5206\u7c7b')}</div>

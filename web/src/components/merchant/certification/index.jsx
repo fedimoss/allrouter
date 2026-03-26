@@ -1,4 +1,22 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Popconfirm, Select } from '@douyinfe/semi-ui';
 import {
@@ -57,12 +75,27 @@ const getFileNameFromDisposition = (contentDisposition, fallbackFileName) => {
   return fallbackFileName;
 };
 
-const providerDotClass = {
-  G: 'bg-[#e9f1ff] text-[#3b6ff7]',
-  K: 'bg-[#eef2f7] text-[#5a6b80]',
-  A: 'bg-[#fff2e8] text-[#ff7a1a]',
-  Q: 'bg-[#efe8ff] text-[#7b5cf8]',
-  C: 'bg-[#e9f8ee] text-[#18954a]',
+const providerDotStyleMap = {
+  G: {
+    backgroundColor: 'var(--semi-color-primary-light-default)',
+    color: 'var(--semi-color-primary)',
+  },
+  K: {
+    backgroundColor: 'var(--semi-color-fill-0)',
+    color: 'var(--semi-color-text-1)',
+  },
+  A: {
+    backgroundColor: 'var(--semi-color-warning-light-default)',
+    color: 'var(--semi-color-warning)',
+  },
+  Q: {
+    backgroundColor: 'rgba(var(--semi-purple-0), 1)',
+    color: 'rgba(var(--semi-purple-5), 1)',
+  },
+  C: {
+    backgroundColor: 'var(--semi-color-success-light-default)',
+    color: 'var(--semi-color-success)',
+  },
 };
 
 const MODE_PROVIDER_MAP = {
@@ -271,7 +304,7 @@ const CertificationList = () => {
               height: 8,
               borderRadius: 999,
               overflow: 'hidden',
-              background: '#f1f5f9',
+              background: 'var(--semi-color-fill-0)',
             }}
           >
             <div
@@ -279,15 +312,15 @@ const CertificationList = () => {
                 height: '100%',
                 width: '100%',
                 borderRadius: 999,
-                backgroundColor: healthy ? '#22c55e' : '#ef4444',
+                backgroundColor: healthy ? 'var(--semi-color-success)' : 'var(--semi-color-danger)',
               }}
             />
           </div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: healthy ? '#059669' : '#ef4444' }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: healthy ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' }}>
             100% {t('成功')}
           </div>
         </div>
-        <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8' }}>
+        <div style={{ marginTop: 6, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
           {`Suc: ${row.sucCount} | Fail: ${row.failCount}`}
         </div>
       </div>
@@ -295,18 +328,18 @@ const CertificationList = () => {
   };
 
   return (
-    <div className='w-full bg-[#f8fafc] pb-8'>
+    <div className='w-full pb-8' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
       <div className='mx-auto w-full h-full max-w-[1360px] px-4 pt-4 md:px-8 lg:px-10'>
-        <div className='rounded-2xl bg-[#f8fafc]'>
+        <div className='rounded-2xl' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
           <div className='flex flex-col gap-4 md:flex-row md:items-start md:justify-between'>
             <div>
               <div className='flex items-center gap-3'>
-                <FileCheck2 size={32} className='text-[#09FEF7]' />
-                <h2 className='text-[26px] font-semibold leading-none text-[#0f172a]'>
+                <FileCheck2 size={32} style={{ color: 'var(--semi-color-primary)' }} />
+                <h2 className='text-[26px] font-semibold leading-none' style={{ color: 'var(--semi-color-text-0)' }}>
                   {t('认证文件管理')}
                 </h2>
               </div>
-              <p className='mt-3 text-[16px] text-[#475569]'>
+              <p className='mt-3 text-[16px]' style={{ color: 'var(--semi-color-text-1)' }}>
                 {t(
                   '集中管理 OAuth 生成的认证文件，监控健康状态，配置模型别名与过滤规则。',
                 )}
@@ -315,50 +348,64 @@ const CertificationList = () => {
 
             <div className='flex items-center gap-3'>
               <div
-                className='flex shrink-0 items-center gap-3 rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/80 px-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur'
-                style={{ width: '120px', height: '60px' }}
+                className='flex shrink-0 items-center gap-3 rounded-2xl px-4 backdrop-blur'
+                style={{
+                  width: '120px',
+                  height: '60px',
+                  border: '1px solid var(--semi-color-border)',
+                  backgroundColor:
+                    'color-mix(in srgb, var(--semi-color-bg-0) 88%, transparent)',
+                  boxShadow: '0 10px 30px rgba(15,23,42,0.08)',
+                }}
               >
-                <span className='inline-flex items-center justify-center rounded-full bg-[#edf2ff] text-[#3b6ff7]'>
+                <span className='inline-flex items-center justify-center rounded-full' style={{ backgroundColor: 'var(--semi-color-primary-light-default)', color: 'var(--semi-color-primary)' }}>
                   <FileText size={18} />
                 </span>
                 <div>
-                  <div className='text-[13px] text-[#64748b]'>{t('总文件数')}</div>
-                  <div className='text-[20px] font-semibold leading-none text-[#0f172a]'>
+                  <div className='text-[13px]' style={{ color: 'var(--semi-color-text-1)' }}>{t('总文件数')}</div>
+                  <div className='text-[20px] font-semibold leading-none' style={{ color: 'var(--semi-color-text-0)' }}>
                     {totalCount}
                   </div>
                 </div>
               </div>
               <div
-                className='flex shrink-0 items-center gap-3 rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/80 px-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur'
-                style={{ width: '120px', height: '60px' }}
+                className='flex shrink-0 items-center gap-3 rounded-2xl px-4 backdrop-blur'
+                style={{
+                  width: '120px',
+                  height: '60px',
+                  border: '1px solid var(--semi-color-border)',
+                  backgroundColor:
+                    'color-mix(in srgb, var(--semi-color-bg-0) 88%, transparent)',
+                  boxShadow: '0 10px 30px rgba(15,23,42,0.08)',
+                }}
               >
-                <span className='inline-flex items-center justify-center rounded-full bg-[#eaf8ef] text-[#16a34a]'>
+                <span className='inline-flex items-center justify-center rounded-full' style={{ backgroundColor: 'var(--semi-color-success-light-default)', color: 'var(--semi-color-success)' }}>
                   <CheckCircle2 size={18} />
                 </span>
                 <div>
-                  <div className='text-[13px] text-[#64748b]'>{t('健康')}</div>
-                  <div className='text-[20px] font-semibold leading-none text-[#0f172a]'>
+                  <div className='text-[13px]' style={{ color: 'var(--semi-color-text-1)' }}>{t('健康')}</div>
+                  <div className='text-[20px] font-semibold leading-none' style={{ color: 'var(--semi-color-text-0)' }}>
                     {healthyCount}
                   </div>
                 </div>
               </div>
               <div
-                className='flex shrink-0 items-center gap-3 rounded-2xl bg-white/80 px-4 backdrop-blur'
+                className='flex shrink-0 items-center gap-3 rounded-2xl px-4 backdrop-blur'
                 style={{
                   width: '120px',
                   height: '60px',
-                  border: '1px solid rgba(239,68,68,0.4)',
+                  border: '1px solid color-mix(in srgb, var(--semi-color-danger) 40%, transparent)',
                   boxShadow: '0 10px 30px rgba(239,68,68,0.08)',
                 }}
               >
-                <span className='inline-flex items-center justify-center rounded-full bg-[#fdeeee] text-[#ef4444]'>
-                  <AlertTriangle size={18} color='#FE2F09' />
+                <span className='inline-flex items-center justify-center rounded-full' style={{ backgroundColor: 'var(--semi-color-danger-light-default)', color: 'var(--semi-color-danger)' }}>
+                  <AlertTriangle size={18} color='var(--semi-color-danger)' />
                 </span>
                 <div>
-                  <div className='text-[13px] text-[#64748b]'>{t('异常')}</div>
+                  <div className='text-[13px]' style={{ color: 'var(--semi-color-text-1)' }}>{t('异常')}</div>
                   <div
                     className='text-[20px] font-semibold leading-none'
-                    style={{ color: 'rgba(239,68,68,1)' }}
+                    style={{ color: 'var(--semi-color-danger)' }}
                   >
                     {abnormalCount}
                   </div>
@@ -370,7 +417,7 @@ const CertificationList = () => {
           <div className='mt-4 flex flex-col gap-3'>
             <div className='flex flex-1 flex-col gap-3 md:flex-row'>
               <Input
-                prefix={<Search size={20} className='text-[#94a3b8] ml-2 mr-2' />}
+                prefix={<Search size={20} className='ml-2 mr-2' style={{ color: 'var(--semi-color-text-2)' }} />}
                 value={searchText}
                 onChange={(value) => setSearchText(value)}
                 onEnterPress={handleSearchSubmit}
@@ -378,7 +425,7 @@ const CertificationList = () => {
                 showClear
                 className='w-full md:max-w-[640px]'
                 size='large'
-                style={{background:'#fff',border:'1px solid #ededed'}}
+                style={{ background: 'var(--semi-color-bg-0)', border: '1px solid var(--semi-color-border)', color: 'var(--semi-color-text-0)' }}
               />
               <Select
                 value={providerFilter}
@@ -390,7 +437,7 @@ const CertificationList = () => {
                 optionList={providerOptions}
                 className='w-full md:w-[240px]'
                 size='large'
-                style={{background:'#fff',border:'1px solid #ededed'}}
+                style={{ background: 'var(--semi-color-bg-0)', border: '1px solid var(--semi-color-border)', color: 'var(--semi-color-text-0)' }}
               />
             </div>
           </div>
@@ -400,15 +447,15 @@ const CertificationList = () => {
               marginTop: 16,
               overflow: 'hidden',
               borderRadius: 12,
-              border: '1px solid #e2e8f0',
-              background: '#ffffff',
+              border: '1px solid var(--semi-color-border)',
+              background: 'var(--semi-color-bg-0)',
               boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
             }}
           >
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ height: 48, borderBottom: '1px solid #e2e8f0', background: '#f8fafc', textAlign: 'left', color: '#64748b', fontSize: 12, fontWeight: 600 }}>
+                  <tr style={{ height: 48, borderBottom: '1px solid var(--semi-color-border)', background: 'var(--semi-color-fill-0)', textAlign: 'left', color: 'var(--semi-color-text-1)', fontSize: 12, fontWeight: 600 }}>
                     <th style={{ padding: '0 12px' }}>{t('文件信息')}</th>
                     <th style={{ width: 220, padding: '0 12px' }}>{t('服务商')}</th>
                     <th style={{ width: 220, padding: '0 12px' }}>{t('健康状态')}</th>
@@ -423,27 +470,28 @@ const CertificationList = () => {
                     const isRowDeleting = Boolean(deletingIds[rowId]);
 
                     return (
-                    <tr key={row.id} style={{ height: 70, borderTop: '1px solid #f1f5f9', background: '#fff' }}>
+                    <tr key={row.id} style={{ height: 70, borderTop: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-0)' }}>
                       <td style={{ padding: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                          <div style={{ marginTop: 2, height: 32, width: 32, borderRadius: 6, background: row.providerShort === 'G' ? '#eff6ff' : row.providerShort === 'A' ? '#fff7ed' : '#f1f5f9', color: row.providerShort === 'G' ? '#2563eb' : row.providerShort === 'A' ? '#ea580c' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <div style={{ marginTop: 2, height: 32, width: 32, borderRadius: 6, background: row.providerShort === 'G' ? 'var(--semi-color-primary-light-default)' : row.providerShort === 'A' ? 'var(--semi-color-warning-light-default)' : 'var(--semi-color-fill-0)', color: row.providerShort === 'G' ? 'var(--semi-color-primary)' : row.providerShort === 'A' ? 'var(--semi-color-warning)' : 'var(--semi-color-text-1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <FileText size={15} />
                           </div>
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 600, lineHeight: 1.2, color: '#0f172a' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 600, lineHeight: 1.2, color: 'var(--semi-color-text-0)' }}>
                               <span>{row.fileName}</span>
                               {/* <Copy size={14} className='text-[#8ca0b8]' /> */}
                             </div>
-                            <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
+                            <div style={{ marginTop: 4, fontSize: 13, color: 'var(--semi-color-text-1)' }}>
                               <span>{t('OAuth 凭据')}</span>
                             </div>
                           </div>
                         </div>
                       </td>
                       <td style={{ padding: '0 12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 16, color: '#0f172a' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 16, color: 'var(--semi-color-text-0)' }}>
                           <span
-                            className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-semibold ${providerDotClass[row.providerShort] || providerDotClass.K}`}
+                            className='inline-flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-semibold'
+                            style={providerDotStyleMap[row.providerShort] || providerDotStyleMap.K}
                           >
                             {row.providerShort}
                           </span>
@@ -451,9 +499,9 @@ const CertificationList = () => {
                         </div>
                       </td>
                       <td style={{ padding: '0 12px' }}>{renderHealth(row)}</td>
-                      <td style={{ padding: '0 12px', fontSize: 13, color: '#64748b' }}>{row.lastActiveAt}</td>
+                      <td style={{ padding: '0 12px', fontSize: 13, color: 'var(--semi-color-text-1)' }}>{row.lastActiveAt}</td>
                       <td style={{ padding: '0 24px 0 12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, color: '#94a3b8' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, color: 'var(--semi-color-text-2)' }}>
                           {isRowDownloading ? (
                             <RefreshCcw size={15} className='animate-spin' />
                           ) : (
@@ -488,7 +536,7 @@ const CertificationList = () => {
                   })}
                   {!loading && pagedRows.length === 0 && (
                     <tr>
-                      <td colSpan={5} style={{ padding: '40px 0', textAlign: 'center', color: '#94a3b8' }}>
+                      <td colSpan={5} style={{ padding: '40px 0', textAlign: 'center', color: 'var(--semi-color-text-2)' }}>
                         {t('暂无数据')}
                       </td>
                     </tr>
@@ -497,7 +545,7 @@ const CertificationList = () => {
               </table>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', padding: '12px 16px', fontSize: 12, color: '#64748b' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--semi-color-border)', padding: '12px 16px', fontSize: 12, color: 'var(--semi-color-text-1)' }}>
               <div>{`${t('显示第')} ${total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} ${t('条 - 第')} ${total === 0 ? 0 : (page - 1) * PAGE_SIZE + pagedRows.length} ${t('条，共')} ${total} ${t('条')}`}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Button

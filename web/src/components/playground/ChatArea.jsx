@@ -31,6 +31,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { MESSAGE_ROLES } from '../../constants/playground.constants';
 import { usePlayground } from '../../contexts/PlaygroundContext';
+import logoImg from '../../../public/logo-white.svg'
 
 const composerRoleOptions = [
   { key: MESSAGE_ROLES.USER, label: 'User', dotColor: '#34d399' },
@@ -233,7 +234,7 @@ const ChatArea = ({
               {!isUser && (
                 <span className='playground-v2-avatar'>
                   {roleMeta?.avatar ? (
-                    <img src={roleMeta.avatar} alt={roleMeta.name} />
+                    <img src={logoImg} alt={roleMeta.name} />
                   ) : (
                     roleMeta?.name?.[0] || 'A'
                   )}

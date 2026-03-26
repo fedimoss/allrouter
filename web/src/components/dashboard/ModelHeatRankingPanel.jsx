@@ -31,7 +31,7 @@ const ModelHeatRankingPanel = ({ t }) => {
     <div className='dashboard-card'>
       <div className='card-header'>
         <div className='header-title'>
-          <Trophy size={20} color='#eab308' />
+          <Trophy size={20} color='var(--semi-color-warning)' />
           <span>{t('\u6a21\u578b\u70ed\u5ea6\u6392\u884c')}</span>
         </div>
         <button className='header-link'>{t('\u67e5\u770b\u5168\u90e8')}</button>

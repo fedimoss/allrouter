@@ -1,4 +1,22 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Tag, TextArea } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../../helpers';
@@ -312,30 +330,30 @@ const OauthList = () => {
   }, []);
 
   return (
-    <div className='w-full bg-[#f8fafc] pb-8'>
+    <div className='w-full pb-8' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
       <div className='mx-auto w-full max-w-[1360px] px-4 pt-4 md:px-8 lg:px-10'>
-        <div className='rounded-3xl bg-[#f8fafc]'>
-          <div className='mb-4 flex flex-col justify-between gap-4 rounded-2xl bg-[#f8fafc] p-5 md:flex-row md:items-center'>
+        <div className='rounded-3xl' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
+          <div className='mb-4 flex flex-col justify-between gap-4 rounded-2xl p-5 md:flex-row md:items-center' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
           <div>
             <div className='flex items-center gap-3'>
-              <KeyRound size={32} className='text-[#09FEF7]' />
-              <h2 className='text-[26px] font-semibold leading-none text-[#0f172a]'>
+              <KeyRound size={32} style={{ color: 'var(--semi-color-primary)' }} />
+              <h2 className='text-[26px] font-semibold leading-none' style={{ color: 'var(--semi-color-text-0)' }}>
                 {t('OAuth 授权中心')}
               </h2>
             </div>
-            <p className='mt-3 text-[16px] text-[#475569]'>
+            <p className='mt-3 text-[16px]' style={{ color: 'var(--semi-color-text-1)' }}>
               {t(
                 '一键连接主流 AI 服务商，自动获取并管理认证凭证。无需手动复制 API Key，安全又便捷。',
               )}
             </p>
           </div>
-          <div className='flex min-w-[140px] items-center gap-3 rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white px-4 py-3'>
-            <CircleCheckBig size={24} className='text-[#16a34a]' />
+          <div className='flex min-w-[140px] items-center gap-3 rounded-2xl px-4 py-3' style={{ border: '1px solid var(--semi-color-border)', backgroundColor: 'var(--semi-color-bg-0)' }}>
+            <CircleCheckBig size={24} style={{ color: 'var(--semi-color-success)' }} />
             <div>
-              <div className='text-[13px] text-[#64748b]'>{t('已连接服务')}</div>
-              <div className='text-[26px] font-semibold leading-none text-[#0f172a]'>
+              <div className='text-[13px]' style={{ color: 'var(--semi-color-text-1)' }}>{t('已连接服务')}</div>
+              <div className='text-[26px] font-semibold leading-none' style={{ color: 'var(--semi-color-text-0)' }}>
                 {connectedCount}
-                <span className='text-[18px] text-[#94a3b8]'> / {providers.length}</span>
+                <span className='text-[18px]' style={{ color: 'var(--semi-color-text-2)' }}> / {providers.length}</span>
               </div>
             </div>
           </div>
@@ -352,11 +370,11 @@ const OauthList = () => {
           return (
             <div
               key={item.key}
-              className='flex min-h-[220px] flex-col rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur'
+              className='flex min-h-[220px] flex-col rounded-2xl p-5 backdrop-blur' style={{ border: '1px solid var(--semi-color-border)', backgroundColor: 'color-mix(in srgb, var(--semi-color-bg-0) 88%, transparent)', boxShadow: '0 10px 30px rgba(15,23,42,0.08)' }}
             >
               <div className='flex items-start justify-between gap-4'>
                 <div className='flex items-start gap-3'>
-                  <div className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#EEF2FF_0%,#E0F2FE_60%,#ECFDF3_100%)] text-[#1f2937]'>
+                  <div className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl' style={{ backgroundImage: 'linear-gradient(135deg, var(--semi-color-primary-light-default) 0%, rgba(var(--semi-cyan-0),1) 60%, var(--semi-color-success-light-default) 100%)', color: 'var(--semi-color-text-0)' }}>
                     {
                       item.key === 'antigravity' ? (
                         <img src={antigravityIcon} alt={item.title} className='h-4 w-4' />
@@ -366,10 +384,10 @@ const OauthList = () => {
                     }
                   </div>
                   <div>
-                    <div className='text-[16px] font-semibold text-[#0f172a]'>
+                    <div className='text-[16px] font-semibold' style={{ color: 'var(--semi-color-text-0)' }}>
                       {item.title}
                     </div>
-                    <div className='mt-1 text-[12px] text-[#64748b]'>
+                    <div className='mt-1 text-[12px]' style={{ color: 'var(--semi-color-text-1)' }}>
                       {item.description}
                     </div>
                   </div>
@@ -402,8 +420,8 @@ const OauthList = () => {
               </div>
 
               {item.mode === 'oauth' && isActive && (
-                <div className='mt-4 rounded-xl border border-dashed border-[rgba(15,23,42,0.15)] bg-[rgba(248,250,252,0.7)] p-4'>
-                  <div className='text-[13px] font-semibold text-[#0f172a]'>
+                <div className='mt-4 rounded-xl border border-dashed p-4' style={{ borderColor: 'var(--semi-color-border)', backgroundColor: 'var(--semi-color-fill-0)' }}>
+                  <div className='text-[13px] font-semibold' style={{ color: 'var(--semi-color-text-0)' }}>
                     {t('回调 URL')}
                   </div>
                   <Input
@@ -418,7 +436,7 @@ const OauthList = () => {
                     placeholder={t('请粘贴完整回调 URL（包含 code 与 state）')}
                     showClear
                   />
-                  <div className='mt-2 text-[12px] text-[#94a3b8]'>
+                  <div className='mt-2 text-[12px]' style={{ color: 'var(--semi-color-text-2)' }}>
                     {t(
                       '授权跳转后如需手动提交，可将完整 URL 粘贴到此处（当前版本自动轮询认证状态）。',
                     )}
@@ -501,10 +519,10 @@ const OauthList = () => {
               )}
 
               {item.mode === 'iflow' && (
-                <div className='mt-4 rounded-xl border border-dashed border-[rgba(15,23,42,0.15)] bg-[rgba(248,250,252,0.7)] p-4'>
+                <div className='mt-4 rounded-xl border border-dashed p-4' style={{ borderColor: 'var(--semi-color-border)', backgroundColor: 'var(--semi-color-fill-0)' }}>
                   {item.fields?.map((field) => (
                     <div key={field.key} className='mb-3 last:mb-0'>
-                      <div className='text-[13px] font-semibold text-[#0f172a]'>
+                      <div className='text-[13px] font-semibold' style={{ color: 'var(--semi-color-text-0)' }}>
                         {field.label}
                       </div>
                       {field.textarea ? (
@@ -542,7 +560,7 @@ const OauthList = () => {
                         />
                       )}
                       {field.helper && (
-                        <div className='mt-1 text-[12px] text-[#94a3b8]'>
+                        <div className='mt-1 text-[12px]' style={{ color: 'var(--semi-color-text-2)' }}>
                           {field.helper}
                         </div>
                       )}
