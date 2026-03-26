@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button,Input } from '@douyinfe/semi-ui';
-import { RefreshCw, Search,FileText,Plus } from 'lucide-react';
+import { Button, Input } from '@douyinfe/semi-ui';
+import { RefreshCw, Search, FileText, Plus, Info } from 'lucide-react';
 
 const DashboardHeader = ({
   getGreeting,
@@ -27,6 +27,7 @@ const DashboardHeader = ({
   showSearchModal,
   refresh,
   loading,
+  dataExportDefaultTime,
   t,
 }) => {
   const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
@@ -37,7 +38,18 @@ const DashboardHeader = ({
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     return `${year} ${t('年')} ${month} ${t('月')} ${day} ${t('日')}`;
-  }
+  };
+
+  const getDefaultRangeText = () => {
+    switch (dataExportDefaultTime) {
+      case 'week':
+        return t('最近 30 天');
+      case 'day':
+        return t('最近 7 天');
+      default:
+        return t('最近 24 小时');
+    }
+  };
 
   return (
     <div className='flex items-center justify-between mb-4'>
@@ -48,7 +60,20 @@ const DashboardHeader = ({
         >
           {getGreeting}
         </h2>
-        <p className='text-sm m-2' style={{color:'rgb(100 116 139 / 100%)'}}>{t('今天是')} {getDateNow()}，{t('系统运行正常。')}</p>
+        <p className='text-sm m-2' style={{ color: 'rgb(100 116 139 / 100%)' }}>
+          {t('今天是')} {getDateNow()}，{t('系统运行正常。')}
+        </p>
+        <div
+          className='ml-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs'
+          style={{ color: 'rgb(100 116 139 / 100%)' }}
+        >
+          <Info size={14} />
+          <span>
+            {t('默认展示 {{range}} 内的数据，可通过搜索筛选调整时间范围。', {
+              range: getDefaultRangeText(),
+            })}
+          </span>
+        </div>
       </div>
       
       <div className='flex gap-3'>

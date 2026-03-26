@@ -3227,6 +3227,7 @@
     "高级配置": "Advanced Configuration",
     "黑名单": "Blacklist",
     "默认": "Default",
+    "默认展示 {{range}} 内的数据，可通过搜索筛选调整时间范围。": "By default, data from {{range}} is shown. Use search filters to adjust the time range.",
     "默认 API 版本": "Default API Version",
     "默认 Responses API 版本，为空则使用上方版本": "Default Responses API version, if empty, uses the version above",
     "默认 TTL（秒）": "Default TTL (seconds)",

@@ -125,7 +125,7 @@ const StatsCards = ({ groupedStatsData, loading, CARD_PROPS }) => {
     {
       key: 'avg-latency',
       title: t('平均响应时间'),
-      value: '0ms',
+      value: ' - ms',
       icon: <Zap />,
       iconColor: '#f59e0b',
       iconBg: 'rgba(255, 247, 237, 1)',
