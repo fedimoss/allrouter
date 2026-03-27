@@ -100,6 +100,9 @@ html.dark .log-v2-chip-slate{background:#162133;color:#cbd5e1}html.dark .log-v2-
 .log-v2-detail-cost{font-weight:700}.log-v2-detail-cost-stack{display:flex;flex-direction:column;gap:4px}
 .log-v2-detail-section{gap:10px;padding:20px 24px 0}
 .log-v2-detail-prompt{max-height:220px;overflow:auto;border:1px solid var(--lg-border);border-radius:12px;background:var(--lg-surface-soft);padding:12px 14px;font-size:12px;line-height:1.6;color:var(--lg-text-muted);white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.log-v2-detail-billing{max-height:240px;overflow:auto;border:1px solid var(--lg-border);border-radius:12px;background:var(--lg-surface-soft);padding:12px 14px;font-size:12px;line-height:1.7;color:var(--lg-text-muted);word-break:break-word}
+.log-v2-detail-billing article{display:flex;flex-direction:column;gap:8px}
+.log-v2-detail-billing article p{margin:0}
 .log-v2-detail-footer,.log-v2-column-footer{justify-content:flex-end;gap:10px;padding:20px 24px 24px;border-top:1px solid var(--lg-border-soft);margin-top:20px}
 .log-v2-column-section,.log-v2-column-toolbar{padding:20px 20px 0}
 .log-v2-column-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:16px 20px 0}

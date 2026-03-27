@@ -461,7 +461,7 @@ export const useLogsData = () => {
       }
       if (other?.cache_tokens > 0) {
         expandDataLocal.push({
-          key: t('缓存 Tokens'),
+          key: t('缓存读取 Tokens'),
           value: other.cache_tokens,
         });
       }
@@ -561,6 +561,7 @@ export const useLogsData = () => {
               other?.cache_tokens || 0,
               other?.cache_ratio || 1.0,
               billingDisplayMode,
+              logs[i].quota,
             );
           } else if (other?.claude) {
             content = renderClaudeModelPrice(
@@ -584,6 +585,7 @@ export const useLogsData = () => {
                 other.cache_creation_ratio ||
                 1.0,
               billingDisplayMode,
+              logs[i].quota,
             );
           } else {
             content = renderModelPrice(
@@ -611,6 +613,7 @@ export const useLogsData = () => {
               other?.image_generation_call || false,
               other?.image_generation_call_price || 0,
               billingDisplayMode,
+              logs[i].quota,
             );
           }
           expandDataLocal.push({

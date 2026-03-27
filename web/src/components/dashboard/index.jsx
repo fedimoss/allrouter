@@ -147,6 +147,7 @@ const Dashboard = () => {
         showSearchModal={dashboardData.showSearchModal}
         refresh={handleRefresh}
         loading={dashboardData.loading}
+        dataExportDefaultTime={dashboardData.dataExportDefaultTime}
         t={dashboardData.t}
       />
 
