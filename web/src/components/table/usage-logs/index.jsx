@@ -399,6 +399,12 @@ const getDetailText = (record, expandData, t) => {
   return normalized || t('暂无内容');
 };
 
+const getExpandDataValue = (record, expandData, label) => {
+  const detailRows = expandData?.[record?.key] || [];
+  const matchedRow = detailRows.find((item) => item?.key === label);
+  return matchedRow?.value;
+};
+
 const buildCopyPayload = (record, expandData, t) => {
   const other = getLogOther(record?.other) || {};
   const lines = [
@@ -455,6 +461,11 @@ function UsageLogDetailModal({
     ? getStatusMeta(currentLog, t)
     : { label: '', className: 'log-v2-status log-v2-status-pending' };
   const detailText = getDetailText(currentLog, expandData, t);
+  const billingProcessContent = getExpandDataValue(
+    currentLog,
+    expandData,
+    t('计费过程'),
+  );
   const requestBodyLabel =
     currentLog.type === 5 ? t('错误内容') : t('请求内容 (Prompt)');
   const costMeta = log
@@ -616,6 +627,19 @@ function UsageLogDetailModal({
           <span className='log-v2-detail-label'>{requestBodyLabel}</span>
           <div className='log-v2-detail-prompt'>{detailText}</div>
         </div>
+
+        {billingProcessContent ? (
+          <div className='log-v2-detail-section'>
+            <span className='log-v2-detail-label'>{t('计费过程')}</span>
+            <div className='log-v2-detail-billing'>
+              {React.isValidElement(billingProcessContent) ? (
+                billingProcessContent
+              ) : (
+                <div>{billingProcessContent}</div>
+              )}
+            </div>
+          </div>
+        ) : null}
 
         <div className='log-v2-detail-footer'>
           <button

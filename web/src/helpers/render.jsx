@@ -1110,6 +1110,21 @@ export function renderQuotaWithAmount(amount) {
   return '$' + formattedAmount;
 }
 
+function roundUsdAmountByQuotaUnit(usdAmount) {
+  const numericAmount = Number(usdAmount);
+  const quotaPerUnit = getQuotaPerUnit();
+
+  if (
+    !Number.isFinite(numericAmount) ||
+    !Number.isFinite(quotaPerUnit) ||
+    quotaPerUnit <= 0
+  ) {
+    return numericAmount;
+  }
+
+  return Math.round(numericAmount * quotaPerUnit) / quotaPerUnit;
+}
+
 /**
  * 获取当前货币配置信息
  * @returns {Object} - { symbol, rate, type }
@@ -1277,11 +1292,39 @@ function formatRatioValue(value, digits = 6) {
 }
 
 function renderDisplayAmountFromUsd(usdAmount, digits = 6) {
-  return renderQuotaWithAmount(Number(Number(usdAmount || 0).toFixed(digits)));
+  const roundedUsdAmount = roundUsdAmountByQuotaUnit(usdAmount || 0);
+  return renderQuotaWithAmount(Number(roundedUsdAmount.toFixed(digits)));
 }
 
 function formatBillingDisplayPrice(usdAmount, rate, digits = 6) {
   return (usdAmount * rate).toFixed(digits);
+}
+
+function formatBillingDisplayTotal(usdAmount, rate, digits = 6) {
+  return (roundUsdAmountByQuotaUnit(usdAmount) * rate).toFixed(digits);
+}
+
+function formatBillingDisplayTotalByQuota(actualQuota, usdAmount, rate, digits = 6) {
+  const numericQuota = Number(actualQuota);
+  const quotaPerUnit = getQuotaPerUnit();
+
+  if (
+    Number.isFinite(numericQuota) &&
+    Number.isFinite(quotaPerUnit) &&
+    quotaPerUnit > 0
+  ) {
+    return ((numericQuota / quotaPerUnit) * rate).toFixed(digits);
+  }
+
+  return formatBillingDisplayTotal(usdAmount, rate, digits);
+}
+
+function renderDisplayTotalAmountByQuota(actualQuota, usdAmount, digits = 6) {
+  const numericQuota = Number(actualQuota);
+  if (Number.isFinite(numericQuota)) {
+    return renderQuota(numericQuota, digits);
+  }
+  return renderDisplayAmountFromUsd(usdAmount, digits);
 }
 
 function buildBillingText(key, vars) {
@@ -1665,6 +1708,7 @@ export function renderModelPrice(
   imageGenerationCall = false,
   imageGenerationCallPrice = 0,
   displayMode = 'price',
+  actualQuota,
 ) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -1691,7 +1735,11 @@ export function renderModelPrice(
             ratioType: ratioLabel,
             ratio: groupRatio,
             amountKey: 'price',
-            total: formatBillingDisplayPrice(modelPrice * groupRatio, rate),
+            total: formatBillingDisplayTotalByQuota(
+              actualQuota,
+              modelPrice * groupRatio,
+              rate,
+            ),
           },
         ),
       ]);
@@ -1735,7 +1783,7 @@ export function renderModelPrice(
       );
     } else if (cacheTokens > 0) {
       inputDesc = buildBillingText(
-        '(输入 {{nonCacheInput}} tokens / 1M tokens * {{symbol}}{{price}} + 缓存 {{cacheInput}} tokens / 1M tokens * {{symbol}}{{cachePrice}}',
+        '(输入 {{nonCacheInput}} tokens / 1M tokens * {{symbol}}{{price}} + 缓存读取 {{cacheInput}} tokens / 1M tokens * {{symbol}}{{cachePrice}}',
         {
           nonCacheInput: inputTokens - cacheTokens,
           cacheInput: cacheTokens,
@@ -1887,7 +1935,7 @@ export function renderModelPrice(
           outputDesc,
           extraServices,
           symbol,
-          total: formatBillingDisplayPrice(price, rate),
+          total: formatBillingDisplayTotalByQuota(actualQuota, price, rate),
         },
       ),
     ];
@@ -1897,7 +1945,11 @@ export function renderModelPrice(
 
   if (modelPrice !== -1) {
     const displayPrice = (modelPrice * rate).toFixed(6);
-    const displayTotal = (modelPrice * groupRatio * rate).toFixed(6);
+    const displayTotal = formatBillingDisplayTotalByQuota(
+      actualQuota,
+      modelPrice * groupRatio,
+      rate,
+    );
     return i18next.t(
       '按次：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}',
       {
@@ -2009,7 +2061,7 @@ export function renderModelPrice(
       : null,
     cacheInputTokens > 0
       ? buildBillingText(
-          '缓存输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 缓存倍率 {{cacheRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+          '缓存读取：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 缓存倍率 {{cacheRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
           {
             tokens: cacheInputTokens,
             modelRatio: modelRatioValue,
@@ -2284,6 +2336,7 @@ export function renderAudioModelPrice(
   cacheTokens = 0,
   cacheRatio = 1.0,
   displayMode = 'price',
+  actualQuota,
 ) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -2310,7 +2363,11 @@ export function renderAudioModelPrice(
             rate,
             ratioType: ratioLabel,
             ratio: groupRatio,
-            total: formatBillingDisplayPrice(modelPrice * groupRatio, rate),
+            total: formatBillingDisplayTotalByQuota(
+              actualQuota,
+              modelPrice * groupRatio,
+              rate,
+            ),
           },
         ),
       ]);
@@ -2387,7 +2444,11 @@ export function renderAudioModelPrice(
           ratioType: ratioLabel,
           ratio: groupRatio,
           symbol,
-          total: formatBillingDisplayPrice(totalPrice, rate),
+          total: formatBillingDisplayTotalByQuota(
+            actualQuota,
+            totalPrice,
+            rate,
+          ),
         },
       ),
     ]);
@@ -2401,7 +2462,11 @@ export function renderAudioModelPrice(
         symbol: symbol,
         price: (modelPrice * rate).toFixed(6),
         ratio: groupRatio,
-        total: (modelPrice * groupRatio * rate).toFixed(6),
+        total: formatBillingDisplayTotalByQuota(
+          actualQuota,
+          modelPrice * groupRatio,
+          rate,
+        ),
         ratioType: ratioLabel,
       },
     );
@@ -2470,7 +2535,7 @@ export function renderAudioModelPrice(
     ),
     cacheTokens > 0
       ? buildBillingText(
-          '缓存输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 缓存倍率 {{cacheRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+          '缓存读取：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 缓存倍率 {{cacheRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
           {
             tokens: cacheTokens,
             modelRatio: modelRatioValue,
@@ -2541,7 +2606,7 @@ export function renderAudioModelPrice(
       {
         textTotal: renderDisplayAmountFromUsd(textPrice),
         audioTotal: renderDisplayAmountFromUsd(audioPrice),
-        total: renderDisplayAmountFromUsd(totalPrice),
+        total: renderDisplayTotalAmountByQuota(actualQuota, totalPrice),
       },
     ),
   ]);
@@ -2572,6 +2637,7 @@ export function renderClaudeModelPrice(
   cacheCreationTokens1h = 0,
   cacheCreationRatio1h = 1.0,
   displayMode = 'price',
+  actualQuota,
 ) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -2598,7 +2664,11 @@ export function renderClaudeModelPrice(
             rate,
             ratioType: ratioLabel,
             ratio: groupRatio,
-            total: formatBillingDisplayPrice(modelPrice * groupRatio, rate),
+            total: formatBillingDisplayTotalByQuota(
+              actualQuota,
+              modelPrice * groupRatio,
+              rate,
+            ),
           },
         ),
       ]);
@@ -2654,11 +2724,14 @@ export function renderClaudeModelPrice(
 
     if (shouldShowCache) {
       breakdownSegments.push(
-        i18next.t('缓存 {{tokens}} tokens / 1M tokens * {{symbol}}{{price}}', {
-          tokens: cacheTokens,
-          symbol,
-          price: cacheUnitPrice.toFixed(6),
-        }),
+        i18next.t(
+          '缓存读取 {{tokens}} tokens / 1M tokens * {{symbol}}{{price}}',
+          {
+            tokens: cacheTokens,
+            symbol,
+            price: cacheUnitPrice.toFixed(6),
+          },
+        ),
       );
     }
 
@@ -2772,7 +2845,7 @@ export function renderClaudeModelPrice(
           ratioType: ratioLabel,
           ratio: groupRatio,
           symbol,
-          total: formatBillingDisplayPrice(price, rate),
+          total: formatBillingDisplayTotalByQuota(actualQuota, price, rate),
         },
       ),
     ]);
@@ -2786,7 +2859,11 @@ export function renderClaudeModelPrice(
         price: (modelPrice * rate).toFixed(6),
         ratioType: ratioLabel,
         ratio: groupRatio,
-        total: (modelPrice * groupRatio * rate).toFixed(6),
+        total: formatBillingDisplayTotalByQuota(
+          actualQuota,
+          modelPrice * groupRatio,
+          rate,
+        ),
       },
     );
   }
@@ -2959,7 +3036,7 @@ export function renderClaudeModelPrice(
       },
     ),
     buildBillingText('合计：{{total}}', {
-      total: renderDisplayAmountFromUsd(totalAmount),
+      total: renderDisplayTotalAmountByQuota(actualQuota, totalAmount),
     }),
   ]);
 }
