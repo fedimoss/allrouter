@@ -30,27 +30,27 @@ const normalizeType = (item = {}) => {
     return {
       code: 'IMPORTANT',
       className: 'status-label--important',
-      textKey: '\u91cd\u8981',
+      textKey: '重要',
     };
   }
   if (raw.includes('alert') || raw.includes('warning')) {
     return {
       code: 'ALERT',
       className: 'status-label--alert',
-      textKey: '\u544a\u8b66',
+      textKey: '告警',
     };
   }
   if (raw.includes('bulletin')) {
     return {
       code: 'BULLETIN',
       className: 'status-label--bulletin',
-      textKey: '\u516c\u544a',
+      textKey: '公告',
     };
   }
   return {
     code: 'NOTICE',
     className: 'status-label--notice',
-    textKey: '\u901a\u77e5',
+    textKey: '通知',
   };
 };
 
@@ -76,14 +76,14 @@ const AnnouncementsPanel = ({
 
       if (relative || time) {
         metaParts.push(
-          `${t('\u53d1\u5e03\u4e8e\uff1a')}${relative ? `${relative} ` : ''}${time}`.trim(),
+          `${t('发布于：')}${relative ? `${relative} ` : ''}${time}`.trim(),
         );
       }
-      metaParts.push(`${t('\u5206\u7c7b\uff1a')}${t(typeInfo.textKey)}`);
+      metaParts.push(`${t('分类：')}${t(typeInfo.textKey)}`);
 
       return {
         id: item.id || `announcement-${index}`,
-        title: content || t('\u6682\u65e0\u7cfb\u7edf\u516c\u544a'),
+        title: content || t('暂无系统公告'),
         meta: metaParts.join(' · '),
         code: typeInfo.code,
         className: typeInfo.className,
@@ -97,12 +97,12 @@ const AnnouncementsPanel = ({
       <div className='custom-card__header'>
         <div className='header-left'>
           <BellRing style={{ color: 'var(--semi-color-primary)' }} />
-          <span>{t('\u7cfb\u7edf\u516c\u544a')}</span>
+          <span>{t('系统公告')}</span>
         </div>
-        <div className='header-extra'>{t('\u6700\u65b020\u6761')}</div>
+        <div className='header-extra'>{t('最新20条')}</div>
       </div>
       <div className='custom-card__tags'>
-        <div className='tag tag--active'>{t('\u5168\u90e8')}</div>
+        <div className='tag tag--active'>{t('全部')}</div>
         {announcementLegendData.map((legend) => (
           <div key={legend.label} className='tag'>
             {legend.label}
@@ -131,8 +131,8 @@ const AnnouncementsPanel = ({
                   style={{ width: '90px', height: '90px' }}
                 />
               }
-              title={t('\u6682\u65e0\u7cfb\u7edf\u516c\u544a')}
-              description={t('\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458\u5728\u7cfb\u7edf\u8bbe\u7f6e\u4e2d\u914d\u7f6e\u516c\u544a\u4fe1\u606f')}
+              title={t('暂无系统公告')}
+              description={t('请联系管理员在系统设置中配置公告信息')}
             />
           </div>
         )}

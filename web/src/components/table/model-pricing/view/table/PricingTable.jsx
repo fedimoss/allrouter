@@ -74,7 +74,6 @@ const PricingTable = ({
     showRatio,
   ]);
 
-  // 更新列定义中的 searchValue
   const processedColumns = useMemo(() => {
     const cols = columns.map((column) => {
       if (column.dataIndex === 'model_name') {
@@ -86,7 +85,6 @@ const PricingTable = ({
       return column;
     });
 
-    // Remove fixed property when in compact mode (mobile view)
     if (compactMode) {
       return cols.map(({ fixed, ...rest }) => rest);
     }
@@ -95,8 +93,9 @@ const PricingTable = ({
 
   const ModelTable = useMemo(
     () => (
-      <Card className='!rounded-xl overflow-hidden' bordered={false}>
+      <Card className='pricing-market-table-card !rounded-xl overflow-hidden' bordered={false}>
         <Table
+          className='pricing-market-table'
           columns={processedColumns}
           dataSource={filteredModels}
           loading={loading}
@@ -108,12 +107,8 @@ const PricingTable = ({
           })}
           empty={
             <Empty
-              image={
-                <IllustrationNoResult style={{ width: 150, height: 150 }} />
-              }
-              darkModeImage={
-                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-              }
+              image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+              darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
               description={t('搜索无结果')}
               style={{ padding: 30 }}
             />

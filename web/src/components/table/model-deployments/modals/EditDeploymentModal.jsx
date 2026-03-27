@@ -187,7 +187,7 @@ const EditDeploymentModal = ({
                     rules={[
                       { required: true, message: t('请输入部署名称') },
                       {
-                        pattern: /^[a-zA-Z0-9-_\u4e00-\u9fa5]+$/,
+                        pattern: /^[a-zA-Z0-9-_\p{Script=Han}]+$/,
                         message: t(
                           '部署名称只能包含字母、数字、横线、下划线和中文',
                         ),

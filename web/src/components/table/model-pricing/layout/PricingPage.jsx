@@ -24,6 +24,7 @@ import PricingContent from './content/PricingContent';
 import ModelDetailSideSheet from '../modal/ModelDetailSideSheet';
 import { useModelPricingData } from '../../../../hooks/model-pricing/useModelPricingData';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import './PricingPage.css';
 
 const PricingPage = () => {
   const pricingData = useModelPricingData();
@@ -31,16 +32,49 @@ const PricingPage = () => {
   const isMobile = useIsMobile();
   const [showRatio, setShowRatio] = React.useState(false);
   const [viewMode, setViewMode] = React.useState('card');
+  const [sortMode, setSortMode] = React.useState('hot');
+
+  const sortedModels = React.useMemo(() => {
+    const models = [...(pricingData.filteredModels || [])];
+
+    if (sortMode === 'value') {
+      return models.sort((a, b) => {
+        const aRatio = typeof a.model_ratio === 'number' ? a.model_ratio : Number.MAX_SAFE_INTEGER;
+        const bRatio = typeof b.model_ratio === 'number' ? b.model_ratio : Number.MAX_SAFE_INTEGER;
+        return aRatio - bRatio;
+      });
+    }
+
+    if (sortMode === 'latest') {
+      return models.sort((a, b) => {
+        const aNew = a.tags?.toLowerCase().includes('new') ? 1 : 0;
+        const bNew = b.tags?.toLowerCase().includes('new') ? 1 : 0;
+        if (aNew !== bNew) return bNew - aNew;
+        return String(a.model_name || '').localeCompare(String(b.model_name || ''));
+      });
+    }
+
+    return models.sort((a, b) => {
+      const aHot = a.tags?.toLowerCase().includes('hot') ? 1 : 0;
+      const bHot = b.tags?.toLowerCase().includes('hot') ? 1 : 0;
+      if (aHot !== bHot) return bHot - aHot;
+      return String(a.model_name || '').localeCompare(String(b.model_name || ''));
+    });
+  }, [pricingData.filteredModels, sortMode]);
+
   const allProps = {
     ...pricingData,
+    filteredModels: sortedModels,
     showRatio,
     setShowRatio,
     viewMode,
     setViewMode,
+    sortMode,
+    setSortMode,
   };
 
   return (
-    <div className='bg-white'>
+    <div className='pricing-market'>
       <Layout className='pricing-layout'>
         {!isMobile && (
           <Sider className='pricing-scroll-hide pricing-sidebar'>

@@ -30,9 +30,9 @@ const ApiInfoPanel = ({ apiInfoData = [], handleCopyUrl, t }) => {
       <div className='card-header'>
         <div className='header-title'>
           <Share2 size={20} color='var(--semi-color-primary)' />
-          <span>{t('API\u4fe1\u606f')}</span>
+          <span>{t('API信息')}</span>
         </div>
-        <button className='header-link'>{t('\u8be6\u60c5')}</button>
+        <button className='header-link'>{t('详情')}</button>
       </div>
 
       <div className='api-list'>
@@ -47,8 +47,8 @@ const ApiInfoPanel = ({ apiInfoData = [], handleCopyUrl, t }) => {
                   {api.url}
                 </div>
                 <div className='api-status-text'>
-                  {t('\u72b6\u6001\uff1a')}
-                  {api.label || t('\u53ef\u7528')}
+                  {t('状态：')}
+                  {api.label || t('可用')}
                 </div>
               </div>
               <div className={`status-badge ${api.type || ''}`}>
@@ -67,8 +67,8 @@ const ApiInfoPanel = ({ apiInfoData = [], handleCopyUrl, t }) => {
                   style={{ width: '90px', height: '90px' }}
                 />
               }
-              title={t('\u6682\u65e0API\u4fe1\u606f')}
-              description={t('\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458\u5728\u7cfb\u7edf\u8bbe\u7f6e\u4e2d\u914d\u7f6eAPI\u4fe1\u606f')}
+              title={t('暂无API信息')}
+              description={t('请联系管理员在系统设置中配置API信息')}
             />
           </div>
         )}

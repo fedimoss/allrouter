@@ -28,7 +28,7 @@ import { marked } from 'marked';
 
 import './index.scss';
 
-const FAQ_TAGS = ['\u63a5\u53e3', '\u8ba1\u8d39', '\u5b89\u5168'];
+const FAQ_TAGS = ['接口', '计费', '安全'];
 
 const FaqPanel = ({ faqData = [], ILLUSTRATION_SIZE, t }) => {
   return (
@@ -36,13 +36,13 @@ const FaqPanel = ({ faqData = [], ILLUSTRATION_SIZE, t }) => {
       <div className='custom-card__header'>
         <div className='header-left'>
           <IconHelpCircle style={{ color: 'var(--semi-color-primary)', fontSize: '24px' }} />
-          <span>{t('\u5e38\u89c1\u95ee\u7b54')}</span>
+          <span>{t('常见问答')}</span>
         </div>
-        <div className='header-extra'>{t('\u5206\u7c7b')}</div>
+        <div className='header-extra'>{t('分类')}</div>
       </div>
 
       <div className='custom-card__tags'>
-        <div className='tag tag--active'>{t('\u5168\u90e8')}</div>
+        <div className='tag tag--active'>{t('全部')}</div>
         {FAQ_TAGS.map((item) => (
           <div key={item} className='tag'>
             {t(item)}
@@ -72,8 +72,8 @@ const FaqPanel = ({ faqData = [], ILLUSTRATION_SIZE, t }) => {
             darkModeImage={
               <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
             }
-            title={t('\u6682\u65e0\u5e38\u89c1\u95ee\u7b54')}
-            description={t('\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458\u5728\u7cfb\u7edf\u8bbe\u7f6e\u4e2d\u914d\u7f6e\u5e38\u89c1\u95ee\u7b54')}
+            title={t('暂无常见问答')}
+            description={t('请联系管理员在系统设置中配置常见问答')}
           />
         )}
       </div>
