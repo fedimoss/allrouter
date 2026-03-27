@@ -21,7 +21,7 @@ import React from 'react';
 import CertificationList from '../../components/merchant/certification';
 
 const CertificationDocument = () => (
-  <div className='mt-[60px] px-2'>
+  <div className='px-2'>
     <CertificationList />
   </div>
 );
