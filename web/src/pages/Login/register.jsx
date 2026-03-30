@@ -24,7 +24,10 @@ import { Button, Checkbox, Input } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { FaBolt, FaShieldHalved, FaStore } from 'react-icons/fa6';
 import { IconKey, IconLock, IconMail, IconUser } from '@douyinfe/semi-icons';
-
+import channelImg from '../../../public/channel.svg';
+import modelImg from '../../../public/model.svg';
+import safeImg from '../../../public/safe.svg';
+import avatarImg from '../../../public/avatar.svg';
 import { StatusContext } from '../../context/Status';
 import {
   API,
@@ -35,6 +38,24 @@ import {
   showSuccess,
 } from '../../helpers';
 import './auth-v2.css';
+
+const brandFeatureItems = [
+  {
+    imgUrl: modelImg,
+    title: '50+ 模型，OpenAI 兼容接入',
+    description: '集成全球领先模型，通过单一接口实现智能路由。',
+  },
+  {
+    imgUrl: channelImg,
+    title: '多渠道比价，自动路由最优',
+    description: '毫秒级账单同步，深度优化您的 Token 使用效率。',
+  },
+  {
+    imgUrl: safeImg,
+    title: '自营品质保障，99.9% 可用性',
+    description: '端到端加密通信，确保您的核心业务数据隐私无虞。',
+  }
+];
 
 function scorePasswordStrength(password) {
   if (!password) return { score: 0, levelClass: '', text: '', color: '' };
@@ -58,9 +79,11 @@ function scorePasswordStrength(password) {
     color: levels[idx].color,
   };
 }
+
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
+
 function isStrongPassword(password) {
   return (
     password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password)
@@ -177,7 +200,6 @@ export default function RegisterPage() {
     );
   };
 
-  // ==================== Register ====================
   const [showEmailVerification, setShowEmailVerification] = useState(false);
   useEffect(() => {
     setShowEmailVerification(Boolean(status?.email_verification));
@@ -263,38 +285,25 @@ export default function RegisterPage() {
     ).trim();
 
     if (!username) return showInfo(t('请输入用户名'));
-    if (!email)
-      return showInfo(t('请输入邮箱地址'));
+    if (!email) return showInfo(t('请输入邮箱地址'));
     if (!isValidEmail(email)) {
       flashEmailError();
-      return showInfo(
-        t('请输入正确的邮箱地址'),
-      );
+      return showInfo(t('请输入正确的邮箱地址'));
     }
     if (showEmailVerification && !verificationCode) {
-      return showInfo(
-        t('请输入邮箱验证码！'),
-      );
+      return showInfo(t('请输入邮箱验证码！'));
     }
     if (showEmailVerification && verificationCode.length !== 6) {
-      return showInfo(
-        t('请输入 6 位验证码'),
-      );
+      return showInfo(t('请输入 6 位验证码'));
     }
     if (!password) return showInfo(t('请输入密码'));
     if (!isStrongPassword(password)) {
-      return showInfo(
-        t(
-          '至少 8 位，包含字母和数字',
-        ),
-      );
+      return showInfo(t('至少 8 位，包含字母和数字'));
     }
-    if (!password2)
-      return showInfo(t('请再次输入密码'));
-    if (password !== password2)
-      return showInfo(
-        t('两次输入的密码不一致'),
-      );
+    if (!password2) return showInfo(t('请再次输入密码'));
+    if (password !== password2) {
+      return showInfo(t('两次输入的密码不一致'));
+    }
 
     setRegisterLoading(true);
     try {
@@ -335,41 +344,50 @@ export default function RegisterPage() {
         <div className='floating-orb orb-4' />
 
         <div className='brand-content'>
-          <div className='brand-logo'>
-            {logo ? <img src={logo} alt={systemName} /> : null}
+          <div className='brand-logo' onClick={() => navigate('/')}>
+            <div className='logo-img'>
+              {logo ? <img src={logo} alt={systemName} /> : null}
+            </div>
             <span>{systemName}</span>
           </div>
 
-          <h1 className='brand-tagline'>
-            {t('AI API 路由市场')}
-            <br />
-            <span>{t('为每一次调用找到最优路径')}</span>
-          </h1>
+          <h1 className='brand-tagline'>{t('智能API聚合')}</h1>
           <p className='brand-desc'>
             {t(
-              '一站式 AI 模型路由市场，自营渠道 + 第三方商户生态，为每一次 API 调用找到最优路线。',
+              '一站式 AI 模型路由市场，自营渠道 + 第三方商家生态，为每次 API 调用找到最优路线。',
             )}
           </p>
 
           <div className='brand-features'>
-            <div className='brand-feature'>
-              <div className='brand-feature-icon'>
-                <FaBolt />
-              </div>
-              <span>{t('50+ 模型，OpenAI 兼容接入')}</span>
-            </div>
-            <div className='brand-feature'>
-              <div className='brand-feature-icon'>
-                <FaStore />
-              </div>
-              <span>{t('多渠道比价，自动路由最优')}</span>
-            </div>
-            <div className='brand-feature'>
-              <div className='brand-feature-icon'>
-                <FaShieldHalved />
-              </div>
-              <span>{t('自营品质保障，99.9% 可用性')}</span>
-            </div>
+            {brandFeatureItems.map((item) => {
+              return (
+                <div key={item.title} className='brand-feature'>
+                  <div className='brand-feature-icon'>
+                    <img src={item.imgUrl} alt={item.title} />
+                  </div>
+                  <div className='brand-feature-body'>
+                    <div className='brand-feature-title'>{t(item.title)}</div>
+                    <div className='brand-feature-desc'>
+                      {t(item.description)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className='brand-quote-card'>
+          <p>
+            {t(
+              'AllRouter.AI 彻底改变了我们团队调用多模型的方式。它不再是单纯的技术工具，而是我们决策流中的核心。',
+            )}
+          </p>
+          <div className='brand-quote-author'>
+            <span className='brand-quote-avatar'>
+              <img src={avatarImg} alt='Avatar' />
+            </span>
+            <span>{t('技术负责人')}@ Visionary Lab</span>
           </div>
         </div>
       </div>
@@ -380,6 +398,16 @@ export default function RegisterPage() {
             {logo ? <img src={logo} alt={systemName} /> : null}
             <span>{systemName}</span>
           </Link>
+
+          <div className='mobile-copy'>
+            <h1>{t('创建您的账号')}</h1>
+            <p>{t('填写基础信息后即可开始接入统一 AI 网关与路由能力。')}</p>
+          </div>
+
+          <div className='auth-heading'>
+            <h2>{t('创建账号')}</h2>
+            <p>{t('填写您的信息以开始使用控制台')}</p>
+          </div>
 
           <div className='auth-tabs'>
             <Button
@@ -395,7 +423,7 @@ export default function RegisterPage() {
               theme='borderless'
               className='auth-tab active'
             >
-              {t('注册')}
+              {t('注册账号')}
             </Button>
           </div>
 
@@ -417,14 +445,12 @@ export default function RegisterPage() {
               </div>
 
               <div className='form-group'>
-                <label className='form-label'>{t('邮箱地址')}</label>
+                <label className='form-label'>{t('电子邮箱')}</label>
                 <Input
-                  className={`form-input ${
-                    regEmailFlashError ? 'error-flash' : ''
-                  }`}
+                  className={`form-input ${regEmailFlashError ? 'error-flash' : ''}`}
                   size='large'
                   prefix={<IconMail />}
-                  placeholder={t('请输入邮箱地址')}
+                  placeholder={t('name@company.com')}
                   value={registerInputs.email}
                   onChange={(value) =>
                     setRegisterInputs((s) => ({ ...s, email: value }))
@@ -435,7 +461,10 @@ export default function RegisterPage() {
 
               {showEmailVerification && (
                 <div className='form-group'>
-                  <label className='form-label'>{t('邮箱验证码')}</label>
+                  <div className='form-label-row'>
+                    <label className='form-label'>{t('邮箱验证码')}</label>
+                    <span className='form-label-hint'>{t('6 位验证码')}</span>
+                  </div>
                   <div className='code-input-group'>
                     <Input
                       className='form-input'
@@ -530,12 +559,15 @@ export default function RegisterPage() {
                   ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms)
                 }
               >
-                {t('注册')}
+                <span className='btn-submit-text'>
+                  {t('立即注册')}
+                  <span className='submit-arrow'>→</span>
+                </span>
               </Button>
             </form>
 
             <div className='terms'>
-              {t('注册即表示您同意')}
+              {t('点击注册即代表您同意我们的')}
               <a
                 href='/user-agreement'
                 target='_blank'
@@ -551,17 +583,12 @@ export default function RegisterPage() {
               >
                 {t('隐私政策')}
               </a>
+              。
             </div>
           </div>
 
           {turnstileEnabled && (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                marginTop: 18,
-              }}
-            >
+            <div className='turnstile-wrap'>
               <Turnstile
                 sitekey={turnstileSiteKey}
                 onVerify={(token) => setTurnstileToken(token)}

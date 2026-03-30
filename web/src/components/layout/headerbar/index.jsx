@@ -171,7 +171,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
                                     {t('登录')}
                                 </Link>
                                 <Link to={consoleNavTarget} className='landing-v2-btn-primary'>
-                                    {t('获取密钥')}
+                                    {t('获取 API Key')}
                                 </Link>
                             </>
                         )}

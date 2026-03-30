@@ -53,8 +53,8 @@ export function getSystemName() {
 }
 
 export function getLogo() {
-  let logo = localStorage.getItem('logo');
-  if (!logo) return '/logo.png';
+  let logo = '/logo-white.svg';
+  if (!logo) return '/logo-white.svg';
   return logo;
 }
 
