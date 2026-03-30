@@ -322,6 +322,12 @@ const Billing = () => {
     ];
 
     if (userIsAdmin) {
+      baseColumns.splice(1, 0, {
+        title: t('用户昵称'),
+        dataIndex: 'display_name',
+        key: 'display_name',
+        render: (text) => text || '-',
+      });
       baseColumns.push({
         title: t('操作'),
         key: 'action',
