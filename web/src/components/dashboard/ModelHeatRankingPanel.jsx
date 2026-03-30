@@ -32,9 +32,9 @@ const ModelHeatRankingPanel = ({ t }) => {
       <div className='card-header'>
         <div className='header-title'>
           <Trophy size={20} color='var(--semi-color-warning)' />
-          <span>{t('\u6a21\u578b\u70ed\u5ea6\u6392\u884c')}</span>
+          <span>{t('模型热度排行')}</span>
         </div>
-        <button className='header-link'>{t('\u67e5\u770b\u5168\u90e8')}</button>
+        <button className='header-link'>{t('查看全部')}</button>
       </div>
 
       <div className='rank-list'>
@@ -55,7 +55,7 @@ const ModelHeatRankingPanel = ({ t }) => {
               </div>
               <div>
                 <div className='call-count'>{item.calls}</div>
-                <div className='call-label'>{t('\u6b21\u8c03\u7528')}</div>
+                <div className='call-label'>{t('次调用')}</div>
               </div>
             </div>
           ))
@@ -67,8 +67,8 @@ const ModelHeatRankingPanel = ({ t }) => {
                   style={{ width: '90px', height: '90px' }}
                 />
               }
-              title={t('\u6682\u65e0\u6a21\u578b\u8c03\u7528\u6570\u636e')}
-              description={t('\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458\u5728\u7cfb\u7edf\u8bbe\u7f6e\u4e2d\u914d\u7f6e\u6a21\u578b\u8c03\u7528\u6570\u636e')}
+              title={t('暂无模型调用数据')}
+              description={t('请联系管理员在系统设置中配置模型调用数据')}
             />
           </div>
         )}

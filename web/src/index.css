@@ -1188,9 +1188,9 @@ html.dark .with-pastel-balls::before {
 }
 
 .pricing-sidebar {
-  width: clamp(280px, 24vw, 520px) !important;
+  /* width: clamp(280px, 24vw, 520px) !important;
   min-width: clamp(280px, 24vw, 520px) !important;
-  max-width: clamp(280px, 24vw, 520px) !important;
+  max-width: clamp(280px, 24vw, 520px) !important; */
   height: calc(100vh - 60px);
   background-color: var(--semi-color-bg-0);
   overflow: auto;
@@ -1214,14 +1214,14 @@ html.dark .with-pastel-balls::before {
   overflow: auto;
 }
 
-.pricing-search-header {
+/* .pricing-search-header {
   padding: 0.5rem;
   background-color: var(--semi-color-bg-0);
   flex-shrink: 0;
   position: sticky;
   top: 0;
   z-index: 5;
-}
+} */
 
 .pricing-view-container {
   flex: 1;

@@ -27,58 +27,36 @@ import {
   getModelPriceItems,
   getLobeHubIcon,
 } from '../../../../../helpers';
-import {
-  renderLimitedItems,
-  renderDescription,
-} from '../../../../common/ui/RenderUtils';
+import { renderLimitedItems, renderDescription } from '../../../../common/ui/RenderUtils';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 function renderQuotaType(type, t) {
   switch (type) {
     case 1:
-      return (
-        <Tag color='teal' shape='circle'>
-          {t('按次计费')}
-        </Tag>
-      );
+      return <Tag color='teal' shape='circle'>{t('按次计费')}</Tag>;
     case 0:
-      return (
-        <Tag color='violet' shape='circle'>
-          {t('按量计费')}
-        </Tag>
-      );
+      return <Tag color='violet' shape='circle'>{t('按量计费')}</Tag>;
     default:
       return t('未知');
   }
 }
 
-// Render vendor name
-const renderVendor = (vendorName, vendorIcon, t) => {
+const renderVendor = (vendorName, vendorIcon) => {
   if (!vendorName) return '-';
   return (
-    <Tag
-      color='white'
-      shape='circle'
-      prefixIcon={getLobeHubIcon(vendorIcon || 'Layers', 14)}
-    >
+    <Tag color='white' shape='circle' prefixIcon={getLobeHubIcon(vendorIcon || 'Layers', 14)}>
       {vendorName}
     </Tag>
   );
 };
 
-// Render tags list using RenderUtils
 const renderTags = (text) => {
   if (!text) return '-';
-  const tagsArr = text.split(',').filter((tag) => tag.trim());
+  const tags = text.split(',').filter((tag) => tag.trim());
   return renderLimitedItems({
-    items: tagsArr,
+    items: tags,
     renderItem: (tag, idx) => (
-      <Tag
-        key={idx}
-        color={stringToColor(tag.trim())}
-        shape='circle'
-        size='small'
-      >
+      <Tag key={idx} color={stringToColor(tag.trim())} shape='circle' size='small'>
         {tag.trim()}
       </Tag>
     ),
@@ -87,12 +65,10 @@ const renderTags = (text) => {
 };
 
 function renderSupportedEndpoints(endpoints) {
-  if (!endpoints || endpoints.length === 0) {
-    return null;
-  }
+  if (!endpoints || endpoints.length === 0) return null;
   return (
     <Space wrap>
-      {endpoints.map((endpoint, idx) => (
+      {endpoints.map((endpoint) => (
         <Tag key={endpoint} color={stringToColor(endpoint)} shape='circle'>
           {endpoint}
         </Tag>
@@ -134,126 +110,90 @@ export const getPricingTableColumns = ({
     return cache;
   };
 
-  const endpointColumn = {
-    title: t('可用端点类型'),
-    dataIndex: 'supported_endpoint_types',
-    render: (text, record, index) => {
-      return renderSupportedEndpoints(text);
+  const columns = [
+    {
+      title: t('模型名称'),
+      dataIndex: 'model_name',
+      render: (text) => renderModelTag(text, { onClick: () => copyText(text) }),
+      onFilter: (value, record) => record.model_name.toLowerCase().includes(value.toLowerCase()),
     },
-  };
-
-  const modelNameColumn = {
-    title: t('模型名称'),
-    dataIndex: 'model_name',
-    render: (text, record, index) => {
-      return renderModelTag(text, {
-        onClick: () => {
-          copyText(text);
-        },
-      });
+    {
+      title: t('供应商'),
+      dataIndex: 'vendor_name',
+      render: (text, record) => renderVendor(text, record.vendor_icon),
     },
-    onFilter: (value, record) =>
-      record.model_name.toLowerCase().includes(value.toLowerCase()),
-  };
-
-  const quotaColumn = {
-    title: t('计费类型'),
-    dataIndex: 'quota_type',
-    render: (text, record, index) => {
-      return renderQuotaType(parseInt(text), t);
+    {
+      title: t('描述'),
+      dataIndex: 'description',
+      render: (text) => renderDescription(text, 200),
     },
-    sorter: (a, b) => a.quota_type - b.quota_type,
-  };
-
-  const descriptionColumn = {
-    title: t('描述'),
-    dataIndex: 'description',
-    render: (text) => renderDescription(text, 200),
-  };
-
-  const tagsColumn = {
-    title: t('标签'),
-    dataIndex: 'tags',
-    render: renderTags,
-  };
-
-  const vendorColumn = {
-    title: t('供应商'),
-    dataIndex: 'vendor_name',
-    render: (text, record) => renderVendor(text, record.vendor_icon, t),
-  };
-
-  const baseColumns = [
-    modelNameColumn,
-    vendorColumn,
-    descriptionColumn,
-    tagsColumn,
-    quotaColumn,
+    {
+      title: t('标签'),
+      dataIndex: 'tags',
+      render: renderTags,
+    },
+    {
+      title: t('计费类型'),
+      dataIndex: 'quota_type',
+      render: (text) => renderQuotaType(parseInt(text, 10), t),
+      sorter: (a, b) => a.quota_type - b.quota_type,
+    },
+    {
+      title: t('可用端点类型'),
+      dataIndex: 'supported_endpoint_types',
+      render: (text) => renderSupportedEndpoints(text),
+    },
   ];
 
-  const ratioColumn = {
-    title: () => (
-      <div className='flex items-center space-x-1'>
-        <span>{t('倍率')}</span>
-        <Tooltip content={t('倍率是为了方便换算不同价格的模型')}>
-          <IconHelpCircle
-            className='text-blue-500 cursor-pointer'
-            onClick={() => {
-              setModalImageUrl('/ratio.png');
-              setIsModalOpenurl(true);
-            }}
-          />
-        </Tooltip>
-      </div>
-    ),
-    dataIndex: 'model_ratio',
-    render: (text, record, index) => {
-      const completionRatio = parseFloat(record.completion_ratio.toFixed(3));
-      const priceData = getPriceData(record);
-
-      return (
-        <div className='space-y-1'>
-          <div className='text-gray-700'>
-            {t('模型倍率')}：{record.quota_type === 0 ? text : t('无')}
-          </div>
-          <div className='text-gray-700'>
-            {t('补全倍率')}：
-            {record.quota_type === 0 ? completionRatio : t('无')}
-          </div>
-          <div className='text-gray-700'>
-            {t('分组倍率')}：{priceData?.usedGroupRatio ?? '-'}
-          </div>
+  if (showRatio) {
+    columns.push({
+      title: () => (
+        <div className='flex items-center space-x-1'>
+          <span>{t('倍率')}</span>
+          <Tooltip content={t('倍率是为了方便换算不同价格的模型')}>
+            <IconHelpCircle
+              className='text-blue-500 cursor-pointer'
+              onClick={() => {
+                setModalImageUrl('/ratio.png');
+                setIsModalOpenurl(true);
+              }}
+            />
+          </Tooltip>
         </div>
-      );
-    },
-  };
+      ),
+      dataIndex: 'model_ratio',
+      render: (text, record) => {
+        const completionRatio = parseFloat(record.completion_ratio.toFixed(3));
+        const priceData = getPriceData(record);
+        return (
+          <div className='space-y-1'>
+            <div className='text-gray-700'>{t('模型倍率')}：{record.quota_type === 0 ? text : t('无')}</div>
+            <div className='text-gray-700'>{t('补全倍率')}：{record.quota_type === 0 ? completionRatio : t('无')}</div>
+            <div className='text-gray-700'>{t('分组倍率')}：{priceData?.usedGroupRatio ?? '-'}</div>
+          </div>
+        );
+      },
+    });
+  }
 
-  const priceColumn = {
+  columns.push({
     title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('模型价格'),
     dataIndex: 'model_price',
     ...(isMobile ? {} : { fixed: 'right' }),
-    render: (text, record, index) => {
+    render: (text, record) => {
       const priceData = getPriceData(record);
       const priceItems = getModelPriceItems(priceData, t, siteDisplayType);
-
       return (
         <div className='space-y-1'>
           {priceItems.map((item) => (
             <div key={item.key} className='text-gray-700'>
-              {item.label} {item.value}
-              {item.suffix}
+              {item.label} {item.value}{item.suffix}
             </div>
           ))}
         </div>
       );
     },
-  };
+  });
 
-  const columns = [...baseColumns];
-  columns.push(endpointColumn);
-  if (showRatio) {
-    columns.push(ratioColumn);
-  }
-  columns.push(priceColumn);
   return columns;
 };

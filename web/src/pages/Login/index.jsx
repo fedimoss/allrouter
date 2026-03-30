@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Turnstile from 'react-turnstile';
 import { Button, Checkbox, Input, Modal } from '@douyinfe/semi-ui';
@@ -48,6 +48,7 @@ export default function LoginPage() {
   const [searchParams] = useSearchParams();
   const [, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
+  const expiredNoticeShownRef = useRef(false);
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -92,7 +93,8 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    if (searchParams.get('expired')) {
+    if (searchParams.get('expired') && !expiredNoticeShownRef.current) {
+      expiredNoticeShownRef.current = true;
       showError(t('登录已过期，请重新登录'));
     }
   }, [searchParams, t]);
@@ -178,11 +180,11 @@ export default function LoginPage() {
     const username = String(loginInputs.username || '').trim();
     const password = String(loginInputs.password || '');
     if (!username) {
-      showInfo(t('\u8bf7\u8f93\u5165\u90ae\u7bb1\u6216\u7528\u6237\u540d'));
+      showInfo(t('请输入邮箱或用户名'));
       return;
     }
     if (!password) {
-      showInfo(t('\u8bf7\u8f93\u5165\u5bc6\u7801'));
+      showInfo(t('请输入密码'));
       return;
     }
 
@@ -237,7 +239,7 @@ export default function LoginPage() {
   const onSubmitWeChatVerificationCode = async () => {
     const code = String(wechatVerificationCode || '').trim();
     if (!code) {
-      showInfo(t('\u8bf7\u8f93\u5165\u9a8c\u8bc1\u7801'));
+      showInfo(t('请输入验证码'));
       return;
     }
     if (!ensureTurnstileReady()) return;
@@ -252,14 +254,14 @@ export default function LoginPage() {
         localStorage.setItem('user', JSON.stringify(data));
         setUserData(data);
         updateAPI();
-        showSuccess(t('\u767b\u5f55\u6210\u529f'));
+        showSuccess(t('登录成功'));
         setShowWeChatLoginModal(false);
         navigate('/console');
       } else {
         showError(message);
       }
     } catch {
-      showError(t('\u767b\u5f55\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5'));
+      showError(t('登录失败，请重试'));
     } finally {
       setWechatCodeSubmitLoading(false);
     }

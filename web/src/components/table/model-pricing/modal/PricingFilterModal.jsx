@@ -40,16 +40,12 @@ const PricingFilterModal = ({ visible, onClose, sidebarProps, t }) => {
       setTokenUnit: sidebarProps.setTokenUnit,
     });
 
-  const footer = (
-    <FilterModalFooter onReset={handleResetFilters} onConfirm={onClose} t={t} />
-  );
-
   return (
     <Modal
       title={t('筛选')}
       visible={visible}
       onCancel={onClose}
-      footer={footer}
+      footer={<FilterModalFooter onReset={handleResetFilters} onConfirm={onClose} t={t} />}
       style={{ width: '100%', height: '100%', margin: 0 }}
       bodyStyle={{
         padding: 0,

@@ -72,7 +72,7 @@ const generateAnchorId = (rawText, anchorCountMap) => {
   const normalizedText = rawText
     .toLowerCase()
     .trim()
-    .replace(/[^\p{L}\p{N}\u4e00-\u9fa5]+/gu, '-')
+    .replace(/[^\p{L}\p{N}\p{Script=Han}]+/gu, '-')
     .replace(/^-+|-+$/g, '');
   const baseAnchor = normalizedText || 'section';
   const count = anchorCountMap.get(baseAnchor) || 0;

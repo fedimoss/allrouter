@@ -328,9 +328,9 @@ const CertificationList = () => {
   };
 
   return (
-    <div className='w-full pb-8' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
+    <div className='w-full pb-8'>
       <div className='mx-auto w-full h-full max-w-[1360px] px-4 pt-4 md:px-8 lg:px-10'>
-        <div className='rounded-2xl' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
+        <div className='rounded-2xl'>
           <div className='flex flex-col gap-4 md:flex-row md:items-start md:justify-between'>
             <div>
               <div className='flex items-center gap-3'>

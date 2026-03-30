@@ -18,8 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { memo, useCallback } from 'react';
-import { Input, Button, Switch, Select, Divider } from '@douyinfe/semi-ui';
+import { Input, Button, Switch, Select } from '@douyinfe/semi-ui';
 import { IconSearch, IconCopy, IconFilter } from '@douyinfe/semi-icons';
+import { LayoutGrid, Rows3 } from 'lucide-react';
+
+const getSortOptions = (t) => [
+  { value: 'hot', label: t('热门优先') },
+  { value: 'latest', label: t('最新上架') },
+  { value: 'value', label: t('价格优先') },
+];
 
 const SearchActions = memo(
   ({
@@ -42,34 +49,62 @@ const SearchActions = memo(
     setViewMode,
     tokenUnit,
     setTokenUnit,
+    filteredCount = 0,
+    sortMode = 'hot',
+    setSortMode,
     t,
   }) => {
     const supportsCurrencyDisplay = siteDisplayType !== 'TOKENS';
 
     const handleCopyClick = useCallback(() => {
       if (copyText && selectedRowKeys.length > 0) {
-        copyText(selectedRowKeys);
+        copyText(selectedRowKeys.join(', '));
       }
     }, [copyText, selectedRowKeys]);
 
-    const handleFilterClick = useCallback(() => {
-      setShowFilterModal?.(true);
-    }, [setShowFilterModal]);
-
-    const handleViewModeToggle = useCallback(() => {
-      setViewMode?.(viewMode === 'table' ? 'card' : 'table');
-    }, [viewMode, setViewMode]);
-
-    const handleTokenUnitToggle = useCallback(() => {
-      setTokenUnit?.(tokenUnit === 'K' ? 'M' : 'K');
-    }, [tokenUnit, setTokenUnit]);
+    if (isMobile) {
+      return (
+        <div className='pricing-market-mobile-toolbar'>
+          <div className='pricing-market-mobile-search'>
+            <Input
+              prefix={<IconSearch />}
+              placeholder={t('模糊搜索模型名称')}
+              value={searchValue}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              onChange={handleChange}
+              showClear
+            />
+          </div>
+          <div className='pricing-market-mobile-actions'>
+            <Button
+              type='primary'
+              theme='solid'
+              icon={<IconCopy />}
+              onClick={handleCopyClick}
+              disabled={selectedRowKeys.length === 0}
+            >
+              {t('复制')}
+            </Button>
+            <Button
+              theme='outline'
+              type='tertiary'
+              icon={<IconFilter />}
+              onClick={() => setShowFilterModal?.(true)}
+            >
+              {t('筛选')}
+            </Button>
+          </div>
+        </div>
+      );
+    }
 
     return (
-      <div className='flex items-center gap-2 w-full'>
-        <div className='flex-1'>
+      <div className='pricing-market-toolbar'>
+        <div className='pricing-market-toolbar-search'>
           <Input
             prefix={<IconSearch />}
-            placeholder={t('模糊搜索模型名称')}
+            placeholder={t('模糊搜索模型名称') + '  GPT-4 / Claude / Gemini'}
             value={searchValue}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
@@ -78,81 +113,70 @@ const SearchActions = memo(
           />
         </div>
 
-        <Button
-          theme='outline'
-          type='primary'
-          icon={<IconCopy />}
-          onClick={handleCopyClick}
-          disabled={selectedRowKeys.length === 0}
-          className='!bg-blue-500 hover:!bg-blue-600 !text-white disabled:!bg-gray-300 disabled:!text-gray-500'
-        >
-          {t('复制')}
-        </Button>
+        <div className='pricing-market-toolbar-count'>
+          {t('共 {{count}} 个模型', { count: filteredCount })}
+        </div>
 
-        {!isMobile && (
-          <>
-            <Divider layout='vertical' margin='8px' />
+        <div className='pricing-market-toolbar-actions'>
+          {supportsCurrencyDisplay && (
+            <label className='pricing-market-toolbar-toggle'>
+              <span>{t('充值价格')}</span>
+              <Switch checked={showWithRecharge} onChange={setShowWithRecharge} />
+            </label>
+          )}
 
-            {/* 充值价格显示开关 */}
-            {supportsCurrencyDisplay && (
-              <div className='flex items-center gap-2'>
-                <span className='text-sm text-gray-600'>{t('充值价格显示')}</span>
-                <Switch
-                  checked={showWithRecharge}
-                  onChange={setShowWithRecharge}
-                />
-              </div>
-            )}
+          {supportsCurrencyDisplay && showWithRecharge && (
+            <Select
+              value={currency}
+              onChange={setCurrency}
+              optionList={[
+                { value: 'USD', label: 'USD' },
+                { value: 'CNY', label: 'CNY' },
+                { value: 'CUSTOM', label: t('自定义货币') },
+              ]}
+              className='pricing-market-toolbar-currency'
+            />
+          )}
 
-            {/* 货币单位选择 */}
-            {supportsCurrencyDisplay && showWithRecharge && (
-              <Select
-                value={currency}
-                onChange={setCurrency}
-                optionList={[
-                  { value: 'USD', label: 'USD' },
-                  { value: 'CNY', label: 'CNY' },
-                  { value: 'CUSTOM', label: t('自定义货币') },
-                ]}
-              />
-            )}
+          <label className='pricing-market-toolbar-toggle'>
+            <span>{t('倍率')}</span>
+            <Switch checked={showRatio} onChange={setShowRatio} />
+          </label>
 
-            {/* 显示倍率开关 */}
-            <div className='flex items-center gap-2'>
-              <span className='text-sm text-gray-600'>{t('倍率')}</span>
-              <Switch checked={showRatio} onChange={setShowRatio} />
-            </div>
-
-            {/* 视图模式切换按钮 */}
-            <Button
-              theme={viewMode === 'table' ? 'solid' : 'outline'}
-              type={viewMode === 'table' ? 'primary' : 'tertiary'}
-              onClick={handleViewModeToggle}
-            >
-              {t('表格视图')}
-            </Button>
-
-            {/* Token单位切换按钮 */}
-            <Button
-              theme={tokenUnit === 'K' ? 'solid' : 'outline'}
-              type={tokenUnit === 'K' ? 'primary' : 'tertiary'}
-              onClick={handleTokenUnitToggle}
-            >
-              {tokenUnit}
-            </Button>
-          </>
-        )}
-
-        {isMobile && (
-          <Button
-            theme='outline'
-            type='tertiary'
-            icon={<IconFilter />}
-            onClick={handleFilterClick}
+          <button
+            type='button'
+            className={tokenUnit === 'K' ? 'pricing-market-toolbar-chip is-active' : 'pricing-market-toolbar-chip'}
+            onClick={() => setTokenUnit?.(tokenUnit === 'K' ? 'M' : 'K')}
           >
-            {t('筛选')}
-          </Button>
-        )}
+            {tokenUnit}
+          </button>
+
+          <Select
+            value={sortMode}
+            onChange={setSortMode}
+            optionList={getSortOptions(t)}
+            className='pricing-market-toolbar-sort'
+          />
+
+          <div className='pricing-market-view-switch'>
+            <button
+              type='button'
+              className={viewMode === 'card' ? 'is-active' : ''}
+              onClick={() => setViewMode?.('card')}
+              aria-label={t('卡片视图')}
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              type='button'
+              className={viewMode === 'table' ? 'is-active' : ''}
+              onClick={() => setViewMode?.('table')}
+              aria-label={t('表格视图')}
+            >
+              <Rows3 size={16} />
+            </button>
+          </div>
+        </div>
       </div>
     );
   },

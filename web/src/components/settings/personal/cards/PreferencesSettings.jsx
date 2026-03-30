@@ -120,7 +120,7 @@ const PreferencesSettings = ({ t }) => {
 	};
 
 	return (
-		<Card className="!rounded-2xl shadow-sm border-0">
+		<Card className="personal-v2-panel personal-v2-preferences !rounded-2xl shadow-sm border-0">
 			{/* Card Header */}
 			<div className="flex items-center mb-4">
 				<Avatar size="small" color="violet" className="mr-3 shadow-md">
@@ -136,7 +136,7 @@ const PreferencesSettings = ({ t }) => {
 				</div>
 			</div>
 			{/* Language Setting Card */}
-			<Card className="!rounded-xl border dark:border-gray-700">
+			<Card className="personal-v2-subcard !rounded-xl border dark:border-gray-700">
 				<div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
 					<div className="flex items-start w-full sm:w-auto">
 						<div className="w-12 h-12 rounded-full bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center mr-4 flex-shrink-0">

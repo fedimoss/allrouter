@@ -38,26 +38,10 @@ const PricingDisplaySettings = ({
   const supportsCurrencyDisplay = siteDisplayType !== 'TOKENS';
 
   const items = [
-    ...(supportsCurrencyDisplay
-      ? [
-          {
-            value: 'recharge',
-            label: t('充值价格显示'),
-          },
-        ]
-      : []),
-    {
-      value: 'ratio',
-      label: t('显示倍率'),
-    },
-    {
-      value: 'tableView',
-      label: t('表格视图'),
-    },
-    {
-      value: 'tokenUnit',
-      label: t('按K显示单位'),
-    },
+    ...(supportsCurrencyDisplay ? [{ value: 'recharge', label: t('充值价格显示') }] : []),
+    { value: 'ratio', label: t('显示倍率') },
+    { value: 'tableView', label: t('表格视图') },
+    { value: 'tokenUnit', label: t('Token 单位') },
   ];
 
   const currencyItems = [
@@ -79,6 +63,8 @@ const PricingDisplaySettings = ({
         break;
       case 'tokenUnit':
         setTokenUnit(tokenUnit === 'K' ? 'M' : 'K');
+        break;
+      default:
         break;
     }
   };

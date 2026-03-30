@@ -20,16 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
 
-/**
- * 分组筛选组件
- * @param {string} filterGroup 当前选中的分组，'all' 表示不过滤
- * @param {Function} setFilterGroup 设置选中分组
- * @param {Record<string, any>} usableGroup 后端返回的可用分组对象
- * @param {Record<string, number>} groupRatio 分组倍率对象
- * @param {Array} models 模型列表
- * @param {boolean} loading 是否加载中
- * @param {Function} t i18n
- */
 const PricingGroups = ({
   filterGroup,
   setFilterGroup,
@@ -39,32 +29,17 @@ const PricingGroups = ({
   loading = false,
   t,
 }) => {
-  const groups = [
-    'all',
-    ...Object.keys(usableGroup).filter((key) => key !== ''),
-  ];
+  const groups = ['all', ...Object.keys(usableGroup).filter((key) => key !== '')];
 
-  const items = groups.map((g) => {
-    const modelCount =
-      g === 'all'
-        ? models.length
-        : models.filter((m) => m.enable_groups && m.enable_groups.includes(g))
-            .length;
-    let ratioDisplay = '';
-    if (g === 'all') {
-      // ratioDisplay = t('全部');
-    } else {
-      const ratio = groupRatio[g];
-      if (ratio !== undefined && ratio !== null) {
-        ratioDisplay = `${ratio}x`;
-      } else {
-        ratioDisplay = '1x';
-      }
-    }
+  const items = groups.map((group) => {
+    const modelCount = group === 'all'
+      ? models.length
+      : models.filter((model) => model.enable_groups && model.enable_groups.includes(group)).length;
+
     return {
-      value: g,
-      label: g === 'all' ? t('全部分组') : g,
-      tagCount: ratioDisplay,
+      value: group,
+      label: group === 'all' ? t('全部分组') : group,
+      tagCount: group === 'all' ? modelCount : `${groupRatio[group] ?? 1}x`,
     };
   });
 

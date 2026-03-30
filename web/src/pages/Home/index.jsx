@@ -563,7 +563,7 @@ const Home = () => {
                                 </li>
                                 <li>
                                     <a
-                                        href='https://github.com/shengjian-tech/allrouter/releases'
+                                        href='https://github.com/fedimoss/allrouter/releases'
                                         target='_blank'
                                         rel='noreferrer'
                                     >
@@ -619,7 +619,7 @@ const Home = () => {
                                 </li>
                                 <li>
                                     <a
-                                        href='https://github.com/shengjian-tech/allrouter'
+                                        href='https://github.com/fedimoss/allrouter'
                                         target='_blank'
                                         rel='noreferrer'
                                     >
@@ -628,7 +628,7 @@ const Home = () => {
                                 </li>
                                 <li>
                                     <a
-                                        href='https://github.com/shengjian-tech/allrouter/issues'
+                                        href='https://github.com/fedimoss/allrouter/issues'
                                         target='_blank'
                                         rel='noreferrer'
                                     >
@@ -636,7 +636,7 @@ const Home = () => {
                                     </a>
                                 </li>
                                 <li>
-                                    <a target='_blank' href='https://allrouter.ai/en/index'>{t('联系我们')}</a>
+                                    <a href='mailto:support@allrouter.ai'>{t('联系我们')}</a>
                                 </li>
                             </ul>
                         </div>

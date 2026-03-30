@@ -110,7 +110,7 @@
 
 ```bash
 # プロジェクトをクローン
-git clone https://github.com/shengjian-tech/allrouter.git
+git clone https://github.com/fedimoss/allrouter.git
 cd allrouter
 
 # docker-compose.yml 設定を編集
@@ -333,7 +333,7 @@ docker run --name new-api -d --restart always \
 
 ```bash
 # プロジェクトをクローン
-git clone https://github.com/shengjian-tech/allrouter.git
+git clone https://github.com/fedimoss/allrouter.git
 cd new-api
 
 # 設定を編集

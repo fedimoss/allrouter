@@ -330,9 +330,9 @@ const OauthList = () => {
   }, []);
 
   return (
-    <div className='w-full pb-8' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
+    <div className='w-full pb-8'>
       <div className='mx-auto w-full max-w-[1360px] px-4 pt-4 md:px-8 lg:px-10'>
-        <div className='rounded-3xl' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
+        <div className='rounded-3xl'>
           <div className='mb-4 flex flex-col justify-between gap-4 rounded-2xl p-5 md:flex-row md:items-center' style={{ backgroundColor: 'var(--semi-color-fill-0)' }}>
           <div>
             <div className='flex items-center gap-3'>

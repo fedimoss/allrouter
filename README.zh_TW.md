@@ -107,7 +107,7 @@
 
 ```bash
 # 複製項目
-git clone https://github.com/shengjian-tech/allrouter.git
+git clone https://github.com/fedimoss/allrouter.git
 cd allrouter
 
 # 編輯 docker-compose.yml 配置
@@ -328,7 +328,7 @@ docker run --name new-api -d --restart always \
 
 ```bash
 # 複製項目
-git clone https://github.com/shengjian-tech/allrouter.git
+git clone https://github.com/fedimoss/allrouter.git
 cd new-api
 
 # 編輯配置

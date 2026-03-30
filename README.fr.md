@@ -110,7 +110,7 @@
 
 ```bash
 # Cloner le projet
-git clone https://github.com/shengjian-tech/allrouter.git
+git clone https://github.com/fedimoss/allrouter.git
 cd allrouter
 
 # Modifier la configuration docker-compose.yml
@@ -331,7 +331,7 @@ docker run --name new-api -d --restart always \
 
 ```bash
 # Cloner le projet
-git clone https://github.com/shengjian-tech/allrouter.git
+git clone https://github.com/fedimoss/allrouter.git
 cd new-api
 
 # Modifier la configuration
