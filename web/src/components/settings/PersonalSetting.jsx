@@ -45,6 +45,7 @@ import EmailBindModal from './personal/modals/EmailBindModal';
 import WeChatBindModal from './personal/modals/WeChatBindModal';
 import AccountDeleteModal from './personal/modals/AccountDeleteModal';
 import ChangePasswordModal from './personal/modals/ChangePasswordModal';
+import './personal/personal-settings.css';
 
 const PersonalSetting = () => {
   const [userState, userDispatch] = useContext(UserContext);
@@ -448,28 +449,21 @@ const PersonalSetting = () => {
   };
 
   return (
-    <div className='mt-[60px]'>
+    <div className='personal-setting-v2'>
+      <div className='personal-setting-v2-backdrop' aria-hidden='true' />
       <div className='flex justify-center'>
-        <div className='w-full max-w-7xl mx-auto px-2'>
+        <div className='personal-setting-v2-container w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6'>
+          <section className='personal-setting-v2-head'>
+            <h1>{t('个人中心')}</h1>
+            <p>{t('账户绑定、安全设置和身份验证')}</p>
+          </section>
+
           {/* 顶部用户信息区域 */}
           <UserInfoHeader t={t} userState={userState} />
 
-          {/* 签到日历 - 仅在启用时显示 */}
-          {status?.checkin_enabled && (
-            <div className='mt-4 md:mt-6'>
-              <CheckinCalendar
-                t={t}
-                status={status}
-                turnstileEnabled={turnstileEnabled}
-                turnstileSiteKey={turnstileSiteKey}
-              />
-            </div>
-          )}
-
           {/* 账户管理和其他设置 */}
-          <div className='grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6'>
-            {/* 左侧：账户管理设置 */}
-            <div className='flex flex-col gap-4 md:gap-6'>
+          <div className='personal-setting-v2-board mt-4 md:mt-6'>
+            <div className='personal-setting-v2-col personal-setting-v2-col-main'>
               <AccountManagement
                 t={t}
                 userState={userState}
@@ -489,17 +483,26 @@ const PersonalSetting = () => {
                 onPasskeyDelete={handleRemovePasskey}
               />
 
-              {/* 偏好设置（语言等） */}
               <PreferencesSettings t={t} />
             </div>
 
-            {/* 右侧：其他设置 */}
-            <NotificationSettings
-              t={t}
-              notificationSettings={notificationSettings}
-              handleNotificationSettingChange={handleNotificationSettingChange}
-              saveNotificationSettings={saveNotificationSettings}
-            />
+            <div className='personal-setting-v2-col personal-setting-v2-col-side'>
+              <NotificationSettings
+                t={t}
+                notificationSettings={notificationSettings}
+                handleNotificationSettingChange={handleNotificationSettingChange}
+                saveNotificationSettings={saveNotificationSettings}
+              />
+
+              {status?.checkin_enabled && (
+                <CheckinCalendar
+                  t={t}
+                  status={status}
+                  turnstileEnabled={turnstileEnabled}
+                  turnstileSiteKey={turnstileSiteKey}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>

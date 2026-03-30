@@ -1,0 +1,451 @@
+.personal-setting-v2 {
+  position: relative;
+  padding: 16px 0 48px;
+}
+
+.personal-setting-v2-backdrop {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 280px;
+  pointer-events: none;
+}
+
+.personal-setting-v2-container {
+  position: relative;
+  z-index: 1;
+}
+
+.personal-setting-v2-head {
+  margin: 6px 0 12px;
+}
+
+.personal-setting-v2-head h1 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+  font-weight: 760;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.personal-setting-v2-head p {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.personal-setting-v2-kicker {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0891b2;
+}
+
+.personal-setting-v2-board {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.personal-setting-v2-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.personal-v2-panel {
+  border: 1px solid var(--semi-color-border);
+  background: var(--semi-color-bg-2);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.personal-v2-panel:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.1);
+  border-color: rgba(14, 165, 233, 0.34);
+}
+
+.personal-v2-subcard {
+  border: 1px solid var(--semi-color-border-light) !important;
+  background: var(--semi-color-fill-0) !important;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.personal-v2-subcard:hover {
+  border-color: rgba(14, 165, 233, 0.4) !important;
+  transform: translateY(-1px);
+}
+
+.personal-v2-note-box {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.03), rgba(15, 23, 42, 0.01));
+  border: 1px dashed var(--semi-color-border-light);
+}
+
+.personal-v2-header-card .semi-card-body {
+  padding: 14px;
+}
+
+.personal-v2-profile-shell {
+  border-radius: 14px;
+  border: 1px solid var(--semi-color-border-light);
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(16, 185, 129, 0.1));
+}
+
+.personal-v2-profile-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.personal-v2-hero-name {
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.personal-v2-profile-tag {
+  color: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.18) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+}
+
+.personal-v2-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.personal-v2-metric-card {
+  position: relative;
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid var(--semi-color-border-light);
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.72));
+  overflow: hidden;
+}
+
+.personal-v2-metric-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  border-radius: 999px;
+  opacity: 0.92;
+}
+
+.personal-v2-metric-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.personal-v2-metric-label {
+  margin: 0;
+  font-size: 0.77rem;
+  color: #64748b;
+}
+
+.personal-v2-metric-value {
+  margin: 6px 0 0;
+  font-size: 1.38rem;
+  line-height: 1.2;
+  font-weight: 760;
+  color: #0f172a;
+}
+
+.personal-v2-metric-trend {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.personal-v2-metric-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.personal-v2-metric-emerald::after {
+  background: linear-gradient(180deg, #34d399, #059669);
+}
+
+.personal-v2-metric-cyan::after {
+  background: linear-gradient(180deg, #22d3ee, #0891b2);
+}
+
+.personal-v2-metric-violet::after {
+  background: linear-gradient(180deg, #c4b5fd, #7c3aed);
+}
+
+.personal-v2-metric-amber::after {
+  background: linear-gradient(180deg, #fbbf24, #d97706);
+}
+
+.personal-v2-metric-emerald .personal-v2-metric-icon {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+.personal-v2-metric-cyan .personal-v2-metric-icon {
+  background: rgba(6, 182, 212, 0.12);
+  color: #0e7490;
+}
+
+.personal-v2-metric-violet .personal-v2-metric-icon {
+  background: rgba(124, 58, 237, 0.1);
+  color: #6d28d9;
+}
+
+.personal-v2-metric-amber .personal-v2-metric-icon {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+.personal-setting-v2 .semi-tabs-tab {
+  border-radius: 10px 10px 0 0;
+}
+
+.personal-setting-v2 .semi-tabs-tab-active {
+  background: rgba(14, 165, 233, 0.12) !important;
+}
+
+.personal-setting-v2 .semi-tabs-content {
+  border-top: 1px solid var(--semi-color-border-light);
+}
+
+.personal-setting-v2 .text-gray-900 {
+  color: #0f172a;
+}
+
+.personal-setting-v2 .text-gray-600,
+.personal-setting-v2 .text-gray-500 {
+  color: #475569;
+}
+
+html.dark .personal-setting-v2-backdrop {
+  background:
+    radial-gradient(980px 260px at 12% -20%, rgba(56, 189, 248, 0.2), rgba(56, 189, 248, 0)),
+    radial-gradient(860px 260px at 88% 2%, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0)),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.55), rgba(2, 6, 23, 0));
+}
+
+html.dark .personal-v2-panel {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.78));
+  box-shadow: 0 18px 36px rgba(2, 6, 23, 0.38);
+}
+
+html.dark .personal-v2-panel:hover {
+  border-color: rgba(56, 189, 248, 0.44);
+  box-shadow: 0 22px 40px rgba(2, 6, 23, 0.48);
+}
+
+html.dark .personal-v2-subcard {
+  border-color: rgba(148, 163, 184, 0.2) !important;
+  background: rgba(15, 23, 42, 0.58) !important;
+}
+
+html.dark .personal-v2-subcard:hover {
+  border-color: rgba(56, 189, 248, 0.48) !important;
+  background: rgba(15, 23, 42, 0.72) !important;
+}
+
+html.dark .personal-v2-note-box {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.62), rgba(15, 23, 42, 0.5));
+}
+
+html.dark .personal-v2-profile-shell {
+  border-color: rgba(125, 211, 252, 0.22);
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.26), rgba(15, 23, 42, 0.35));
+}
+
+html.dark .personal-v2-profile-tag {
+  color: #e2e8f0 !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
+  background: rgba(15, 23, 42, 0.62) !important;
+}
+
+html.dark .personal-v2-hero-name {
+  color: #e2e8f0;
+}
+
+html.dark .personal-v2-metric-card {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.66));
+}
+
+html.dark .personal-v2-metric-label,
+html.dark .personal-v2-metric-trend {
+  color: #94a3b8;
+}
+
+html.dark .personal-v2-metric-value {
+  color: #e2e8f0;
+}
+
+html.dark .personal-v2-metric-emerald .personal-v2-metric-icon {
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+}
+
+html.dark .personal-v2-metric-cyan .personal-v2-metric-icon {
+  background: rgba(6, 182, 212, 0.2);
+  color: #67e8f9;
+}
+
+html.dark .personal-v2-metric-violet .personal-v2-metric-icon {
+  background: rgba(139, 92, 246, 0.2);
+  color: #c4b5fd;
+}
+
+html.dark .personal-v2-metric-amber .personal-v2-metric-icon {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
+}
+
+html.dark .personal-setting-v2-head h1 {
+  color: #e2e8f0;
+}
+
+html.dark .personal-setting-v2-head p {
+  color: #94a3b8;
+}
+
+html.dark .personal-setting-v2-kicker {
+  color: #22d3ee;
+}
+
+html.dark .personal-setting-v2 .text-gray-900 {
+  color: #e2e8f0 !important;
+}
+
+html.dark .personal-setting-v2 .text-gray-600,
+html.dark .personal-setting-v2 .text-gray-500,
+html.dark .personal-setting-v2 .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+@media (min-width: 1280px) {
+  .personal-setting-v2-board {
+    grid-template-columns: minmax(0, 1.16fr) minmax(0, 0.84fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  .personal-setting-v2-col {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .personal-v2-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .personal-setting-v2 {
+    padding: 12px 0 28px;
+  }
+
+  .personal-setting-v2-backdrop {
+    height: 180px;
+  }
+
+  .personal-v2-header-card .semi-card-body {
+    padding: 10px;
+  }
+
+  .personal-v2-profile-shell {
+    padding: 12px;
+  }
+
+  .personal-v2-metric-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .personal-v2-metric-card {
+    padding: 12px;
+  }
+
+  .personal-setting-v2-head {
+    margin: 2px 0 10px;
+  }
+}
+.personal-setting-v2 .semi-form-field-label {
+  font-weight: 650;
+  color: #0f172a;
+}
+
+.personal-setting-v2 .semi-input-wrapper,
+.personal-setting-v2 .semi-input-number,
+.personal-setting-v2 .semi-select,
+.personal-setting-v2 .semi-select-selection,
+.personal-setting-v2 .semi-input-group {
+  border-radius: 12px !important;
+}
+
+.personal-setting-v2 .semi-input-wrapper,
+.personal-setting-v2 .semi-input-number,
+.personal-setting-v2 .semi-select-selection {
+  background: rgba(248, 250, 252, 0.86) !important;
+}
+
+.personal-setting-v2 .semi-tabs-tab {
+  border: 1px solid transparent !important;
+  transition: all 0.2s ease;
+}
+
+.personal-setting-v2 .semi-tabs-tab:hover {
+  background: rgba(14, 165, 233, 0.08) !important;
+}
+
+.personal-setting-v2 .semi-tabs-tab-active {
+  border-color: rgba(14, 165, 233, 0.22) !important;
+}
+
+.personal-setting-v2 .semi-button-primary {
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(14, 165, 233, 0.22);
+}
+
+.personal-setting-v2 .semi-button-tertiary,
+.personal-setting-v2 .semi-button-secondary,
+.personal-setting-v2 .semi-button-borderless {
+  border-radius: 10px;
+}
+
+.personal-setting-v2 .semi-radio-addon-buttonRadio {
+  border-radius: 10px !important;
+}
+
+html.dark .personal-setting-v2 .semi-form-field-label {
+  color: #e2e8f0;
+}
+
+html.dark .personal-setting-v2 .semi-input-wrapper,
+html.dark .personal-setting-v2 .semi-input-number,
+html.dark .personal-setting-v2 .semi-select-selection {
+  border-color: rgba(148, 163, 184, 0.26) !important;
+  background: rgba(15, 23, 42, 0.74) !important;
+}
+
+html.dark .personal-setting-v2 .semi-tabs-tab:hover {
+  background: rgba(14, 165, 233, 0.12) !important;
+}

@@ -213,7 +213,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
   };
 
   return (
-    <Card className='!rounded-2xl'>
+    <Card className='personal-v2-panel personal-v2-checkin !rounded-2xl'>
       <Modal
         title='Security Check'
         visible={turnstileModalVisible}

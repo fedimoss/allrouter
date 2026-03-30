@@ -364,7 +364,7 @@ const NotificationSettings = ({
 
   return (
     <Card
-      className='!rounded-2xl shadow-sm border-0'
+      className='personal-v2-panel personal-v2-notification !rounded-2xl shadow-sm border-0'
       footer={
         <div className='flex justify-end gap-3'>
           {activeTabKey === 'sidebar' ? (
@@ -622,7 +622,7 @@ const NotificationSettings = ({
                       ]}
                     />
 
-                    <div className='mt-3 p-4 bg-gray-50/50 rounded-xl'>
+                    <div className='personal-v2-note-box mt-3 p-4 rounded-xl'>
                       <div className='text-sm text-gray-700 mb-3'>
                         <strong>{t('模板示例')}</strong>
                       </div>
@@ -723,7 +723,7 @@ const NotificationSettings = ({
                       style={{ width: '100%', maxWidth: '300px' }}
                     />
 
-                    <div className='mt-3 p-4 bg-gray-50/50 rounded-xl'>
+                    <div className='personal-v2-note-box mt-3 p-4 rounded-xl'>
                       <div className='text-sm text-gray-700 mb-3'>
                         <strong>{t('配置说明')}</strong>
                       </div>
@@ -893,7 +893,7 @@ const NotificationSettings = ({
                                 xl={8}
                               >
                                 <Card
-                                  className={`!rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
+                                  className={`personal-v2-subcard !rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
                                     sidebarModulesUser[section.key]?.enabled !==
                                     false
                                       ? ''
