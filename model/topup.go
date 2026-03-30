@@ -25,6 +25,7 @@ type TopUp struct {
 	CreateTime    int64   `json:"create_time"`
 	CompleteTime  int64   `json:"complete_time"`
 	Status        string  `json:"status"`
+	DisplayName   string  `json:"display_name" gorm:"->;-:migration;column:display_name"`
 }
 
 const (
@@ -47,6 +48,11 @@ func normalizeTopUps(topups []*TopUp) {
 		}
 		topUp.BizType = topUp.GetBizType()
 	}
+}
+
+func withTopUpDisplayName(tx *gorm.DB) *gorm.DB {
+	return tx.Model(&TopUp{}).
+		Joins("LEFT JOIN users ON users.id = top_ups.user_id")
 }
 
 func (topUp *TopUp) applyDefaults() {
@@ -334,12 +340,19 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 		}
 	}()
 
-	if err = tx.Model(&TopUp{}).Count(&total).Error; err != nil {
+	countQuery := withTopUpDisplayName(tx)
+	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	if err = tx.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
+	dataQuery := withTopUpDisplayName(tx)
+	if err = dataQuery.
+		Select("top_ups.*, COALESCE(users.display_name, '') AS display_name").
+		Order("top_ups.id desc").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&topups).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
@@ -387,7 +400,7 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 	return topups, total, nil
 }
 
-// SearchAllTopUps 按订单号搜索全平台充值记录（管理员使用）
+// SearchAllTopUps 按订单号或用户昵称搜索全平台充值记录（管理员使用）
 func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -399,18 +412,29 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 		}
 	}()
 
-	query := tx.Model(&TopUp{})
+	countQuery := withTopUpDisplayName(tx)
 	if keyword != "" {
 		like := "%%" + keyword + "%%"
-		query = query.Where("trade_no LIKE ?", like)
+		countQuery = countQuery.Where("top_ups.trade_no LIKE ? OR COALESCE(users.display_name, '') LIKE ?", like, like)
 	}
 
-	if err = query.Count(&total).Error; err != nil {
+	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	if err = query.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
+	dataQuery := withTopUpDisplayName(tx)
+	if keyword != "" {
+		like := "%%" + keyword + "%%"
+		dataQuery = dataQuery.Where("top_ups.trade_no LIKE ? OR COALESCE(users.display_name, '') LIKE ?", like, like)
+	}
+
+	if err = dataQuery.
+		Select("top_ups.*, COALESCE(users.display_name, '') AS display_name").
+		Order("top_ups.id desc").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&topups).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
@@ -419,6 +443,7 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 	if err = tx.Commit().Error; err != nil {
 		return nil, 0, err
 	}
+
 	return topups, total, nil
 }
 
