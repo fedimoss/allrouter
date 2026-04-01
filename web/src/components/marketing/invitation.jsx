@@ -58,6 +58,8 @@ import {
 } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import TransferModal from '../topup/modals/TransferModal';
+import bannerImg from '../../../public/invite-banner.png';
+import hammerImg from '../../../public/hammer.svg';
 
 const { Text, Title } = Typography;
 
@@ -188,25 +190,25 @@ const Invitation = () => {
     {
       num: 1,
       color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30',
-      title: t('基础奖励'),
+      title: t('永久分成'),
       desc: t(
-        '每成功邀请一位好友注册并完成首次充值（任意金额），您即可获得 $5.00 奖励额度。',
+        '您将获得被邀请人算力产生的 15% 收益作为佣金。',
       ),
     },
     {
       num: 2,
       color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/30',
-      title: t('奖励发放'),
+      title: t('即时结算'),
       desc: t(
-        '奖励将在好友充值成功后的 5 分钟内自动发放到您的"待使用收益"账户。',
+        '佣金随被邀请人收益实时同步至您的待领取账户。',
       ),
     },
     {
       num: 3,
       color: 'text-green-600 bg-green-50 dark:bg-green-900/30',
-      title: t('如何使用'),
+      title: t('多级激励'),
       desc: t(
-        '点击"划转到余额"按钮，即可将奖励额度转入主钱包，用于抵扣 API 调用费用。',
+        '若被邀请人再次邀请他人，您可获得二级 5% 的额外激励。',
       ),
     },
   ];
@@ -214,23 +216,19 @@ const Invitation = () => {
   // FAQ (静态)
   const faqItems = [
     {
-      q: t('好友必须充值多少才能获奖？'),
-      a: t('好友完成任意金额的首次充值即可触发奖励，没有最低充值金额限制。'),
+      q: t('如何提取奖励收益？'),
+      a: t('当待提取收益达到 10 USDT 时即可申请提现，系统将在 24 小时内自动处理至您的关联钱包。'),
     },
     {
-      q: t('邀请奖励的比例是多少？'),
-      a: t('具体奖励比例由平台设置，请参考平台公告或联系客服了解详情。'),
+      q: t('邀请人数是否有上限？'),
+      a: t('没有上限。您可以邀请无限数量的伙伴，且所有符合规则的收益均受系统算法保护。'),
     },
     {
-      q: t('奖励额度可以提现吗？'),
+      q: t('奖励为何没有到账？'),
       a: t(
-        '奖励额度不支持直接提现，但可以划转到账户余额中用于API调用消费。',
+        '请确认被邀请人是否已完成实名认证并成功启动首个算力节点。如有异常请联系技术支持。',
       ),
-    },
-    {
-      q: t('邀请人数有上限吗？'),
-      a: t('没有上限，您可以邀请任意数量的好友，邀请越多奖励越多。'),
-    },
+    }
   ];
 
   const toggleFaq = (index) => {
@@ -240,37 +238,28 @@ const Invitation = () => {
   return (
     <div className='p-4 md:p-6'>
       {/* 页面标题区域 */}
-      <div className='mb-6'>
-        <div className='flex items-center gap-3 mb-2'>
-          <div className='w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center'>
-            <Gift size={20} className='text-white' />
-          </div>
-          <div>
-            <Title heading={4} className='!mb-0'>
-              {t('邀请奖励计划')}
-            </Title>
-          </div>
+      <div className='mb-6 rounded-2xl px-4 py-6 shadow-sm' style={{backgroundImage: `url(${bannerImg})`, backgroundSize: 'cover', backgroundPosition: 'center'}}>
+        <div className='p-4 text-[48px] font-500 text-white'>
+          {t('邀请奖励计划')}
         </div>
-        <Text type='tertiary' className='mt-1 block'>
+        <div className='px-2 text-[18px] font-medium text-slate-500 dark:text-slate-400' style={{width:'min(657px,100%)'}}>
           {t(
-            '分享您的专属链接，邀请好友加入。好友充值后您将获得丰厚奖励，多邀多得，上不封顶！',
+            '邀请您的合作伙伴加入 Emerald Matrix AI 矩阵，开启算力共享新时代。每成功邀请一位新用户，您将获得其算力收益的 15% 作为永久激励奖励。',
           )}
-        </Text>
+        </div>
       </div>
 
       {/* 顶部统计卡片 */}
       <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
         {/* 待使用收益 */}
-        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700'>
+        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
+          <Wallet size={50} className='text-blue-500 absolute z-0 right-2 bottom-2 opacity-[0.2]' />
           <div className='flex items-start justify-between mb-3'>
             <span className='text-sm text-slate-500 dark:text-slate-400'>
               {t('待使用收益')}
             </span>
-            <div className='w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center'>
-              <Wallet size={16} className='text-blue-500' />
-            </div>
           </div>
-          <div className='text-2xl md:text-3xl font-bold text-slate-900 dark:text-semi-color-text-0 mb-1'>
+          <div className='dark:text-cyan-300 mb-1 font-black text-[30px] leading-[30px]'>
             {renderQuota(affQuota)}
           </div>
           <Text type='tertiary' size='small'>
@@ -280,7 +269,7 @@ const Invitation = () => {
             block
             type='tertiary'
             theme='outline'
-            className='!mt-4 !rounded-lg'
+            className='!mt-4 !rounded-lg relative z-10 dark:text-cyan-300 dark:border-cyan-300'
             disabled={!affQuota || affQuota <= 0}
             onClick={() => setOpenTransfer(true)}
             icon={<ArrowLeftRight size={14} />}
@@ -290,16 +279,14 @@ const Invitation = () => {
         </div>
 
         {/* 累计总收益 */}
-        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700'>
+        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
+          <TrendingUp size={50} className='text-blue-500 absolute z-0 right-2 bottom-2 opacity-[0.2]' />
           <div className='flex items-start justify-between mb-3'>
             <span className='text-sm text-slate-500 dark:text-slate-400'>
               {t('累计总收益')}
             </span>
-            <div className='w-8 h-8 rounded-lg bg-green-50 dark:bg-green-900/30 flex items-center justify-center'>
-              <TrendingUp size={16} className='text-green-500' />
-            </div>
           </div>
-          <div className='text-2xl md:text-3xl font-bold text-slate-900 dark:text-semi-color-text-0 mb-1'>
+          <div className='dark:text-semi-color-text-0 mb-1 font-black text-[30px] leading-[30px]'>
             {renderQuota(affHistoryQuota)}
           </div>
           <Text type='tertiary' size='small'>
@@ -308,16 +295,14 @@ const Invitation = () => {
         </div>
 
         {/* 成功邀请人数 */}
-        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700'>
+        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
+          <Users size={50} className='text-blue-500 absolute z-0 right-2 bottom-2 opacity-[0.2]' />
           <div className='flex items-start justify-between mb-3'>
             <span className='text-sm text-slate-500 dark:text-slate-400'>
               {t('成功邀请人数')}
             </span>
-            <div className='w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center'>
-              <Users size={16} className='text-purple-500' />
-            </div>
           </div>
-          <div className='text-2xl md:text-3xl font-bold text-slate-900 dark:text-semi-color-text-0 mb-1'>
+          <div className='dark:text-semi-color-text-0 mb-1 font-black text-[30px] leading-[30px]'>
             {affCount}
           </div>
           <Text type='tertiary' size='small'>
@@ -335,20 +320,21 @@ const Invitation = () => {
           {/* 邀请链接卡片 */}
           <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-6'>
             <div className='flex items-center gap-2 mb-4'>
-              <LinkIcon size={18} className='text-cyan-500' />
-              <Text strong className='text-base'>
+              <div strong className='font-bold text-[20px]'>
                 {t('您的专属邀请链接')}
-              </Text>
+              </div>
             </div>
             <div className='flex gap-2'>
               <Input
                 value={affLink}
+                size='large'
                 readonly
                 className='flex-1 !rounded-lg'
                 placeholder={t('加载中...')}
               />
               <Button
                 theme='solid'
+                size='large'
                 onClick={handleAffLinkClick}
                 icon={<Copy size={14} />}
                 className='!rounded-lg'
@@ -361,7 +347,7 @@ const Invitation = () => {
                 {t('复制链接')}
               </Button>
             </div>
-            <div className='mt-3 flex items-start gap-2'>
+            {/* <div className='mt-3 flex items-start gap-2'>
               <Info
                 size={14}
                 className='text-slate-400 mt-0.5 flex-shrink-0'
@@ -369,36 +355,33 @@ const Invitation = () => {
               <Text type='tertiary' size='small'>
                 {t('好友通过此链接注册并首次充值后，奖励将自动发放。')}
               </Text>
-            </div>
+            </div> */}
 
             {/* 分享按钮 */}
-            <div className='grid grid-cols-3 gap-3 mt-4'>
+            <div className='flex items-center gap-3 mt-8'>
+              <span className='text-sm text-slate-500 dark:text-slate-400'>
+                {t('快速分享：')}
+              </span>
               <Button
-                block
+                size='large'
                 type='tertiary'
-                theme='outline'
                 className='!rounded-lg'
-                icon={<SiWechat size={14} />}
+                icon={<SiWechat size={18} />}
               >
-                {t('微信分享')}
               </Button>
               <Button
-                block
+                size='large'
                 type='tertiary'
-                theme='outline'
                 className='!rounded-lg'
-                icon={<SiX size={14} />}
+                icon={<SiX size={18} />}
               >
-                {t('Twitter 分享')}
               </Button>
               <Button
-                block
+                size='large'
                 type='tertiary'
-                theme='outline'
                 className='!rounded-lg'
-                icon={<Mail size={14} />}
+                icon={<Mail size={18} />}
               >
-                {t('邮件邀请')}
               </Button>
             </div>
           </div>
@@ -407,10 +390,9 @@ const Invitation = () => {
           <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl border border-slate-200 dark:border-slate-700 p-5'>
             <div className='flex items-center justify-between mb-4'>
               <div className='flex items-center gap-2'>
-                <List size={18} className='text-blue-500' />
-                <Text strong className='text-base'>
+                <div className='text-[18px] font-medium'>
                   {t('邀请明细')}
-                </Text>
+                </div>
               </div>
               <Tag color='blue' size='small'>
                 {t('最近 30 天')}
@@ -447,19 +429,17 @@ const Invitation = () => {
           {/* 奖励规则 */}
           <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-6'>
             <div className='flex items-center gap-2 mb-5'>
-              <HelpCircle size={18} className='text-blue-500' />
-              <Text strong className='text-base'>
+              <img src={hammerImg} className='w-5 h-5' />
+              <div className='font-medium text-[18px]'>
                 {t('奖励规则')}
-              </Text>
+              </div>
             </div>
             <div className='space-y-5'>
               {rewardRules.map((rule) => (
                 <div key={rule.num}>
                   <div className='flex items-center gap-2 mb-2'>
-                    <span
-                      className={`w-6 h-6 rounded-full ${rule.color} flex items-center justify-center text-xs font-bold flex-shrink-0`}
-                    >
-                      {rule.num}
+                    <span className={`w-6 h-6 flex text-cyan-300 items-center justify-center text-xs font-[900] flex-shrink-0`}>
+                      0{rule.num}
                     </span>
                     <Text strong>{rule.title}</Text>
                   </div>
@@ -478,10 +458,9 @@ const Invitation = () => {
           {/* 常见问题 */}
           <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl border border-slate-200 dark:border-slate-700 p-5'>
             <div className='flex items-center gap-2 mb-4'>
-              <HelpCircle size={18} className='text-amber-500' />
-              <Text strong className='text-base'>
+              <div className='font-medium text-[18px]'>
                 {t('常见问题')}
-              </Text>
+              </div>
             </div>
             <div className='space-y-0'>
               {faqItems.map((faq, index) => (

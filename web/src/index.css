@@ -762,6 +762,11 @@ html.dark .sbg-variant-green {
   color: var(--semi-color-text-0);
 }
 
+.common-theme{
+  background-image: linear-gradient(97.63deg, #09FEF7 0%, #BAFF29 100%) !important;
+  color: #005C59 !important;
+}
+
 /* Tabs组件样式 */
 .semi-tabs-content {
   padding: 0 !important;
@@ -785,6 +790,22 @@ html.dark .sbg-variant-green {
 
 .tableHiddle {
   display: none !important;
+}
+
+.charge-input .semi-input-wrapper{
+  height: 62px;
+  border-bottom: 2px solid var(--semi-color-border);
+  background: transparent;
+  border-radius: 0 !important;
+}
+.charge-input .semi-input-wrapper input{
+  height: 100%;
+  font-size: 36px;
+  font-weight: 900;
+}
+.charge-input .semi-input-wrapper-focus{
+  border-color: transparent !important;
+  border-bottom: 2px solid var(--semi-color-border) !important;
 }
 
 /* 页脚样式 */

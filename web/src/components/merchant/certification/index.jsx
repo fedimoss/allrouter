@@ -18,11 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Input, Popconfirm, Select } from '@douyinfe/semi-ui';
+import { Button, Input, Popconfirm, Select,Progress } from '@douyinfe/semi-ui';
 import {
-  AlertTriangle,
-  CheckCircle2,
-  Copy,
+  TriangleAlert,
+  CircleCheck,
+  Database,
   Download,
   FileCheck2,
   FileText,
@@ -329,12 +329,11 @@ const CertificationList = () => {
 
   return (
     <div className='w-full pb-8'>
-      <div className='mx-auto w-full h-full max-w-[1360px] px-4 pt-4 md:px-8 lg:px-10'>
+      <div className='mx-auto w-full h-full pt-4'>
         <div className='rounded-2xl'>
           <div className='flex flex-col gap-4 md:flex-row md:items-start md:justify-between'>
             <div>
               <div className='flex items-center gap-3'>
-                <FileCheck2 size={32} style={{ color: 'var(--semi-color-primary)' }} />
                 <h2 className='text-[26px] font-semibold leading-none' style={{ color: 'var(--semi-color-text-0)' }}>
                   {t('认证文件管理')}
                 </h2>
@@ -345,71 +344,43 @@ const CertificationList = () => {
                 )}
               </p>
             </div>
+          </div>
 
-            <div className='flex items-center gap-3'>
-              <div
-                className='flex shrink-0 items-center gap-3 rounded-2xl px-4 backdrop-blur'
-                style={{
-                  width: '120px',
-                  height: '60px',
-                  border: '1px solid var(--semi-color-border)',
-                  backgroundColor:
-                    'color-mix(in srgb, var(--semi-color-bg-0) 88%, transparent)',
-                  boxShadow: '0 10px 30px rgba(15,23,42,0.08)',
-                }}
-              >
-                <span className='inline-flex items-center justify-center rounded-full' style={{ backgroundColor: 'var(--semi-color-primary-light-default)', color: 'var(--semi-color-primary)' }}>
-                  <FileText size={18} />
-                </span>
-                <div>
-                  <div className='text-[13px]' style={{ color: 'var(--semi-color-text-1)' }}>{t('总文件数')}</div>
-                  <div className='text-[20px] font-semibold leading-none' style={{ color: 'var(--semi-color-text-0)' }}>
-                    {totalCount}
-                  </div>
-                </div>
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mt-6'>
+            <div className='border rounded-2xl px-6 py-6 backdrop-blur dark:border-cyan-900/50 bg-white/50 dark:bg-cyan-900/30'>
+              <div className='flex items-center justify-between mb-4 text-[16px] dark:text-slate-400'>
+                {t('总文件数')}
+                <Database size={20} />
               </div>
-              <div
-                className='flex shrink-0 items-center gap-3 rounded-2xl px-4 backdrop-blur'
-                style={{
-                  width: '120px',
-                  height: '60px',
-                  border: '1px solid var(--semi-color-border)',
-                  backgroundColor:
-                    'color-mix(in srgb, var(--semi-color-bg-0) 88%, transparent)',
-                  boxShadow: '0 10px 30px rgba(15,23,42,0.08)',
-                }}
-              >
-                <span className='inline-flex items-center justify-center rounded-full' style={{ backgroundColor: 'var(--semi-color-success-light-default)', color: 'var(--semi-color-success)' }}>
-                  <CheckCircle2 size={18} />
-                </span>
-                <div>
-                  <div className='text-[13px]' style={{ color: 'var(--semi-color-text-1)' }}>{t('健康')}</div>
-                  <div className='text-[20px] font-semibold leading-none' style={{ color: 'var(--semi-color-text-0)' }}>
-                    {healthyCount}
-                  </div>
-                </div>
+              <div className='text-[48px]' style={{fontWeight:'900',lineHeight:'48px'}}>
+                {totalCount}
               </div>
-              <div
-                className='flex shrink-0 items-center gap-3 rounded-2xl px-4 backdrop-blur'
-                style={{
-                  width: '120px',
-                  height: '60px',
-                  border: '1px solid color-mix(in srgb, var(--semi-color-danger) 40%, transparent)',
-                  boxShadow: '0 10px 30px rgba(239,68,68,0.08)',
-                }}
-              >
-                <span className='inline-flex items-center justify-center rounded-full' style={{ backgroundColor: 'var(--semi-color-danger-light-default)', color: 'var(--semi-color-danger)' }}>
-                  <AlertTriangle size={18} color='var(--semi-color-danger)' />
-                </span>
-                <div>
-                  <div className='text-[13px]' style={{ color: 'var(--semi-color-text-1)' }}>{t('异常')}</div>
-                  <div
-                    className='text-[20px] font-semibold leading-none'
-                    style={{ color: 'var(--semi-color-danger)' }}
-                  >
-                    {abnormalCount}
-                  </div>
-                </div>
+              <div className='mt-6'>
+                <Progress percent={100} stroke='rgba(13, 254, 242, 0.5)' size="large" aria-label="disk usage" />
+              </div>
+            </div>
+            <div className='border rounded-2xl px-6 py-6 backdrop-blur dark:border-cyan-900/50 bg-white/50 dark:bg-cyan-900/30'>
+              <div className='flex items-center justify-between mb-4 text-[16px] dark:text-slate-400'>
+                {t('健康节点')}
+                <CircleCheck size={20} style={{color:'#0DFEF2'}} />
+              </div>
+              <div className='text-[48px]' style={{fontWeight:'900',lineHeight:'48px'}}>
+                {healthyCount}
+              </div>
+              <div className='mt-6'>
+                <Progress percent={(healthyCount/totalCount).toFixed(2) * 100 || 0 } stroke="#0DFEF2" size="large" aria-label="disk usage" />
+              </div>
+            </div>
+            <div className='border rounded-2xl px-6 py-6 backdrop-blur dark:border-cyan-900/50 bg-white/50 dark:bg-cyan-900/30'>
+              <div className='flex items-center justify-between mb-4 text-[16px] dark:text-slate-400'>
+                {t('异常告警')}
+                <TriangleAlert size={20} style={{color:'#F85149'}} />
+              </div>
+              <div className='text-[48px]' style={{fontWeight:'900',lineHeight:'48px'}}>
+                {abnormalCount}
+              </div>
+              <div className='mt-6'>
+                <Progress percent={(abnormalCount/totalCount).toFixed(2) * 100 || 0} stroke="#F85149" size="large" aria-label="disk usage" />
               </div>
             </div>
           </div>

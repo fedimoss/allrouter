@@ -28,18 +28,7 @@ import {
   DatePicker,
 } from '@douyinfe/semi-ui';
 import {
-  Ticket,
-  Gift,
-  Zap,
-  Info,
-  History,
-  Search,
-  RotateCcw,
-  Users,
-  QrCode,
-  Trophy,
-  ArrowRight,
-  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
@@ -52,6 +41,9 @@ import {
   renderQuota,
 } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
+import imgOne from '../../../public/one.png';
+import imgTwo from '../../../public/two.png';
+import imgThree from '../../../public/three.png';
 
 const { Text, Title } = Typography;
 
@@ -225,66 +217,55 @@ const Exchange = () => {
   // 活动推荐卡片数据
   const promoCards = [
     {
-      icon: <Users size={24} className='text-purple-600 dark:text-purple-400' />,
+      bgImgUrl: imgOne,
       title: t('邀请好友得兑换码'),
+      subTitle: t('HOT EVENT'),
       desc: t('每成功邀请一位好友注册，可获得一张兑换码奖励'),
       link: '/console/invitation',
       linkText: t('立即邀请'),
-      gradient:
-        'from-purple-50 to-pink-50 dark:from-purple-950/40 dark:to-pink-950/40',
-      border: 'border-purple-100 dark:border-purple-800/50',
-      linkColor: 'text-purple-600 dark:text-purple-400',
     },
     {
-      icon: <QrCode size={24} className='text-green-600 dark:text-green-400' />,
+      bgImgUrl: imgTwo,
       title: t('关注公众号领码'),
+      subTitle: t('OFFICIAL'),
       desc: t('关注官方公众号，回复关键词领取兑换码'),
       link: null,
       linkText: t('去关注'),
-      gradient:
-        'from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40',
-      border: 'border-green-100 dark:border-green-800/50',
-      linkColor: 'text-green-600 dark:text-green-400',
     },
     {
-      icon: <Trophy size={24} className='text-orange-600 dark:text-orange-400' />,
+      bgImgUrl: imgThree,
       title: t('社区贡献奖励'),
+      subTitle: t('COMMUNITY'),
       desc: t('在社区发布教程、提交 Bug 或贡献代码，可获得额度奖励'),
       link: null,
       linkText: t('了解详情'),
-      gradient:
-        'from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/40',
-      border: 'border-orange-100 dark:border-orange-800/50',
-      linkColor: 'text-orange-600 dark:text-orange-400',
     },
   ];
 
   return (
-    <div className='p-4 md:p-6'>
-      <div className='max-w-6xl mx-auto'>
+    <div className=''>
+      <div className='mx-full'>
         {/* 页面标题 */}
         <div className='mb-6'>
           <div className='flex items-center gap-3'> 
-            <Ticket size={30} style={{color:'rgb(9 254 247 / 100%)'}} />
-            <Title heading={2} className='!mb-0 text-xl'>
+            <div className='text-[30px] font-medium text-[#475569] dark:text-white'>
               {t('兑换码')}
-            </Title>
+            </div>
           </div>
-          <Text type='tertiary' size='small'>
-              {t('使用兑换码领取额度与权益')}
-            </Text>
+          <div className='text-[16px] font-medium text-[#94A3B8] dark:text-slate-200 mt-2'>
+            {t('输入您的专属兑换码，立即激活矩阵算力、扩充令牌余额或解锁高级模型使用权限。')}
+          </div>
         </div>
 
         {/* 兑换码输入区 */}
-        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 md:p-8 mb-6 relative overflow-hidden'>
+        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl dark:border-slate-700 p-6 md:p-6 mb-6 relative overflow-hidden'>
           {/* 装饰背景 */}
           <div className='absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-cyan-50 to-transparent dark:from-cyan-950/30 rounded-bl-full -mr-16 -mt-16 pointer-events-none' />
           <div className='relative z-10'>
             <div className='flex items-center gap-2 mb-1'>
-              <Gift size={20} className='text-purple-500' />
-              <Text strong className='text-lg'>
-                {t('输入兑换码')}
-              </Text>
+              <div className='text-[14px] font-medium text-[#94A3B8] dark:text-slate-200'>
+                {t('输入您的兑换码')}
+              </div>
             </div>
             <Text type='tertiary' size='small' className='block mb-6'>
               {t('兑换码由平台活动发放，可兑换余额额度或专属权益')}
@@ -312,20 +293,15 @@ const Exchange = () => {
                   borderColor: 'transparent',
                   color: '#000',
                 }}
-                icon={<Zap size={18} />}
               >
                 {t('立即兑换')}
               </Button>
             </div>
-            <div className='mt-3 flex items-center justify-between'>
+            <div className='mt-5 flex items-center justify-between'>
               <div className='flex items-center gap-1.5'>
-                <Info
-                  size={14}
-                  className='text-slate-400 flex-shrink-0'
-                />
-                <Text type='tertiary' size='small'>
-                  {t('兑换码不区分大小写，输入后点击立即兑换即可领取对应权益')}
-                </Text>
+                <div className='text-[14px] text-[#64748B] dark:text-slate-200'>
+                  {t('兑换成功后权益将实时发放至您的账户，请注意查看“到账状态”。')}
+                </div>
               </div>
               {topUpLink && (
                 <Text type='tertiary' size='small'>
@@ -346,14 +322,13 @@ const Exchange = () => {
         </div>
 
         {/* 我的兑换记录 */}
-        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl border border-slate-200 dark:border-slate-700 mb-6'>
+        <div className='rounded-2xl border-slate-200 dark:border-slate-700 mb-6'>
           {/* 标题栏 */}
-          <div className='px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center'>
+          <div className='px-4 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center'>
             <div className='flex items-center gap-2'>
-              <History size={18} className='text-cyan-500' />
-              <Text strong className='text-lg'>
+              <div className='text-[30px] text-[#475569] font-medium'>
                 {t('我的兑换记录')}
-              </Text>
+              </div>
             </div>
             <span className='text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md'>
               {t('共')} {STATIC_RECORDS.length} {t('条记录')}
@@ -361,7 +336,7 @@ const Exchange = () => {
           </div>
 
           {/* 筛选栏 */}
-          <div className='px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/60'>
+          {/* <div className='px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/60'>
             <div className='flex flex-col md:flex-row gap-3 items-center'>
               <DatePicker
                 type='dateRange'
@@ -409,7 +384,7 @@ const Exchange = () => {
                 {t('重置')}
               </Button>
             </div>
-          </div>
+          </div> */}
 
           {/* 表格 */}
           <Table
@@ -422,34 +397,25 @@ const Exchange = () => {
         {/* 获取更多兑换码 */}
         <div className='mb-6'>
           <div className='flex items-center gap-2 mb-4'>
-            <Sparkles size={18} className='text-amber-500' />
-            <Text strong className='text-base'>
+            <div className='text-[30px] text-[#475569] font-medium'>
               {t('获取更多兑换码')}
-            </Text>
+            </div>
           </div>
           <div className='grid grid-cols-1 md:grid-cols-3 gap-5'>
             {promoCards.map((card, index) => (
               <div
                 key={index}
-                className={`group bg-gradient-to-br ${card.gradient} rounded-2xl border ${card.border} p-6 hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer`}
+                className={`group bg-white dark:bg-[#FFFFFF08] dark:border-gray-800 rounded-2xl border p-6 cursor-pointer`}
+                style={{backgroundImage:`url(${card.bgImgUrl})`, backgroundPosition: 'bottom right', backgroundRepeat: 'no-repeat'}}
                 onClick={() => {
                   if (card.link) window.location.href = card.link;
                 }}
               >
-                <div className='w-12 h-12 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform'>
-                  {card.icon}
-                </div>
-                <Text strong className='block mb-1 text-slate-800 dark:text-slate-100'>
-                  {card.title}
-                </Text>
-                <Text type='tertiary' size='small' className='block mb-3'>
-                  {card.desc}
-                </Text>
-                <span
-                  className={`text-xs font-semibold ${card.linkColor} flex items-center group-hover:translate-x-1 transition-transform`}
-                >
-                  {card.linkText}
-                  <ArrowRight size={14} className='ml-1' />
+                <div className='text-[12px] text-[#1CDFD5] font-bold mb-2'>{card.subTitle}</div>
+                <div className='text-[20px] text-[#475569] font-bold mb-2'>{card.title}</div>
+                <div className='text-[14px] text-[#94A3B8] mb-4'>{card.desc}</div>
+                <span className="text-[12px] text-[#1CDFD5] font-bold flex items-center">
+                  {card.linkText} <ArrowRight size={14} className='inline-block ml-1 transition-transform group-hover:translate-x-1' />
                 </span>
               </div>
             ))}
