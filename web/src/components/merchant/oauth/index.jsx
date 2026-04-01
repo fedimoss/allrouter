@@ -46,8 +46,8 @@ const OauthList = () => {
     () => [
       {key: 'codex',api: '/api/v0/management/codex-auth-url'},
       {key: 'anthropic',api: '/api/v0/management/anthropic-auth-url'},
-      {key: 'antigravity',api: '/api/v0/management/gemini-cli-auth-url'},
-      {key: 'gemini', api: '/api/v0/management/gemini-auth-url'},
+      {key: 'antigravity',api: '/api/v0/management/antigravity-auth-url'},
+      {key: 'gemini', api: '/api/v0/management/gemini-cli-auth-url'},
       {key: 'kimi',api: '/api/v0/management/kimi-auth-url'},
       { key: 'qwen', api: '/api/v0/management/qwen-auth-url' },
       {key: 'iflow', api: '/api/v0/management/iflow-auth-url', params: { cookie: '' }},
