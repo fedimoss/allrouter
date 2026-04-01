@@ -169,8 +169,56 @@
 }
 
 .pricing-market-recommend-section {
-  display: grid;
-  gap: 16px;
+  padding: 10px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 35px 30px;
+}
+.pricing-market-recommend-section .pricing-banner-cont{
+  width: 100%;
+
+}
+.pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-title{
+  font-size: 36px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 40px;
+  letter-spacing: -2px;
+}
+.pricing-market-recommend-section .pricing-banner-cont .color{
+  color: #0DFEF2;
+  letter-spacing: 2px;
+}
+.pricing-market-recommend-section .pricing-banner-cont-description{
+  margin-top: 12px;
+  font-size: 14px;
+  color: #94A3B8;
+  width: min(448px, 100%);
+}
+.pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-action{
+  display: flex;
+  align-items: center;
+  margin-top: 24px;
+}
+.pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-action .pricing-banner-cont-action-btn{
+  width: 112px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--semi-color-bg-0);
+  border: 1px solid var(--semi-color-border);
+  color: var(--semi-color-text-0);
+  margin-right: 16px;
+  cursor: pointer;
+}
+.pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-action .pricing-banner-cont-action-btn:first-child{
+  border: 1px solid #1CDFD5;
+  color: #1CDFD5;
+  box-shadow: 0px 4px 6px -4px #00E67633;
+  background-color: transparent;
 }
 
 .pricing-market-recommend-head {
@@ -510,6 +558,30 @@
   gap: 8px;
 }
 
+.pricing-market-favorite-trigger {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.95);
+  color: #64748b;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.pricing-market-favorite-trigger:hover {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.34);
+  background: rgba(254, 242, 242, 0.96);
+}
+
+.pricing-market-favorite-trigger:active {
+  transform: translateY(1px);
+}
+
 .pricing-market-desktop-card-description {
   margin: 16px 0 14px;
   color: #64748b;
@@ -573,6 +645,22 @@
   color: #94a3b8;
   font-size: 11px;
   font-weight: 600;
+}
+
+.pricing-market-detail-trigger {
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+}
+
+.pricing-market-detail-trigger:hover {
+  color: #075985;
+}
+
+.pricing-market-detail-trigger > span {
+  display: inline-flex;
+  flex-direction: row;
+  gap: 0;
+  line-height: 1;
 }
 
 .pricing-market-desktop-card-ratio {
@@ -1005,3 +1093,4 @@ html.dark .pricing-market-desktop-card .semi-button,
 html.dark .pricing-market-mobile-card .semi-button {
   color: #cbd5e1 !important;
 }
+

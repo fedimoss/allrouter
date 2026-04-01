@@ -42,7 +42,7 @@ const FooterBar = () => {
 
     const customFooter = useMemo(
         () => (
-            <footer className='relative h-auto md:px-24 w-full flex flex-col items-center justify-between overflow-hidden' style={{borderTop:'1px solid rgb(226 232 240 / 100%)',paddingTop:'26px',marginTop:'40px'}}>
+            <footer className='relative h-auto md:px-24 w-full flex flex-col items-center justify-between overflow-hidden' style={{borderTop:'1px solid var(--semi-color-border)',paddingTop:'26px',marginTop:'40px'}}>
                 <div className='absolute hidden md:block top-[204px] left-[-100px] w-[151px] h-[151px] rounded-full bg-[#FFD166]'></div>
                 <div className='absolute md:hidden bottom-[20px] left-[-50px] w-[80px] h-[80px] rounded-full bg-[#FFD166] opacity-60'></div>
 

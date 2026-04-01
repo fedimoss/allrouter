@@ -1,4 +1,4 @@
-﻿/*
+/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -18,14 +18,28 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Card, Skeleton, Tag,Progress } from '@douyinfe/semi-ui';
+import { Card, Progress, Skeleton, Tag } from '@douyinfe/semi-ui';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import {BadgeDollarSign,MousePointer2,ShieldAlert,Zap,Wallet,BadgePercent} from 'lucide-react';
+import {
+  CircleCheck,
+  Wallet,
+  BadgePercent,
+} from 'lucide-react';
+import xfjeIcon from '../../../public/board-xfje.svg';
+import qqcsIcon from '../../../public/board-qqcs.svg';
+import ycqqIcon from '../../../public/board-ycqq.svg';
+import pjxyIcon from '../../../public/board-pjxy.svg';
+import kyyeIcon from '../../../public/board-kyye.svg';
+import jfedIcon from '../../../public/board-jfed.svg';
 
-const StatsCards = ({ groupedStatsData, loading, CARD_PROPS }) => {
+const StatsCards = ({
+  groupedStatsData,
+  loading,
+  CARD_PROPS,
+  displayMode = 'all',
+  t
+}) => {
   const navigate = useNavigate();
-  const { t } = useTranslation();
 
   const toNum = (value) => {
     if (typeof value === 'number') return value;
@@ -35,19 +49,24 @@ const StatsCards = ({ groupedStatsData, loading, CARD_PROPS }) => {
     }
     return 0;
   };
-  console.log('groupedStatsData:', groupedStatsData);
+
+  const formatValue = (value, fallback = '--') => {
+    if (value === null || value === undefined || value === '') return fallback;
+    return value;
+  };
+
   const account = groupedStatsData?.[0]?.items || [];
   const usage = groupedStatsData?.[1]?.items || [];
   const resource = groupedStatsData?.[2]?.items || [];
   const performance = groupedStatsData?.[3]?.items || [];
 
-  const currentBalance = account?.[0]?.value ?? '$0.00';
-  const historyCost = account?.[1]?.value ?? '$0.00';
-  const todayRequests = usage?.[0]?.value ?? 0;
-  const totalTokens = resource?.[1]?.value ?? 0;
-  const totalQuota = resource?.[0]?.value ?? '$0.00';
-  const avgRPM = performance?.[0]?.value ?? 0;
-  const avgTPM = performance?.[1]?.value ?? 0;
+  const currentBalance = formatValue(account?.[0]?.value, '$19.99');
+  const historyCost = formatValue(account?.[1]?.value, '$2.13');
+  const todayRequests = formatValue(usage?.[0]?.value, 3);
+  const totalTokens = formatValue(resource?.[1]?.value, 0);
+  const totalQuota = formatValue(resource?.[0]?.value, '$0.00');
+  const avgRPM = formatValue(performance?.[0]?.value, 0);
+  const avgTPM = formatValue(performance?.[1]?.value, 0);
 
   const todayReqNum = Math.max(0, Math.floor(toNum(todayRequests)));
   const successCount = todayReqNum;
@@ -57,194 +76,252 @@ const StatsCards = ({ groupedStatsData, loading, CARD_PROPS }) => {
   const errorRate = 0;
   const hourAnomaly = 0;
 
-  const budgetUsagePct = 24;
+  const budgetUsagePct = 35;
   const pointsUsedPct = 0;
 
   const cards = [
     {
       key: 'today-cost',
-      title: t('今日消耗金额'),
+      title: '今日消耗金额',
       value: totalQuota,
-      icon: <BadgeDollarSign />,
-      iconColor:'#22c55e',
-      iconBg: 'rgba(240, 253, 244, 1)',
-      accent: '#22c55e',
-      lines: [
-        { label: t('总计模型费'), value: '$12,345.67' },
-        { label: t('较昨日'), value: '--' },
-      ],
-      footer: (
-        <div className='mt-2'>
-          <div className='flex items-center justify-between text-[12px] text-slate-500'>
-            <span style={{color:'rgb(100 116 139 / 100%)'}}>{t('本月预算使用率')}</span>
-            <span className='font-semibold text-slate-600'>{budgetUsagePct}%</span>
-          </div>
-          <div className='mt-1 overflow-hidden'>
-            <Progress percent={budgetUsagePct} aria-label="disk usage" />
-          </div>
-        </div>
-      ),
+      imgUrl: xfjeIcon,
+      note: '总计模型费',
+      noteValue: '$12,345.67',
+      footerLabel: '本月预算使用率',
+      footerValue: `${budgetUsagePct}%`,
+      progress: budgetUsagePct,
+      progressColor: '#2ed8c3',
       onClick: resource?.[0]?.onClick,
+      compact: false,
     },
     {
       key: 'today-requests',
-      title: t('今日请求次数'),
+      title: '今日请求次数',
       value: todayRequests,
-      icon: <MousePointer2 />,
-      iconColor: '#3b82f6',
-      iconBg: 'rgba(239, 246, 255, 1)',
-      lines: [
-        { label: t('成功次数'), value: successCount },
-        { label: t('失败次数'), value: failedCount },
-        { label: t('总计 Tokens'), value: totalTokens },
+      imgUrl: qqcsIcon,
+      statRows: [
+        { label: '成功次数', value: successCount },
+        { label: '失败次数', value: failedCount },
       ],
-      footer: (
-        <Tag color='green' shape='circle' size='large'>
-          {t('成功率')} {successRate}%
-        </Tag>
-      ),
+      badgeText: `成功率`,
+      badgeValue: successRate,
+      badgeColor: 'green',
       onClick: usage?.[0]?.onClick,
+      compact: false,
     },
     {
       key: 'anomaly-requests',
-      title: t('异常请求数'),
+      title: '异常请求数',
       value: anomalyCount,
-      icon: <ShieldAlert />,
-      iconColor: '#8b5cf6',
-      iconBg: 'rgba(250, 245, 255, 1)',
-      lines: [
-        { label: t('错误率'), value: `${errorRate.toFixed(1)}%` },
-        { label: t('近 1 小时异常'), value: hourAnomaly },
+      imgUrl: ycqqIcon,
+      statRows: [
+        { label: '错误率', value: `${errorRate.toFixed(1)}%` },
+        { label: '近 1 小时异常', value: hourAnomaly },
       ],
-      footer: (
-        <Tag color='green' shape='circle' size='large'>
-          {t('系统健康')}
-        </Tag>
-      ),
+      badgeText: '系统健康',
+      badgeValue: '100',
+      badgeColor: 'green',
+      compact: false,
     },
     {
       key: 'avg-latency',
-      title: t('平均响应时间'),
-      value: '--ms',
-      icon: <Zap />,
-      iconColor: '#f59e0b',
-      iconBg: 'rgba(255, 247, 237, 1)',
-      lines: [
-        { label: t('平均 RPM'), value: avgRPM },
-        { label: t('平均 TPM'), value: avgTPM },
-        { label: t('负载状态'), value: t('正常') },
+      title: '平均响应时间',
+      value: '--',
+      valueSuffix: 'ms',
+      imgUrl: pjxyIcon,
+      statRows: [
+        { label: '平均 RPM', value: avgRPM },
+        { label: '平均 TPM', value: avgTPM },
       ],
+      badgeText: '响应正常',
+      badgeValue: '',
+      badgeColor: 'green',
       onClick: performance?.[0]?.onClick,
+      compact: false,
     },
     {
       key: 'available-balance',
-      title: t('可用余额'),
+      title: '可用余额',
       value: currentBalance,
-      icon: <Wallet />,
-      iconColor: '#10b981',
-      iconBg: 'rgba(230, 255, 254, 1)',
-      lines: [
-        { label: t('历史消耗'), value: historyCost },
-        { label: t('上次充值值'), value: '2026-03-15 10:30' },
-      ],
-      footer: (
-        <Tag
-          color='white'
-          shape='circle'
-          size='large'
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate('/console/topup');
-          }}
-        >
-          {t('充值')}
-        </Tag>
-      ),
+      imgUrl: kyyeIcon,
+      statRows: [{ label: '历史消耗', value: historyCost }],
+      actionText: '充值',
+      onActionClick: (event) => {
+        event.stopPropagation();
+        navigate('/console/topup');
+      },
+      compact: true,
       onClick: account?.[0]?.onClick,
     },
     {
       key: 'points-quota',
-      title: t('积分额度'),
-      value: '0 / 0',
-      icon: <BadgePercent />,
-      iconColor: '#a855f7',
-      iconBg: 'rgba(250, 245, 255, 1)',
-      accent: '#a855f7',
-      lines: [{ label: t('已使用率'), value: `${pointsUsedPct}%` }],
-      footer: (
-        <div className='mt-2'>
-          <div className='h-2 rounded-full bg-slate-200 overflow-hidden'>
-            <div
-              className='h-full rounded-full bg-violet-500'
-              style={{ width: `${pointsUsedPct}%` }}
-            />
-          </div>
-          <div className='text-[12px] text-slate-600 mt-2' style={{color:'rgb(100 116 139 / 100%)'}}>
-            {t('预计可用')} 0 {t('天')}
-          </div>
-        </div>
-      ),
+      title: '积分额度',
+      value: '1,000 / 2,000',
+      imgUrl: jfedIcon,
+      statRows: [{ label: '已使用率', value: `${pointsUsedPct}%` }],
+      actionText: '使用说明',
+      compact: true,
       onClick: usage?.[1]?.onClick,
     },
   ];
 
-  return (
-    <div className='mb-4'>
-      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4'>
-        {cards.map((card) => (
-          <Card
-            key={card.key}
-            {...CARD_PROPS}
-            className='metric-card bg-white p-5 !rounded-xl shadow-sm border border-slate-200 relative overflow-hidden'
-            style={{ borderRight: `4px solid ${card.accent}` }}
-          >
-            <div
-              className='h-full flex flex-col'
-              onClick={card.onClick}
-              role={card.onClick ? 'button' : undefined}
-            >
-              <div className='flex items-start justify-between mb-3'>
-                <div>
-                  <div className='text-[14px] text-gray-800'>{card.title}</div>
-                  <div className='text-2xl font-bold text-slate-800 mt-1'>
-                    <Skeleton
-                      loading={loading}
-                      active
-                      placeholder={
-                        <Skeleton.Paragraph
-                          active
-                          rows={1}
-                          style={{ width: '120px', height: '30px', marginTop: 0 }}
-                        />
-                      }
-                    >
-                      {card.value}
-                    </Skeleton>
-                  </div>
-                </div>
-                <Button
-                  type='tertiary'
-                  theme='light'
-                  icon={card.icon}
-                  style={{backgroundColor:card.iconBg, color: card.iconColor}}
-                >
-                </Button>
-              </div>
-              <div className='text-[12px]'>
-                {card.lines.map((line, lineIdx) => (
-                  <div key={`${card.key}-${lineIdx}`} className='flex items-center gap-2'>
-                    <span style={{color:'rgb(148 163 184 / 100%)'}}>{line.label}</span>
-                    <span className='font-semibold text-slate-600'>{line.value}</span>
-                  </div>
-                ))}
-              </div>
+  const primaryCards = cards.filter((card) => !card.compact);
+  const compactCards = cards.filter((card) => card.compact);
 
-              <div className='mt-auto pt-1'>{card.footer || null}</div>
+  const renderValue = (card) => (
+    <Skeleton
+      loading={loading}
+      active
+      placeholder={
+        <Skeleton.Paragraph
+          active
+          rows={1}
+          style={{ width: '120px', height: '32px', marginTop: 0 }}
+        />
+      }
+    >
+      <span>{formatValue(card.value)}</span>
+      {card.valueSuffix ? (
+        <span className='dashboard-stats-v2__value-suffix'>
+          {card.valueSuffix}
+        </span>
+      ) : null}
+    </Skeleton>
+  );
+
+  const renderPrimaryCard = (card) => (
+    <Card
+      key={card.key}
+      {...CARD_PROPS}
+      className='dashboard-stats-v2__card dashboard-stats-v2__card--primary'
+    >
+      <div
+        className='dashboard-stats-v2__card-inner'
+        onClick={card.onClick}
+        role={card.onClick ? 'button' : undefined}
+      >
+        <div className='dashboard-stats-v2__card-header'>
+          <div>
+            <div className='dashboard-stats-v2__label'>{t(card.title)}</div>
+            <div className='dashboard-stats-v2__value'>{renderValue(card)}</div>
+          </div>
+          <div className='dashboard-stats-v2__icon'>
+            <img src={card.imgUrl} />
+          </div>
+        </div>
+
+        {card.note ? (
+          <div className='dashboard-stats-v2__single-note'>
+            <span>{t(card.note)}</span>
+            <span>{card.noteValue}</span>
+          </div>
+        ) : null}
+
+        {card.statRows ? (
+          <div className='dashboard-stats-v2__meta-list'>
+            {card.statRows.map((row) => (
+              <div
+                key={`${card.key}-${row.label}`}
+                className='dashboard-stats-v2__meta-row'
+              >
+                <span>{t(row.label)}</span>
+                <strong>{formatValue(row.value, 0)}</strong>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {card.footerLabel ? (
+          <div className='dashboard-stats-v2__progress-wrap'>
+            <div className='dashboard-stats-v2__progress-head'>
+              <span>{t(card.footerLabel)}</span>
+              <strong>{card.footerValue}</strong>
             </div>
-          </Card>
-        ))}
+            <Progress
+              percent={card.progress}
+              stroke={card.progressColor}
+              showInfo={false}
+              aria-label={card.footerLabel}
+              style={{ height: '8px' }}
+            />
+          </div>
+        ) : null}
+
+        {card.badgeText ? (
+          <div className='dashboard-stats-v2__badge-wrap'>
+            <Tag color={card.badgeColor} shape='circle' size='large'>
+              <CircleCheck size={14} />&nbsp;{t(card.badgeText)}{card.badgeValue ? ` ${card.badgeValue}%` : ''}
+            </Tag>
+          </div>
+        ) : null}
       </div>
-    </div>
+    </Card>
+  );
+
+  const renderCompactCard = (card) => (
+    <Card
+      key={card.key}
+      {...CARD_PROPS}
+      className='dashboard-stats-v2__card dashboard-stats-v2__card--compact'
+    >
+      <div
+        className='dashboard-stats-v2__compact-inner'
+        onClick={card.onClick}
+        role={card.onClick ? 'button' : undefined}
+      >
+        <div className='dashboard-stats-v2__compact-copy'>
+          <div className='dashboard-stats-v2__label'>{t(card.title)}</div>
+          <div className='dashboard-stats-v2__compact-value'>
+            {renderValue(card)}
+          </div>
+          {/* <div className='dashboard-stats-v2__meta-row dashboard-stats-v2__meta-row--compact'>
+            <span>{card.statRows?.[0]?.label || '--'}</span>
+            <strong>{formatValue(card.statRows?.[0]?.value, '--')}</strong>
+          </div> */}
+        </div>
+        <div className='dashboard-stats-v2__compact-side'>
+          <img src={card.imgUrl} className='iconImg' />
+          {/* <button
+            type='button'
+            className='dashboard-stats-v2__mini-action'
+            onClick={card.onActionClick}
+          >
+            {card.actionText}
+          </button> */}
+        </div>
+      </div>
+    </Card>
+  );
+
+  if (displayMode === 'primary') {
+    return (
+      <section className='dashboard-stats-v2'>
+        <div className='dashboard-stats-v2__primary-grid'>
+          {primaryCards.map(renderPrimaryCard)}
+        </div>
+      </section>
+    );
+  }
+
+  if (displayMode === 'compact') {
+    return (
+      <section className='dashboard-stats-v2 dashboard-stats-v2--compact-only'>
+        <div className='dashboard-stats-v2__compact-grid'>
+          {compactCards.map(renderCompactCard)}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className='dashboard-stats-v2'>
+      <div className='dashboard-stats-v2__primary-grid'>
+        {primaryCards.map(renderPrimaryCard)}
+      </div>
+      <div className='dashboard-stats-v2__compact-grid'>
+        {compactCards.map(renderCompactCard)}
+      </div>
+    </section>
   );
 };
 

@@ -62,6 +62,7 @@ import {
   Search,
   Trash2,
   X,
+  EllipsisVertical
 } from 'lucide-react';
 
 const DEFAULT_GROUP_FILTER = '__default__';
@@ -1028,7 +1029,11 @@ function TokensPage() {
       <div className='token-v2-shell'>
         <div className='token-v2-card'>
           <div className='token-v2-toolbar'>
-            <div className='token-v2-toolbar-row'>
+            <div className='token-v2-toolbar-title'>
+              {tokensData.t('令牌管理')}
+            </div>
+            <div className='token-v2-toolbar-desc'>
+              <div className='token-v2-toolbar-desc-txt'>{tokensData.t('管理您的 API 访问令牌，监控配额使用情况及分组权限。')}</div>
               <div className='token-v2-toolbar-actions'>
                 <button
                   type='button'
@@ -1049,10 +1054,11 @@ function TokensPage() {
                   <RefreshCw
                     size={16}
                     className={tokensData.loading ? 'token-v2-spin' : ''}
-                  />
+                  />{tokensData.t('刷新')}
                 </button>
               </div>
-
+            </div>
+            <div className='token-v2-toolbar-row'>
               <form
                 className='token-v2-toolbar-filters'
                 onSubmit={handleSearchSubmit}
@@ -1123,8 +1129,10 @@ function TokensPage() {
                       <th className='token-v2-col-quota'>{tokensData.t('剩余额度 / 总额度')}</th>
                       <th className='token-v2-col-group'>{tokensData.t('分组')}</th>
                       <th className='token-v2-col-key'>{tokensData.t('密钥 (Key)')}</th>
-                      <th className='token-v2-col-date'>{tokensData.t('创建时间')}</th>
-                      <th className='token-v2-col-expire'>{tokensData.t('过期时间')}</th>
+                      <th className='token-v2-col-date'>
+                        <div>{tokensData.t('创建时间')}</div>
+                        <div>{tokensData.t('过期时间')}</div>
+                      </th>
                       <th className='token-v2-actions-col'>
                         {tokensData.t('操作')}
                       </th>
@@ -1221,7 +1229,7 @@ function TokensPage() {
                                 {displayedKey}
                               </code>
                               <div className='token-v2-key-actions'>
-                                <button
+                                {/* <button
                                   type='button'
                                   className='token-v2-icon-button'
                                   onClick={async () =>
@@ -1237,7 +1245,7 @@ function TokensPage() {
                                   ) : (
                                     <Eye size={16} />
                                   )}
-                                </button>
+                                </button> */}
                                 <button
                                   type='button'
                                   className='token-v2-icon-button'
@@ -1245,16 +1253,15 @@ function TokensPage() {
                                   title={tokensData.t('复制密钥')}
                                   aria-label={tokensData.t('复制密钥')}
                                 >
-                                  <Copy size={16} />
+                                  <Copy size={14} />
                                 </button>
                               </div>
                             </div>
                           </td>
                           <td className='token-v2-date-cell token-v2-col-date'>
                             {timestamp2string(record.created_time)}
-                          </td>
-                          <td className='token-v2-date-cell token-v2-col-expire'>
-                            {expireMeta.warning ? (
+                            <div>
+                              {expireMeta.warning ? (
                               <span className='token-v2-expire-warning'>
                                 <AlertCircle size={13} />
                                 {expireMeta.text}
@@ -1262,6 +1269,7 @@ function TokensPage() {
                             ) : (
                               expireMeta.text
                             )}
+                            </div>
                           </td>
                           <td className='token-v2-actions-col'>
                             <div className='token-v2-row-actions'>
@@ -1288,16 +1296,6 @@ function TokensPage() {
                                   </button>
                                 </Dropdown>
                               </div>
-
-                              <button
-                                type='button'
-                                className='token-v2-action-button'
-                                onClick={() => handleOpenDetail(record)}
-                              >
-                                <Info size={14} />
-                                {tokensData.t('详情')}
-                              </button>
-
                               <button
                                 type='button'
                                 className='token-v2-action-button'
@@ -1307,49 +1305,65 @@ function TokensPage() {
                                 }}
                               >
                                 <PenLine size={14} />
-                                {tokensData.t('编辑')}
                               </button>
-
-                              {record.status === 1 ? (
-                                <button
-                                  type='button'
-                                  className='token-v2-action-button token-v2-action-warning'
-                                  onClick={async () => {
-                                    await tokensData.manageToken(
-                                      record.id,
-                                      'disable',
-                                      record,
-                                    );
-                                    await refreshCurrentView();
-                                  }}
-                                >
-                                  {tokensData.t('禁用')}
-                                </button>
-                              ) : (
-                                <button
-                                  type='button'
-                                  className='token-v2-action-button token-v2-action-success'
-                                  onClick={async () => {
-                                    await tokensData.manageToken(
-                                      record.id,
-                                      'enable',
-                                      record,
-                                    );
-                                    await refreshCurrentView();
-                                  }}
-                                >
-                                  {tokensData.t('启用')}
-                                </button>
-                              )}
-
                               <button
                                 type='button'
                                 className='token-v2-action-button token-v2-action-danger'
                                 onClick={() => handleDeleteRecord(record)}
                               >
                                 <Trash2 size={14} />
-                                {tokensData.t('删除')}
                               </button>
+
+                              <Dropdown
+                                  render={
+                                  <Dropdown.Menu>
+                                    <Dropdown.Item>
+                                      <button
+                                        type='button'
+                                        className='token-v2-action-button'
+                                        onClick={() => handleOpenDetail(record)}
+                                      >
+                                        {tokensData.t('详情')}
+                                      </button>
+                                    </Dropdown.Item>
+                                    <Dropdown.Item>
+                                      {record.status === 1 ? (
+                                        <button
+                                          type='button'
+                                          className='token-v2-action-button'
+                                          onClick={async () => {
+                                            await tokensData.manageToken(
+                                              record.id,
+                                              'disable',
+                                              record,
+                                            );
+                                            await refreshCurrentView();
+                                          }}
+                                        >
+                                          {tokensData.t('禁用')}
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type='button'
+                                          className='token-v2-action-button token-v2-action-success'
+                                          onClick={async () => {
+                                            await tokensData.manageToken(
+                                              record.id,
+                                              'enable',
+                                              record,
+                                            );
+                                            await refreshCurrentView();
+                                          }}
+                                        >
+                                          {tokensData.t('启用')}
+                                        </button>
+                                      )}
+                                    </Dropdown.Item>
+                                  </Dropdown.Menu>
+                                }
+                              >
+                                <Button theme='borderless' type='tertiary' icon={<EllipsisVertical />} />
+                              </Dropdown>
                             </div>
                           </td>
                         </tr>

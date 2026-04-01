@@ -19,8 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button,Input } from '@douyinfe/semi-ui';
-import { RefreshCw, Search,FileText,Plus ,Info} from 'lucide-react';
+import { Button, Input } from '@douyinfe/semi-ui';
+import { RefreshCw, Search, FileText, Plus } from 'lucide-react';
 
 const DashboardHeader = ({
   getGreeting,
@@ -32,7 +32,6 @@ const DashboardHeader = ({
   t,
 }) => {
   const navigate = useNavigate();
-  const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
 
   const getDateNow = () => {
     const now = new Date();
@@ -52,76 +51,64 @@ const DashboardHeader = ({
         return t('最近 24 小时');
     }
   };
+
   const toPage = () => {
     navigate('/console/playground');
-  }
+  };
 
   return (
-    <div className='flex items-center justify-between mb-4'>
-      <div>
-        <h2
-          className='text-2xl font-semibold text-gray-800 transition-opacity duration-1000 ease-in-out'
-          style={{ opacity: greetingVisible ? 1 : 0,color: 'var(--semi-color-text-0)' }}
-        >
-          {getGreeting}
-        </h2>
-        <p className='text-sm m-2' style={{ color: 'rgb(100 116 139 / 100%)' }}>
-          {t('今天是')} {getDateNow()}，{t('系统运行正常。')}
-        </p>
-        <div
-          className='ml-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs'
-          style={{ color: 'rgb(100 116 139 / 100%)',marginTop: '8px' }}
-        >
-          <Info size={14} />
-          <span>
-            {t('默认展示 {{range}} 内的数据，可通过搜索筛选调整时间范围。', {
-              range: getDefaultRangeText(),
-            })}
-          </span>
+    <section className='dashboard-header-v2'>
+      <div className='dashboard-header-v2__content'>
+        <div className='dashboard-header-v2__copy'>
+          <div
+            className='dashboard-header-v2__title'
+            style={{ opacity: greetingVisible ? 1 : 0 }}
+          >
+            {getGreeting}
+          </div>
+          {/* <p className='dashboard-header-v2__subtitle'>
+            {t('当前系统运行正常，今日已产生 3 次请求。')}
+          </p> */}
+          <div className='dashboard-header-v2__hint'>
+            <span className='dashboard-header-v2__hint-dot' />
+            <span>
+              {t('今天是')} {getDateNow()}，
+              {t('默认展示 {{range}} 内的数据。', {
+                range: getDefaultRangeText(),
+              })}
+            </span>
+          </div>
+        </div>
+
+        <div className='dashboard-header-v2__actions'>
+            <Input
+              placeholder={t('搜索 API Key...')}
+              size='large'
+              prefix={<Search size={16} style={{marginRight:'10px'}} />}
+              onFocus={showSearchModal}
+              className='dashboard-header-v2__search-input'
+            />
+            <Button
+              type='primary'
+              theme='solid'
+              size='large'
+              icon={<Plus size={16} />}
+              className='dashboard-header-v2__primary-btn'
+              onClick={toPage}
+            >
+              {t('添加令牌')}
+            </Button>
+            <Button
+              type='tertiary'
+              icon={<RefreshCw size={16} />}
+              onClick={refresh}
+              loading={loading}
+              className='dashboard-header-v2__icon-btn'
+              aria-label={t('刷新')}
+            />
         </div>
       </div>
-      
-      <div className='flex gap-3'>
-        <Input
-          placeholder={t('请输入关键词搜索')}
-          size='large'
-          prefix={<Search size={16} style={{color:'rgb(148 163 184 / 100%)'}} />}
-          onFocus={showSearchModal}
-          className="common-input"
-        />
-        <Button
-          theme='outline'
-          type='tertiary'
-          size='large'
-          icon={<FileText size={16} />}
-        >
-          {t('查看报表')}
-        </Button>
-        <Button
-          type='primary'
-          theme='solid'
-          className='theme-btn'
-          size='large'
-          icon={<Plus size={16} />}
-          onClick={toPage}
-        >
-          {t('新建任务')}
-        </Button>
-        {/* <Button
-          type='tertiary'
-          icon={<Search size={16} />}
-          onClick={showSearchModal}
-          className={`bg-green-500 hover:bg-green-600 ${ICON_BUTTON_CLASS}`}
-        /> */}
-        <Button
-          type='tertiary'
-          icon={<RefreshCw size={16} />}
-          onClick={refresh}
-          loading={loading}
-          className={`bg-blue-500 hover:bg-blue-600 ${ICON_BUTTON_CLASS}`}
-        />
-      </div>
-    </div>
+    </section>
   );
 };
 

@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ import {
   Avatar,
 } from '@douyinfe/semi-ui';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
-import { Copy, ChevronDown } from 'lucide-react';
+import { Copy, Heart, Info,Eye } from 'lucide-react';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
@@ -202,7 +202,8 @@ const PricingCardView = ({
             quotaDisplayType: siteDisplayType,
           });
           const priceItems = buildPrimaryPriceItems(priceData, t, siteDisplayType);
-          const priceGridStyle = { gridTemplateColumns: `repeat(${Math.max(priceItems.length, 1)}, minmax(0, 1fr))` };
+          const priceBoardItems = [...priceItems, { key: 'detail', label: t('详情'), isAction: true }];
+          const priceGridStyle = { gridTemplateColumns: `repeat(${Math.max(priceBoardItems.length, 1)}, minmax(0, 1fr))` };
 
           if (isMobile) {
             return (
@@ -210,7 +211,6 @@ const PricingCardView = ({
                 key={modelKey || index}
                 className={`pricing-market-mobile-card${isSelected ? ' is-selected' : ''}`}
                 bodyStyle={{ height: '100%' }}
-                onClick={() => openModelDetail && openModelDetail(model)}
               >
                 <div className='flex flex-col h-full'>
                   <div className='flex items-start justify-between mb-3'>
@@ -224,6 +224,22 @@ const PricingCardView = ({
                       </div>
                     </div>
                     <div className='flex items-center space-x-2 ml-3'>
+                      <Eye onClick={(e) => {
+                          e.stopPropagation();
+                          openModelDetail && openModelDetail(model);
+                        }} />
+                      {/* <Button
+                        size='small'
+                        theme='outline'
+                        type='tertiary'
+                        icon={<Info size={12} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openModelDetail && openModelDetail(model);
+                        }}
+                      >
+                        {t('详情')}
+                      </Button> */}
                       <Button size='small' theme='outline' type='tertiary' icon={<Copy size={12} />} onClick={(e) => { e.stopPropagation(); copyText(model.model_name); }} />
                       {rowSelection && (
                         <Checkbox checked={isSelected} onChange={(e) => { e.stopPropagation(); handleCheckboxChange(model, e.target.checked); }} />
@@ -260,12 +276,9 @@ const PricingCardView = ({
             );
           }
 
-          const rawTags = (model.tags || '').split(/[,;|]+/).map((tag) => tag.trim()).filter(Boolean).slice(0, 3);
-          const badge = rawTags[0] || (model.quota_type === 0 ? t('性价比') : t('热门'));
-          const badgeColor = badge === t('性价比') ? 'green' : badge === t('热门') ? 'orange' : 'blue';
 
           return (
-            <Card key={modelKey || index} className={`pricing-market-desktop-card${isSelected ? ' is-selected' : ''}`} bodyStyle={{ padding: 0, height: '100%' }} onClick={() => openModelDetail && openModelDetail(model)}>
+            <Card key={modelKey || index} className={`pricing-market-desktop-card${isSelected ? ' is-selected' : ''}`} bodyStyle={{ padding: 0, height: '100%' }}>
               <div className='pricing-market-desktop-card-inner'>
                 <div className='pricing-market-desktop-card-header'>
                   <div className='pricing-market-desktop-card-brand'>
@@ -279,9 +292,9 @@ const PricingCardView = ({
                     </div>
                   </div>
 
-                  <div className='pricing-market-desktop-card-actions' onClick={(e) => e.stopPropagation()}>
-                    <Tag color={badgeColor} size='small'>{badge}</Tag>
-                    <Button size='small' theme='borderless' type='tertiary' icon={<Copy size={14} />} onClick={() => copyText(model.model_name)} />
+                  <div className='pricing-market-desktop-card-actions'>
+                    <Button theme='borderless' type='tertiary' icon={<Heart size={16} />} />
+                    <Button theme='borderless' type='tertiary' icon={<Copy size={14} />} onClick={() => copyText(model.model_name)} />
                     {/* {rowSelection && <Checkbox checked={isSelected} onChange={(e) => handleCheckboxChange(model, e.target.checked)} />} */}
                   </div>
                 </div>
@@ -300,11 +313,15 @@ const PricingCardView = ({
 
                 <div className='pricing-market-price-board'>
                   <div className='pricing-market-price-head' style={priceGridStyle}>
-                    {priceItems.map((item) => <span key={item.key}>{item.label}</span>)}
+                    {priceBoardItems.map((item) => <span key={item.key}>{item.label}</span>)}
                   </div>
                   <div className='pricing-market-price-row' style={priceGridStyle}>
-                    {priceItems.map((item) => (
-                      <span key={item.key}>{item.value}<small>{item.suffix}</small></span>
+                    {priceBoardItems.map((item) => (
+                      item.isAction ? (
+                      <Eye key={item.key} size={16} className='pricing-market-detail-trigger' onClick={() => openModelDetail && openModelDetail(model)} />
+                      ) : (
+                        <span key={item.key}>{item.value}<small>{item.suffix}</small></span>
+                      )
                     ))}
                   </div>
                 </div>

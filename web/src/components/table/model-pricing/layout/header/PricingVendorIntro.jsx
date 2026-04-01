@@ -28,6 +28,8 @@ import {
   Zap,
 } from 'lucide-react';
 import SearchActions from './SearchActions';
+import pricingBannerImg from '../../../../../../public/pricing-banner.jpg'
+
 
 const getRecommendationCards = (t) => [
   {
@@ -140,54 +142,17 @@ const PricingVendorIntro = memo(
     return (
       <div className='pricing-market-top-shell'>
         {!isMobile && (
-          <div className='pricing-market-recommend-section'>
-            <div className='pricing-market-recommend-head'>
-              <span className='pricing-market-recommend-head-icon'>
-                <Sparkles size={16} />
-              </span>
-              <h2>{t('为您精选')}</h2>
-            </div>
-
-            <div className='pricing-market-recommend-grid'>
-              {recommendationCards.map((card, index) => {
-                const model = featuredModels[index];
-                const Icon = card.icon;
-                const AccentIcon = card.accentIcon;
-                const tagList = model
-                  ? [model.model_name, ...(card.tags || []).slice(0, 1)]
-                  : card.tags;
-
-                return (
-                  <button
-                    key={card.key}
-                    type='button'
-                    className={
-                      'pricing-market-recommend-card pricing-market-recommend-card-' + card.tone
-                    }
-                    onClick={() => handleRecommendationClick(card.key)}
-                  >
-                    <div className='pricing-market-recommend-card-top'>
-                      <div>
-                        <div className='pricing-market-recommend-card-title'>
-                          <Icon size={16} />
-                          <span>{card.title}</span>
-                        </div>
-                        <p>{card.description}</p>
-                      </div>
-                      <span className='pricing-market-recommend-card-accent'>
-                        <AccentIcon size={14} />
-                      </span>
-                    </div>
-                    <div className='pricing-market-recommend-tags'>
-                      {tagList.map((tag) => (
-                        <span key={card.key + '-' + tag} className='pricing-market-recommend-tag'>
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </button>
-                );
-              })}
+          <div className='pricing-market-recommend-section' style={{backgroundImage: `url(${pricingBannerImg})`, backgroundSize: 'cover', backgroundPosition: 'center'}}>
+            <div className='pricing-banner-cont'>
+              <div className='pricing-banner-cont-title'>GPT-5.4 & Gemini 3.1 Pro</div>
+              <div className='pricing-banner-cont-title color'>{t('现已全面接入 AllRouter')}</div>
+              <div className='pricing-banner-cont-description'>
+                {t('更快的响应速度，更低的网络延迟，通过 AllRouter 智能路由引擎，自动为您选择最优渠道。')}
+              </div>
+              <div className='pricing-banner-cont-action'>
+                <div className='pricing-banner-cont-action-btn'>{t('立即调用')}</div>
+                <div className='pricing-banner-cont-action-btn'>{t('查看文档')}</div>
+              </div>
             </div>
           </div>
         )}

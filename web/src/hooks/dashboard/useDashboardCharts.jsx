@@ -122,7 +122,7 @@ export const useDashboardCharts = (
       selectMode: 'single',
     },
     title: {
-      visible: true,
+      visible: false,
       text: t('模型消耗分布'),
       subtext: `${t('总计')}：${renderQuota(0, 2)}`,
     },

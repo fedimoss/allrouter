@@ -119,11 +119,9 @@ export const DEFAULT_CHART_SPECS = {
 
 // ========== 公告图例数据 ==========
 export const ANNOUNCEMENT_LEGEND_DATA = [
-  { color: 'grey', label: '默认', type: 'default' },
-  { color: 'blue', label: '进行中', type: 'ongoing' },
-  { color: 'green', label: '成功', type: 'success' },
+  { color: 'blue', label: '通知', type: 'ongoing' },
+  { color: 'red', label: '重要', type: 'error' },
   { color: 'orange', label: '警告', type: 'warning' },
-  { color: 'red', label: '异常', type: 'error' },
 ];
 
 // ========== Uptime 状态映射 ==========

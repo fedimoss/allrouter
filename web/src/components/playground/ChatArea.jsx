@@ -300,7 +300,7 @@ const ChatArea = ({
               onClick={isGenerating ? onStopGenerator : handleSend}
               aria-label={isGenerating ? t('停止生成') : t('发送')}
             >
-              {isGenerating ? <Square size={18} /> : <Send size={18} />}
+              发送{isGenerating ? <Square size={16} /> : <Send size={16} />}
             </button>
           </div>
 

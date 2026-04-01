@@ -37,15 +37,15 @@ const ChartsPanel = ({
 }) => {
   const [timeRange, setTimeRange] = useState('24h');
 
-  const chartTypeOptions = useMemo(
-    () => [
-      { label: t('消耗分布'), value: '1' },
-      { label: t('消耗趋势'), value: '2' },
-      { label: t('调用次数分布'), value: '3' },
-      { label: t('调用次数排行'), value: '4' },
-    ],
-    [t],
-  );
+  // const chartTypeOptions = useMemo(
+  //   () => [
+  //     { label: t('消耗分布'), value: '1' },
+  //     { label: t('消耗趋势'), value: '2' },
+  //     { label: t('调用次数分布'), value: '3' },
+  //     { label: t('调用次数排行'), value: '4' },
+  //   ],
+  //   [t],
+  // );
 
   const timeRangeOptions = useMemo(
     () => [
@@ -59,32 +59,27 @@ const ChartsPanel = ({
   return (
     <Card
       {...CARD_PROPS}
-      className='!rounded-2xl dashboard-trend-card'
+      className='dashboard-trend-card'
       style={panelHeight ? { height: panelHeight } : undefined}
       title={
         <div className='dashboard-trend-header'>
           <div className={FLEX_CENTER_GAP2}>
-            <ChartNoAxesColumn size={24} className='dashboard-trend-title-icon' />
             <span style={{fontSize:'18px',fontWeight:'700'}}>{t('消耗与请求趋势')}</span>
           </div>
           <div className='dashboard-trend-toolbar'>
-            <Select
+            {/* <Select
               value={activeChartTab}
               onChange={(value) => setActiveChartTab(String(value))}
               optionList={chartTypeOptions}
               style={{ width: 148, backgroundColor: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)', borderRadius: 12, color: 'var(--semi-color-text-0)' }}
-            />
-            <Select
+            /> */}
+            <Button theme='borderless' type='tertiary'>{t('最近24小时')}</Button>
+            {/* <Select
               value={timeRange}
               onChange={(value) => setTimeRange(String(value))}
               optionList={timeRangeOptions}
-              style={{ width: 148, backgroundColor: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)', borderRadius: 12, color: 'var(--semi-color-text-0)' }}
-            />
-            <Button
-              theme='borderless'
-              type='tertiary'
-              icon={<Download size={14} />}
-            />
+              style={{ width: 148, backgroundColor: 'transparent', color: 'var(--semi-color-text-0)' }}
+            /> */}
           </div>
         </div>
       }

@@ -27,6 +27,7 @@ import StatsCards from './StatsCards';
 import ChartsPanel from './ChartsPanel';
 import ApiInfoPanel from './ApiInfoPanel';
 import ModelHeatRankingPanel from './ModelHeatRankingPanel';
+import ModelDataAnalysisPanel from './ModelDataAnalysisPanel';
 import AnnouncementsPanel from './AnnouncementsPanel';
 import FaqPanel from './FaqPanel';
 import UptimePanel from './UptimePanel';
@@ -52,14 +53,11 @@ import {
 } from '../../helpers/dashboard';
 
 const Dashboard = () => {
-  // ========== Context ==========
   const [userState, userDispatch] = useContext(UserContext);
-  const [statusState, statusDispatch] = useContext(StatusContext);
+  const [statusState] = useContext(StatusContext);
 
-  // ========== 主要数据管理 ==========
   const dashboardData = useDashboardData(userState, userDispatch, statusState);
 
-  // ========== 图表管理 ==========
   const dashboardCharts = useDashboardCharts(
     dashboardData.dataExportDefaultTime,
     dashboardData.setTrendData,
@@ -72,7 +70,6 @@ const Dashboard = () => {
     dashboardData.t,
   );
 
-  // ========== 统计数据 ==========
   const { groupedStatsData } = useDashboardStats(
     userState,
     dashboardData.consumeQuota,
@@ -84,7 +81,6 @@ const Dashboard = () => {
     dashboardData.t,
   );
 
-  // ========== 数据处理 ==========
   const initChart = async () => {
     await dashboardData.loadQuotaData().then((data) => {
       if (data && data.length > 0) {
@@ -105,7 +101,6 @@ const Dashboard = () => {
     await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
   };
 
-  // ========== 数据准备 ==========
   const apiInfoData = statusState?.status?.api_info || [];
   const announcementData = (statusState?.status?.announcements || []).map(
     (item) => {
@@ -132,15 +127,18 @@ const Dashboard = () => {
     }),
   );
 
-  // ========== Effects ==========
   useEffect(() => {
     initChart();
   }, []);
 
-  const dashboardMainPanelHeight = dashboardData.hasApiInfoPanel ? 606 : 384;
+  const dashboardChartPanelHeight = dashboardData.isMobile
+    ? undefined
+    : dashboardData.hasApiInfoPanel
+      ? 490
+      : 520;
 
   return (
-    <div className='h-full'>
+    <div className='dashboard-v2-shell'>
       <DashboardHeader
         getGreeting={dashboardData.getGreeting}
         greetingVisible={dashboardData.greetingVisible}
@@ -170,16 +168,25 @@ const Dashboard = () => {
         getTrendSpec={getTrendSpec}
         CARD_PROPS={CARD_PROPS}
         CHART_CONFIG={CHART_CONFIG}
+        displayMode='primary'
+        t={dashboardData.t}
       />
 
-      {/* API信息和图表面板 */}
-      <div className='mb-4 dashboard-main-panels' style={{ '--dashboard-main-height': `${dashboardMainPanelHeight}px` }}>
-        <div className='dashboard-main-panels-grid'>
-          <div
-            className={
-              dashboardData.hasApiInfoPanel ? 'dashboard-main-left has-right' : 'dashboard-main-left full'
-            }
-          >
+      <section className='dashboard-v2-overview-grid'>
+        <div className='dashboard-v2-overview-main'>
+          <div className='dashboard-v2-overview-main-top'>
+            <StatsCards
+              groupedStatsData={groupedStatsData}
+              loading={dashboardData.loading}
+              getTrendSpec={getTrendSpec}
+              CARD_PROPS={CARD_PROPS}
+              CHART_CONFIG={CHART_CONFIG}
+              displayMode='compact'
+              t={dashboardData.t}
+            />
+          </div>
+
+          <div className='dashboard-v2-overview-main-chart'>
             <ChartsPanel
               activeChartTab={dashboardData.activeChartTab}
               setActiveChartTab={dashboardData.setActiveChartTab}
@@ -192,92 +199,89 @@ const Dashboard = () => {
               FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
               hasApiInfoPanel={dashboardData.hasApiInfoPanel}
               t={dashboardData.t}
-              panelHeight={dashboardData.hasApiInfoPanel ? dashboardMainPanelHeight : undefined}
+              panelHeight={dashboardChartPanelHeight}
             />
+          </div>
+        </div>
+
+        <aside
+          className={
+            dashboardData.hasApiInfoPanel
+              ? 'dashboard-v2-overview-side'
+              : 'dashboard-v2-overview-side dashboard-v2-overview-side--single'
+          }
+        >
+          <div className='dashboard-v2-overview-side-item dashboard-v2-overview-side-item--ranking'>
+            <ModelHeatRankingPanel t={dashboardData.t} className='h-full' />
           </div>
 
           {dashboardData.hasApiInfoPanel && (
-            <div className='dashboard-main-right'>
-              <div className='dashboard-main-right-item'>
-                <ModelHeatRankingPanel
-                  CARD_PROPS={CARD_PROPS}
-                  t={dashboardData.t}
-                  className='h-full'
-                />
-              </div>
-              <div className='dashboard-main-right-item'>
-                <ApiInfoPanel
-                  apiInfoData={apiInfoData}
-                  CARD_PROPS={CARD_PROPS}
-                  t={dashboardData.t}
-                  className='h-full'
-                />
-              </div>
+            <div className='dashboard-v2-overview-side-item dashboard-v2-overview-side-item--api'>
+              <ApiInfoPanel
+                apiInfoData={apiInfoData}
+                CARD_PROPS={CARD_PROPS}
+                t={dashboardData.t}
+                className='h-full'
+              />
             </div>
           )}
-        </div>
-      </div>
+        </aside>
+      </section>
 
-      {/* 系统公告和常见问答卡片 */}
+      <ModelDataAnalysisPanel t={dashboardData.t} />
+
       {dashboardData.hasInfoPanels && (
-        <div className='mb-4'>
-          <div className='grid grid-cols-1 lg:grid-cols-4 gap-4'>
-            {/* 公告卡片 */}
-            {dashboardData.announcementsEnabled && (
-              <AnnouncementsPanel
-                announcementData={announcementData}
-                announcementLegendData={ANNOUNCEMENT_LEGEND_DATA.map(
-                  (item) => ({
-                    ...item,
-                    label: dashboardData.t(item.label),
-                  }),
-                )}
-                CARD_PROPS={CARD_PROPS}
-                ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
-                t={dashboardData.t}
-              />
-            )}
+        <section className='dashboard-v2-bottom-grid'>
+          {dashboardData.announcementsEnabled && (
+            <AnnouncementsPanel
+              announcementData={announcementData}
+              announcementLegendData={ANNOUNCEMENT_LEGEND_DATA.map((item) => ({
+                ...item,
+                label: dashboardData.t(item.label),
+              }))}
+              CARD_PROPS={CARD_PROPS}
+              ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
+              t={dashboardData.t}
+            />
+          )}
 
-            {/* 常见问答卡片 */}
-            {dashboardData.faqEnabled && (
-              <FaqPanel
-                faqData={faqData}
-                CARD_PROPS={CARD_PROPS}
-                FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
-                ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
-                t={dashboardData.t}
-              />
-            )}
+          {dashboardData.faqEnabled && (
+            <FaqPanel
+              faqData={faqData}
+              CARD_PROPS={CARD_PROPS}
+              FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
+              ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
+              t={dashboardData.t}
+            />
+          )}
 
-            {/* 服务可用性卡片 */}
-            {dashboardData.uptimeEnabled && (
-              <UptimePanel
-                uptimeData={dashboardData.uptimeData}
-                uptimeLoading={dashboardData.uptimeLoading}
-                activeUptimeTab={dashboardData.activeUptimeTab}
-                setActiveUptimeTab={dashboardData.setActiveUptimeTab}
-                loadUptimeData={dashboardData.loadUptimeData}
-                uptimeLegendData={uptimeLegendData}
-                renderMonitorList={(monitors) =>
-                  renderMonitorList(
-                    monitors,
-                    (status) => getUptimeStatusColor(status, UPTIME_STATUS_MAP),
-                    (status) =>
-                      getUptimeStatusText(
-                        status,
-                        UPTIME_STATUS_MAP,
-                        dashboardData.t,
-                      ),
-                    dashboardData.t,
-                  )
-                }
-                CARD_PROPS={CARD_PROPS}
-                ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
-                t={dashboardData.t}
-              />
-            )}
-          </div>
-        </div>
+          {dashboardData.uptimeEnabled && (
+            <UptimePanel
+              uptimeData={dashboardData.uptimeData}
+              uptimeLoading={dashboardData.uptimeLoading}
+              activeUptimeTab={dashboardData.activeUptimeTab}
+              setActiveUptimeTab={dashboardData.setActiveUptimeTab}
+              loadUptimeData={dashboardData.loadUptimeData}
+              uptimeLegendData={uptimeLegendData}
+              renderMonitorList={(monitors) =>
+                renderMonitorList(
+                  monitors,
+                  (status) => getUptimeStatusColor(status, UPTIME_STATUS_MAP),
+                  (status) =>
+                    getUptimeStatusText(
+                      status,
+                      UPTIME_STATUS_MAP,
+                      dashboardData.t,
+                    ),
+                  dashboardData.t,
+                )
+              }
+              CARD_PROPS={CARD_PROPS}
+              ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
+              t={dashboardData.t}
+            />
+          )}
+        </section>
       )}
     </div>
   );

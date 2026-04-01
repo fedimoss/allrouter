@@ -19,8 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useMemo } from 'react';
 import { Empty } from '@douyinfe/semi-ui';
-import { BellRing } from 'lucide-react';
-import { IllustrationConstruction } from '@douyinfe/semi-illustrations';
+import {
+  IllustrationConstruction,
+  IllustrationConstructionDark,
+} from '@douyinfe/semi-illustrations';
+import {
+  ILLUSTRATION_SIZE
+} from '../../constants/dashboard.constants';
+import xtggIcon from '../../../public/board-xtgg.svg';
 
 import './index.scss';
 
@@ -38,13 +44,6 @@ const normalizeType = (item = {}) => {
       code: 'ALERT',
       className: 'status-label--alert',
       textKey: '告警',
-    };
-  }
-  if (raw.includes('bulletin')) {
-    return {
-      code: 'BULLETIN',
-      className: 'status-label--bulletin',
-      textKey: '公告',
     };
   }
   return {
@@ -93,13 +92,13 @@ const AnnouncementsPanel = ({
   }, [announcementData, t]);
 
   return (
-    <section className='custom-card lg:col-span-2'>
+    <section className='custom-card dashboard-v2-bottom-card dashboard-v2-bottom-card--wide'>
       <div className='custom-card__header'>
         <div className='header-left'>
-          <BellRing style={{ color: 'var(--semi-color-primary)' }} />
+          <img src={xtggIcon} alt="" />
           <span>{t('系统公告')}</span>
         </div>
-        <div className='header-extra'>{t('最新20条')}</div>
+        {/* <div className='header-extra'>{t('最新动态')}</div> */}
       </div>
       <div className='custom-card__tags'>
         <div className='tag tag--active'>{t('全部')}</div>
@@ -124,12 +123,11 @@ const AnnouncementsPanel = ({
             </div>
           ))
         ) : (
-          <div className='flex h-full w-full items-center justify-center'>
+          <div className='flex justify-center items-center py-8'>
             <Empty
-              image={
-                <IllustrationConstruction
-                  style={{ width: '90px', height: '90px' }}
-                />
+              image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
+              darkModeImage={
+                <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
               }
               title={t('暂无系统公告')}
               description={t('请联系管理员在系统设置中配置公告信息')}

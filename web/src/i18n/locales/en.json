@@ -3638,6 +3638,21 @@
     "注册账号": "Register Account",
     "6 位验证码": "6-digit Verification Code",
     "点击注册即代表您同意我们的": "By clicking register, you agree to our",
-    "电子邮箱": "Email"
+    "电子邮箱": "Email",
+
+    "默认展示 {{range}} 内的数据。":" Default display data within {{range}}.",
+    "搜索 API Key...":"Search API Key...",
+    "响应正常":"Response normal",
+    "额度占比（模拟）":"Quota distribution (simulation)",
+    "配额概览（模拟）":"Quota overview (simulation)",
+    "额度分布":"Quota distribution",
+    "调用/占比/统计":"Usage/Share/Statistics",
+    "用于展示“额度分布”视图的占比结构。":"Used to display the share structure of the 'Quota Distribution' view.",
+    "常见问题":"Common Issues",
+    "数据监控":"Data Monitoring",
+    "重要":"Important",
+    "最近24小时":"Last 24 hours",
+    "已分配": "Allocated",
+    "冻结": "Frozen"
   }
 }

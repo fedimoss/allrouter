@@ -18,57 +18,59 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Empty, Tag } from '@douyinfe/semi-ui';
-import { Share2, CircleCheckBig } from 'lucide-react';
-import { IllustrationConstruction } from '@douyinfe/semi-illustrations';
+import { Empty } from '@douyinfe/semi-ui';
+import {
+  IllustrationConstruction,
+  IllustrationConstructionDark,
+} from '@douyinfe/semi-illustrations';
+import {
+  ILLUSTRATION_SIZE
+} from '../../constants/dashboard.constants';
+import xxphIcon from '../../../public/board-xxph.svg';
 
 import './index.scss';
 
 const ApiInfoPanel = ({ apiInfoData = [], handleCopyUrl, t }) => {
+  const displayData = apiInfoData
+
   return (
     <div className='dashboard-card'>
       <div className='card-header'>
         <div className='header-title'>
-          <Share2 size={20} color='var(--semi-color-primary)' />
+          <img src={xxphIcon} alt="" />
           <span>{t('API信息')}</span>
         </div>
         <button className='header-link'>{t('详情')}</button>
       </div>
 
       <div className='api-list'>
-        {apiInfoData.length > 0 ? (
-          apiInfoData.map((api, index) => (
-            <div key={index} className='api-item'>
-              <div>
+        {displayData.length > 0 ? (
+          displayData.map((api, index) => (
+            <div key={`${api.url}-${index}`} className='api-item'>
+              <div className='api-item-main'>
                 <div
                   className='api-endpoint'
                   onClick={() => handleCopyUrl?.(api.url)}
                 >
-                  {api.url}
+                  {api.url || '--'}
                 </div>
-                <div className='api-status-text'>
-                  {t('状态：')}
-                  {api.label || t('可用')}
-                </div>
+                {/* <div className='api-status-text'>
+                  {api.label || '--'}
+                </div> */}
               </div>
-              <div className={`status-badge ${api.type || ''}`}>
-                <Tag shape='circle' size='large' color='green'>
-                  <CircleCheckBig size={16} />
-                  &nbsp;&nbsp;OK
-                </Tag>
+              <div className={`status-badge success`}>
+                {'OK'}
               </div>
             </div>
           ))
-        ) : (
-          <div className='flex h-full w-full items-center justify-center'>
+        ): (
+          <div className='flex justify-center items-center py-8'>
             <Empty
-              image={
-                <IllustrationConstruction
-                  style={{ width: '90px', height: '90px' }}
-                />
+              image={<IllustrationConstruction style={{width:'60px', height:'60px'}} />}
+              darkModeImage={
+                <IllustrationConstructionDark style={{width:'60px', height:'60px'}} />
               }
-              title={t('暂无API信息')}
-              description={t('请联系管理员在系统设置中配置API信息')}
+              description={t('暂无API信息')}
             />
           </div>
         )}

@@ -4112,6 +4112,21 @@
     "问题反馈": "Phản hồi vấn đề",
     "注册账号": "Đăng ký tài khoản",
     "6 位验证码": "Mã xác minh 6 chữ số",
-    "点击注册即代表您同意我们的": "Bằng cách nhấn vào 'Đăng ký', bạn đồng ý với các điều khoản của chúng tôi"
+    "点击注册即代表您同意我们的": "Bằng cách nhấn vào 'Đăng ký', bạn đồng ý với các điều khoản của chúng tôi",
+
+    "默认展示 {{range}} 内的数据。":"Mặc định hiển thị dữ liệu trong {{range}}.",
+    "搜索 API Key...":"Tìm kiếm API Key...",
+    "响应正常":"Phản hồi bình thường",
+    "额度占比（模拟）":"Tỷ lệ hạn mức (mô phỏng)",
+    "配额概览（模拟）":"Tổng quan hạn mức (mô phỏng)",
+    "额度分布":"Phân bố hạn mức",
+    "调用/占比/统计":"Lượt gọi/Tỷ lệ/Thống kê",
+    "用于展示“额度分布”视图的占比结构。":"Được sử dụng để hiển thị cấu trúc tỷ lệ trong chế độ xem «Phân bố hạn mức».",
+    "常见问题":"Câu hỏi thường gặp",
+    "数据监控":"Monitơring dữ liệu",
+    "重要":"Quan trọng",
+    "最近24小时":"24 giờ gần nhất",
+    "已分配": "Đã phân bổ",
+    "冻结": "Đóng băng"
   }
 }
