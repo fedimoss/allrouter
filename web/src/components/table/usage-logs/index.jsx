@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Empty, Modal } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -53,6 +54,10 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import cgxfImg from '../../../../public/log-cgxf.png';
+import cwcsImg from '../../../../public/log-cwcs.png';
+import tpsImg from '../../../../public/log-tps.png';
+import zqqImg from '../../../../public/log-zqq.png';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
@@ -941,36 +946,32 @@ const UsageLogsPage = () => {
         label: logsData.t('成功消费'),
         value: showStats ? renderQuotaValue(logsData.stat?.quota) : '...',
         subtitle: logsData.t('当前筛选时段累计'),
-        cardClassName: 'log-v2-stat-card log-v2-stat-success',
-        iconClassName: 'log-v2-stat-icon log-v2-stat-icon-success',
-        icon: <DollarSign size={16} />,
+        color: 'text-cyan-300',
+        imgUrl: cgxfImg
       },
       {
         key: 'errors',
         label: logsData.t('错误次数'),
         value: showStats ? formatNumber(logsData.errorCount) : '...',
         subtitle: logsData.t('失败请求数量'),
-        cardClassName: 'log-v2-stat-card log-v2-stat-error',
-        iconClassName: 'log-v2-stat-icon log-v2-stat-icon-error',
-        icon: <CircleAlert size={16} />,
+        color: 'text-red-400',
+        imgUrl: cwcsImg
       },
       {
         key: 'tps',
         label: logsData.t('当前 TPS'),
         value: showStats ? tpsValue.toFixed(1) : '...',
         subtitle: 'tokens/sec (avg)',
-        cardClassName: 'log-v2-stat-card log-v2-stat-tps',
-        iconClassName: 'log-v2-stat-icon log-v2-stat-icon-tps',
-        icon: <Zap size={16} />,
+        color: 'text-black',
+        imgUrl: tpsImg
       },
       {
         key: 'requests',
         label: logsData.t('总请求'),
         value: formatNumber(logsData.logCount),
         subtitle: logsData.t('当前时段请求数'),
-        cardClassName: 'log-v2-stat-card log-v2-stat-cost',
-        iconClassName: 'log-v2-stat-icon log-v2-stat-icon-cost',
-        icon: <ClipboardList size={16} />,
+        color: 'text-black',
+        imgUrl: zqqImg
       },
     ];
   }, [
@@ -1162,6 +1163,8 @@ const UsageLogsPage = () => {
     (column) => logsData.visibleColumns[column.key],
   );
 
+  const { t } = useTranslation();
+
   return (
     <>
       <UserInfoModal {...logsData} />
@@ -1197,15 +1200,17 @@ const UsageLogsPage = () => {
       <div className='log-v2'>
         <div className='log-v2-shell'>
           <div className='log-v2-stack'>
-            <section className='log-v2-stat-grid'>
+            <div>
+              <span className='text-[30px] text-[#475569] font-medium dark:text-slate-200'>{t('使用日志')}</span>
+              <div className='text-[18px] text-[#94A3B8] font-medium mt-2'>{t('查看并分析您的 API 调用详细数据和实时状态。')}</div>
+            </div>
+            <section className='log-v2-stat-grid mt-4'>
               {summaryCards.map((card) => (
-                <article key={card.key} className={card.cardClassName}>
-                  <div className='log-v2-stat-head'>
-                    <span className='log-v2-stat-label'>{card.label}</span>
-                    <span className={card.iconClassName}>{card.icon}</span>
+                <article key={card.key} className='bg-white dark:bg-slate-800 !rounded-2xl p-6' style={{backgroundImage: `url(${card.imgUrl})`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right top'}}>
+                  <div className='text-[12px] text-[#94A3B8]'>
+                    {card.label}
                   </div>
-                  <div className='log-v2-stat-value'>{card.value}</div>
-                  <div className='log-v2-stat-subtitle'>{card.subtitle}</div>
+                  <div className={`text-[30px] font-[900] py-1 ${card.color}`}>{card.value}</div>
                 </article>
               ))}
             </section>

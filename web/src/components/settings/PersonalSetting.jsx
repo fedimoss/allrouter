@@ -452,7 +452,7 @@ const PersonalSetting = () => {
     <div className='personal-setting-v2'>
       <div className='personal-setting-v2-backdrop' aria-hidden='true' />
       <div className='flex justify-center'>
-        <div className='personal-setting-v2-container w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6'>
+        <div className='personal-setting-v2-container w-full px-2 sm:px-4 lg:px-6'>
           <section className='personal-setting-v2-head'>
             <h1>{t('个人中心')}</h1>
             <p>{t('账户绑定、安全设置和身份验证')}</p>

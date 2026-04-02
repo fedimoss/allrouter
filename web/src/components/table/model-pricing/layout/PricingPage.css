@@ -53,11 +53,6 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 16px 12px;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
 .pricing-market-sidebar-heading {
@@ -74,7 +69,7 @@
 }
 
 .pricing-market-filter-section {
-  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  /* border-bottom: 1px solid rgba(148, 163, 184, 0.14); */
 }
 
 .pricing-market-filter-section-title {
@@ -158,9 +153,10 @@
 
 .pricing-market-tag:hover,
 .pricing-market-tag.is-active {
-  border-color: #0ea5e9;
-  background: rgba(14, 165, 233, 0.1);
-  color: #0369a1;
+  border: 1px solid #1CDFD54D;
+  background: #1CDFD533;
+  color: #1CDFD5;
+  border-radius: 6px;
 }
 
 .pricing-market-top-shell {
@@ -202,8 +198,8 @@
   margin-top: 24px;
 }
 .pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-action .pricing-banner-cont-action-btn{
-  width: 112px;
   height: 46px;
+  padding: 0 20px;
   display: flex;
   align-items: center;
   justify-content: center;

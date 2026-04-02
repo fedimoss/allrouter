@@ -51,6 +51,8 @@ import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../helpers';
 import { isAdmin } from '../../helpers/utils';
 
+import { VChart } from '@visactor/react-vchart';
+
 const { Text, Title } = Typography;
 
 const SUMMARY_CARDS = [
@@ -248,6 +250,49 @@ const Billing = () => {
     });
   }, [t]);
 
+  const dailyCostSpec = useMemo(() => {
+    const data = dailyCosts.map((d) => ({
+      date: d.label,
+      amount: parseFloat(d.amount.replace('$', '')),
+    }));
+    return {
+      type: 'area',
+      autoFit: true,
+      color: ['#1CDFD5'],
+      data: [{ id: 'dailyCost', values: data }],
+      xField: 'date',
+      yField: 'amount',
+      point: { visible: true },
+      line: { style: { lineWidth: 2.5, curveType: 'monotone' } },
+      area: {
+        style: {
+          fill: {
+            gradient: 'linear',
+            x0: 0, y0: 0, x1: 0, y1: 1,
+            stops: [
+              { offset: 0, color: 'rgba(8,145,178,0.25)' },
+              { offset: 1, color: 'rgba(8,145,178,0.01)' },
+            ],
+          },
+        },
+      },
+      label: {
+        visible: true,
+        style: { fontSize: 11, fontWeight: 600 },
+        position: 'top',
+        offset: 6,
+      },
+      axes: [
+        { orient: 'bottom', label: { style: { fontSize: 11, fill: '#94a3b8' } } },
+        {
+          orient: 'left',
+          grid: { visible: true, style: { stroke: '#e2e8f0' } },
+        },
+      ],
+      padding: { top: 30, right: 20, bottom: 10, left: 10 },
+    };
+  }, [dailyCosts]);
+
   const startIndex =
     historyTotal === 0 ? 0 : (activePage - 1) * historyPageSize + 1;
   const endIndex = Math.min(activePage * historyPageSize, historyTotal);
@@ -361,39 +406,36 @@ const Billing = () => {
 
   return (
     <div className='billing-page flex flex-col gap-4 pb-4'>
-      <div className='billing-page__hero rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm'>
+      <div className='billing-page__hero rounded-2xl bg-white px-6 py-5 dark:bg-slate-800'>
         <div className='flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between'>
           <div className='min-w-0'>
             <div className='flex items-center gap-3'>
-              <div className='flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600'>
-                <ReceiptText size={22} />
-              </div>
               <div>
-                <Title heading={3} style={{ margin: 0 }}>
+                <div className='text-[30px] text-[#475569] font-medium dark:text-slate-200'>
                   {t('账单中心')}
-                </Title>
-                <Text type='tertiary'>{t('查看消费记录与账单明细')}</Text>
+                </div>
+                <div className='text-[18px] text-[#94A3B8] font-medium mt-2'>{t('实时监控您的 API 消耗、Token 使用明细以及账户余额。基于矩阵算力引擎提供精确到毫秒级的计费服务。')}</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className='billing-page__stats grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4'>
+      <div className='billing-page__stats grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4'>
         {SUMMARY_CARDS.map((item) => {
           const Icon = item.icon;
           return (
             <Card
               key={item.key}
-              bodyStyle={{ padding: 20 }}
-              className='billing-summary-card !rounded-2xl border border-slate-200 shadow-sm'
+              bordered={false}
+              className='billing-summary-card !rounded-2xl dark:bg-slate-800 !px-3 !py-3 hover:border-cyan-300 border border-transparent transition-shadow duration-200'
             >
-              <div className='flex items-start justify-between gap-4'>
+              <div className='flex items-start justify-between gap-6'>
                 <div className='min-w-0'>
-                  <div className='mb-3 text-sm font-medium text-slate-500'>
+                  <div className='mb-3 text-[14px] text-[#94A3B8] font-medium'>
                     {t(item.title)}
                   </div>
-                  <div className='text-3xl font-bold leading-none text-slate-900'>
+                  <div className='text-[24px] font-[900] py-1 hover:text-cyan-300 dark:hover:text-cyan-400 transition-colors duration-200'>
                     {item.value}
                   </div>
                   <div className='mt-3 text-xs text-slate-400'>
@@ -418,9 +460,10 @@ const Billing = () => {
         })}
       </div>
 
-      <Card
+      {/* <Card
         bodyStyle={{ padding: 16 }}
-        className='billing-filter-card !rounded-2xl border border-slate-200 shadow-sm'
+        bordered={false}
+        className='billing-filter-card !rounded-2xl '
       >
         <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
@@ -466,16 +509,16 @@ const Billing = () => {
             </Button>
           </div>
         </div>
-      </Card>
+      </Card> */}
 
       <Card
         bodyStyle={{ padding: 0 }}
-        className='billing-table-card !rounded-2xl border border-slate-200 shadow-sm'
+        bordered={false}
+        className='billing-table-card !rounded-2xl'
       >
         <div className='flex items-center justify-between border-b border-slate-100 px-6 py-4'>
           <div className='flex items-center gap-2 text-slate-800'>
-            <History size={18} className='text-cyan-500' />
-            <span className='text-lg font-bold'>{t('消费明细')}</span>
+            <span className='text-lg font-bold dark:text-slate-200'>{t('消费明细')}</span>
           </div>
           <div className='flex items-center gap-3'>
             <span className='text-xs text-slate-400'>
@@ -512,92 +555,55 @@ const Billing = () => {
             />
           }
         />
+        <div className='billing-pagination flex flex-col gap-3 pt-3 lg:flex-row lg:items-center lg:justify-between'>
+          <Text type='tertiary'>
+            {t('显示第 {{start}} - {{end}} 条，共 {{total}} 条', {
+              start: startIndex,
+              end: endIndex,
+              total: historyTotal,
+            })}
+          </Text>
+          <div className='flex items-center gap-3'>
+            <Select
+              value={historyPageSize}
+              onChange={(value) => {
+                setHistoryPageSize(value);
+                setActivePage(1);
+              }}
+              optionList={HISTORY_PAGE_SIZE_OPTIONS.map((value) => ({
+                label: t('{{count}} 条/页', { count: value }),
+                value,
+              }))}
+              insetLabel={t('每页')}
+              className='min-w-[120px]'
+            />
+            <Pagination
+              total={historyTotal}
+              pageSize={historyPageSize}
+              currentPage={activePage}
+              onPageChange={setActivePage}
+              showSizeChanger={false}
+            />
+          </div>
+        </div>
       </Card>
 
       <Card
         bodyStyle={{ padding: 24 }}
-        className='billing-daily-card !rounded-2xl border border-slate-200 shadow-sm'
+        bordered={false}
+        className='billing-daily-card !rounded-2xl !px-4 !py-4'
       >
-        <div className='mb-5 flex items-center justify-between'>
+        <div className='mb-5'>
           <div className='flex items-center gap-2 text-slate-800'>
-            <BarChart3 size={18} className='text-cyan-500' />
-            <span className='text-lg font-bold'>{t('按日消费汇总')}</span>
+            <span className='text-lg font-bold dark:text-slate-200'>{t('按日消费汇总')}</span>
+            
           </div>
-          <span className='text-xs text-slate-400'>2026 年 3 月</span>
+          <p className='text-[14px] text-[#64748B] mt-2'>{t('过去 14 天的 Token 消耗趋势')}</p>
         </div>
-        <div className='grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7'>
-          {dailyCosts.map((item) => (
-            <div
-              key={item.label}
-              className={`billing-daily-card__item rounded-xl border p-3 text-center ${
-                item.highlight
-                  ? 'border-cyan-200 bg-cyan-50'
-                  : 'border-slate-100 bg-slate-50'
-              }`}
-            >
-              <div
-                className={`mb-1 text-xs ${
-                  item.highlight
-                    ? 'font-medium text-cyan-600'
-                    : 'text-slate-400'
-                }`}
-              >
-                {item.label}
-              </div>
-              <div
-                className={`text-sm font-bold ${
-                  item.highlight ? 'text-cyan-700' : 'text-slate-800'
-                }`}
-              >
-                {item.amount}
-              </div>
-              <div className='mt-3 h-10 overflow-hidden rounded-sm bg-cyan-100'>
-                <div
-                  className={`billing-daily-card__bar mt-auto w-full rounded-sm ${
-                    item.highlight ? 'bg-cyan-600' : 'bg-cyan-500'
-                  }`}
-                  style={{
-                    height: `${item.percent}%`,
-                    marginTop: `${100 - item.percent}%`,
-                  }}
-                />
-              </div>
-            </div>
-          ))}
+        <div style={{ width: '100%', height: 260 }}>
+          <VChart spec={dailyCostSpec} option={{ mode: 'desktop-browser' }} style={{ width: '100%', height: '100%' }} />
         </div>
       </Card>
-
-      <div className='billing-pagination flex flex-col gap-3 pt-1 lg:flex-row lg:items-center lg:justify-between'>
-        <Text type='tertiary'>
-          {t('显示第 {{start}} - {{end}} 条，共 {{total}} 条', {
-            start: startIndex,
-            end: endIndex,
-            total: historyTotal,
-          })}
-        </Text>
-        <div className='flex items-center gap-3'>
-          <Select
-            value={historyPageSize}
-            onChange={(value) => {
-              setHistoryPageSize(value);
-              setActivePage(1);
-            }}
-            optionList={HISTORY_PAGE_SIZE_OPTIONS.map((value) => ({
-              label: t('{{count}} 条/页', { count: value }),
-              value,
-            }))}
-            insetLabel={t('每页')}
-            className='min-w-[120px]'
-          />
-          <Pagination
-            total={historyTotal}
-            pageSize={historyPageSize}
-            currentPage={activePage}
-            onPageChange={setActivePage}
-            showSizeChanger={false}
-          />
-        </div>
-      </div>
     </div>
   );
 };

@@ -300,7 +300,23 @@ code {
 .semi-navigation-sub-open {
   position: relative;
 }
-.semi-navigation-sub-open::after {
+
+.semi-checkbox-indeterminate .semi-checkbox-inner-display, 
+.semi-checkbox-checked .semi-checkbox-inner-display,
+.semi-radio .semi-radio-inner-checked .semi-radio-inner-display {
+  background: #1CDFD5;
+  box-shadow: unset;
+}
+.semi-checkbox-indeterminate .semi-checkbox-inner-display:hover, .semi-checkbox-checked .semi-checkbox-inner-display:hover{
+  background: #1CDFD5;
+  box-shadow: unset;
+}
+.semi-radio .semi-radio-inner-checked .semi-radio-inner-display {
+  background: #1CDFD5;
+  box-shadow: unset;
+  border: 1px solid transparent;
+}
+/* .semi-navigation-sub-open::after {
   content: '';
   position: absolute;
   left: 24px;
@@ -310,7 +326,7 @@ code {
   border-radius: 4px;
   background: rgb(226 232 240 / 0.6);
   transform: translate(-50%, -50%);
-}
+} */
 
 /* 图标容器样式 */
 .sidebar-icon-container {
@@ -1222,7 +1238,7 @@ html.dark .with-pastel-balls::before {
   min-width: clamp(280px, 24vw, 520px) !important;
   max-width: clamp(280px, 24vw, 520px) !important; */
   height: calc(100vh - 60px);
-  background-color: var(--semi-color-bg-0);
+  /* background-color: var(--semi-color-bg-0); */
   overflow: auto;
 }
 

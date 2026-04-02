@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button, Checkbox, Radio } from '@douyinfe/semi-ui';
-import { IconFilter, IconChevronDown } from '@douyinfe/semi-icons';
+import { IconFilter, IconChevronDown,IconRadio } from '@douyinfe/semi-icons';
 import { resetPricingFilters } from '../../../../helpers/utils';
 import { usePricingFilterCounts } from '../../../../hooks/model-pricing/usePricingFilterCounts';
 
@@ -193,23 +193,24 @@ const PricingSidebar = ({
   }, [t, tagModels]);
 
   return (
-    <div className='pricing-market-sidebar-shell'>
+    <>
+    <div className='pricing-market-sidebar-shell rounded-2xl bg-white dark:bg-[#21262D]'>
       <div className='pricing-market-sidebar-header'>
         <div className='pricing-market-sidebar-heading'>
-          <IconFilter />
-          <span>{t('筛选')}</span>
+          <IconRadio style={{color:'#1CDFD5',fontSize:'20px'}} />
+          <span className='text-[#1CDFD5] text-[12px] font-400'>{t('多维筛选')}</span>
         </div>
-        <Button theme='borderless' type='tertiary' onClick={handleResetFilters}>
+        {/* <Button theme='borderless' type='tertiary' onClick={handleResetFilters}>
           {t('重置')}
-        </Button>
+        </Button> */}
       </div>
 
       <Section title={t('模型供应商')}>
         {providerItems.map((item) => (
           <label key={item.value} className='pricing-market-filter-row'>
             <Checkbox checked={filterVendor === item.value} onChange={() => setFilterVendor(item.value)} />
-            <span>{item.label}</span>
-            <em>{item.count}</em>
+            <span className='flex-1'>{item.label}</span>
+            <div>{item.count}</div>
           </label>
         ))}
       </Section>
@@ -218,8 +219,8 @@ const PricingSidebar = ({
         {groupItems.map((item) => (
           <label key={item.value} className='pricing-market-filter-row'>
             <Checkbox checked={filterGroup === item.value} onChange={() => handleGroupClick(item.value)} />
-            <span>{item.label}</span>
-            <em>{item.ratio ? String(item.ratio) + 'x' : item.count}</em>
+            <span className='flex-1'>{item.label}</span>
+            <div>{item.ratio ? String(item.ratio) + 'x' : item.count}</div>
           </label>
         ))}
       </Section>
@@ -228,8 +229,8 @@ const PricingSidebar = ({
         {quotaItems.map((item) => (
           <label key={String(item.value)} className='pricing-market-filter-row'>
             <Radio checked={filterQuotaType === item.value} onChange={() => setFilterQuotaType(item.value)} />
-            <span>{item.label}</span>
-            <em>{item.count}</em>
+            <span className='flex-1'>{item.label}</span>
+            <div>{item.count}</div>
           </label>
         ))}
       </Section>
@@ -256,12 +257,19 @@ const PricingSidebar = ({
               checked={filterEndpointType === item.value}
               onChange={() => setFilterEndpointType(item.value)}
             />
-            <span>{item.label}</span>
-            <em>{item.count}</em>
+            <span className='flex-1'>{item.label}</span>
+            <div>{item.count}</div>
           </label>
         ))}
       </Section>
     </div>
+    <div className='mt4 rounded-2xl px-4 py-4 mt-4' style={{backgroundImage:'linear-gradient(to right, #006D35, #21262D)',maxWidth:'256px'}}>
+      <span className='text-[12px] text-[#1CDFD5]'>{t('开发者优惠')}</span>
+      <p className='text-[18px] text-[#ffffff] font-black'>{t('DeepSeek V3')}</p>
+      <p className='text-[18px] text-[#ffffff] font-black'>{t('全线特惠开启')}</p>
+        <div className='bg-white inline-block p-2 px-4 rounded-lg text-[12px] cursor-pointer mt-4 font-medium'>{t('立即查看')}</div>
+    </div>
+    </>
   );
 };
 

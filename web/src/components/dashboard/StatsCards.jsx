@@ -156,7 +156,7 @@ const StatsCards = ({
     {
       key: 'points-quota',
       title: '积分额度',
-      value: '1,000 / 2,000',
+      value: '0',
       imgUrl: jfedIcon,
       statRows: [{ label: '已使用率', value: `${pointsUsedPct}%` }],
       actionText: '使用说明',

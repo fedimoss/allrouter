@@ -679,19 +679,19 @@ const MjLogsPage = () => {
           <div className='mjlog-v2-stack'>
             <section className='mjlog-v2-header'>
               <div className='mjlog-v2-header-main'>
-                <div className='mjlog-v2-header-icon'>
+                {/* <div className='mjlog-v2-header-icon'>
                   <ImageIcon size={20} />
-                </div>
+                </div> */}
                 <div className='mjlog-v2-header-copy'>
-                  <h2 className='mjlog-v2-header-title'>
-                    {logsData.t('Midjourney 任务记录')}
-                  </h2>
+                  <div className='text-[30px] text-[#475569] font-medium dark:text-slate-200'>
+                    {logsData.t('绘图日志')}
+                  </div>
                   <p className='mjlog-v2-header-description'>
                     {logsData.t('查看所有图像生成任务的调用记录与结果预览')}
                   </p>
                 </div>
               </div>
-              <div className='mjlog-v2-header-tags'>
+              {/* <div className='mjlog-v2-header-tags'>
                 <span className='mjlog-v2-header-tag mjlog-v2-header-tag-violet'>
                   <Sparkles size={14} />
                   Midjourney
@@ -704,7 +704,7 @@ const MjLogsPage = () => {
                   <Plus size={14} />
                   {logsData.t('更多渠道')}
                 </span>
-              </div>
+              </div> */}
             </section>
 
             <section className='mjlog-v2-filter-card'>
