@@ -29,14 +29,14 @@ const fallbackTabs = [
 ];
 
 const fallbackModelShare = [
-  { model: 'GPT-4-Turbo', percent: 35, color: '#25dfe0' },
-  { model: 'Midjourney v6', percent: 30, color: '#4f8ef7' },
-  { model: 'DALL-E 3', percent: 20, color: '#6d6af8' },
+  { model: 'GPT-4-Turbo', percent: 0, color: '#25dfe0' },
+  { model: 'Midjourney v6', percent: 0, color: '#4f8ef7' },
+  { model: 'DALL-E 3', percent: 0, color: '#6d6af8' },
 ];
 
 const fallbackQuotaOverview = [
-  { label: '已分配', value: '1,200' },
-  { label: '可用', value: '800' },
+  { label: '已分配', value: '0' },
+  { label: '可用', value: '0' },
   { label: '冻结', value: '0' },
 ];
 

@@ -76,7 +76,7 @@ const StatsCards = ({
   const errorRate = 0;
   const hourAnomaly = 0;
 
-  const budgetUsagePct = 35;
+  const budgetUsagePct = 0;
   const pointsUsedPct = 0;
 
   const cards = [
