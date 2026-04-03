@@ -480,8 +480,8 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className='divider'>{t('第三方快速登录')}</div>
-            <div className='social-logins'>{socialButtons}</div>
+            {/* <div className='divider'>{t('第三方快速登录')}</div> */}
+            {/* <div className='social-logins'>{socialButtons}</div> */}
 
             <div className='terms'>
               {t('点击登录即代表您同意我们的')}{' '}

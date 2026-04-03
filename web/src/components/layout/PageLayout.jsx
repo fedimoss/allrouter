@@ -71,6 +71,7 @@ const PageLayout = () => {
     location.pathname !== '/console/playground';
 
   const isConsoleRoute = location.pathname.startsWith('/console');
+  const isPlaygroundRoute = location.pathname === '/console/playground';
   const isDocsRoute =
     location.pathname === '/docs' || location.pathname.startsWith('/docs/');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
@@ -197,12 +198,20 @@ const PageLayout = () => {
           >
             <div
               style={{
-                minHeight: '100%',
+                minHeight: isPlaygroundRoute ? undefined : '100%',
+                height: isPlaygroundRoute ? '100%' : undefined,
+                overflow: isPlaygroundRoute ? 'hidden' : undefined,
                 display: 'flex',
                 flexDirection: 'column',
               }}
             >
-              <div style={{ flex: '1 0 auto' }}>
+              <div
+                style={{
+                  flex: '1 0 auto',
+                  height: isPlaygroundRoute ? '100%' : undefined,
+                  overflow: isPlaygroundRoute ? 'hidden' : undefined,
+                }}
+              >
                 <App />
               </div>
               {!shouldHideFooter && (
@@ -301,12 +310,20 @@ const PageLayout = () => {
           >
             <div
               style={{
-                minHeight: '100%',
+                minHeight: isPlaygroundRoute ? undefined : '100%',
+                height: isPlaygroundRoute ? '100%' : undefined,
+                overflow: isPlaygroundRoute ? 'hidden' : undefined,
                 display: 'flex',
                 flexDirection: 'column',
               }}
             >
-              <div style={{ flex: '1 0 auto' }}>
+              <div
+                style={{
+                  flex: '1 0 auto',
+                  height: isPlaygroundRoute ? '100%' : undefined,
+                  overflow: isPlaygroundRoute ? 'hidden' : undefined,
+                }}
+              >
                 <App />
               </div>
               {!shouldHideFooter && (

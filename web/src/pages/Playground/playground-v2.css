@@ -58,7 +58,7 @@ html.dark .playground-v2 {
 
 .playground-v2-shell {
   display: flex;
-  min-height: 100%;
+  height: 100%;
   flex-direction: column;
   padding: 0;
 }
@@ -93,7 +93,8 @@ html.dark .playground-v2 {
   overflow: auto;
   padding: 24px;
   -ms-overflow-style: none;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--semi-grey-3), 0.65) transparent;
 }
 
 .playground-v2-settings-body::-webkit-scrollbar {
@@ -1080,7 +1081,7 @@ html.dark .playground-v2-role-pill[data-active='true'] {
 
 .playground-v2-composer {
   width: 100%;
-  max-width: 56rem;
+  /* max-width: 56rem; */
   margin: 0 auto;
 }
 
