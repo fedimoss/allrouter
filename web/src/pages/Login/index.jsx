@@ -363,8 +363,8 @@ export default function LoginPage() {
 
         <div className='brand-quote-card'>
           <p>
-            {t(
-              'AllRouter.AI 彻底改变了我们团队调用多模型的方式。它不再是单纯的技术工具，而是我们决策流中的核心。',
+            { systemName }&nbsp;{t(
+              '彻底改变了我们团队调用多模型的方式。它不再是单纯的技术工具，而是我们决策流中的核心。',
             )}
           </p>
           <div className='brand-quote-author'>

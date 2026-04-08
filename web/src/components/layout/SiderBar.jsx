@@ -70,7 +70,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const showSkeleton = useMinimumLoadingTime(sidebarLoading, 200);
   const location = useLocation();
 
-  const logo = '/logo-white.svg' //getLogo();
+  const logo = getLogo();
   const systemName = getSystemName();
 
   const [selectedKeys, setSelectedKeys] = useState(['home']);
@@ -230,7 +230,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('模型管理'),
         itemKey: 'models',
         to: '/console/models',
-        className: 'tableHiddle',
+        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('模型部署'),

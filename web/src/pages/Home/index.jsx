@@ -39,7 +39,7 @@ import LanguageSelector from '../../components/layout/headerbar/LanguageSelector
 import NotificationButton from '../../components/layout/headerbar/NotificationButton';
 import UserArea from '../../components/layout/headerbar/UserArea';
 
-import Logo from '../../../public/logo.png';
+import { getLogo, getSystemName } from '../../helpers';
 
 import openaiLogo from '../../../public/logos/openai.svg';
 import anthropicLogo from '../../../public/logos/anthropic.svg';
@@ -49,6 +49,9 @@ import metaLogo from '../../../public/logos/meta.svg';
 import deepseekLogo from '../../../public/logos/deepseek.svg';
 import huggingFaceLogo from '../../../public/logos/huggingface.svg';
 import kimiLogo from '../../../public/logos/kimi.svg';
+
+const logo = getLogo();
+const systemName = getSystemName();
 
 const partnerLogos = [
   { src: openaiLogo, alt: 'OpenAI' },
@@ -391,11 +394,10 @@ const Home = () => {
           >
             <div className='landing-v2-logo'>
               <img
-                src={Logo}
-                alt='AllRouter.AI Logo'
+                src={logo}
                 className='landing-v2-real-logo'
               />
-              <span>AllRouter.AI</span>
+              <span>{ systemName }</span>
             </div>
 
             <div className='landing-v2-nav-links'>
@@ -567,11 +569,10 @@ const Home = () => {
               <div className='landing-v2-footer-brand'>
                 <div className='landing-v2-logo landing-v2-logo-small'>
                   <img
-                    src={Logo}
-                    alt='AllRouter.AI Logo'
+                    src={logo}
                     className='landing-v2-real-logo'
                   />
-                  <span>AllRouter.AI</span>
+                  <span>{ systemName }</span>
                 </div>
                 <p>
                   {t(
@@ -666,7 +667,7 @@ const Home = () => {
             </div>
 
             <div className='landing-v2-footer-bottom'>
-              <span>© 2025 AllRouter.AI. All rights reserved.</span>
+              <span>© 2025 {systemName}. All rights reserved.</span>
             </div>
           </footer>
         </>

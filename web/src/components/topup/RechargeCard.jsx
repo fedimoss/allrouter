@@ -57,6 +57,8 @@ import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime'
 import { getCurrencyConfig } from '../../helpers/render';
 import { API, timestamp2string } from '../../helpers';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
+import balanceBgimg from '../../../public/wallet-balance.png';
+import dateBgimg from '../../../public/wallet-date.png';
 
 const { Text } = Typography;
 
@@ -449,10 +451,10 @@ const RechargeCard = ({
                         <button
                           type='button'
                           key={index}
-                          className={`h-12 rounded-xl border text-l font-semibold transition-all ${
+                          className={`h-12 rounded-xl text-l font-semibold transition-all ${
                             selectedPreset === preset.value
-                              ? 'border-cyan-300 text-cyan-300 dark:border-cyan-400 dark:bg-cyan-900/30 dark:text-cyan-300'
-                              : 'border-slate-200 bg-white text-slate-700 hover:border-cyan-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-cyan-600'
+                              ? 'text-[#1CDFD5] border border-[#1CDFD5] dark:bg-cyan-900/10 dark:text-[#1CDFD5]'
+                              : 'bg-[#F8FAFC] text-slate-700 dark:bg-gray-800 dark:text-slate-200'
                           }`}
                           onClick={() => {
                             selectPresetAmount(preset);
@@ -489,13 +491,13 @@ const RechargeCard = ({
                               onClick={() => setSelectedPayMethod(payMethod.type)}
                               className={`h-20 rounded-xl border transition-all px-3 ${
                                 selected
-                                  ? 'border-cyan-300 dark:border-cyan-400 dark:bg-cyan-900/30'
-                                  : 'border-slate-200 bg-white hover:border-cyan-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-cyan-600'
+                                  ? 'border-[#1CDFD5] bg-[#1CDFD520] text-[#1CDFD5] dark:border-[#1CDFD5] dark:bg-cyan-900/30'
+                                  : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
                               } ${disabled ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer'}`}
                             >
                               <div className='h-full flex flex-col items-center justify-center gap-2'>
                                 {renderPayMethodIcon(payMethod)}
-                                <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>
+                                <span className={`text-sm font-medium ${selected? 'text-[#1CDFD5]':'dark:text-slate-200'}`}>
                                   {payMethod.name}
                                 </span>
                               </div>
@@ -634,12 +636,13 @@ const RechargeCard = ({
 
       {/* 顶部概览卡片 */}
       <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-        <div className='rounded-2xl border from-cyan-50 via-white to-white dark:border-cyan-900/50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'>
+        <div className='rounded-2xl from-cyan-50 bg-white dark:border-cyan-900/50 dark:from-slate-900 dark:bg-slate-800 dark:via-slate-900 dark:to-slate-950 p-5'
+          style={{backgroundImage:`url(${balanceBgimg})`, backgroundPosition: 'top right', backgroundRepeat: 'no-repeat'}}
+        >
           <div className='flex items-center justify-between mb-2'>
             <h3 className='text-sm font-medium text-slate-500 dark:text-slate-400'>
               {t('当前余额')}
             </h3>
-            <Wallet className='text-cyan-600 dark:text-cyan-400' />
           </div>
           <p className='text-4xl dark:text-cyan-400' style={{ fontWeight: '900' }}>
             {renderQuota(userState?.user?.quota)}
@@ -650,12 +653,13 @@ const RechargeCard = ({
           </p>
         </div>
 
-        <div className='rounded-2xl border from-emerald-50 via-white to-white dark:border-emerald-900/40 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'>
+        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
+          style={{backgroundImage:`url(${dateBgimg})`, backgroundPosition: 'top right', backgroundRepeat: 'no-repeat'}}
+        >
           <div className='flex items-center justify-between mb-2'>
             <h3 className='text-sm font-medium text-slate-500 dark:text-slate-400'>
               {t('历史消费')}
             </h3>
-            <TrendingUp className='w-5 h-5 text-emerald-600 dark:text-emerald-400' />
           </div>
           <p className='text-4xl dark:text-white' style={{ fontWeight: '900' }}>
             {renderQuota(userState?.user?.used_quota)}

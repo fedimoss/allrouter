@@ -303,7 +303,7 @@ claude --version
 {
   "env": {
     "ANTHROPIC_AUTH_TOKEN": "your_allrouter_api_key",
-    "ANTHROPIC_BASE_URL": "https://allrouter.shengjian.net/v1",
+    "ANTHROPIC_BASE_URL": "https://allrouter.ai/v1",
     "API_TIMEOUT_MS": "3000000",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1
   }
@@ -327,7 +327,7 @@ claude --version
 
 ```env
 ANTHROPIC_AUTH_TOKEN=令牌API Keys 密钥
-ANTHROPIC_BASE_URL=https://allrouter.shengjian.net/v1
+ANTHROPIC_BASE_URL=https://allrouter.ai/v1
 ANTHROPIC_MODEL=令牌名称
 ```
 

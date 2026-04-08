@@ -20,7 +20,7 @@ Real-time observability: The console provides detailed latency, token usage, and
 
 ### Sign Up
 
-Visit https://allrouter.shengjian.net/, click **Login** -> **Register**, enter your username and password on the popup page, and click **Register** to create your account.
+Visit https://allrouter.ai/, click **Login** -> **Register**, enter your username and password on the popup page, and click **Register** to create your account.
 
 ![](/docs_images/img_2.png)
 
@@ -28,7 +28,7 @@ Visit https://allrouter.shengjian.net/, click **Login** -> **Register**, enter y
 
 ### Sign In
 
-Visit https://allrouter.shengjian.net/, click **Login**, enter your username and password, then click **Continue** to sign in to AllRouter.AI.
+Visit https://allrouter.ai/, click **Login**, enter your username and password, then click **Continue** to sign in to AllRouter.AI.
 
 ![](/docs_images/img_4.png)
 
@@ -303,7 +303,7 @@ macOS, Linux, and Windows are all supported, but configuration file paths differ
 {
   "env": {
     "ANTHROPIC_AUTH_TOKEN": "your_allrouter_api_key",
-    "ANTHROPIC_BASE_URL": "https://allrouter.shengjian.net/v1",
+    "ANTHROPIC_BASE_URL": "https://allrouter.ai/v1",
     "API_TIMEOUT_MS": "3000000",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1
   }
@@ -327,7 +327,7 @@ Configuration result:
 
 ```env
 ANTHROPIC_AUTH_TOKEN=Token API key
-ANTHROPIC_BASE_URL=https://allrouter.shengjian.net/v1
+ANTHROPIC_BASE_URL=https://allrouter.ai/v1
 ANTHROPIC_MODEL=Token name
 ```
 
