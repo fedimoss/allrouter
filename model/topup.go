@@ -614,6 +614,38 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	return nil
 }
 
+// SumAllTopUp 查询所有用户在时间范围内、指定业务类型且已完成的充值/获赠额度总和
+func SumAllTopUp(startTimestamp, endTimestamp int64, bizType string) (int64, error) {
+	var total int64
+	tx := DB.Model(&TopUp{}).
+		Select("COALESCE(SUM(amount), 0)").
+		Where("status = ? AND biz_type = ?", common.TopUpStatusSuccess, bizType)
+	if startTimestamp != 0 {
+		tx = tx.Where("create_time >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("create_time < ?", endTimestamp)
+	}
+	err := tx.Scan(&total).Error
+	return total, err
+}
+
+// SumTopUpByUserId 查询指定用户在时间范围内、指定业务类型且已完成的充值/获赠额度总和
+func SumTopUpByUserId(userId int, startTimestamp, endTimestamp int64, bizType string) (int64, error) {
+	var total int64
+	tx := DB.Model(&TopUp{}).
+		Select("COALESCE(SUM(amount), 0)").
+		Where("user_id = ? AND status = ? AND biz_type = ?", userId, common.TopUpStatusSuccess, bizType)
+	if startTimestamp != 0 {
+		tx = tx.Where("create_time >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("create_time < ?", endTimestamp)
+	}
+	err := tx.Scan(&total).Error
+	return total, err
+}
+
 func RechargeWaffo(tradeNo string) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")

@@ -70,7 +70,7 @@ func SetApiRouter(router *gin.Engine) {
 			selfRoute.Use(middleware.UserAuth())
 			{
 				selfRoute.GET("/self/groups", controller.GetUserGroups)
-				selfRoute.GET("/self", controller.GetSelf)
+				selfRoute.GET("/self", controller.GetSelf) // 首页看板数据
 				selfRoute.GET("/models", controller.GetUserModels)
 				selfRoute.PUT("/self", controller.UpdateSelf)
 				selfRoute.DELETE("/self", controller.DeleteSelf)
@@ -281,18 +281,28 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
 		logRoute := apiRouter.Group("/log")
-		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
+		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs) // 使用日志(管理员)
 		logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)
 		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
 		logRoute.GET("/self/stat", middleware.UserAuth(), controller.GetLogsSelfStat)
 		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminAuth(), controller.GetChannelAffinityUsageCacheStats)
 		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
-		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
+		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs) // 使用日志(用户)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
 		dataRoute := apiRouter.Group("/data")
-		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
-		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
+		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)                            // 消耗与请求趋势(管理员)
+		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)                        // 消耗与请求趋势(用户)
+		dataRoute.GET("/modelPopularRank", middleware.AdminAuth(), controller.GetAllModelPopularRank)      // 模型热度排行(管理员)
+		dataRoute.GET("/self/modelPopularRank", middleware.UserAuth(), controller.GetUserModelPopularRank) // 模型热度排行(用户)
+		dataRoute.GET("/modelQuotaRadio", middleware.AdminAuth(), controller.GetAllModelQuotaRadio)        // 模型额度占比(管理员)
+		dataRoute.GET("/self/modelQuotaRadio", middleware.UserAuth(), controller.GetUserModelQuotaRadio)   // 模型额度占比(用户)
+
+		billRoute := apiRouter.Group("/bill")
+		billRoute.GET("/", middleware.AdminAuth(), controller.GetAllBill)     // 账单中心数据概览
+		billRoute.GET("/self", middleware.UserAuth(), controller.GetSelfBill) // 账单中心数据概览
+
+		billRoute.GET("/distributor", middleware.UserAuth(), controller.GetDistributorBill) // 账单中心数据概览(分销商)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{
