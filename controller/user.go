@@ -366,6 +366,8 @@ func GetAffCode(c *gin.Context) {
 }
 
 func GetSelf(c *gin.Context) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	id := c.GetInt("id")
 	userRole := c.GetInt("role")
 	user, err := model.GetUserById(id, false)
@@ -373,6 +375,26 @@ func GetSelf(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 获取指定时间范围内的请求成功次数和失败次数
+	var requestResult model.RequestCountResult
+	if userRole == common.RoleRootUser || userRole == common.RoleAdminUser {
+		requestResult, _ = model.CountRequestLogs(startTimestamp, endTimestamp, 0)
+	} else {
+		requestResult, _ = model.CountRequestLogs(startTimestamp, endTimestamp, id)
+	}
+	// 指定时间范围内的请求次数
+	periodRequestCount := requestResult.SuccessCount + requestResult.ErrorCount
+
+	// 全部请求次数（无时间限制）
+	var totalRequestResult model.RequestCountResult
+	if userRole == common.RoleRootUser || userRole == common.RoleAdminUser {
+		totalRequestResult, _ = model.CountRequestLogs(0, 0, 0)
+	} else {
+		totalRequestResult, _ = model.CountRequestLogs(0, 0, id)
+	}
+	totalRequestCount := totalRequestResult.SuccessCount + totalRequestResult.ErrorCount
+
 	// Hide admin remarks: set to empty to trigger omitempty tag, ensuring the remark field is not included in JSON returned to regular users
 	user.Remark = ""
 
@@ -398,7 +420,8 @@ func GetSelf(c *gin.Context) {
 		"group":             user.Group,
 		"quota":             user.Quota,
 		"used_quota":        user.UsedQuota,
-		"request_count":     user.RequestCount,
+		"request_count":     periodRequestCount, // 请求次数
+		"total_count":       totalRequestCount,  // 统计次数
 		"aff_code":          user.AffCode,
 		"aff_count":         user.AffCount,
 		"aff_quota":         user.AffQuota,

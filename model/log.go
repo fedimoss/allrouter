@@ -435,6 +435,93 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	return stat, nil
 }
 
+// CountLogs 统计指定类型和用户的日志数量，userId为0时统计所有用户
+func CountLogs(logType int, startTimestamp int64, endTimestamp int64, userId int) (int64, error) {
+	var count int64
+	tx := LOG_DB.Model(&Log{}).Where("type = ?", logType)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+	if userId != 0 {
+		tx = tx.Where("user_id = ?", userId)
+	}
+	err := tx.Count(&count).Error
+	return count, err
+}
+
+// RequestCountResult 合并查询请求次数结果
+type RequestCountResult struct {
+	SuccessCount int64 `json:"success_count"`
+	ErrorCount   int64 `json:"error_count"`
+}
+
+// CountRequestLogs 一条SQL同时统计成功和失败次数，userId为0时统计所有用户
+func CountRequestLogs(startTimestamp int64, endTimestamp int64, userId int) (RequestCountResult, error) {
+	var result RequestCountResult
+	tx := LOG_DB.Model(&Log{}).
+		Select("SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) as success_count, SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) as error_count",
+			LogTypeConsume, LogTypeError)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+	if userId != 0 {
+		tx = tx.Where("user_id = ?", userId)
+	}
+	err := tx.Scan(&result).Error
+	return result, err
+}
+
+// CountInviteRewardsByUserId 统计指定用户在时间范围内的邀请奖励次数
+func CountInviteRewardsByUserId(userId int, startTimestamp, endTimestamp int64) (int64, error) {
+	var count int64
+	tx := LOG_DB.Table("logs").
+		Where("user_id = ? AND type = ? AND content LIKE ?", userId, LogTypeSystem, "邀请用户赠送%")
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at < ?", endTimestamp)
+	}
+	err := tx.Count(&count).Error
+	return count, err
+}
+
+// SumAllUsedQuota 查询所有用户在时间范围内的消费总额
+func SumAllUsedQuota(startTimestamp, endTimestamp int64) (int, error) {
+	var quota int
+	tx := LOG_DB.Table("logs").Select("COALESCE(SUM(quota), 0)").
+		Where("type = ?", LogTypeConsume)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at < ?", endTimestamp)
+	}
+	err := tx.Scan(&quota).Error
+	return quota, err
+}
+
+// SumUsedQuotaByUserId 查询指定用户在时间范围内的消费总额
+func SumUsedQuotaByUserId(userId int, startTimestamp, endTimestamp int64) (int, error) {
+	var quota int
+	tx := LOG_DB.Table("logs").Select("COALESCE(SUM(quota), 0)").
+		Where("user_id = ? AND type = ?", userId, LogTypeConsume)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at < ?", endTimestamp)
+	}
+	err := tx.Scan(&quota).Error
+	return quota, err
+}
+
 func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string) (token int) {
 	tx := LOG_DB.Table("logs").Select("ifnull(sum(prompt_tokens),0) + ifnull(sum(completion_tokens),0)")
 	if username != "" {
