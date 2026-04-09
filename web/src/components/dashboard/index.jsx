@@ -228,7 +228,13 @@ const Dashboard = () => {
         </aside>
       </section>
 
-      <ModelDataAnalysisPanel t={dashboardData.t} />
+      <ModelDataAnalysisPanel
+        t={dashboardData.t}
+        spec_model_line={dashboardCharts.spec_model_line}
+        spec_pie={dashboardCharts.spec_pie}
+        spec_rank_bar={dashboardCharts.spec_rank_bar}
+        CHART_CONFIG={CHART_CONFIG}
+      />
 
       {dashboardData.hasInfoPanels && (
         <section className='dashboard-v2-bottom-grid'>

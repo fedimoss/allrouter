@@ -3643,8 +3643,8 @@
     "默认展示 {{range}} 内的数据。":" Default display data within {{range}}.",
     "搜索 API Key...":"Search API Key...",
     "响应正常":"Response normal",
-    "额度占比（模拟）":"Quota distribution (simulation)",
-    "配额概览（模拟）":"Quota overview (simulation)",
+    "额度占比":"Quota distribution",
+    "配额概览":"Quota overview",
     "额度分布":"Quota distribution",
     "调用/占比/统计":"Usage/Share/Statistics",
     "用于展示“额度分布”视图的占比结构。":"Used to display the share structure of the 'Quota Distribution' view.",
@@ -3730,6 +3730,17 @@
     "兑换成功后权益将实时发放至您的账户，请注意查看“到账状态”。": "After the exchange is successful, the benefits will be immediately credited to your account. Please pay attention to checking the 'status of arrival'.",
     "当前 TPS":"Current TPS",
     "实时监控您的 API 消耗、Token 使用明细以及账户余额。基于矩阵算力引擎提供精确到毫秒级的计费服务。":"Real-time monitoring of your API usage, token usage details and account balance. Based on the matrix computing power engine, it provides billing services with precision down to the millisecond level.",
-    "用户昵称":"User nickname"
+    "用户昵称":"User nickname",
+    "代理商":"Agent",
+    "支出/消费":"Expense/Consumption",
+    "充值/本金":"Recharge/Principal",
+    "实际支付充值的金额":"Actual payment amount of recharge",
+    "获赠/福利":"Gift/Reward",
+    "获得的平台赠送或活动奖励":"Platform gift or activity reward received",
+    "净变动":"Net change in balance",
+    "账户资金的净增减情况":"Net change in account balance",
+    "日期范围":"Date range",
+    "本周":"This week",
+    "本年":"This year"
   }
 }

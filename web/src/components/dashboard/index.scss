@@ -63,6 +63,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 8px;
+  background: #F8FAFC;
+  border: 1px solid rgba(0, 0, 0, 0.02);
 }
 
 .rank-info {
@@ -78,13 +80,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
+  font-weight: 900;
 }
 
 .model-name {
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: bold;
   color: var(--semi-color-text-0);
-  font-size: 15px;
 }
 
 .model-provider,
@@ -360,8 +362,8 @@ html.dark {
   }
 
   .list-item:hover,
-  .api-item:hover,
-  .rank-item:hover {
+  .api-item:hover
+  {
     background-color: var(--semi-color-fill-1);
   }
 }
@@ -386,7 +388,6 @@ html.dark {
     color 0.2s ease;
 }
 
-.rank-item:hover,
 .api-item:hover {
   background-color: var(--semi-color-fill-0);
   border-radius: 12px;
@@ -452,11 +453,6 @@ html.dark {
   border-radius: 12px;
   font-size: 12px;
   font-weight: 800;
-}
-
-.model-name {
-  font-size: 13px;
-  letter-spacing: 0.02em;
 }
 
 .model-provider,

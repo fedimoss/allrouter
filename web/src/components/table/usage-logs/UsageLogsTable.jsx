@@ -48,7 +48,6 @@ const LogsTable = (logsData) => {
     COLUMN_KEYS,
   } = logsData;
 
-  // Get all columns
   const allColumns = useMemo(() => {
     return getLogsColumns({
       t,
@@ -69,13 +68,8 @@ const LogsTable = (logsData) => {
     billingDisplayMode,
   ]);
 
-  // Filter columns based on visibility settings
-  const getVisibleColumns = () => {
-    return allColumns.filter((column) => visibleColumns[column.key]);
-  };
-
   const visibleColumnsList = useMemo(() => {
-    return getVisibleColumns();
+    return allColumns.filter((column) => visibleColumns[column.key]);
   }, [visibleColumns, allColumns]);
 
   const tableColumns = useMemo(() => {
@@ -84,7 +78,7 @@ const LogsTable = (logsData) => {
       : visibleColumnsList;
   }, [compactMode, visibleColumnsList]);
 
-  const expandRowRender = (record, index) => {
+  const expandRowRender = (record) => {
     return <Descriptions data={expandData[record.key]} />;
   };
 
@@ -101,7 +95,7 @@ const LogsTable = (logsData) => {
       rowKey='key'
       loading={loading}
       scroll={compactMode ? undefined : { x: 'max-content' }}
-      className='rounded-xl overflow-hidden'
+      className='usage-logs-v2-table rounded-[24px] overflow-hidden'
       size='small'
       empty={
         <Empty
@@ -109,13 +103,14 @@ const LogsTable = (logsData) => {
           darkModeImage={
             <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
           }
-          description={t('搜索无结果')}
-          style={{ padding: 30 }}
+          title={t('暂无使用日志')}
+          description={t('当前时间范围内还没有可展示的使用日志。')}
+          style={{ padding: 40 }}
         />
       }
       pagination={{
         currentPage: activePage,
-        pageSize: pageSize,
+        pageSize,
         total: logCount,
         pageSizeOptions: [10, 20, 50, 100],
         showSizeChanger: true,

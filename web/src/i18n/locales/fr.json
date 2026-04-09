@@ -3578,8 +3578,8 @@
     "默认展示 {{range}} 内的数据。":"Par défaut, les données dans {{range}} sont affichées.",
     "搜索 API Key...":"Rechercher une clé API...",
     "响应正常":"Réponse normale",
-    "额度占比（模拟）":"Participation au quota (simulé)",
-    "配额概览（模拟）":"Aperçu des quotas (simulation)",
+    "额度占比":"Participation au quota",
+    "配额概览":"Aperçu des quotas",
     "额度分布":"Répartition des plafonds",
     "调用/占比/统计":"Appels/Part/Statistiques",
     "用于展示“额度分布”视图的占比结构。":"Structure de partage utilisée pour afficher la vue « répartition des plafonds ».",
@@ -3665,6 +3665,17 @@
     "兑换成功后权益将实时发放至您的账户，请注意查看“到账状态”。": "Après un échange réussi, les avantages seront crédités en temps réel sur votre compte. Veuillez vérifier le « statut de réception ».",
     "当前 TPS":"Actuellement TPS",
     "实时监控您的 API 消耗、Token 使用明细以及账户余额。基于矩阵算力引擎提供精确到毫秒级的计费服务。":"Surveillez en temps réel la consommation de votre API, les détails d'utilisation des jetons et le solde de votre compte. Un service de facturation précis à l'échelle du milliseconde est fourni grâce à un moteur de calcul matriciel.",
-    "用户昵称":"Pseudo de l'utilisateur"
+    "用户昵称":"Pseudo de l'utilisateur",
+    "代理商":"Agent",
+    "支出/消费":"Dépenses/Consommation",
+    "充值/本金":"Recharge/Principal",
+    "实际支付充值的金额":"Montant de recharge payé",
+    "获赠/福利":"Gift/Reward",
+    "获得的平台赠送或活动奖励":"Récompenses obtenues via des offres de plateforme ou des promotions",
+    "净变动":"Variation nette",
+    "账户资金的净增减情况":"Situation nette de l'augmentation ou de la diminution des fonds du compte",
+    "日期范围":"Plage de dates",
+    "本周":"Cette semaine",
+    "本年":"Cette année"
   }
 }

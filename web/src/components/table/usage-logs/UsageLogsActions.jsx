@@ -18,76 +18,79 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Space, Skeleton } from '@douyinfe/semi-ui';
+import { Skeleton } from '@douyinfe/semi-ui';
+import { Wallet, Gauge, Zap } from 'lucide-react';
 import { renderQuota } from '../../../helpers';
-import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
 
-const LogsActions = ({
-  stat,
-  loadingStat,
-  showStat,
-  compactMode,
-  setCompactMode,
-  t,
-}) => {
+const STAT_CARDS = [
+  {
+    key: 'quota',
+    label: '消耗额度',
+    icon: Wallet,
+    accentClassName: 'usage-logs-v2-stat-accent-quota',
+    iconClassName: 'usage-logs-v2-stat-icon-quota',
+  },
+  {
+    key: 'rpm',
+    label: 'RPM',
+    icon: Gauge,
+    accentClassName: 'usage-logs-v2-stat-accent-rpm',
+    iconClassName: 'usage-logs-v2-stat-icon-rpm',
+  },
+  {
+    key: 'tpm',
+    label: 'TPM',
+    icon: Zap,
+    accentClassName: 'usage-logs-v2-stat-accent-tpm',
+    iconClassName: 'usage-logs-v2-stat-icon-tpm',
+  },
+];
+
+const LogsActions = ({ stat, loadingStat, showStat, t }) => {
   const showSkeleton = useMinimumLoadingTime(loadingStat);
   const needSkeleton = !showStat || showSkeleton;
 
-  const placeholder = (
-    <Space>
-      <Skeleton.Title style={{ width: 108, height: 21, borderRadius: 6 }} />
-      <Skeleton.Title style={{ width: 65, height: 21, borderRadius: 6 }} />
-      <Skeleton.Title style={{ width: 64, height: 21, borderRadius: 6 }} />
-    </Space>
-  );
+  const values = {
+    quota: renderQuota(stat?.quota ?? 0),
+    rpm: stat?.rpm ?? 0,
+    tpm: stat?.tpm ?? 0,
+  };
 
   return (
-    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <Skeleton loading={needSkeleton} active placeholder={placeholder}>
-        <Space>
-          <Tag
-            color='blue'
-            style={{
-              fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
-            {t('消耗额度')}: {renderQuota(stat.quota)}
-          </Tag>
-          <Tag
-            color='pink'
-            style={{
-              fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
-            RPM: {stat.rpm}
-          </Tag>
-          <Tag
-            color='white'
-            style={{
-              border: 'none',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              fontWeight: 500,
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
-            TPM: {stat.tpm}
-          </Tag>
-        </Space>
-      </Skeleton>
+    <div className='usage-logs-v2-stats'>
+      <div className='usage-logs-v2-stat-grid'>
+        {STAT_CARDS.map((item) => {
+          const Icon = item.icon;
 
-      <CompactModeToggle
-        compactMode={compactMode}
-        setCompactMode={setCompactMode}
-        t={t}
-      />
+          return (
+            <article
+              key={item.key}
+              className={`usage-logs-v2-stat-card ${item.accentClassName}`}
+            >
+              <div className='usage-logs-v2-stat-head'>
+                <div className='usage-logs-v2-stat-label'>{t(item.label)}</div>
+                <span
+                  className={`usage-logs-v2-stat-icon ${item.iconClassName}`}
+                  aria-hidden='true'
+                >
+                  <Icon size={18} strokeWidth={2.2} />
+                </span>
+              </div>
+
+              {needSkeleton ? (
+                <div className='usage-logs-v2-stat-skeleton'>
+                  <Skeleton.Title
+                    style={{ width: 112, height: 34, borderRadius: 10 }}
+                  />
+                </div>
+              ) : (
+                <div className='usage-logs-v2-stat-value'>{values[item.key]}</div>
+              )}
+            </article>
+          );
+        })}
+      </div>
     </div>
   );
 };

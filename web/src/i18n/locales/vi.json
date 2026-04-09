@@ -4117,8 +4117,8 @@
     "默认展示 {{range}} 内的数据。":"Mặc định hiển thị dữ liệu trong {{range}}.",
     "搜索 API Key...":"Tìm kiếm API Key...",
     "响应正常":"Phản hồi bình thường",
-    "额度占比（模拟）":"Tỷ lệ hạn mức (mô phỏng)",
-    "配额概览（模拟）":"Tổng quan hạn mức (mô phỏng)",
+    "额度占比":"Tỷ lệ hạn mức",
+    "配额概览":"Tổng quan hạn mức",
     "额度分布":"Phân bố hạn mức",
     "调用/占比/统计":"Lượt gọi/Tỷ lệ/Thống kê",
     "用于展示“额度分布”视图的占比结构。":"Được sử dụng để hiển thị cấu trúc tỷ lệ trong chế độ xem «Phân bố hạn mức».",
@@ -4201,6 +4201,17 @@
     "兑换成功后权益将实时发放至您的账户，请注意查看“到账状态”。": "Sau khi đổi thành công, quyền lợi sẽ được phát vào tài khoản của bạn theo thời gian thực. Vui lòng kiểm tra «trạng thái nhận».",
     "当前 TPS":"Hiện tại TPS",
     "实时监控您的 API 消耗、Token 使用明细以及账户余额。基于矩阵算力引擎提供精确到毫秒级的计费服务。":"Theo dõi thời gian thực mức tiêu thụ API, chi tiết sử dụng Token và số dư tài khoản của bạn. Cung cấp dịch vụ tính phí chính xác đến mức mili giây thông qua công nghệ máy tính ma trận.",
-    "用户昵称":"Tên nick người dùng"
+    "用户昵称":"Tên nick người dùng",
+    "代理商":"Agente",
+    "支出/消费":"Chi phí/Chi phí",
+    "充值/本金":"Nạp tiền/Số dư cơ bản",
+    "实际支付充值的金额":"Số tiền nạp đã thanh toán",
+    "获赠/福利":"Thưởng đóng góp",
+    "获得的平台赠送或活动奖励":"Thưởng đóng góp từ nền tảng hoặc hoạt động",
+    "净变动":"Số tiền thay đổi",
+    "账户资金的净增减情况":"Số tiền thay đổi của số dư tài khoản",
+    "日期范围":"Khoảng ngày gian",
+    "本周":"Tuần này",
+    "本年":"Năm này"
   }
 }

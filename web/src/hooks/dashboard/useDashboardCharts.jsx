@@ -79,7 +79,7 @@ export const useDashboardCharts = (
       },
     },
     title: {
-      visible: true,
+      visible: false,
       text: t('模型调用次数占比'),
       subtext: `${t('总计')}：${renderNumber(0)}`,
     },
@@ -196,7 +196,7 @@ export const useDashboardCharts = (
       selectMode: 'single',
     },
     title: {
-      visible: true,
+      visible: false,
       text: t('模型消耗趋势'),
       subtext: '',
     },
@@ -232,7 +232,7 @@ export const useDashboardCharts = (
       selectMode: 'single',
     },
     title: {
-      visible: true,
+      visible: false,
       text: t('模型调用次数排行'),
       subtext: '',
     },
