@@ -309,15 +309,15 @@ func SetApiRouter(router *gin.Engine) {
 		operationRoute.Use(middleware.AdminAuth())
 		{
 			// 看板数据接口
-			operationRoute.GET("/user/dashboard", controller.GetUserDashboard)               // 用户
-			operationRoute.GET("/distributor/dashboard", controller.GetDistributorDashboard) // 代理商
-			operationRoute.GET("/merchant/dashboard", controller.GetMerchantDashboard)       // 商家
-			operationRoute.GET("/platform/dashboard", controller.GetPlatformDashboard)       // 平台
+			operationRoute.GET("/user/dashboard", controller.GetUserOperationDashboard)               // 用户
+			operationRoute.GET("/distributor/dashboard", controller.GetDistributorOperationDashboard) // 代理商
+			operationRoute.GET("/merchant/dashboard", controller.GetMerchantOperationDashboard)       // 商家
+			operationRoute.GET("/platform/dashboard", controller.GetPlatformOperationDashboard)       // 平台
 			// 列表数据接口
-			operationRoute.GET("/user/records", controller.GetUserRecords)               // 用户
-			operationRoute.GET("/distributor/records", controller.GetDistributorRecords) // 代理商
-			operationRoute.GET("/merchant/records", controller.GetMerchantRecords)       // 商家
-			operationRoute.GET("/platform/records", controller.GetPlatformRecords)       // 平台
+			operationRoute.GET("/user/records", controller.GetUserOperationRecords)               // 用户
+			operationRoute.GET("/distributor/records", controller.GetDistributorOperationRecords) // 代理商
+			operationRoute.GET("/merchant/records", controller.GetMerchantOperationRecords)       // 商家
+			operationRoute.GET("/platform/records", controller.GetPlatformOperationRecords)       // 平台
 		}
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())

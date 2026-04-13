@@ -12,7 +12,7 @@ import (
 
 // GetUserDashboard 用户看板
 // query 参数 "period": day / week / month / year（默认 month）
-func GetUserDashboard(c *gin.Context) {
+func GetUserOperationDashboard(c *gin.Context) {
 	period := c.DefaultQuery("period", "month")
 
 	// 1. 总用户数
@@ -92,8 +92,8 @@ func GetUserDashboard(c *gin.Context) {
 	})
 }
 
-// GetDistributorDashboard 代理商看板
-func GetDistributorDashboard(c *gin.Context) {
+// GetDistributorOperationDashboard 代理商看板
+func GetDistributorOperationDashboard(c *gin.Context) {
 	// TODO: 实现代理商看板数据查询
 	c.JSON(200, gin.H{
 		"success": true,
@@ -102,8 +102,8 @@ func GetDistributorDashboard(c *gin.Context) {
 	})
 }
 
-// GetMerchantDashboard 商家看板
-func GetMerchantDashboard(c *gin.Context) {
+// GetMerchantOperationDashboard 商家看板
+func GetMerchantOperationDashboard(c *gin.Context) {
 	// TODO: 实现商家看板数据查询
 	c.JSON(200, gin.H{
 		"success": true,
@@ -112,8 +112,8 @@ func GetMerchantDashboard(c *gin.Context) {
 	})
 }
 
-// GetPlatformDashboard 平台看板
-func GetPlatformDashboard(c *gin.Context) {
+// GetPlatformOperationDashboard 平台看板
+func GetPlatformOperationDashboard(c *gin.Context) {
 	// TODO: 实现平台看板数据查询
 	c.JSON(200, gin.H{
 		"success": true,
@@ -136,8 +136,8 @@ type userRecordItem struct {
 	WelfareQuota   float64 `json:"welfare_quota"` // 福利金额(兑换码+邀请奖励)
 }
 
-// GetUserRecords 用户列表
-func GetUserRecords(c *gin.Context) {
+// GetUserOperationRecords 用户列表
+func GetUserOperationRecords(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 
 	// 解析排序参数，所有字段均在 DB 层排序
@@ -242,8 +242,8 @@ func GetUserRecords(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
-// GetDistributorRecords 代理商列表
-func GetDistributorRecords(c *gin.Context) {
+// GetDistributorOperationRecords 代理商列表
+func GetDistributorOperationRecords(c *gin.Context) {
 	// TODO: 实现代理商列表数据查询
 	c.JSON(200, gin.H{
 		"success": true,
@@ -252,8 +252,8 @@ func GetDistributorRecords(c *gin.Context) {
 	})
 }
 
-// GetMerchantRecords 商家列表
-func GetMerchantRecords(c *gin.Context) {
+// GetMerchantOperationRecords 商家列表
+func GetMerchantOperationRecords(c *gin.Context) {
 	// TODO: 实现商家列表数据查询
 	c.JSON(200, gin.H{
 		"success": true,
@@ -262,8 +262,8 @@ func GetMerchantRecords(c *gin.Context) {
 	})
 }
 
-// GetPlatformRecords 平台列表
-func GetPlatformRecords(c *gin.Context) {
+// GetPlatformOperationRecords 平台列表
+func GetPlatformOperationRecords(c *gin.Context) {
 	// TODO: 实现平台列表数据查询
 	c.JSON(200, gin.H{
 		"success": true,
