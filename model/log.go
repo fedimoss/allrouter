@@ -492,6 +492,56 @@ func CountInviteRewardsByUserId(userId int, startTimestamp, endTimestamp int64) 
 	return count, err
 }
 
+// GetUsersLastActiveTime 批量查询用户最后活跃时间(最后一次请求时间)
+func GetUsersLastActiveTime(userIds []int) (map[int]int64, error) {
+	if len(userIds) == 0 {
+		return map[int]int64{}, nil
+	}
+	type result struct {
+		UserId   int   `json:"user_id"`
+		LastTime int64 `json:"last_time"`
+	}
+	var results []result
+	err := LOG_DB.Model(&Log{}).
+		Select("user_id, MAX(created_at) as last_time").
+		Where("user_id IN ?", userIds).
+		Group("user_id").
+		Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[int]int64, len(results))
+	for _, r := range results {
+		m[r.UserId] = r.LastTime
+	}
+	return m, nil
+}
+
+// GetUsersTopupQuota 批量查询用户充值总额
+func GetUsersTopupQuota(userIds []int) (map[int]int64, error) {
+	if len(userIds) == 0 {
+		return map[int]int64{}, nil
+	}
+	type result struct {
+		UserId int   `json:"user_id"`
+		Total  int64 `json:"total"`
+	}
+	var results []result
+	err := LOG_DB.Model(&Log{}).
+		Select("user_id, COALESCE(SUM(quota), 0) as total").
+		Where("user_id IN ? AND type = ?", userIds, LogTypeTopup).
+		Group("user_id").
+		Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[int]int64, len(results))
+	for _, r := range results {
+		m[r.UserId] = r.Total
+	}
+	return m, nil
+}
+
 // SumAllUsedQuota 查询所有用户在时间范围内的消费总额
 func SumAllUsedQuota(startTimestamp, endTimestamp int64) (int, error) {
 	var quota int
