@@ -76,6 +76,7 @@ import {
   Gift,
   Ticket,
   User,
+  UserLock,
   Settings,
   CircleUser,
   Package,
@@ -149,6 +150,7 @@ export function getLucideIcon(key, selected = false) {
     case 'redemption':
       return <Ticket {...commonProps} color={iconColor} />;
     case 'user':
+      return <UserLock {...commonProps} color={iconColor} />;
     case 'personal':
       return <User {...commonProps} color={iconColor} />;
     case 'models':
@@ -157,6 +159,8 @@ export function getLucideIcon(key, selected = false) {
       return <Server {...commonProps} color={iconColor} />;
     case 'billing':
       return <CreditCard {...commonProps} color={iconColor} />;
+    case 'operational':
+      return <BarChart3 {...commonProps} color={iconColor} />;
     case 'subscription':
       return <CalendarClock {...commonProps} color={iconColor} />;
     case 'setting':

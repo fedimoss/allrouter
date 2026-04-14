@@ -439,10 +439,10 @@ const Billing = () => {
       </div>
 
       <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
-        <div className='inline-flex w-fit items-center rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200'>
+        <div className='inline-flex w-fit items-center rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-1 shadow-sm'>
           <button
             type='button'
-            className='rounded-xl bg-[#f3faf8] px-6 py-3 text-sm font-semibold text-[#1f3b2d]'
+            className='rounded-xl bg-[#f3faf8] dark:bg-slate-400 px-6 py-3 text-sm font-semibold text-[#1f3b2d]'
           >
             {t('用户')}
           </button>
@@ -455,7 +455,7 @@ const Billing = () => {
           </button>
         </div>
 
-        <div className='flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:w-auto sm:gap-4'>
+        <div className='flex w-full items-center justify-between dark:bg-slate-800 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 shadow-sm sm:w-auto sm:gap-4'>
           <span className='text-sm font-medium text-slate-400'>{t('日期范围')}</span>
           <Select
             value={billingPeriod}
@@ -486,7 +486,7 @@ const Billing = () => {
                     {item.title}
                   </div>
                   <div
-                    className={`icon-bg flex h-12 w-12 items-center justify-center rounded-2xl ${item.iconWrapClassName}`}
+                    className={`icon-bg flex h-12 w-12 items-center justify-center dark:bg-slate-600 rounded-2xl ${item.iconWrapClassName}`}
                   >
                     <Icon size={22} className={`icon-color ${item.iconClassName}`} />
                   </div>
@@ -511,7 +511,7 @@ const Billing = () => {
       >
         <div className='flex items-center justify-between border-b border-slate-100 px-6 py-4'>
           <div className='flex items-center gap-2 text-slate-800'>
-            <span className='text-lg font-bold dark:text-slate-200'>{t('消费明细')}</span>
+            <span className='text-lg font-bold dark:text-slate-300'>{t('消费明细')}</span>
           </div>
           <div className='flex items-center gap-3'>
             <span className='text-xs text-slate-400'>

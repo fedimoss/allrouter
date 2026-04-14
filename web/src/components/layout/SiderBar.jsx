@@ -54,6 +54,7 @@ const routerMap = {
   oauth: '/console/oauth',
   certification: '/console/certification',
   billing: '/console/billing',
+  operational: '/console/operational',
   invitation: '/console/invitation',
   exchange: '/console/exchange'
 };
@@ -242,6 +243,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('账单管理'),
         itemKey: 'billing',
         to: '/billing',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('运营数据'),
+        itemKey: 'operational',
+        to: '/operational',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
@@ -631,7 +638,14 @@ const SiderBar = ({ onNavigate = () => {} }) => {
                     {t('Administrator')}
                   </div>
                 )}
-                {adminItems.map((item) => renderNavItem(item))}
+                {hasVisible(adminItems) &&
+                  renderSubItem({
+                    itemKey: 'admin',
+                    text: t('管理员'),
+                    iconKey: 'user',
+                    items: adminItems,
+                  })}
+                {/* {adminItems.map((item) => renderNavItem(item))} */}
               </div>
             </>
           )}

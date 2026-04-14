@@ -49,6 +49,7 @@ import Oauth from './pages/Oauth';
 import Invitation from './pages/Invitation';
 import Exchange from './pages/Exchange';
 import Billing from './pages/Billing';
+import Operational from './pages/OperationalData';
 import CertificationDocument from './pages/CertificationDocument';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
@@ -182,6 +183,14 @@ function App() {
           element={
             <PrivateRoute>
               <Billing />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/operational'
+          element={
+            <PrivateRoute>
+              <Operational />
             </PrivateRoute>
           }
         />

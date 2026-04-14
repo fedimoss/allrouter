@@ -134,7 +134,7 @@ const Dashboard = () => {
   const dashboardChartPanelHeight = dashboardData.isMobile
     ? undefined
     : dashboardData.hasApiInfoPanel
-      ? 490
+      ? 520
       : 520;
 
   return (

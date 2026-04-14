@@ -62,6 +62,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     models: true,
     deployment: true,
     billing: true,
+    operational: true,
     redemption: true,
     user: true,
     subscription: true,

@@ -114,11 +114,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0 10px 16px;
+  padding: 8px;
   background-color: var(--semi-color-fill-0);
   border-radius: 12px;
   border: 1px solid var(--semi-color-border);
-  margin-bottom: 10px;
 }
 
 .api-endpoint {
@@ -436,8 +435,7 @@ html.dark {
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.02);
   background: #F8FAFC;
-  padding: 16px;
-  margin-bottom: 16px;
+  padding: 8px;
 }
 .dark .rank-item,.api-item{
   background: rgba(255, 255, 255, 0.04);
