@@ -185,6 +185,31 @@ func Redeem(key string, userId int) (quota int, err error) {
 	return redemption.Quota, nil
 }
 
+// GetUsersRedemptionQuota 批量查询用户通过兑换码充值的总额
+func GetUsersRedemptionQuota(userIds []int) (map[int]int64, error) {
+	if len(userIds) == 0 {
+		return map[int]int64{}, nil
+	}
+	type result struct {
+		UsedUserId int   `json:"used_user_id"`
+		Total      int64 `json:"total"`
+	}
+	var results []result
+	err := DB.Model(&Redemption{}).
+		Select("used_user_id, COALESCE(SUM(quota), 0) as total").
+		Where("used_user_id IN ? AND status = ?", userIds, common.RedemptionCodeStatusUsed).
+		Group("used_user_id").
+		Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[int]int64, len(results))
+	for _, r := range results {
+		m[r.UsedUserId] = r.Total
+	}
+	return m, nil
+}
+
 func (redemption *Redemption) Insert() error {
 	var err error
 	err = DB.Create(redemption).Error

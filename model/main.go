@@ -24,6 +24,7 @@ var commonFalseVal string
 
 var logKeyCol string
 var logGroupCol string
+var logTypeCol string
 
 func initCol() {
 	// init common column names
@@ -43,18 +44,22 @@ func initCol() {
 		case common.DatabaseTypePostgreSQL:
 			logGroupCol = `"group"`
 			logKeyCol = `"key"`
+			logTypeCol = `"type"`
 		default:
 			logGroupCol = commonGroupCol
 			logKeyCol = commonKeyCol
+			logTypeCol = "`type`"
 		}
 	} else {
 		// LOG_SQL_DSN 为空时，日志数据库与主数据库相同
 		if common.UsingPostgreSQL {
 			logGroupCol = `"group"`
 			logKeyCol = `"key"`
+			logTypeCol = `"type"`
 		} else {
 			logGroupCol = commonGroupCol
 			logKeyCol = commonKeyCol
+			logTypeCol = "`type`"
 		}
 	}
 	// log sql type and database type

@@ -304,6 +304,22 @@ func SetApiRouter(router *gin.Engine) {
 
 		billRoute.GET("/distributor", middleware.UserAuth(), controller.GetDistributorBill) // 账单中心数据概览(分销商)
 
+		// 运营中心接口
+		operationRoute := apiRouter.Group("/operation")
+		operationRoute.Use(middleware.AdminAuth())
+		{
+			// 看板数据接口
+			operationRoute.GET("/user/dashboard", controller.GetUserOperationDashboard)               // 用户
+			operationRoute.GET("/distributor/dashboard", controller.GetDistributorOperationDashboard) // 代理商
+			operationRoute.GET("/merchant/dashboard", controller.GetMerchantOperationDashboard)       // 商家
+			operationRoute.GET("/platform/dashboard", controller.GetPlatformOperationDashboard)       // 平台
+			// 列表数据接口
+			operationRoute.GET("/user/records", controller.GetUserOperationRecords)               // 用户
+			operationRoute.GET("/distributor/records", controller.GetDistributorOperationRecords) // 代理商
+			operationRoute.GET("/merchant/records", controller.GetMerchantOperationRecords)       // 商家
+			operationRoute.GET("/platform/records", controller.GetPlatformOperationRecords)       // 平台
+		}
+
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{
 			logRoute.GET("/token", middleware.TokenAuthReadOnly(), controller.GetLogByKey)

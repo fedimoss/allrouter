@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -45,6 +46,7 @@ type User struct {
 	AffQuota         int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
 	AffHistoryQuota  int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
 	InviterId        int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	CreatedAt        int64          `json:"created_at" gorm:"bigint;column:created_at"`
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
 	LinuxDOId        string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
@@ -228,6 +230,156 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	return users, total, nil
 }
 
+// GetUserRecordsByCondition 条件分页查询用户列表
+// sortFields: 排序字段映射，如 {"quota":"desc","topup_quota":"asc"}
+func GetUserRecordsByCondition(pageInfo *common.PageInfo, sortFields map[string]string, startTimestamp int64, endTimestamp int64, usedQuotaMin int, usedQuotaMax int, quotaMin int, quotaMax int, requestCountMin int, requestCountMax int, keyword string) (users []*User, total int64, err error) {
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return nil, 0, tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	query := tx.Unscoped().Model(&User{})
+
+	// 注册时间范围筛选
+	if startTimestamp != 0 {
+		query = query.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		query = query.Where("created_at <= ?", endTimestamp)
+	}
+
+	// 消耗金额范围筛选
+	if usedQuotaMin > 0 {
+		query = query.Where("used_quota >= ?", usedQuotaMin)
+	}
+	if usedQuotaMax > 0 {
+		query = query.Where("used_quota <= ?", usedQuotaMax)
+	}
+	if quotaMin > 0 {
+		query = query.Where("quota >= ?", quotaMin)
+	}
+	if quotaMax > 0 {
+		query = query.Where("quota <= ?", quotaMax)
+	}
+	if requestCountMin > 0 {
+		query = query.Where("request_count >= ?", requestCountMin)
+	}
+	if requestCountMax > 0 {
+		query = query.Where("request_count <= ?", requestCountMax)
+	}
+
+	keyword = strings.TrimSpace(keyword)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		if userID, parseErr := strconv.Atoi(keyword); parseErr == nil {
+			query = query.Where("id = ? OR username LIKE ? OR display_name LIKE ?", userID, like, like)
+		} else {
+			query = query.Where("username LIKE ? OR display_name LIKE ?", like, like)
+		}
+	}
+
+	// 统计总数(不需要 JOIN)
+	err = query.Count(&total).Error
+	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+
+	// 判断是否需要 JOIN 外部表进行排序
+	needTopupSort := sortFields["topup_quota"] == "asc" || sortFields["topup_quota"] == "desc"
+	needWelfareSort := sortFields["welfare_quota"] == "asc" || sortFields["welfare_quota"] == "desc"
+
+	if needTopupSort {
+		// LEFT JOIN logs 表统计每个用户充值总额
+		topupSub := LOG_DB.Model(&Log{}).
+			Select("user_id, SUM(quota) as topup_total").
+			Where(logTypeCol+" = ?", LogTypeTopup).
+			Group("user_id")
+		query = query.Joins("LEFT JOIN (?) lt ON lt.user_id = users.id", topupSub)
+	}
+
+	if needWelfareSort {
+		// LEFT JOIN redemptions 表统计每个用户兑换码充值总额
+		redemptionSub := DB.Model(&Redemption{}).
+			Select("used_user_id, SUM(quota) as redemption_total").
+			Where("status = ?", common.RedemptionCodeStatusUsed).
+			Group("used_user_id")
+		query = query.Joins("LEFT JOIN (?) lr ON lr.used_user_id = users.id", redemptionSub)
+	}
+
+	// 构建动态 ORDER BY
+	var orderParts []string
+	dbFieldMap := map[string]string{
+		"quota":         "users.quota",
+		"request_count": "users.request_count",
+		"used_quota":    "users.used_quota",
+		"created_at":    "users.created_at",
+	}
+	for field, col := range dbFieldMap {
+		if order, ok := sortFields[field]; ok && (order == "asc" || order == "desc") {
+			orderParts = append(orderParts, col+" "+order)
+		}
+	}
+	if needTopupSort {
+		orderParts = append(orderParts, "COALESCE(lt.topup_total, 0) "+sortFields["topup_quota"])
+	}
+	if needWelfareSort {
+		orderParts = append(orderParts, "(users.aff_history + COALESCE(lr.redemption_total, 0)) "+sortFields["welfare_quota"])
+	}
+	orderParts = append(orderParts, "users.id desc")
+
+	// 分页查询
+	err = query.Omit("password").Order(strings.Join(orderParts, ", ")).Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&users).Error
+	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+
+	if err = tx.Commit().Error; err != nil {
+		return nil, 0, err
+	}
+
+	return users, total, nil
+}
+
+// GetUsersWelfareQuota 批量查询用户福利金额(兑换码充值 + 邀请奖励)
+func GetUsersWelfareQuota(userIds []int) (map[int]int64, error) {
+	if len(userIds) == 0 {
+		return map[int]int64{}, nil
+	}
+	// 邀请奖励: 直接从 User.AffHistoryQuota 获取
+	type affResult struct {
+		Id              int   `json:"id"`
+		AffHistoryQuota int64 `json:"aff_history_quota"`
+	}
+	var affResults []affResult
+	err := DB.Unscoped().Model(&User{}).
+		Select("id, aff_history as aff_history_quota").
+		Where("id IN ?", userIds).
+		Scan(&affResults).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 兑换码充值: 从 redemptions 表查询
+	redemptionMap, err := GetUsersRedemptionQuota(userIds)
+	if err != nil {
+		return nil, err
+	}
+
+	// 合并: 福利 = 邀请奖励 + 兑换码充值
+	m := make(map[int]int64, len(userIds))
+	for _, r := range affResults {
+		m[r.Id] = r.AffHistoryQuota + redemptionMap[r.Id]
+	}
+	return m, nil
+}
+
 func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
@@ -400,6 +552,7 @@ func (user *User) Insert(inviterId int) error {
 		// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
 		user.SetSetting(defaultSetting)
 	}
+	user.CreatedAt = time.Now().Unix()
 	tx := DB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -483,6 +636,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		defaultSetting := dto.UserSetting{}
 		user.SetSetting(defaultSetting)
 	}
+	user.CreatedAt = time.Now().Unix()
 
 	result := tx.Create(user)
 	if result.Error != nil {
@@ -1068,4 +1222,41 @@ func RootUserExists() bool {
 		return false
 	}
 	return true
+}
+
+// CountTotalUsers 统计用户总数
+func CountTotalUsers() (int64, error) {
+	var count int64
+	err := DB.Unscoped().Model(&User{}).Count(&count).Error
+	return count, err
+}
+
+// CountNewUsersByTimeRange 统计指定时间范围内的新注册用户数
+func CountNewUsersByTimeRange(startTimestamp, endTimestamp int64) (int64, error) {
+	var count int64
+	tx := DB.Unscoped().Model(&User{})
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at < ?", endTimestamp)
+	}
+	err := tx.Count(&count).Error
+	return count, err
+}
+
+// CountActiveUsersByTimeRange 统计指定时间范围内的活跃用户数（token消耗>0的用户）
+// 通过 logs 表中 type=LogTypeConsume 且 quota>0 的记录去重统计 user_id
+func CountActiveUsersByTimeRange(startTimestamp, endTimestamp int64) (int64, error) {
+	var count int64
+	tx := LOG_DB.Model(&Log{}).
+		Where("type = ? AND quota > 0", LogTypeConsume)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at < ?", endTimestamp)
+	}
+	err := tx.Distinct("user_id").Count(&count).Error
+	return count, err
 }
