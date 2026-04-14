@@ -362,13 +362,13 @@ const CertificationList = () => {
             <div className='border rounded-2xl px-6 py-6 backdrop-blur dark:border-cyan-900/50 bg-white/50 dark:bg-cyan-900/30'>
               <div className='flex items-center justify-between mb-4 text-[16px] dark:text-slate-400'>
                 {t('健康节点')}
-                <CircleCheck size={20} style={{color:'#0DFEF2'}} />
+                <CircleCheck size={20} style={{color:'#1CDFD5'}} />
               </div>
               <div className='text-[48px]' style={{fontWeight:'900',lineHeight:'48px'}}>
                 {healthyCount}
               </div>
               <div className='mt-6'>
-                <Progress percent={(healthyCount/totalCount).toFixed(2) * 100 || 0 } stroke="#0DFEF2" size="large" aria-label="disk usage" />
+                <Progress percent={(healthyCount/totalCount).toFixed(2) * 100 || 0 } stroke="#1CDFD5" size="large" aria-label="disk usage" />
               </div>
             </div>
             <div className='border rounded-2xl px-6 py-6 backdrop-blur dark:border-cyan-900/50 bg-white/50 dark:bg-cyan-900/30'>

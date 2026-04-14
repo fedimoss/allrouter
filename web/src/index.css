@@ -1409,7 +1409,7 @@ html.dark .landing-home.landing-v2 {
   --landing-v2-glow: rgba(9, 254, 247, 0.4);
   --landing-v2-glow-hover: rgba(248, 255, 21, 0.5);
   height: 60px;
-  padding: 0 5%;
+  padding: 0 5% 0 1%;
   position: static;
   top: auto;
 }
@@ -1501,9 +1501,18 @@ html.dark .landing-v2-nav {
   font-weight: 700;
   color: var(--landing-v2-text-main);
 }
+.landing-v2-logo .landing-v2-logo-bg{
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(36.23deg, #F8FF15 -36.56%, #32FEA5 106.01%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .landing-v2-real-logo {
-  height: 28px;
+  height: 24px;
   width: auto;
   display: block;
 }
@@ -1675,6 +1684,10 @@ html.dark .landing-home.landing-v2 .landing-v2-btn-secondary {
 }
 .select-bg{
   background: transparent;
+}
+
+.semi-page-item-active{
+  color: #1CDFD5 !important;
 }
 
 .landing-home.landing-v2 .landing-v2-hero-badge {
@@ -3581,8 +3594,7 @@ html.dark .dashboard-stats-v3__card {
 .dashboard-stats-v3__title {
   color: #475569;
   font-size: 14px;
-  font-weight: 700;
-  line-height: 1.5;
+  font-weight: 500;
 }
 
 html.dark .dashboard-stats-v3__title {
@@ -3641,7 +3653,7 @@ html.dark .dashboard-stats-v3__icon--orange {
 .dashboard-stats-v3__hero {
   margin-top: 24px;
   color: #020617;
-  font-size: 34px;
+  font-size: 30px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.04em;
@@ -3683,8 +3695,8 @@ html.dark .dashboard-stats-v3__hero {
 
 .dashboard-stats-v3__metric-label,
 .dashboard-stats-v3__footer-row {
-  color: #64748b;
-  font-size: 14px;
+  color: #475569;
+  font-size: 12px;
 }
 
 html.dark .dashboard-stats-v3__metric-label,
@@ -3694,16 +3706,15 @@ html.dark .dashboard-stats-v3__footer-row {
 
 .dashboard-stats-v3__metric-value {
   color: #020617;
-  font-size: 36px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.04em;
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 36PX;
 }
 
-.dashboard-stats-v3__metric-value--compact {
+/* .dashboard-stats-v3__metric-value--compact {
   font-size: 22px;
   font-weight: 800;
-}
+} */
 
 html.dark .dashboard-stats-v3__metric-value {
   color: #f8fafc;
@@ -3728,9 +3739,8 @@ html.dark .dashboard-stats-v3__metric-value {
 
 .dashboard-stats-v3__footer-row strong {
   color: #020617;
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 html.dark .dashboard-stats-v3__footer-row strong {

@@ -88,13 +88,13 @@ const InvitationCard = ({
                     className='!rounded-lg'
                   >
                     <Zap size={12} className='mr-1' />
-                    {t('划转到余额')}
+                    {t('立即提现')}
                   </Button>
                 </div>
 
                 {/* 统计数据 */}
                 <div className='grid grid-cols-3 gap-6 mt-4'>
-                  {/* 待使用收益 */}
+                  {/* 待提取收益 */}
                   <div className='text-center'>
                     <div
                       className='text-base sm:text-2xl font-bold mb-2'
@@ -114,7 +114,7 @@ const InvitationCard = ({
                           fontSize: '12px',
                         }}
                       >
-                        {t('待使用收益')}
+                        {t('待提取收益')}
                       </Text>
                     </div>
                   </div>

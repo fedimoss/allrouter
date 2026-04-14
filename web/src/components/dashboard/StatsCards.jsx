@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Skeleton, Tag } from '@douyinfe/semi-ui';
 import { useNavigate } from 'react-router-dom';
-import { CircleGauge, DollarSign, FlaskConical, Orbit } from 'lucide-react';
+import { Hourglass, DollarSign, Info, Orbit } from 'lucide-react';
 
 const StatsCards = ({
   groupedStatsData,
@@ -83,7 +83,7 @@ const StatsCards = ({
     {
       key: 'resource',
       title: '24H 资源消耗',
-      icon: FlaskConical,
+      icon: Info,
       iconClassName: 'dashboard-stats-v3__icon dashboard-stats-v3__icon--violet',
       metricBlocks: [
         { label: '统计额度', value: totalQuota, compact: true },
@@ -94,7 +94,7 @@ const StatsCards = ({
     {
       key: 'performance',
       title: '性能指标',
-      icon: CircleGauge,
+      icon: Hourglass,
       iconClassName: 'dashboard-stats-v3__icon dashboard-stats-v3__icon--orange',
       metricBlocks: [
         { label: '平均RPM', value: avgRPM, compact: true },

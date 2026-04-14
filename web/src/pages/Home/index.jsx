@@ -393,10 +393,12 @@ const Home = () => {
             className={`landing-v2-nav ${!isLoggedIn ? 'landing-v2-nav-fixed' : ''}`}
           >
             <div className='landing-v2-logo'>
+              <div className='landing-v2-logo-bg'>
               <img
                 src={logo}
                 className='landing-v2-real-logo'
-              />
+                />
+              </div>
               <span>{ systemName }</span>
             </div>
 

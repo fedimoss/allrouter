@@ -682,7 +682,7 @@
 
 .auth-v2 .terms a,
 .auth-v2 .terms-check a {
-  color: #EEEEF0;
+  color: rgba(170, 171, 173, 0.45);
   text-decoration: underline;
 }
 

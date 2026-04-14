@@ -146,6 +146,12 @@
 .status-badge.success {
   color: #10b981;
 }
+.status-badge.success .status-circle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #15D7CD;
+}
 
 .status-badge.warning {
   background-color: #fff7ed;

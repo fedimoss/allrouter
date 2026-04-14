@@ -496,13 +496,10 @@ const OauthList = () => {
                     style={{
                       width: '100%',
                       height: 40,
-                      border: 'none',
+                      border: '1px solid rgba(28, 223, 213, 0.2)',
                       borderRadius: 12,
-                      backgroundImage:
-                        'linear-gradient(135deg, #09FEF7 0%, #F8FF15 100%)',
-                      color: '#fff',
-                      fontWeight: 600,
-                      boxShadow: '0 12px 24px rgba(16, 185, 129, 0.18)',
+                      background: 'rgba(28, 223, 213, 0.1)',
+                      color: '#1CDFD5',
                     }}
                   >
                     {isLoading ? (
@@ -568,10 +565,14 @@ const OauthList = () => {
 
                   <div className='mt-2 flex items-center justify-between gap-2'>
                     <Button
-                      type='primary'
-                      theme='solid'
                       loading={isCompleteLoading}
                       onClick={() => submitIFlow(item)}
+                      style={{
+                     
+                      backgroundImage:
+                          'linear-gradient(135deg, #09FEF7 0%, #F8FF15 100%)',
+                      color: '#fff',
+                    }}
                     >
                       {isCompleteLoading ? (
                         <span className='flex items-center gap-2'>

@@ -59,7 +59,7 @@ html.dark .token-v2 {
   z-index: 2;
   border-bottom: 1px solid var(--tk-border-soft);
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.82), rgba(248, 250, 252, 0.52));
-  padding: 20px 22px 18px;
+  padding: 20px 0;
 }
 .token-v2-toolbar .token-v2-toolbar-title{
   font-size: 36px;
@@ -91,6 +91,7 @@ html.dark .token-v2-toolbar {
   border: 1px solid var(--tk-border);
   border-radius: 12px;
   margin-top: 32px;
+  background: var(--tk-surface);
 }
 
 .token-v2-toolbar-actions,
@@ -207,7 +208,7 @@ html.dark .token-v2-toolbar {
 }
 
 .token-v2-toolbar-filters .token-v2-select {
-  width: 106px;
+  /* width: 106px; */
   min-width: 106px;
 }
 

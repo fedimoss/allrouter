@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dropdown } from '@douyinfe/semi-ui';
 import { IconLoading } from '@douyinfe/semi-icons';
+import { useTranslation } from 'react-i18next';
 import {
   Activity,
   ArrowUpDown,
@@ -63,6 +64,7 @@ import {
   hasValue,
   joinClasses,
 } from './utils';
+
 
 const ICON_MAP = {
   users: Users,
@@ -116,9 +118,10 @@ function normalizeRow(tabKey, item, index) {
   };
 }
 
-function DateRangeDropdown({ activeRange, onChange }) {
+function DateRangeDropdown ({ activeRange, onChange }) {
+  const { t } = useTranslation();
   const activeLabel =
-    DATE_RANGE_OPTIONS.find((option) => option.value === activeRange)?.label || '今日';
+    DATE_RANGE_OPTIONS.find((option) => option.value === activeRange)?.label || t('今日');
 
   return (
     <Dropdown
@@ -141,7 +144,7 @@ function DateRangeDropdown({ activeRange, onChange }) {
                 )}
               >
                 <div className='flex items-center justify-between gap-3'>
-                  <span>{option.label}</span>
+                  <span>{t(option.label)}</span>
                   {active ? (
                     <span className='h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_0_4px_rgba(34,211,238,0.12)]' />
                   ) : null}
@@ -156,9 +159,9 @@ function DateRangeDropdown({ activeRange, onChange }) {
         className='inline-flex h-[50px] items-center justify-between rounded-[20px] border border-slate-200/90 bg-white px-4 text-left shadow-[0_8px_20px_rgba(148,163,184,0.12)] transition hover:border-slate-300 hover:shadow-[0_10px_24px_rgba(148,163,184,0.16)] focus:border-cyan-300 focus:outline-none focus:ring-4 focus:ring-cyan-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600 dark:focus:border-cyan-500 dark:focus:ring-cyan-900/30'
         type='button'
       >
-        <div className='flex  justify-between leading-none'>
-          <span className='text-[12px] font-medium leading-none mr-4 text-slate-400 dark:text-slate-500'>日期选择</span>
-          <span className='text-[15px] font-semibold p-2 leading-none text-slate-700 dark:text-slate-100'>{activeLabel}</span>
+        <div className='flex justify-between leading-none items-center'>
+          <span className='text-[12px] font-medium leading-none mr-4 text-slate-400 dark:text-slate-500'>{t('日期选择')}</span>
+          <span className='text-[15px] font-semibold p-2 leading-none text-slate-700 dark:text-slate-100'>{t(activeLabel)}</span>
         </div>
         <ChevronDown className='h-4 w-4 shrink-0 text-slate-400' />
       </button>
@@ -176,6 +179,7 @@ function formatMetricValue(metric) {
 }
 
 function MetricCard({ metric, loading }) {
+  const { t } = useTranslation();
   const Icon = ICON_MAP[metric.icon] || BarChart3;
   const footerToneClass = FOOTER_TONE_CLASS[metric.footer?.tone] || FOOTER_TONE_CLASS.neutral;
 
@@ -183,7 +187,7 @@ function MetricCard({ metric, loading }) {
     <article className={joinClasses(blockPanelClassName, 'p-5 sm:p-6')}>
       <div className='flex items-start justify-between gap-4'>
         <div className='min-w-0'>
-          <p className='text-sm text-slate-500 dark:text-slate-400'>{metric.title}</p>
+          <p className='text-sm text-slate-500 dark:text-slate-400'>{t(metric.title)}</p>
           <div className='mt-4 min-h-[44px] text-[24px] font-semibold tracking-tight text-slate-900 dark:text-white sm:text-[28px]'>
             {loading ? <LoadingIcon className='h-6 w-6' /> : formatMetricValue(metric)}
           </div>
@@ -193,8 +197,8 @@ function MetricCard({ metric, loading }) {
         </div>
       </div>
       <div className='mt-5 min-h-[22px] text-sm'>
-        {metric.footer?.trend ? <span className={joinClasses('font-semibold', footerToneClass)}>{metric.footer.trend}</span> : null}
-        {metric.footer?.text ? <span className={joinClasses(metric.footer?.trend ? 'ml-2' : '', 'text-slate-400 dark:text-slate-500')}>{metric.footer.text}</span> : null}
+        {metric.footer?.trend ? <span className={joinClasses('font-semibold', footerToneClass)}>{t(metric.footer.trend)}</span> : null}
+        {metric.footer?.text ? <span className={joinClasses(metric.footer?.trend ? 'ml-2' : '', 'text-slate-400 dark:text-slate-500')}>{t(metric.footer.text)}</span> : null}
       </div>
     </article>
   );
@@ -509,7 +513,8 @@ function AdvancedFilterModal({ open, fields, values, onChange, onClose, onReset,
   );
 }
 
-export default function Operational() {
+export default function Operational () {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('user');
   const [activeRange, setActiveRange] = useState('day');
   const [dashboardLoading, setDashboardLoading] = useState(false);
@@ -746,10 +751,10 @@ export default function Operational() {
         <section className='px-1 py-2 sm:px-0'>
           <div>
             <h1 className='text-3xl font-semibold tracking-tight text-slate-900 dark:text-white sm:text-4xl'>
-              运营数据
+              {t('运营数据')}
             </h1>
             <p className='mt-3 max-w-3xl text-sm leading-6 text-slate-400 dark:text-slate-500 sm:text-base'>
-              监控系统全局运营数据，用户、代理商、入驻商家、平台自营等维度统一展示。
+              {t('监控系统全局运营数据，用户、代理商、入驻商家、平台自营等维度统一展示。')}
             </p>
           </div>
           <div className='mt-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
@@ -771,7 +776,7 @@ export default function Operational() {
                     onClick={() => setActiveTab(key)}
                     type='button'
                   >
-                    {config.label}
+                    {t(config.label)}
                   </button>
                 );
               })}            </div>
@@ -802,13 +807,8 @@ export default function Operational() {
             <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
               <div>
                 <h3 className='text-[20px] font-semibold text-slate-900 dark:text-white'>
-                  {activeConfig.tableTitle}
+                  {t(activeConfig.tableTitle)}
                 </h3>
-                <p className='mt-1 text-sm text-slate-500 dark:text-slate-400'>
-                  {hasRecordsApi
-                    ? `共 ${total} 条数据，支持搜索、分页、排序和高级筛选。${appliedFilterCount > 0 ? ` 当前已启用 ${appliedFilterCount} 个筛选条件。` : ''}`
-                    : '该标签页表格接口暂未接入。'}
-                </p>
               </div>
               <div className='flex flex-col gap-3 lg:flex-row lg:items-center'>
                 <label className='relative block min-w-[220px] lg:min-w-[320px]'>
@@ -822,7 +822,7 @@ export default function Operational() {
                         handleSearchSubmit();
                       }
                     }}
-                    placeholder={activeConfig.searchPlaceholder}
+                    placeholder={t(activeConfig.searchPlaceholder)}
                     type='text'
                     value={searchInput}
                   />
@@ -833,7 +833,7 @@ export default function Operational() {
                     style={gradientButtonStyle}
                     type='button'
                   >
-                    搜索
+                    {t('搜索')}
                   </button>
                 </label>
                 {activeConfig.columns.length > 0 ? (
@@ -845,7 +845,7 @@ export default function Operational() {
                       type='button'
                     >
                       <ChevronDown className='h-4 w-4' />
-                      列设置
+                      {t('列设置')}
                     </button>
                     {showColumnMenu ? (
                       <ColumnMenu
@@ -864,7 +864,7 @@ export default function Operational() {
                     type='button'
                   >
                     <SlidersHorizontal className='h-4 w-4' />
-                    高级筛选
+                    {t('高级筛选')}
                   </button>
                 ) : null}
                 {appliedFilterCount > 0 ? (
@@ -873,7 +873,7 @@ export default function Operational() {
                     onClick={handleResetAppliedFilters}
                     type='button'
                   >
-                    清空筛选
+                    {t('清空筛选')}
                   </button>
                 ) : null}
               </div>
@@ -883,11 +883,11 @@ export default function Operational() {
           <div className='mt-4'>
             {!hasRecordsApi ? (
               <div className='flex min-h-[220px] items-center justify-center rounded-2xl bg-slate-50 text-sm text-slate-500 dark:bg-slate-950 dark:text-slate-400'>
-                当前标签页表格接口暂未接入。
+                {t('当前标签页表格接口暂未接入')}
               </div>
             ) : visibleColumns.length === 0 ? (
               <div className='flex min-h-[220px] items-center justify-center rounded-2xl bg-slate-50 text-sm text-slate-500 dark:bg-slate-950 dark:text-slate-400'>
-                当前未选择任何表格列
+                {t('当前未选择任何表格列')}
               </div>
             ) : tableLoading ? (
               <div className='flex min-h-[220px] items-center justify-center rounded-2xl bg-slate-50 dark:bg-slate-950'>
@@ -895,7 +895,7 @@ export default function Operational() {
               </div>
             ) : rows.length === 0 ? (
               <div className='flex min-h-[220px] items-center justify-center rounded-2xl bg-slate-50 text-sm text-slate-500 dark:bg-slate-950 dark:text-slate-400'>
-                暂无匹配数据
+                {t('暂无匹配数据')}
               </div>
             ) : (
               <>

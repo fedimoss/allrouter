@@ -183,7 +183,7 @@
   letter-spacing: -2px;
 }
 .pricing-market-recommend-section .pricing-banner-cont .color{
-  color: #0DFEF2;
+  color: #1CDFD5;
   letter-spacing: 2px;
 }
 .pricing-market-recommend-section .pricing-banner-cont-description{
@@ -204,9 +204,6 @@
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: var(--semi-color-bg-0);
-  border: 1px solid var(--semi-color-border);
-  color: var(--semi-color-text-0);
   margin-right: 16px;
   cursor: pointer;
 }
@@ -215,6 +212,11 @@
   color: #1CDFD5;
   box-shadow: 0px 4px 6px -4px #00E67633;
   background-color: transparent;
+}
+.pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-action .pricing-banner-cont-action-btn:last-child{
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  background-color: #222;
 }
 
 .pricing-market-recommend-head {

@@ -258,8 +258,6 @@ export const USER_COLUMNS = [
 export const TAB_CONFIG = {
   user: {
     label: '用户',
-    title: '用户数据',
-    subtitle: '聚焦用户规模、活跃度和留存变化。',
     tableTitle: '用户数据',
     searchPlaceholder: '搜索用户名称或ID...',
     api: {

@@ -1073,30 +1073,30 @@ function TokensPage() {
                   />
                 </label>
 
-                <select
+                <Select
                   className='token-v2-select'
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
+                  onChange={val => setStatusFilter(val)}
                 >
-                  <option value=''>{tokensData.t('所有状态')}</option>
-                  <option value='active'>{tokensData.t('活跃')}</option>
-                  <option value='expired'>{tokensData.t('已过期')}</option>
-                  <option value='disabled'>{tokensData.t('已禁用')}</option>
-                  <option value='exhausted'>{tokensData.t('已耗尽')}</option>
-                </select>
+                  <Select.Option value=''>{tokensData.t('所有状态')}</Select.Option>
+                  <Select.Option value='active'>{tokensData.t('活跃')}</Select.Option>
+                  <Select.Option value='expired'>{tokensData.t('已过期')}</Select.Option>
+                  <Select.Option value='disabled'>{tokensData.t('已禁用')}</Select.Option>
+                  <Select.Option value='exhausted'>{tokensData.t('已耗尽')}</Select.Option>
+                </Select>
 
-                <select
+                <Select
                   className='token-v2-select'
                   value={groupFilter}
-                  onChange={(event) => setGroupFilter(event.target.value)}
+                  onChange={val => setGroupFilter(val)}
                 >
-                  <option value=''>{tokensData.t('全部分组')}</option>
+                  <Select.Option value=''>{tokensData.t('全部分组')}</Select.Option>
                   {currentGroupOptions.map((group) => (
-                    <option key={group.value} value={group.value}>
+                    <Select.Option key={group.value} value={group.value}>
                       {group.label}
-                    </option>
+                    </Select.Option>
                   ))}
-                </select>
+                </Select>
               </form>
             </div>
 
@@ -1114,7 +1114,7 @@ function TokensPage() {
                 <table className='token-v2-table'>
                   <thead>
                     <tr>
-                      <th className='token-v2-checkbox-col'>
+                      {/* <th className='token-v2-checkbox-col'>
                         <input
                           ref={selectAllRef}
                           type='checkbox'
@@ -1123,7 +1123,7 @@ function TokensPage() {
                             handleSelectAll(event.target.checked)
                           }
                         />
-                      </th>
+                      </th> */}
                       <th>{tokensData.t('名称')}</th>
                       <th className='token-v2-col-status'>{tokensData.t('状态')}</th>
                       <th className='token-v2-col-quota'>{tokensData.t('剩余额度 / 总额度')}</th>
@@ -1158,7 +1158,7 @@ function TokensPage() {
                           key={record.id}
                           className={isSelected ? 'token-v2-row-selected' : ''}
                         >
-                          <td className='token-v2-checkbox-col'>
+                          {/* <td className='token-v2-checkbox-col'>
                             <input
                               type='checkbox'
                               checked={isSelected}
@@ -1169,7 +1169,7 @@ function TokensPage() {
                                 )
                               }
                             />
-                          </td>
+                          </td> */}
                           <td>
                             <div className='token-v2-name-cell'>
                               <div className='token-v2-name-title'>{record.name}</div>
@@ -1418,18 +1418,18 @@ function TokensPage() {
             <div className='token-v2-footer-actions'>
               <label className='token-v2-page-size'>
                 <span>{tokensData.t('每页')}</span>
-                <select
+                <Select
                   value={tokensData.pageSize}
-                  onChange={(event) =>
-                    tokensData.handlePageSizeChange(Number(event.target.value))
+                  onChange={val =>
+                    tokensData.handlePageSizeChange(Number(val))
                   }
                 >
                   {PAGE_SIZE_OPTIONS.map((size) => (
-                    <option key={size} value={size}>
+                    <Select.Option key={size} value={size}>
                       {size}
-                    </option>
+                    </Select.Option>
                   ))}
-                </select>
+                </Select>
               </label>
 
               <nav className='token-v2-pagination' aria-label='Pagination'>

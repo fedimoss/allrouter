@@ -59,7 +59,7 @@ const ApiInfoPanel = ({ apiInfoData = [], handleCopyUrl, t }) => {
                 </div> */}
               </div>
               <div className={`status-badge success`}>
-                {'OK'}
+                <div className='status-circle'></div>{'OK'}
               </div>
             </div>
           ))

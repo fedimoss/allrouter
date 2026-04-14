@@ -120,14 +120,16 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             />
             {isPublicRoute ? (
                 <>
-                    <Link to='/' className='landing-v2-logo'>
-                        <img
-                            src={logo || '/logo.png'}
-                            alt={`${systemName} Logo`}
-                            className='landing-v2-real-logo'
-                        />
-                        <span>{systemName}</span>
-                    </Link>
+            <Link to='/' className='landing-v2-logo'>
+              <div className='landing-v2-logo-bg'>
+                <img
+                  src={logo || '/logo.png'}
+                  alt={`${systemName} Logo`}
+                  className='landing-v2-real-logo'
+                />
+              </div>
+              <span>{systemName}</span>
+            </Link>
 
                     <div className='landing-v2-nav-links'>
                         <Link to={consoleNavTarget}>{t('控制台')}</Link>

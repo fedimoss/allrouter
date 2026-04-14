@@ -60,6 +60,9 @@ import { useIsMobile } from '../../hooks/common/useIsMobile';
 import TransferModal from '../topup/modals/TransferModal';
 import bannerImg from '../../../public/invite-banner.png';
 import hammerImg from '../../../public/hammer.svg';
+import walletImg from '../../../public/wallet-balance.png';
+import houseImg from '../../../public/house.png';
+import invitePeopleImg from '../../../public/invite-people.png';
 
 const { Text, Title } = Typography;
 
@@ -251,63 +254,68 @@ const Invitation = () => {
 
       {/* 顶部统计卡片 */}
       <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
-        {/* 待使用收益 */}
+        {/* 待提取收益 */}
         <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
-          <Wallet size={50} className='text-blue-500 absolute z-0 right-2 bottom-2 opacity-[0.2]' />
+          <img src={walletImg} alt='wallet' className='absolute bottom-0 right-0 z-0 h-[70px]' />
           <div className='flex items-start justify-between mb-3'>
-            <span className='text-sm text-slate-500 dark:text-slate-400'>
-              {t('待使用收益')}
+            <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
+              {t('待提取收益')}
             </span>
           </div>
-          <div className='dark:text-cyan-300 mb-1 font-black text-[30px] leading-[30px]'>
+          <div className='dark:text-cyan-300 mb-1 text-[#1CDFD5] font-[900] text-[30px] leading-[30px]'>
             {renderQuota(affQuota)}
           </div>
-          <Text type='tertiary' size='small'>
+          {/* <Text type='tertiary' className='mt-2' size='small' style={{display:'block'}}>
             {t('可立即划转至余额')}
-          </Text>
+          </Text> */}
           <Button
             block
-            type='tertiary'
-            theme='outline'
             className='!mt-4 !rounded-lg relative z-10 dark:text-cyan-300 dark:border-cyan-300'
+            style={{
+              width: '60%',
+              border: '1px solid #1CDFD533',
+              background: '#1CDFD51A',
+              color: '#1CDFD5',
+              padding: '18px',
+              fontSize:'12px',
+            }}
             disabled={!affQuota || affQuota <= 0}
             onClick={() => setOpenTransfer(true)}
-            icon={<ArrowLeftRight size={14} />}
           >
-            {t('划转到余额')}
+            {t('立即提现')}
           </Button>
         </div>
 
         {/* 累计总收益 */}
         <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
-          <TrendingUp size={50} className='text-blue-500 absolute z-0 right-2 bottom-2 opacity-[0.2]' />
+          <img src={houseImg} alt='house' className='absolute bottom-0 right-0 z-0 h-[70px]' />
           <div className='flex items-start justify-between mb-3'>
-            <span className='text-sm text-slate-500 dark:text-slate-400'>
+            <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
               {t('累计总收益')}
             </span>
           </div>
-          <div className='dark:text-semi-color-text-0 mb-1 font-black text-[30px] leading-[30px]'>
+          <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px]'>
             {renderQuota(affHistoryQuota)}
           </div>
-          <Text type='tertiary' size='small'>
+          {/* <Text type='tertiary' size='small'>
             {t('历史所有奖励总和')}
-          </Text>
+          </Text> */}
         </div>
 
         {/* 成功邀请人数 */}
         <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
-          <Users size={50} className='text-blue-500 absolute z-0 right-2 bottom-2 opacity-[0.2]' />
+          <img src={invitePeopleImg} alt='invitePeople' className='absolute bottom-0 right-0 z-0 h-[70px]' />
           <div className='flex items-start justify-between mb-3'>
-            <span className='text-sm text-slate-500 dark:text-slate-400'>
+            <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
               {t('成功邀请人数')}
             </span>
           </div>
-          <div className='dark:text-semi-color-text-0 mb-1 font-black text-[30px] leading-[30px]'>
+          <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px]'>
             {affCount}
           </div>
-          <Text type='tertiary' size='small'>
+          {/* <Text type='tertiary' size='small'>
             {t('已注册并完成首充的好友')}
-          </Text>
+          </Text> */}
         </div>
       </div>
 

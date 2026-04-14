@@ -277,7 +277,7 @@ const Exchange = () => {
                 onChange={setRedemptionCode}
                 placeholder={t('请输入兑换码')}
                 size='large'
-                className='flex-1 !text-lg [&_.semi-input-wrapper]:!rounded-xl [&_.semi-input-wrapper]:!bg-[var(--semi-color-bg-0)] [&_.semi-input-wrapper]:!border-[var(--semi-color-border)] [&_.semi-input-wrapper_input]:!text-[var(--semi-color-text-0)] [&_.semi-input-clearBtn]:!text-[var(--semi-color-text-2)]'
+                className='flex-1 !h-[56px] !text-lg [&_.semi-input-wrapper]:!rounded-xl [&_.semi-input-wrapper]:!bg-[var(--semi-color-bg-0)] [&_.semi-input-wrapper]:!border-[var(--semi-color-border)] [&_.semi-input-wrapper_input]:!text-[var(--semi-color-text-0)] [&_.semi-input-clearBtn]:!text-[var(--semi-color-text-2)]'
                 style={{ fontFamily: 'monospace', letterSpacing: '0.08em' }}
                 onEnterPress={handleRedeem}
                 showClear
@@ -286,7 +286,7 @@ const Exchange = () => {
                 size='large'
                 loading={isSubmitting}
                 onClick={handleRedeem}
-                className='!rounded-xl !min-w-[160px] !font-bold !text-base hover:!shadow-lg hover:!-translate-y-0.5 !transition-all'
+                className='!rounded-xl !h-[56px] !min-w-[160px] !font-bold !text-base hover:!shadow-lg hover:!-translate-y-0.5 !transition-all'
                 style={{
                   background:
                     'linear-gradient(135deg, #09fef7 0%, #f8ff15 100%)',

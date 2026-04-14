@@ -308,7 +308,7 @@ const RechargeCard = ({
             <Text className='text-xl dark:!text-cyan-300' style={
               {
                 fontWeight: '800',
-                color:'#0DFEF2'
+                color:'#1CDFD5'
               }
             }>
               {prefix}{normalizedMoney.toFixed(2)}
@@ -727,7 +727,7 @@ const RechargeCard = ({
 
         {/* 右侧：充值小贴士（已移除额度预警） */}
         <div className='space-y-4'>
-          <div className='rounded-2xl border from-cyan-50 via-white to-emerald-50 dark:border-cyan-900/40 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5 shadow-sm'>
+          <div className='rounded-2xl border from-cyan-50 bg-white dark:bg-slate-800 to-emerald-50 dark:border-cyan-900/40 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5 shadow-sm'>
             <h3 className='font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2'>
               <Lightbulb style={{color:'#FDB878'}} /> {t('充值小贴士')}
             </h3>
