@@ -122,6 +122,10 @@ const PricingCardView = ({
     rowSelection?.onChange?.(newKeys, null);
   };
 
+  const handleOpenModelDetail = (model) => {
+    openModelDetail?.(model);
+  };
+
   const getModelIcon = (model) => {
     if (!model || !model.model_name) {
       return <div className='pricing-market-model-logo'><Avatar size='large'>?</Avatar></div>;
@@ -212,7 +216,7 @@ const PricingCardView = ({
                 className={`pricing-market-mobile-card${isSelected ? ' is-selected' : ''}`}
                 bodyStyle={{ height: '100%' }}
               >
-                <div className='flex flex-col h-full'>
+                <div className='flex flex-col h-full' onClick={() => handleOpenModelDetail(model)}>
                   <div className='flex items-start justify-between mb-3'>
                     <div className='flex items-start space-x-3 flex-1 min-w-0'>
                       {getModelIcon(model)}
@@ -226,7 +230,7 @@ const PricingCardView = ({
                     <div className='flex items-center space-x-2 ml-3'>
                       <Eye onClick={(e) => {
                           e.stopPropagation();
-                          openModelDetail && openModelDetail(model);
+                          handleOpenModelDetail(model);
                         }} />
                       {/* <Button
                         size='small'
@@ -235,7 +239,7 @@ const PricingCardView = ({
                         icon={<Info size={12} />}
                         onClick={(e) => {
                           e.stopPropagation();
-                          openModelDetail && openModelDetail(model);
+                          handleOpenModelDetail(model);
                         }}
                       >
                         {t('详情')}
@@ -279,7 +283,11 @@ const PricingCardView = ({
 
           return (
             <Card key={modelKey || index} className={`pricing-market-desktop-card${isSelected ? ' is-selected' : ''}`} bodyStyle={{ padding: 0, height: '100%' }}>
-              <div className='pricing-market-desktop-card-inner'>
+              <div
+                className='pricing-market-desktop-card-inner'
+                onClick={() => handleOpenModelDetail(model)}
+                style={{ cursor: openModelDetail ? 'pointer' : 'default' }}
+              >
                 <div className='pricing-market-desktop-card-header'>
                   <div className='pricing-market-desktop-card-brand'>
                     {getModelIcon(model)}
@@ -293,8 +301,8 @@ const PricingCardView = ({
                   </div>
 
                   <div className='pricing-market-desktop-card-actions'>
-                    <Button theme='borderless' type='tertiary' icon={<Heart size={16} />} />
-                    <Button theme='borderless' type='tertiary' icon={<Copy size={14} />} onClick={() => copyText(model.model_name)} />
+                    <Button theme='borderless' type='tertiary' icon={<Heart size={16} />} onClick={(e) => { e.stopPropagation(); }} />
+                    <Button theme='borderless' type='tertiary' icon={<Copy size={14} />} onClick={(e) => { e.stopPropagation(); copyText(model.model_name); }} />
                     {/* {rowSelection && <Checkbox checked={isSelected} onChange={(e) => handleCheckboxChange(model, e.target.checked)} />} */}
                   </div>
                 </div>
@@ -318,7 +326,15 @@ const PricingCardView = ({
                   <div className='pricing-market-price-row' style={priceGridStyle}>
                     {priceBoardItems.map((item) => (
                       item.isAction ? (
-                      <Eye key={item.key} size={16} className='pricing-market-detail-trigger' onClick={() => openModelDetail && openModelDetail(model)} />
+                      <Eye
+                        key={item.key}
+                        size={16}
+                        className='pricing-market-detail-trigger'
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenModelDetail(model);
+                        }}
+                      />
                       ) : (
                         <span key={item.key}>{item.value}<small>{item.suffix}</small></span>
                       )
@@ -334,7 +350,7 @@ const PricingCardView = ({
                   </div>
                 )}
 
-                {/* <button type='button' className='pricing-market-desktop-card-link' onClick={(e) => { e.stopPropagation(); openModelDetail && openModelDetail(model); }}>
+                {/* <button type='button' className='pricing-market-desktop-card-link' onClick={(e) => { e.stopPropagation(); handleOpenModelDetail(model); }}>
                   {t('查看全部渠道对比')} <ChevronDown size={14} />
                 </button> */}
               </div>

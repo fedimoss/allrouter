@@ -131,8 +131,9 @@ const EditTokenModal = (props) => {
     const { success, message, data } = res.data;
     if (success) {
       let localGroupOptions = Object.entries(data).map(([group, info]) => ({
-        label: info.desc,
+        label: group,
         value: group,
+        desc: info.desc,
         ratio: info.ratio,
       }));
       if (statusState?.status?.default_use_auto_group) {
@@ -366,7 +367,7 @@ const EditTokenModal = (props) => {
                         label={t('令牌分组')}
                         placeholder={t('令牌分组，默认为用户的分组')}
                         optionList={groups}
-                        renderOptionItem={renderGroupOption}
+                        renderOptionItem={(item) => renderGroupOption({ ...item, label: item.desc ?? item.label })}
                         showClear
                         style={{ width: '100%' }}
                       />
