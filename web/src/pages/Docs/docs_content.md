@@ -299,9 +299,9 @@ AllRouter.AI 整合了 OpenAI、Claude、Llama 等 50\+ 知名大模型，通过
 
 前提条件：
 
-- 您需要安装 [Node.js 18 或更新版本环境](https://nodejs.org/en/download/" \t "https://docs.bigmodel.cn/cn/coding-plan/tool/_blank)
-- MacOS 用户推荐使用 [nvm 方式安装 Nodejs](https://nodejs.org/en/download/" \t "https://docs.bigmodel.cn/cn/coding-plan/tool/_blank) 或 [Homebrew 方式](https://formulae.brew.sh/formula/node" \t "https://docs.bigmodel.cn/cn/coding-plan/tool/_blank)。不推荐直接安装包安装\(后续可能会遇到权限问题\)
-- Windows 用户还需安装 [Git for Windows](https://git-scm.com/download/win" \t "https://docs.bigmodel.cn/cn/coding-plan/tool/_blank)
+- 您需要安装 [Node.js 18 或更新版本环境](https://nodejs.org/en/download/)。
+- MacOS 用户推荐使用 [nvm 方式安装 Nodejs](https://github.com/nvm-sh/nvm) 或 [Homebrew 方式](https://formulae.brew.sh/formula/node)。不推荐直接安装包安装（后续可能会遇到权限问题）。
+- Windows 用户还需安装 [Git for Windows](https://git-scm.com/download/win)。
 
 进入命令行界面，安装 Claude Code
 

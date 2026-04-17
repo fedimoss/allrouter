@@ -342,9 +342,9 @@ Using AllRouter in Claude Code as an example.
 
 Prerequisites:
 
-- You need to have Node.js 18 or a later version installed.
-- MacOS users: It is recommended to install Node.js via nvm or Homebrew. Direct package installation is not recommended as it may cause permission issues later.
-- Windows users: You also need to install Git for Windows.
+- You need to have [Node.js 18 or a later version](https://nodejs.org/en/download/) installed.
+- MacOS users: It is recommended to install Node.js via [nvm](https://github.com/nvm-sh/nvm) or [Homebrew](https://formulae.brew.sh/formula/node). Direct package installation is not recommended as it may cause permission issues later.
+- Windows users: You also need to install [Git for Windows](https://git-scm.com/download/win).
 
 Next, open the command\-line interface and install Claude Code.
 

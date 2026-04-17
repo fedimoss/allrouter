@@ -11,6 +11,7 @@ import docsEnMd from './docs_content.en.md?raw';
 // import docsRuMd from './docs_content.ru.md?raw';
 // import docsViMd from './docs_content.vi.md?raw';
 import docsOpenClawMd from './docs_content.openclaw.md?raw';
+import docsOpenClawEnMd from './docs_content.openclaw.en.md?raw';
 import { marked } from 'marked';
 
 const DOCS_UPDATED_AT = '2026-04-17';
@@ -38,6 +39,7 @@ const DOCS_SECTION_MAP = {
   },
   openclaw: {
     contentMap: {
+      en: docsOpenClawEnMd,
       default: docsOpenClawMd,
     },
     titles: {
@@ -91,7 +93,7 @@ const generateAnchorId = (rawText, anchorCountMap) => {
     .trim()
     .replace(/[^\p{L}\p{N}\p{Script=Han}]+/gu, '-')
     .replace(/^-+|-+$/g, '');
-  const baseAnchor = normalizedText || 'section';
+  const baseAnchor = `section-${normalizedText || 'section'}`;
   const count = anchorCountMap.get(baseAnchor) || 0;
 
   anchorCountMap.set(baseAnchor, count + 1);
@@ -576,7 +578,6 @@ const Docs = () => {
                 <Anchor
                   key={`${activeDocKey}-${defaultAnchor}`}
                   defaultAnchor={defaultAnchor}
-                  showTooltip
                   targetOffset={88}
                   style={{ background: 'transparent' }}
                   className='docs-toc-anchor'
