@@ -191,3 +191,59 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
 }
+
+func TestApplyUpstreamUserAgentPolicy_RewritesBlockedAnthropicJS(t *testing.T) {
+	t.Parallel()
+
+	header := http.Header{}
+	header.Set("User-Agent", "Anthropic/JS 0.73.0")
+
+	applyUpstreamUserAgentPolicy(header)
+
+	require.Equal(t, upstreamSafeUserAgent, header.Get("User-Agent"))
+}
+
+func TestApplyUpstreamUserAgentPolicy_RewritesBlockedOpenAIJS(t *testing.T) {
+	t.Parallel()
+
+	header := http.Header{}
+	header.Set("User-Agent", "OpenAI/JS 4.90.0")
+
+	applyUpstreamUserAgentPolicy(header)
+
+	require.Equal(t, upstreamSafeUserAgent, header.Get("User-Agent"))
+}
+
+func TestApplyUpstreamUserAgentPolicy_SetsDefaultWhenMissing(t *testing.T) {
+	t.Parallel()
+
+	header := http.Header{}
+
+	applyUpstreamUserAgentPolicy(header)
+
+	require.Equal(t, upstreamSafeUserAgent, header.Get("User-Agent"))
+}
+
+func TestApplyUpstreamUserAgentPolicy_LeavesNormalUserAgentUntouched(t *testing.T) {
+	t.Parallel()
+
+	header := http.Header{}
+	header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+
+	applyUpstreamUserAgentPolicy(header)
+
+	require.Equal(t, "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", header.Get("User-Agent"))
+}
+
+func TestApplyUpstreamUserAgentPolicy_RewritesAfterHeaderOverride(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", nil)
+	applyHeaderOverrideToRequest(req, map[string]string{
+		"user-agent": "Anthropic/JS 0.73.0",
+	})
+
+	applyUpstreamUserAgentPolicy(req.Header)
+
+	require.Equal(t, upstreamSafeUserAgent, req.Header.Get("User-Agent"))
+}

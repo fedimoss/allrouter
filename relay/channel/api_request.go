@@ -45,7 +45,17 @@ const (
 	headerPassthroughAllKey        = "*"
 	headerPassthroughRegexPrefix   = "re:"
 	headerPassthroughRegexPrefixV2 = "regex:"
+	// 上游请求使用的安全 User-Agent 标识，用于替换被屏蔽的客户端 SDK User-Agent
+	upstreamSafeUserAgent = "Mozilla/5.0"
 )
+
+// blockedUserAgentMarkers 需要被屏蔽的 User-Agent 特征标记列表
+// 当客户端 User-Agent 包含这些标记时，会被替换为通用的浏览器 User-Agent，
+// 避免上游服务商识别为 SDK 调用而拒绝请求
+var blockedUserAgentMarkers = []string{
+	"anthropic/js",
+	"openai/js",
+}
 
 var passthroughSkipHeaderNamesLower = map[string]struct{}{
 	// RFC 7230 hop-by-hop headers.
@@ -287,6 +297,34 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 	}
 }
 
+// shouldRewriteUserAgent 判断是否需要重写 User-Agent
+// 当 User-Agent 为空或包含被屏蔽的 SDK 标记时返回 true
+func shouldRewriteUserAgent(userAgent string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(userAgent))
+	// User-Agent 为空时需要重写
+	if normalized == "" {
+		return true
+	}
+	// 检查是否包含被屏蔽的 SDK 标记
+	for _, marker := range blockedUserAgentMarkers {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// applyUpstreamUserAgentPolicy 对上游请求应用 User-Agent 策略
+// 如果当前 User-Agent 需要被重写，则替换为安全的通用浏览器 User-Agent
+func applyUpstreamUserAgentPolicy(header http.Header) {
+	if header == nil {
+		return
+	}
+	if shouldRewriteUserAgent(header.Get("User-Agent")) {
+		header.Set("User-Agent", upstreamSafeUserAgent)
+	}
+}
+
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
@@ -311,6 +349,8 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, err
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
+	// 应用上游 User-Agent 策略，屏蔽 SDK 标识
+	applyUpstreamUserAgentPolicy(req.Header)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
@@ -344,6 +384,8 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 		return nil, err
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
+	// 应用上游 User-Agent 策略，屏蔽 SDK 标识
+	applyUpstreamUserAgentPolicy(req.Header)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
@@ -370,6 +412,8 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	for key, value := range headerOverride {
 		targetHeader.Set(key, value)
 	}
+	// 应用上游 User-Agent 策略，屏蔽 SDK 标识
+	applyUpstreamUserAgentPolicy(targetHeader)
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
 	if err != nil {
