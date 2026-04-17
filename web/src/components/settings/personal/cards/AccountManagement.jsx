@@ -71,6 +71,7 @@ const AccountManagement = ({
   passkeyDeleteLoading,
   onPasskeyRegister,
   onPasskeyDelete,
+  onTwoFAStatusChange,
 }) => {
   const renderAccountInfo = (accountId, label) => {
     if (!accountId || accountId === '') {
@@ -730,7 +731,7 @@ const AccountManagement = ({
                 </Card>
 
                 {/* 两步验证设置 */}
-                <TwoFASetting t={t} />
+                <TwoFASetting t={t} onStatusChange={onTwoFAStatusChange} />
 
                 {/* 危险区域 */}
                 <Card className='personal-v2-subcard !rounded-xl w-full'>

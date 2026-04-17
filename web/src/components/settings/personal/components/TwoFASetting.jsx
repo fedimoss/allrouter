@@ -43,7 +43,7 @@ import { QRCodeSVG } from 'qrcode.react';
 
 const { Text, Paragraph } = Typography;
 
-const TwoFASetting = ({ t }) => {
+const TwoFASetting = ({ t, onStatusChange }) => {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({
     enabled: false,
@@ -70,6 +70,7 @@ const TwoFASetting = ({ t }) => {
       const res = await API.get('/api/user/2fa/status');
       if (res.data.success) {
         setStatus(res.data.data);
+        onStatusChange?.(res.data.data);
       }
     } catch (error) {
       showError(t('获取2FA状态失败'));

@@ -17,166 +17,240 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useContext } from "react";
-import { Card, Select, Typography, Avatar } from "@douyinfe/semi-ui";
-import { Languages } from "lucide-react";
-import { useTranslation } from "react-i18next";
-import { API, showSuccess, showError } from "../../../../helpers";
-import { UserContext } from "../../../../context/User";
-import { normalizeLanguage } from "../../../../i18n/language";
+import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { Card } from '@douyinfe/semi-ui';
+import {
+  CheckCircle2,
+  Languages,
+  MonitorSmartphone,
+  MoonStar,
+  SunMedium,
+} from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { API, showSuccess, showError } from '../../../../helpers';
+import { UserContext } from '../../../../context/User';
+import {
+  useActualTheme,
+  useSetTheme,
+  useTheme,
+} from '../../../../context/Theme';
+import { normalizeLanguage } from '../../../../i18n/language';
 
-// Language options with native names
-const languageOptions = [
-	{ value: "zh-CN", label: "简体中文" },
-	{ value: "zh-TW", label: "繁體中文" },
-	{ value: "en", label: "English" },
-	{ value: 'fr', label: 'Français'},
-	{ value: 'ru', label: 'Русский'},
-	{ value: 'ja', label: '日本語'},
-	{ value: "vi", label: "Tiếng Việt" },
+export const languageOptions = [
+  { value: 'zh-CN', label: '简体中文' },
+  { value: 'zh-TW', label: '繁體中文' },
+  { value: 'en', label: 'English' },
+  { value: 'fr', label: 'Français' },
+  { value: 'ru', label: 'Русский' },
+  { value: 'ja', label: '日本語' },
+  { value: 'vi', label: 'Tiếng Việt' },
+];
+
+const themeOptionFactory = (t, actualTheme) => [
+  {
+    value: 'light',
+    label: t('浅色'),
+    description: t('明亮、清爽，适合白天和高亮环境使用'),
+    icon: SunMedium,
+  },
+  {
+    value: 'dark',
+    label: t('深色'),
+    description: t('更聚焦内容，减少夜间浏览时的视觉刺激'),
+    icon: MoonStar,
+  },
+  {
+    value: 'auto',
+    label: t('跟随系统'),
+    description: `${t('自动匹配系统外观')} · ${
+      actualTheme === 'dark' ? t('当前为深色') : t('当前为浅色')
+    }`,
+    icon: MonitorSmartphone,
+  },
 ];
 
 const PreferencesSettings = ({ t }) => {
-	const { i18n } = useTranslation();
-	const [userState, userDispatch] = useContext(UserContext);
-	const [currentLanguage, setCurrentLanguage] = useState(
-		normalizeLanguage(i18n.language) || "zh-CN",
-	);
-	const [loading, setLoading] = useState(false);
+  const { i18n } = useTranslation();
+  const [userState, userDispatch] = useContext(UserContext);
+  const theme = useTheme();
+  const actualTheme = useActualTheme();
+  const setTheme = useSetTheme();
+  const [currentLanguage, setCurrentLanguage] = useState(
+    normalizeLanguage(i18n.language) || 'zh-CN',
+  );
+  const [loading, setLoading] = useState(false);
 
-	// Load saved language preference from user settings
-	useEffect(() => {
-		if (userState?.user?.setting) {
-			try {
-				const settings = JSON.parse(userState.user.setting);
-				if (settings.language) {
-					const lang = normalizeLanguage(settings.language);
-					setCurrentLanguage(lang);
-					// Sync i18n with saved preference
-					if (i18n.language !== lang) {
-						i18n.changeLanguage(lang);
-					}
-				}
-			} catch (e) {
-				// Ignore parse errors
-			}
-		}
-	}, [userState?.user?.setting, i18n]);
+  const themeOptions = useMemo(
+    () => themeOptionFactory(t, actualTheme),
+    [actualTheme, t],
+  );
 
-	const handleLanguagePreferenceChange = async (lang) => {
-		if (lang === currentLanguage) return;
+  useEffect(() => {
+    if (userState?.user?.setting) {
+      try {
+        const settings = JSON.parse(userState.user.setting);
+        if (settings.language) {
+          const lang = normalizeLanguage(settings.language);
+          setCurrentLanguage(lang);
+          if (i18n.language !== lang) {
+            i18n.changeLanguage(lang);
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, [userState?.user?.setting, i18n]);
 
-		setLoading(true);
-		const previousLang = currentLanguage;
+  const handleLanguagePreferenceChange = async (lang) => {
+    if (lang === currentLanguage) return;
 
-		try {
-			// Update language immediately for responsive UX
-			setCurrentLanguage(lang);
-			i18n.changeLanguage(lang);
-			localStorage.setItem('i18nextLng', lang);
+    setLoading(true);
+    const previousLang = currentLanguage;
 
-			// Save to backend
-			const res = await API.put("/api/user/self", {
-				language: lang,
-			});
+    try {
+      setCurrentLanguage(lang);
+      i18n.changeLanguage(lang);
+      localStorage.setItem('i18nextLng', lang);
 
-			if (res.data.success) {
-				showSuccess(t("语言偏好已保存"));
-				// Keep backend preference, context state, and local cache aligned.
-				let settings = {};
-				if (userState?.user?.setting) {
-					try {
-						settings = JSON.parse(userState.user.setting) || {};
-					} catch (e) {
-						settings = {};
-					}
-				}
-				settings.language = lang;
-				const nextUser = {
-					...userState.user,
-					setting: JSON.stringify(settings),
-				};
-				userDispatch({
-					type: "login",
-					payload: nextUser,
-				});
-				localStorage.setItem("user", JSON.stringify(nextUser));
-			} else {
-				showError(res.data.message || t("保存失败"));
-				// Revert on error
-				setCurrentLanguage(previousLang);
-				i18n.changeLanguage(previousLang);
-				localStorage.setItem("i18nextLng", previousLang);
-			}
-		} catch (error) {
-			showError(t("保存失败，请重试"));
-			// Revert on error
-			setCurrentLanguage(previousLang);
-			i18n.changeLanguage(previousLang);
-			localStorage.setItem("i18nextLng", previousLang);
-		} finally {
-			setLoading(false);
-		}
-	};
+      const res = await API.put('/api/user/self', {
+        language: lang,
+      });
 
-	return (
-		<Card className="personal-v2-panel personal-v2-preferences !rounded-2xl shadow-sm border-0">
-			{/* Card Header */}
-			<div className="flex items-center mb-4">
-				<Avatar size="small" color="violet" className="mr-3 shadow-md">
-					<Languages size={16} />
-				</Avatar>
-				<div>
-					<Typography.Text className="text-lg font-medium">
-						{t("偏好设置")}
-					</Typography.Text>
-					<div className="text-xs text-gray-600 dark:text-gray-400">
-						{t("界面语言和其他个人偏好")}
-					</div>
-				</div>
-			</div>
-			{/* Language Setting Card */}
-			<Card className="personal-v2-subcard !rounded-xl border dark:border-gray-700">
-				<div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
-					<div className="flex items-start w-full sm:w-auto">
-						<div className="w-12 h-12 rounded-full bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center mr-4 flex-shrink-0">
-							<Languages
-								size={20}
-								className="text-violet-600 dark:text-violet-400"
-							/>
-						</div>
-						<div>
-							<Typography.Title heading={6} className="mb-1">
-								{t("语言偏好")}
-							</Typography.Title>
-							<Typography.Text type="tertiary" className="text-sm">
-								{t("选择您的首选界面语言，设置将自动保存并同步到所有设备")}
-							</Typography.Text>
-						</div>
-					</div>
-					<Select
-						value={currentLanguage}
-						onChange={handleLanguagePreferenceChange}
-						style={{ width: 180 }}
-						loading={loading}
-						optionList={languageOptions.map((opt) => ({
-							value: opt.value,
-							label: opt.label,
-						}))}
-					/>
-				</div>
-			</Card>
+      if (res.data.success) {
+        showSuccess(t('语言偏好已保存'));
+        let settings = {};
+        if (userState?.user?.setting) {
+          try {
+            settings = JSON.parse(userState.user.setting) || {};
+          } catch {
+            settings = {};
+          }
+        }
+        settings.language = lang;
+        const nextUser = {
+          ...userState.user,
+          setting: JSON.stringify(settings),
+        };
+        userDispatch({
+          type: 'login',
+          payload: nextUser,
+        });
+        localStorage.setItem('user', JSON.stringify(nextUser));
+      } else {
+        showError(res.data.message || t('保存失败'));
+        setCurrentLanguage(previousLang);
+        i18n.changeLanguage(previousLang);
+        localStorage.setItem('i18nextLng', previousLang);
+      }
+    } catch {
+      showError(t('保存失败，请重试'));
+      setCurrentLanguage(previousLang);
+      i18n.changeLanguage(previousLang);
+      localStorage.setItem('i18nextLng', previousLang);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-			{/* Additional info */}
-			<div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-				<Typography.Text type="tertiary">
-					{t(
-						"提示：语言偏好会同步到您登录的所有设备，并影响API返回的错误消息语言。",
-					)}
-				</Typography.Text>
-			</div>
-		</Card>
-	);
+  const handleThemePreferenceChange = (value) => {
+    if (value === theme) {
+      return;
+    }
+    setTheme(value);
+  };
+
+  return (
+    <section className='personal-v3-section'>
+      <Card
+        className='personal-v3-card personal-v3-preference-card !rounded-[24px]'
+        bodyStyle={{ padding: 0 }}
+      >
+        <div className='personal-v3-card-body'>
+          <div className='personal-v3-card-title personal-v3-card-title-compact'>
+            <span className='personal-v3-icon-badge'>
+              <Languages size={18} />
+            </span>
+            <div>
+              <h3>{t('界面偏好')}</h3>
+              <p>{t('自定义主题模式和界面语言，兼容浅色、深色与跟随系统。')}</p>
+            </div>
+          </div>
+
+          <div className='personal-v3-preference-grid'>
+            <div className='personal-v3-preference-block'>
+              <div className='personal-v3-preference-head'>
+                <h4>{t('主题模式')}</h4>
+                <p>{t('根据使用场景自由切换外观，立即生效')}</p>
+              </div>
+
+              <div className='personal-v3-theme-grid'>
+                {themeOptions.map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <button
+                      key={option.value}
+                      type='button'
+                      className={`personal-v3-theme-item ${
+                        theme === option.value ? 'is-active' : ''
+                      }`}
+                      onClick={() => handleThemePreferenceChange(option.value)}
+                    >
+                      <span className='personal-v3-theme-icon'>
+                        <Icon size={18} />
+                      </span>
+                      <span className='personal-v3-theme-title'>
+                        {option.label}
+                      </span>
+                      <span className='personal-v3-theme-desc'>
+                        {option.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className='personal-v3-preference-block'>
+              <div className='personal-v3-preference-head'>
+                <h4>{t('语言设置')}</h4>
+                <p>{t('选择界面语言，设置会同步保存到当前账户')}</p>
+              </div>
+
+              <div className='personal-v3-language-list'>
+                {languageOptions.map((option) => {
+                  const active = currentLanguage === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type='button'
+                      disabled={loading}
+                      className={`personal-v3-language-item ${
+                        active ? 'is-active' : ''
+                      }`}
+                      onClick={() =>
+                        handleLanguagePreferenceChange(option.value)
+                      }
+                    >
+                      <span>{option.label}</span>
+                      <span className='personal-v3-language-dot'>
+                        {active ? <CheckCircle2 size={14} /> : null}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className='personal-v3-inline-summary'>
+            <span>{t('当前主题')}：{themeOptions.find((item) => item.value === theme)?.label}</span>
+            <span>{t('当前语言')}：{languageOptions.find((item) => item.value === currentLanguage)?.label}</span>
+          </div>
+        </div>
+      </Card>
+    </section>
+  );
 };
 
 export default PreferencesSettings;
