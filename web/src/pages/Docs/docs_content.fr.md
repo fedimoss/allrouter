@@ -20,7 +20,7 @@ Observabilité en temps réel : la console affiche en détail la latence, la con
 
 ### Inscription
 
-Accédez à https://allrouter.ai/, cliquez sur **Connexion** -> **Inscription**, saisissez votre nom d'utilisateur et votre mot de passe dans la fenêtre, puis cliquez sur **Inscription** pour créer votre compte.
+Accédez à [https://allrouter.ai/](https://allrouter.ai/), cliquez sur **Connexion** -> **Inscription**, saisissez votre nom d'utilisateur et votre mot de passe dans la fenêtre, puis cliquez sur **Inscription** pour créer votre compte.
 
 ![](/docs_images/img_2.png)
 
@@ -28,7 +28,7 @@ Accédez à https://allrouter.ai/, cliquez sur **Connexion** -> **Inscription**,
 
 ### Connexion
 
-Accédez à https://allrouter.ai/, cliquez sur **Connexion**, saisissez votre nom d'utilisateur et votre mot de passe, puis cliquez sur **Continuer** pour vous connecter à AllRouter.AI.
+Accédez à [https://allrouter.ai/](https://allrouter.ai/), cliquez sur **Connexion**, saisissez votre nom d'utilisateur et votre mot de passe, puis cliquez sur **Continuer** pour vous connecter à AllRouter.AI.
 
 ![](/docs_images/img_4.png)
 
