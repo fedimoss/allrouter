@@ -19,6 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { API, showError, timestamp2string, isAdmin } from '../../helpers';
+import { Empty } from '@douyinfe/semi-ui';
+import {
+  IllustrationConstruction,
+  IllustrationConstructionDark,
+} from '@douyinfe/semi-illustrations';
+import {
+  ILLUSTRATION_SIZE
+} from '../../constants/dashboard.constants';
 import { getDefaultTime, getInitialTimestamp } from '../../helpers/dashboard';
 import mxsjfxIcon from '../../../public/board-mxsjfx.svg';
 import ModelAnalysisChartsPanel from './ModelAnalysisChartsPanel';
@@ -93,9 +101,8 @@ const ModelDataAnalysisPanel = ({
             <button
               key={tab.value}
               type='button'
-              className={`dashboard-model-analysis__tab ${
-                activeTab === tab.value ? 'is-active' : ''
-              }`}
+              className={`dashboard-model-analysis__tab ${activeTab === tab.value ? 'is-active' : ''
+                }`}
               onClick={() => setActiveTab(tab.value)}
             >
               {tab.label}
@@ -110,7 +117,7 @@ const ModelDataAnalysisPanel = ({
             {t('额度占比')}
           </div>
           <div className='dashboard-model-analysis__bar-list'>
-            {quotaRadioData.map((item) => (
+            {quotaRadioData.length > 0 ? quotaRadioData.map((item) => (
               <div key={item.model} className='dashboard-model-analysis__bar-item'>
                 <div className='dashboard-model-analysis__bar-head'>
                   <span>{t(item.model_name)}</span>
@@ -126,7 +133,18 @@ const ModelDataAnalysisPanel = ({
                   />
                 </div>
               </div>
-            ))}
+            )) : (
+                <div className='h-full flex items-center justify-center'>
+                  <Empty
+                    image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
+                    darkModeImage={
+                      <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
+                    }
+                    title={t('暂无数据')}
+                  />
+              </div>
+            )
+            }
           </div>
         </div>
 

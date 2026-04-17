@@ -4244,6 +4244,10 @@
     "使用":"Sử dụng",
     "留存":"Lưu lại",
     "赠送":"Tặng",
-    "注册来源":"Nguồn đăng ký"
+    "注册来源":"Nguồn đăng ký",
+
+    "安装官方 SDK":"Cài đặt SDK chính thức",
+    "只需替换 base_url 与 api_key":"Chỉ cần thay đổi base_url và api_key để sử dụng SDK chính thức.",
+    "任意模型即开即用：gpt-4、claude-3、llama-3...":"Mô hình bất kỳ, có thể sử dụng sau khi khởi động: GPT-4, Claude-3, Llama-3..."
   }
 }

@@ -323,7 +323,7 @@ const Home = () => {
       },
       {
         html: `<span class='landing-v2-c-c'># ${escapeHtml(
-          t('任意模型即开即用：gpt-4、claude-3、llama-3...'),
+          t('任意模型即开即用：gpt-4、claude-3、llama-3...')
         )}</span>`,
         delay: 620,
       },

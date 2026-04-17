@@ -3712,6 +3712,10 @@
     "消耗":"Consommation",
     "留存":"Conservation",
     "赠送":"Offre",
-    "注册来源":"Source d'inscription"
+    "注册来源":"Source d'inscription",
+
+    "安装官方 SDK":"Installer le SDK officiel",
+    "只需替换 base_url 与 api_key":"Il suffit de remplacer base_url par api_key pour utiliser le SDK officiel.",
+    "任意模型即开即用：gpt-4、claude-3、llama-3...":"Modèles prêts à l'emploi dès le premier démarrage : GPT-4, Claude-3, Llama-3..."
   }
 }

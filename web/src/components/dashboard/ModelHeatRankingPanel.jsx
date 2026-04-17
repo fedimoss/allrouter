@@ -100,7 +100,7 @@ const ModelHeatRankingPanel = ({ t }) => {
                 darkModeImage={
                   <IllustrationConstructionDark style={{width:'60px', height:'60px'}} />
                 }
-                description={t('暂无模型调用数据')}
+                title={t('暂无模型调用数据')}
               />
             </div>
         ) }

@@ -3777,6 +3777,10 @@
     "消耗":"Consumption",
     "留存":"Retention",
     "赠送":"Gift",
-    "注册来源":"Registration source"
+    "注册来源":"Registration source",
+
+    "安装官方 SDK":"Install official SDK",
+    "只需替换 base_url 与 api_key":"Replace base_url and api_key to use official official SDK",
+    "任意模型即开即用：gpt-4、claude-3、llama-3...":"Any model, available：gpt-4、claude-3、llama-3..."
   }
 }

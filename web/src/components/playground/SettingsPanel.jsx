@@ -61,6 +61,7 @@ const SettingsPanel = ({
   messages,
 }) => {
   const { t } = useTranslation();
+  console.log('groups==', groups);
 
   const currentConfig = {
     inputs,
