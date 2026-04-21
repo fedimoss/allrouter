@@ -52,6 +52,10 @@ type User struct {
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	PhoneCountryCode string         `json:"phone_country_code" gorm:"type:varchar(8);column:phone_country_code" validate:"max=8"` // 手机号国家区号（E.164），如 +86
+	PhoneNumber      string         `json:"phone_number" gorm:"type:varchar(20);column:phone_number" validate:"max=20"`           // 手机号本地号码，不含国家区号，如 13800000000
+	Timezone         string         `json:"timezone" gorm:"type:varchar(64);column:timezone" validate:"max=64"`                   // 时区标识（IANA），如 Asia/Shanghai
+	Avatar           string         `json:"avatar" gorm:"type:varchar(255);column:avatar" validate:"max=255"`                     // 头像                   // 头像 URL
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -693,6 +697,20 @@ func (user *User) Update(updatePassword bool) error {
 
 	// Update cache
 	return updateUserCache(*user)
+}
+
+// UpdateUserProfile 更新用户个人资料字段（支持空字符串以实现清空效果）
+func UpdateUserProfile(userId int, updates map[string]interface{}) error {
+	if userId == 0 {
+		return errors.New("user id is empty")
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	if err := DB.Model(&User{}).Where("id = ?", userId).Updates(updates).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (user *User) Edit(updatePassword bool) error {
