@@ -103,6 +103,9 @@ user.telegram_id_empty: "Telegram id 為空！"
 user.telegram_not_bound: "該 Telegram 帳號未綁定"
 user.linux_do_id_empty: "Linux DO id 為空！"
 user.quota_change_zero: "額度變更量不能為0"
+user.avatar_not_selected: "請選擇頭像檔案"
+user.avatar_size_exceeded: "頭像檔案不能超過 2MB"
+user.avatar_format_unsupported: "僅支援 JPG/PNG 格式"
 
 # Quota messages
 quota.negative: "額度不能為負數！"

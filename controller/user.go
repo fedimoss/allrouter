@@ -741,12 +741,25 @@ func UpdateSelf(c *gin.Context) {
 	_, hasPhoneCountryCode := requestData["phone_country_code"]
 	_, hasPhoneNumber := requestData["phone_number"]
 	_, hasTimezone := requestData["timezone"]
-	_, hasEmail := requestData["email"]
-	if hasAvatar || hasPhoneCountryCode || hasPhoneNumber || hasTimezone || hasEmail {
+	if hasAvatar || hasPhoneCountryCode || hasPhoneNumber || hasTimezone {
 		updates := map[string]interface{}{}
 		// username 不作为拦截条件，但进入分支后作为更新字段
 		if hasUsername {
+			// 检测用户名是否已存在
 			if v, ok := requestData["username"].(string); ok {
+				userId := c.GetInt("id")
+				exist, err := model.CheckUserExistOrDeleted(v, "")
+				if err != nil {
+					common.ApiError(c, err)
+					return
+				}
+				if exist {
+					var existingUser model.User
+					if err := model.DB.Unscoped().Where("username = ?", v).First(&existingUser).Error; err == nil && existingUser.Id != userId {
+						common.ApiErrorI18n(c, i18n.MsgUserExists)
+						return
+					}
+				}
 				updates["username"] = v
 			}
 		}
@@ -768,11 +781,6 @@ func UpdateSelf(c *gin.Context) {
 		if hasTimezone {
 			if v, ok := requestData["timezone"].(string); ok {
 				updates["timezone"] = v
-			}
-		}
-		if hasEmail {
-			if v, ok := requestData["email"].(string); ok {
-				updates["email"] = v
 			}
 		}
 
@@ -1350,27 +1358,27 @@ func UploadAvatar(c *gin.Context) {
 	userId := c.GetInt("id") // 用户ID
 	file, err := c.FormFile("avatar")
 	if err != nil {
-		common.ApiError(c, fmt.Errorf("请选择头像文件"))
+		common.ApiErrorI18n(c, i18n.MsgUserAvatarNotSelected)
 		return
 	}
 
 	// 校验文件大小（比如限制 2MB）
 	if file.Size > 2<<20 {
-		common.ApiError(c, fmt.Errorf("头像文件不能超过 2MB"))
+		common.ApiErrorI18n(c, i18n.MsgUserAvatarSizeExceeded)
 		return
 	}
 
 	// 校验文件类型
 	contentType := file.Header.Get("Content-Type")
 	if contentType != "image/jpeg" && contentType != "image/png" {
-		common.ApiError(c, fmt.Errorf("仅支持 JPG/PNG 格式"))
+		common.ApiErrorI18n(c, i18n.MsgUserAvatarFormatUnsupported)
 		return
 	}
 
 	// 打开文件内容
 	src, err := file.Open()
 	if err != nil {
-		common.ApiError(c, fmt.Errorf("读取文件失败"))
+		common.ApiError(c, err)
 		return
 	}
 	defer src.Close()
