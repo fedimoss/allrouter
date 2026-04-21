@@ -54,10 +54,12 @@ import {
 
 const Dashboard = () => {
   const [userState, userDispatch] = useContext(UserContext);
-  const [statusState] = useContext(StatusContext);
+  const [statusState, statusDispatch] = useContext(StatusContext);
 
+  // ========== 主要数据管理 ==========
   const dashboardData = useDashboardData(userState, userDispatch, statusState);
 
+  // ========== 图表管理 ==========
   const dashboardCharts = useDashboardCharts(
     dashboardData.dataExportDefaultTime,
     dashboardData.setTrendData,
@@ -70,6 +72,7 @@ const Dashboard = () => {
     dashboardData.t,
   );
 
+  // ========== 统计数据 ==========
   const { groupedStatsData } = useDashboardStats(
     userState,
     dashboardData.consumeQuota,
@@ -81,6 +84,7 @@ const Dashboard = () => {
     dashboardData.t,
   );
 
+  // ========== 数据处理 ==========
   const initChart = async () => {
     await dashboardData.loadQuotaData().then((data) => {
       if (data && data.length > 0) {
@@ -101,6 +105,7 @@ const Dashboard = () => {
     await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
   };
 
+  // ========== 数据准备 ==========
   const apiInfoData = statusState?.status?.api_info || [];
   const announcementData = (statusState?.status?.announcements || []).map(
     (item) => {
@@ -127,6 +132,7 @@ const Dashboard = () => {
     }),
   );
 
+  // ========== Effects ==========
   useEffect(() => {
     initChart();
   }, []);
