@@ -33,6 +33,14 @@ body {
 p {
   margin-bottom: 0 !important;
 }
+
+/* 桌面端禁止 body 纵向滚动 - 防止 VChart tooltip 触发页面滚动条 */
+@media (min-width: 768px) {
+  body {
+    overflow-y: hidden;
+  }
+}
+
 .app-layout {
   height: 100vh;
   height: 100dvh;
@@ -301,7 +309,7 @@ code {
   position: relative;
 }
 
-.semi-checkbox-indeterminate .semi-checkbox-inner-display, 
+.semi-checkbox-indeterminate .semi-checkbox-inner-display,
 .semi-checkbox-checked .semi-checkbox-inner-display,
 .semi-radio .semi-radio-inner-checked .semi-radio-inner-display {
   background: #1CDFD5;
@@ -828,6 +836,9 @@ html.dark .sbg-variant-green {
 .custom-footer {
   font-size: 1.1em;
 }
+.custom-footer.na-cb6feafeb3990c78 {
+  position: relative;
+}
 
 /* 卡片内容容器通用样式 */
 .card-content-container {
@@ -879,7 +890,7 @@ html.dark .sbg-variant-green {
   /* Chrome, Safari, Opera */
 }
 
-/* 表格滚动条样�?*/
+/* 表格滚动条样式 */
 .semi-table-body::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -898,7 +909,7 @@ html.dark .sbg-variant-green {
   background: transparent;
 }
 
-/* 侧边抽屉滚动条样�?*/
+/* 侧边抽屉滚动条样式 */
 .semi-sidesheet-body::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -917,7 +928,7 @@ html.dark .sbg-variant-green {
   background: transparent;
 }
 
-/* 隐藏内容区域滚动�?*/
+/* 隐藏内容区域滚动条 */
 .pricing-scroll-hide,
 .model-test-scroll,
 .card-content-scroll,
@@ -941,7 +952,7 @@ html.dark .sbg-variant-green {
   display: none;
 }
 
-/* 图片列表滚动条样�?*/
+/* 图片列表滚动条样式 */
 .image-list-scroll::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -960,7 +971,7 @@ html.dark .sbg-variant-green {
   background: transparent;
 }
 
-/* ==================== 同步倍率 - 渠道选择�?==================== */
+/* ==================== 同步倍率 - 渠道选择器 ==================== */
 
 .components-transfer-source-item,
 .components-transfer-selected-item {
@@ -1095,7 +1106,7 @@ html.dark .sbg-variant-green {
   padding-right: 0 !important;
 }
 
-/* ==================== Banner 背景模糊�?==================== */
+/* ==================== Banner 背景模糊球 ==================== */
 .blur-ball {
   position: absolute;
   width: 360px;
@@ -1132,20 +1143,20 @@ html:not(.dark) .blur-ball-teal {
   opacity: 0.2;
 }
 
-/* ==================== 卡片马卡龙模糊球（类封装�?==================== */
-/* 使用方式：给容器加上 with-pastel-balls 类即可，无需�?JSX 中插入额外节�?*/
+/* ==================== 卡片马卡龙模糊球（类封装） ==================== */
+/* 使用方式：给容器加上 with-pastel-balls 类即可，无需在 JSX 中插入额外节点 */
 .with-pastel-balls {
   position: relative;
   overflow: hidden;
   /* 默认变量（明亮模式） */
   --pb1: #ffd1dc;
-  /* �?*/
+  /* 粉 */
   --pb2: #e5d4ff;
-  /* 薰衣�?*/
+  /* 薰衣草 */
   --pb3: #d1fff6;
   /* 薄荷 */
   --pb4: #ffe5d9;
-  /* �?*/
+  /* 桃 */
   --pb-opacity: 0.55;
   --pb-blur: 60px;
 }
@@ -1169,22 +1180,22 @@ html:not(.dark) .blur-ball-teal {
   transform: translateZ(0);
 }
 
-/* 暗黑模式下更柔和的色彩和透明�?*/
+/* 暗黑模式下更柔和的色彩和透明度 */
 html.dark .with-pastel-balls {
   /* 使用与明亮模式一致的“刚才那组”马卡龙色，但整体更柔和 */
   --pb1: #ffd1dc;
-  /* �?*/
+  /* 粉 */
   --pb2: #e5d4ff;
-  /* 薰衣�?*/
+  /* 薰衣草 */
   --pb3: #d1fff6;
   /* 薄荷 */
   --pb4: #ffe5d9;
-  /* �?*/
+  /* 桃 */
   --pb-opacity: 0.36;
   --pb-blur: 65px;
 }
 
-/* 暗黑模式下用更柔和的混合模式避免突兀的高�?*/
+/* 暗黑模式下用更柔和的混合模式避免突兀的高亮 */
 html.dark .with-pastel-balls::before {
   mix-blend-mode: screen;
 }
@@ -1280,7 +1291,7 @@ html.dark .with-pastel-balls::before {
   min-height: 0;
 }
 
-/* ==================== semi-ui 组件自定义样�?==================== */
+/* ==================== semi-ui 组件自定义样式 ==================== */
 .semi-card-header,
 .semi-card-body {
   padding: 10px !important;
@@ -1314,7 +1325,7 @@ html.dark .with-pastel-balls::before {
   gap: 0.25rem;
 }
 
-/* ==================== 自定义圆角样�?==================== */
+/* ==================== 自定义圆角样式 ==================== */
 .semi-radio,
 .semi-tagInput,
 .semi-input-textarea-wrapper,

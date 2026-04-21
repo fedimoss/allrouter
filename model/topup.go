@@ -123,6 +123,8 @@ func asyncIncrUserQuotaCache(userId int, quota int) {
 	})
 }
 
+var ErrPaymentMethodMismatch = errors.New("payment method mismatch")
+
 func (topUp *TopUp) Insert() error {
 	topUp.applyDefaults()
 	return DB.Create(topUp).Error
@@ -186,6 +188,10 @@ func Recharge(referenceId string, customerId string) (err error) {
 
 		if topUp.Status == common.TopUpStatusSuccess {
 			return nil
+		}
+
+		if topUp.PaymentMethod != "stripe" {
+			return ErrPaymentMethodMismatch
 		}
 
 		if topUp.Status != common.TopUpStatusPending {
@@ -548,6 +554,10 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			return nil
 		}
 
+		if topUp.PaymentMethod != "creem" {
+			return ErrPaymentMethodMismatch
+		}
+
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("充值订单状态错误")
 		}
@@ -663,6 +673,10 @@ func RechargeWaffo(tradeNo string) (err error) {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error
 		if err != nil {
 			return errors.New("充值订单不存在")
+		}
+
+		if topUp.PaymentMethod != "waffo" {
+			return ErrPaymentMethodMismatch
 		}
 
 		if topUp.Status == common.TopUpStatusSuccess {
