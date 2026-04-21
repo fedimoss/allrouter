@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -491,6 +493,42 @@ func CountInviteRewardsByUserId(userId int, startTimestamp, endTimestamp int64) 
 	}
 	err := tx.Count(&count).Error
 	return count, err
+}
+
+// GetUserNewUserRewardQuota 获取用户的新用户注册赠送额度（金额单位）
+func GetUserNewUserRewardQuota(userId int) (float64, error) {
+	var logContent string
+
+	// 只查 content 字段
+	err := LOG_DB.Model(&Log{}).
+		Where("user_id = ? AND type = ? AND content LIKE ?", userId, LogTypeSystem, "新用户注册赠送%").
+		Order("id DESC"). // 防止多条日志，取最新的
+		Pluck("content", &logContent).Error
+
+	if err != nil {
+		return 0, err
+	}
+
+	if logContent == "" {
+		return 0, nil
+	}
+
+	// 示例：新用户注册赠送 ＄20.000000 额度
+	// 只匹配 "赠送" 后面的数字（允许有空格/货币符号）
+	re := regexp.MustCompile(`赠送\s*[^\d]*([\d]+(\.[\d]+)?)`)
+	match := re.FindStringSubmatch(logContent)
+
+	if len(match) < 2 {
+		return 0, nil
+	}
+
+	amountStr := match[1]
+	amount, err := strconv.ParseFloat(amountStr, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return amount, nil
 }
 
 // GetUsersLastActiveTime 批量查询用户最后活跃时间(最后一次请求时间)

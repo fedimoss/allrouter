@@ -387,6 +387,54 @@ func GetSelf(c *gin.Context) {
 		return
 	}
 
+	// 计算总充值金额
+	totalTopupQuota, err := model.SumTopUpByUserId(id, 0, 0, model.TopUpBizTypePayment)
+	if err != nil {
+		common.SysError("failed to get user topup quota: " + err.Error())
+	}
+
+	// 计算福利奖励总额
+	var welfareQuota float64
+
+	// 1. 兑换码奖励
+	var redemptionQuota int64
+	redemptionResult := model.DB.Model(&model.Redemption{}).
+		Select("COALESCE(SUM(quota), 0)").
+		Where("used_user_id = ? AND status = ?", id, common.RedemptionCodeStatusUsed).
+		Scan(&redemptionQuota)
+	if redemptionResult.Error != nil {
+		common.SysError("failed to get user redemption quota: " + redemptionResult.Error.Error())
+	}
+
+	// 2. 签到奖励
+	var checkinQuota int64
+	checkinResult := model.DB.Model(&model.Checkin{}).
+		Select("COALESCE(SUM(quota_awarded), 0)").
+		Where("user_id = ?", id).
+		Scan(&checkinQuota)
+	if checkinResult.Error != nil {
+		common.SysError("failed to get user checkin quota: " + checkinResult.Error.Error())
+	}
+
+	// 3. 邀请转移奖励（邀请历史总额 - 邀请剩余额度）
+	var inviteTransferQuota int64
+	if user.AffHistoryQuota > 0 {
+		inviteTransferQuota = int64(user.AffHistoryQuota - user.AffQuota)
+	}
+
+	// 福利奖励总额 = 兑换码 + 签到 + 邀请转移 + 新用户注册赠送(单位是token数,要转化为金额)
+	welfareQuota_token := redemptionQuota + checkinQuota + inviteTransferQuota
+	welfareQuota_amount := float64(welfareQuota_token) / common.QuotaPerUnit
+	// 4. 新用户注册赠送奖励
+	newuserQuota, err := model.GetUserNewUserRewardQuota(id)
+	if err != nil {
+		common.SysError("failed to get user newuser quota: " + err.Error())
+		newuserQuota = 0
+	}
+
+	// 最终福利奖励总额（金额单位，float64）
+	welfareQuota = welfareQuota_amount + newuserQuota
+
 	// 获取指定时间范围内的请求成功次数和失败次数
 	var requestResult model.RequestCountResult
 	if userRole == common.RoleRootUser || userRole == common.RoleAdminUser {
@@ -438,6 +486,8 @@ func GetSelf(c *gin.Context) {
 		"aff_count":          user.AffCount,
 		"aff_quota":          user.AffQuota,
 		"aff_history_quota":  user.AffHistoryQuota,
+		"total_topup_quota":  totalTopupQuota, // 总充值金额
+		"welfare_quota":      welfareQuota,    // 福利奖励（兑换码+签到+邀请转移）
 		"inviter_id":         user.InviterId,
 		"linux_do_id":        user.LinuxDOId,
 		"setting":            user.Setting,
