@@ -91,6 +91,8 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 
 	id := c.GetInt("id")
 	user, _ := model.GetUserById(id, false)
+	// Stripe 订单的 Money 字段存储“应发放的充值额度（已乘分组倍率）”，
+	// 不是实际支付金额；实际支付金额由 Stripe Checkout/回调金额决定。
 	chargedMoney := GetChargedAmount(float64(req.Amount), *user)
 
 	reference := fmt.Sprintf("new-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
@@ -276,11 +278,39 @@ func fulfillOrder(event stripe.Event, referenceId string, customerId string) {
 		"currency":     strings.ToUpper(event.GetObjectValue("currency")),
 		"event_type":   string(event.Type),
 	}
-	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload)); err == nil {
+
+	// 先尝试按“订阅订单”处理；订阅单金额固定，允许做严格金额校验。
+	if subscriptionOrder := model.GetSubscriptionOrderByTradeNo(referenceId); subscriptionOrder != nil {
+		if !stripeAmountTotalMatchesMoney(event.GetObjectValue("amount_total"), subscriptionOrder.Money) {
+			log.Printf("Stripe 订阅金额校验失败: ref=%s, callback_amount_total=%s, local_money=%.2f", referenceId, event.GetObjectValue("amount_total"), subscriptionOrder.Money)
+			return
+		}
+		if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload), PaymentMethodStripe); err == nil {
+			return
+		} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
+			log.Println("complete subscription order failed:", err.Error(), referenceId)
+			return
+		}
+	}
+
+	topUp := model.GetTopUpByTradeNo(referenceId)
+	if topUp == nil {
+		log.Println("充值订单不存在", referenceId)
 		return
-	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
-		log.Println("complete subscription order failed:", err.Error(), referenceId)
+	}
+	if topUp.PaymentMethod != PaymentMethodStripe {
+		log.Printf("Stripe 充值订单支付方式不匹配: %s, ref: %s", topUp.PaymentMethod, referenceId)
 		return
+	}
+
+	// Stripe 充值支持可选促销码。未开启促销码时，严格校验回调金额必须与本地订单一致；
+	// 开启促销码后，实际支付金额可能低于标价，此处不做强校验，避免误伤合法优惠订单。
+	if !setting.StripePromotionCodesEnabled {
+		expectedPayMoney := getStripeExpectedPayMoneyFromTopUp(topUp)
+		if !stripeAmountTotalMatchesMoney(event.GetObjectValue("amount_total"), expectedPayMoney) {
+			log.Printf("Stripe 充值金额校验失败: ref=%s, callback_amount_total=%s, expected_pay_money=%.2f", referenceId, event.GetObjectValue("amount_total"), expectedPayMoney)
+			return
+		}
 	}
 
 	err := model.Recharge(referenceId, customerId)
@@ -310,7 +340,7 @@ func sessionExpired(event stripe.Event) error {
 	// Subscription order expiration
 	LockOrder(referenceId)
 	defer UnlockOrder(referenceId)
-	if err := model.ExpireSubscriptionOrder(referenceId); err == nil {
+	if err := model.ExpireSubscriptionOrder(referenceId, PaymentMethodStripe); err == nil {
 		return nil
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
 		log.Println("过期订阅订单失败", referenceId, ", err:", err.Error())
@@ -403,6 +433,11 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 }
 
 func GetChargedAmount(count float64, user model.User) float64 {
+	// Token 展示模式下，前端传入的是 token 数量，需要先折算回基础充值额度，
+	// 否则后续 Recharge 会再次乘 QuotaPerUnit，导致额度被重复放大。
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		count = count / common.QuotaPerUnit
+	}
 	topUpGroupRatio := common.GetTopupGroupRatio(user.Group)
 	if topUpGroupRatio == 0 {
 		topUpGroupRatio = 1
