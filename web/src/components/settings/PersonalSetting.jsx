@@ -34,6 +34,7 @@ import {
   stringToColor,
   isAdmin,
   isRoot,
+  selectFilter,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { useActualTheme, useTheme } from '../../context/Theme';
@@ -47,6 +48,7 @@ import {
   Select,
   Switch,
   Tag,
+  Upload,
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import {
@@ -59,6 +61,7 @@ import {
   ShieldCheck,
   UserRoundCog,
   Wallet,
+  Camera,
 } from 'lucide-react';
 
 import AccountManagement from './personal/cards/AccountManagement';
@@ -72,13 +75,62 @@ import WeChatBindModal from './personal/modals/WeChatBindModal';
 import AccountDeleteModal from './personal/modals/AccountDeleteModal';
 import ChangePasswordModal from './personal/modals/ChangePasswordModal';
 import { normalizeLanguage } from '../../i18n/language';
+import defaultAvatar from '../../../public/logo-white.svg';
 import './personal/personal-settings.css';
+
+const style = {
+  backgroundColor: 'var(--semi-color-overlay-bg)',
+  height: '100%',
+  width: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--semi-color-white)',
+};
+
+const hoverMask = (<div style={style}>
+  <Camera />
+</div>);
 
 const notificationTypeOptions = [
   { value: 'email', label: '邮件通知' },
   { value: 'webhook', label: 'Webhook' },
   { value: 'bark', label: 'Bark' },
   { value: 'gotify', label: 'Gotify' },
+];
+
+const phoneCountryCodeOptions = [
+  { value: '+86', label: '+86 中国大陆' },
+  { value: '+852', label: '+852 中国香港' },
+  { value: '+853', label: '+853 中国澳门' },
+  { value: '+886', label: '+886 中国台湾' },
+  { value: '+1', label: '+1 美国/加拿大' },
+  { value: '+81', label: '+81 日本' },
+  { value: '+82', label: '+82 韩国' },
+  { value: '+65', label: '+65 新加坡' },
+  { value: '+66', label: '+66 泰国' },
+  { value: '+84', label: '+84 越南' },
+  { value: '+91', label: '+91 印度' },
+  { value: '+44', label: '+44 英国' },
+  { value: '+49', label: '+49 德国' },
+  { value: '+33', label: '+33 法国' },
+  { value: '+61', label: '+61 澳大利亚' },
+];
+
+const fallbackTimezones = [
+  'Asia/Shanghai',
+  'Asia/Tokyo',
+  'Asia/Seoul',
+  'Asia/Singapore',
+  'Asia/Bangkok',
+  'Asia/Kolkata',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'America/New_York',
+  'America/Los_Angeles',
+  'America/Toronto',
+  'Australia/Sydney',
 ];
 
 const safeParseSetting = (value) => {
@@ -148,7 +200,10 @@ const PersonalSetting = () => {
   const [status, setStatus] = useState({});
   const [profileInputs, setProfileInputs] = useState({
     username: '',
-    display_name: '',
+    avatar: defaultAvatar,
+    phone_country_code: '+86',
+    phone_number: '',
+    timezone: '',
   });
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showWeChatBindModal, setShowWeChatBindModal] = useState(false);
@@ -190,16 +245,13 @@ const PersonalSetting = () => {
   const currentUser = userState?.user || {};
   const runtimeDevice = useMemo(() => detectRuntimeDevice(), []);
 
-  const timezoneLabel = useMemo(() => {
-    if (typeof Intl === 'undefined') {
-      return '-';
-    }
-
-    try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || '-';
-    } catch {
-      return '-';
-    }
+  const timezoneOptions = useMemo(() => {
+    const raw =
+      typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function'
+        ? Intl.supportedValuesOf('timeZone')
+        : fallbackTimezones;
+    const unique = Array.from(new Set(raw));
+    return unique.map((tz) => ({ value: tz, label: tz }));
   }, []);
 
   const currentLanguageLabel = useMemo(() => {
@@ -395,15 +447,45 @@ const PersonalSetting = () => {
   }, [currentUser?.setting]);
 
   useEffect(() => {
-    setProfileInputs({
-      username: currentUser?.username || '',
-      display_name: currentUser?.display_name || '',
-    });
+    const settings = safeParseSetting(currentUser?.setting);
+    let detectedTimezone = '';
+    if (typeof Intl !== 'undefined') {
+      try {
+        detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      } catch {
+        detectedTimezone = '';
+      }
+    }
+    setProfileInputs((prev) => ({
+      username: currentUser?.username || prev.username || '',
+      avatar: currentUser?.avatar || prev.avatar || settings.avatar || defaultAvatar,
+      phone_country_code:
+        currentUser?.phone_country_code ||
+        prev.phone_country_code ||
+        settings.phone_country_code ||
+        '+86',
+      phone_number:
+        currentUser?.phone_number || prev.phone_number || settings.phone_number || '',
+      timezone:
+        currentUser?.timezone ||
+        prev.timezone ||
+        settings.timezone ||
+        detectedTimezone ||
+        'Asia/Shanghai',
+    }));
     setInputs((prev) => ({
       ...prev,
       email: currentUser?.email || prev.email,
     }));
-  }, [currentUser?.display_name, currentUser?.email, currentUser?.username]);
+  }, [
+    currentUser?.avatar,
+    currentUser?.email,
+    currentUser?.phone_country_code,
+    currentUser?.phone_number,
+    currentUser?.setting,
+    currentUser?.timezone,
+    currentUser?.username,
+  ]);
 
   const scrollToRef = (ref) => {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -418,6 +500,44 @@ const PersonalSetting = () => {
       ...currentInputs,
       [name]: value,
     }));
+  };
+
+  const handleAvatarUpload = async ({
+    file,
+    fileInstance,
+    onSuccess,
+    onError,
+  }) => {
+    try {
+      const uploadFile = fileInstance || file?.fileInstance;
+      if (!uploadFile) {
+        throw new Error('invalid file');
+      }
+      const formData = new FormData();
+      formData.append('avatar', uploadFile);
+      const res = await API.post('/api/user/avatar', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        throw new Error(message || t('上传头像失败，请重试'));
+      }
+      const avatarPath = window.location.origin + (data.url || '');
+      if (!avatarPath) {
+        throw new Error(t('头像返回地址无效'));
+      }
+      setProfileInputs((prev) => ({
+        ...prev,
+        avatar: avatarPath,
+      }));
+      showSuccess(t('头像上传成功'));
+      onSuccess?.(data || {});
+    } catch (error) {
+      showError(error?.message || t('上传头像失败，请重试'));
+      onError?.({ status: 500 }, error);
+    }
   };
 
   const generateAccessToken = async () => {
@@ -540,7 +660,7 @@ const PersonalSetting = () => {
 
   const saveProfile = async () => {
     const username = profileInputs.username.trim();
-    const displayName = profileInputs.display_name.trim();
+    const phoneNumber = profileInputs.phone_number.trim();
 
     if (!username) {
       showError(t('用户名不能为空'));
@@ -551,7 +671,11 @@ const PersonalSetting = () => {
     try {
       const res = await API.put('/api/user/self', {
         username,
-        display_name: displayName,
+        avatar: profileInputs.avatar || '',
+        phone_country_code: profileInputs.phone_country_code || '+86',
+        phone_number: phoneNumber,
+        timezone: profileInputs.timezone || 'Asia/Shanghai',
+        email: inputs.email || currentUser?.email || '',
       });
       const { success, message } = res.data;
       if (success) {
@@ -743,16 +867,28 @@ const PersonalSetting = () => {
     });
   };
 
-  const displayName = currentUser?.display_name || currentUser?.username || '-';
-  const localTimeLabel =
-    typeof Intl !== 'undefined'
-      ? new Intl.DateTimeFormat(undefined, {
-          hour: '2-digit',
-          minute: '2-digit',
-          month: 'short',
-          day: 'numeric',
-        }).format(new Date())
-      : '-';
+  const displayName = currentUser?.username || profileInputs.username || '-';
+  const localTimeLabel = useMemo(() => {
+    if (typeof Intl === 'undefined') {
+      return '-';
+    }
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        month: 'short',
+        day: 'numeric',
+        timeZone: profileInputs.timezone || 'Asia/Shanghai',
+      }).format(new Date());
+    } catch {
+      return new Intl.DateTimeFormat(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        month: 'short',
+        day: 'numeric',
+      }).format(new Date());
+    }
+  }, [profileInputs.timezone]);
 
   return (
     <div className='personal-setting-v2'>
@@ -777,19 +913,26 @@ const PersonalSetting = () => {
                 </div>
                 <div className='personal-v3-card-header'>
                   <div className='personal-v3-card-title'>
-                    <Avatar
-                      size='extra-large'
-                      color={stringToColor(currentUser?.username || 'AU')}
-                      className='personal-v3-profile-avatar'
+                    <Upload
+                      action='/'
+                      accept='image/*'
+                      showUploadList={false}
+                      uploadTrigger='auto'
+                      customRequest={handleAvatarUpload}
                     >
-                      {(currentUser?.username || 'AU').slice(0, 2).toUpperCase()}
-                    </Avatar>
+                      <Avatar
+                        size='large'
+                        shape='square'
+                        hoverMask={hoverMask}
+                        src={profileInputs.avatar || undefined}
+                      />
+                    </Upload>
                     <div className='min-w-0'>
                       <div className='personal-v3-profile-name'>{displayName}</div>
                       <div className='personal-v3-profile-subtitle'>
                         {t('管理您的基础资料、账户状态与常用信息。')}
                       </div>
-                      <div className='personal-v3-chip-row'>
+                      {/* <div className='personal-v3-chip-row'>
                         <Tag shape='circle' className='personal-v3-soft-tag'>
                           {roleLabel}
                         </Tag>
@@ -799,23 +942,23 @@ const PersonalSetting = () => {
                         <Tag shape='circle' className='personal-v3-soft-tag'>
                           {currentUser?.group || t('默认分组')}
                         </Tag>
-                      </div>
+                      </div> */}
                     </div>
                   </div>
-
-                  <Button
+                  {/* <Button
                     theme='outline'
                     onClick={() => scrollToRef(accountAdvancedRef)}
                     className='personal-v3-secondary-btn'
                   >
                     {t('账户绑定与安全设置')}
-                  </Button>
+                  </Button> */}
                 </div>
 
                 <div className='personal-v3-account-form-grid'>
                   <div className='personal-v3-field'>
                     <label htmlFor='profile-username'>{t('用户名')}</label>
                     <Input
+                      size='large'
                       id='profile-username'
                       value={profileInputs.username}
                       onChange={(value) => handleProfileChange('username', value)}
@@ -832,6 +975,7 @@ const PersonalSetting = () => {
                       </span>
                     </label>
                     <Input
+                      size='large'
                       id='profile-email'
                       value={currentUser?.email || t('暂未绑定邮箱')}
                       readonly
@@ -844,27 +988,46 @@ const PersonalSetting = () => {
                   </div>
 
                   <div className='personal-v3-field'>
-                    <label htmlFor='profile-display-name'>{t('显示名称')}</label>
+                    <label>{t('手机号')}</label>
                     <Input
-                      id='profile-display-name'
-                      value={profileInputs.display_name}
-                      onChange={(value) =>
-                        handleProfileChange('display_name', value)
+                      size='large'
+                      value={profileInputs.phone_number}
+                      addonBefore={
+                        <Select
+                          size='large'
+                          value={profileInputs.phone_country_code}
+                          optionList={phoneCountryCodeOptions}
+                          onChange={(value) =>
+                            handleProfileChange('phone_country_code', value)
+                          }
+                          filter={selectFilter}
+                          searchPosition='dropdown'
+                          style={{ width: 138 }}
+                        />
                       }
-                      placeholder={t('请输入显示名称')}
+                      onChange={(value) => handleProfileChange('phone_number', value)}
+                      placeholder={t('请输入手机号')}
                       showClear
                     />
+                    <div className='personal-v3-field-note'>
+                      {t('显示名称将展示为区号 + 手机号格式')}
+                    </div>
                   </div>
 
                   <div className='personal-v3-field'>
-                    <label htmlFor='profile-timezone'>{t('当前时区')}</label>
-                    <Input
+                    <label htmlFor='profile-timezone'>{t('时区')}</label>
+                    <Select
+                      size='large'
                       id='profile-timezone'
-                      value={`${timezoneLabel} · ${localTimeLabel}`}
-                      readonly
+                      value={profileInputs.timezone}
+                      optionList={timezoneOptions}
+                      filter={selectFilter}
+                      searchPosition='dropdown'
+                      onChange={(value) => handleProfileChange('timezone', value)}
+                      style={{ width: '100%' }}
                     />
                     <div className='personal-v3-field-note'>
-                      {t('时区基于当前浏览器环境自动识别。')}
+                      {`${profileInputs.timezone || '-'} · ${localTimeLabel}`}
                     </div>
                   </div>
                 </div>

@@ -395,14 +395,6 @@ html.dark .personal-setting-v2 .text-gray-400 {
 
 .personal-setting-v2 .semi-input-wrapper,
 .personal-setting-v2 .semi-input-number,
-.personal-setting-v2 .semi-select,
-.personal-setting-v2 .semi-select-selection,
-.personal-setting-v2 .semi-input-group {
-  border-radius: 12px !important;
-}
-
-.personal-setting-v2 .semi-input-wrapper,
-.personal-setting-v2 .semi-input-number,
 .personal-setting-v2 .semi-select-selection {
   background: rgba(248, 250, 252, 0.86) !important;
 }
@@ -516,7 +508,7 @@ html.dark .personal-setting-v2 .semi-tabs-tab:hover {
 
 .personal-v3-card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
@@ -524,7 +516,7 @@ html.dark .personal-setting-v2 .semi-tabs-tab:hover {
 
 .personal-v3-card-title {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 14px;
   min-width: 0;
 }
@@ -562,11 +554,6 @@ html.dark .personal-setting-v2 .semi-tabs-tab:hover {
 .semi-avatar-extra-large .semi-avatar-label{
     font-size: 40px;
     line-height: 60px;
-}
-.personal-v3-profile-avatar {
-  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
-  width: 80px;
-  height: 80px;
 }
 
 .personal-v3-profile-name {
@@ -981,7 +968,6 @@ html.dark .personal-setting-v2 .semi-tabs-tab:hover {
 .personal-v3-card .semi-input-wrapper,
 .personal-v3-card .semi-input-number,
 .personal-v3-card .semi-select-selection {
-  border-radius: 14px !important;
   border-color: var(--personal-border-soft) !important;
   background: var(--personal-shell-bg-strong) !important;
 }
