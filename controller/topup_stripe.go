@@ -147,6 +147,12 @@ func RequestStripePay(c *gin.Context) {
 }
 
 func StripeWebhook(c *gin.Context) {
+	if setting.StripeWebhookSecret == "" {
+		log.Println("Stripe Webhook Secret 未配置，拒绝处理")
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Printf("解析Stripe Webhook参数失败: %v\n", err)
@@ -155,8 +161,7 @@ func StripeWebhook(c *gin.Context) {
 	}
 
 	signature := c.GetHeader("Stripe-Signature")
-	endpointSecret := setting.StripeWebhookSecret
-	event, err := webhook.ConstructEventWithOptions(payload, signature, endpointSecret, webhook.ConstructEventOptions{
+	event, err := webhook.ConstructEventWithOptions(payload, signature, setting.StripeWebhookSecret, webhook.ConstructEventOptions{
 		IgnoreAPIVersionMismatch: true,
 	})
 
@@ -165,13 +170,16 @@ func StripeWebhook(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-
 	var handlerErr error
 	switch event.Type {
 	case stripe.EventTypeCheckoutSessionCompleted:
 		handlerErr = sessionCompleted(event)
 	case stripe.EventTypeCheckoutSessionExpired:
 		handlerErr = sessionExpired(event)
+	case stripe.EventTypeCheckoutSessionAsyncPaymentSucceeded:
+		handlerErr = sessionAsyncPaymentSucceeded(event)
+	case stripe.EventTypeCheckoutSessionAsyncPaymentFailed:
+		handlerErr = sessionAsyncPaymentFailed(event)
 	default:
 		log.Printf("不支持的Stripe Webhook事件类型: %s\n", event.Type)
 	}
@@ -193,7 +201,73 @@ func sessionCompleted(event stripe.Event) error {
 		return nil
 	}
 
-	// Try complete subscription order first
+	paymentStatus := event.GetObjectValue("payment_status")
+	if paymentStatus != "paid" {
+		log.Printf("Stripe Checkout 支付尚未完成，payment_status: %s, ref: %s（等待异步支付结果）", paymentStatus, referenceId)
+		return nil
+	}
+
+	fulfillOrder(event, referenceId, customerId)
+	return nil
+}
+
+// sessionAsyncPaymentSucceeded handles delayed payment methods (bank transfer, SEPA, etc.)
+// that confirm payment after the checkout session completes.
+func sessionAsyncPaymentSucceeded(event stripe.Event) error {
+	customerId := event.GetObjectValue("customer")
+	referenceId := event.GetObjectValue("client_reference_id")
+	log.Printf("Stripe 异步支付成功: %s", referenceId)
+
+	fulfillOrder(event, referenceId, customerId)
+	return nil
+}
+
+// sessionAsyncPaymentFailed marks orders as failed when delayed payment methods
+// ultimately fail (e.g. bank transfer not received, SEPA rejected).
+func sessionAsyncPaymentFailed(event stripe.Event) error {
+	referenceId := event.GetObjectValue("client_reference_id")
+	log.Printf("Stripe 异步支付失败: %s", referenceId)
+
+	if len(referenceId) == 0 {
+		log.Println("异步支付失败事件未提供支付单号")
+		return nil
+	}
+
+	LockOrder(referenceId)
+	defer UnlockOrder(referenceId)
+
+	topUp := model.GetTopUpByTradeNo(referenceId)
+	if topUp == nil {
+		log.Println("异步支付失败，充值订单不存在:", referenceId)
+		return nil
+	}
+
+	if topUp.PaymentMethod != PaymentMethodStripe {
+		log.Printf("异步支付失败，订单支付方式不匹配: %s, ref: %s", topUp.PaymentMethod, referenceId)
+		return nil
+	}
+
+	if topUp.Status != common.TopUpStatusPending {
+		log.Printf("异步支付失败，订单状态非pending: %s, ref: %s", topUp.Status, referenceId)
+		return nil
+	}
+
+	topUp.Status = common.TopUpStatusFailed
+	if err := topUp.Update(); err != nil {
+		log.Printf("标记充值订单失败出错: %v, ref: %s", err, referenceId)
+		return nil
+	}
+	log.Printf("充值订单已标记为失败: %s", referenceId)
+	return nil
+}
+
+// fulfillOrder is the shared logic for crediting quota after payment is confirmed.
+func fulfillOrder(event stripe.Event, referenceId string, customerId string) {
+	if len(referenceId) == 0 {
+		log.Println("未提供支付单号")
+		return
+	}
+
 	LockOrder(referenceId)
 	defer UnlockOrder(referenceId)
 	payload := map[string]any{
@@ -203,20 +277,21 @@ func sessionCompleted(event stripe.Event) error {
 		"event_type":   string(event.Type),
 	}
 	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload)); err == nil {
-		return nil
+		return
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
-		return err
+		log.Println("complete subscription order failed:", err.Error(), referenceId)
+		return
 	}
 
 	err := model.Recharge(referenceId, customerId)
 	if err != nil {
-		return err
+		log.Println(err.Error(), referenceId)
+		return
 	}
 
 	total, _ := strconv.ParseFloat(event.GetObjectValue("amount_total"), 64)
 	currency := strings.ToUpper(event.GetObjectValue("currency"))
 	log.Printf("收到款项：%s, %.2f(%s)", referenceId, total/100, currency)
-	return nil
 }
 
 func sessionExpired(event stripe.Event) error {
@@ -238,7 +313,8 @@ func sessionExpired(event stripe.Event) error {
 	if err := model.ExpireSubscriptionOrder(referenceId); err == nil {
 		return nil
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
-		return err
+		log.Println("过期订阅订单失败", referenceId, ", err:", err.Error())
+		return nil
 	}
 
 	topUp := model.GetTopUpByTradeNo(referenceId)
@@ -259,7 +335,8 @@ func sessionExpired(event stripe.Event) error {
 	topUp.Status = common.TopUpStatusExpired
 	err := topUp.Update()
 	if err != nil {
-		return err
+		log.Println("过期充值订单失败", referenceId, ", err:", err.Error())
+		return nil
 	}
 
 	log.Println("充值订单已过期", referenceId)

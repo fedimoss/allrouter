@@ -89,6 +89,7 @@ const defaultInputs = {
   EmailDomainRestrictionEnabled: '',
   EmailAliasRestrictionEnabled: '',
   SMTPSSLEnabled: '',
+  SMTPForceAuthLogin: '',
   EmailDomainWhitelist: [],
   TelegramOAuthEnabled: '',
   TelegramBotToken: '',
@@ -107,7 +108,7 @@ const defaultInputs = {
   'fetch_setting.domain_list': [],
   'fetch_setting.ip_list': [],
   'fetch_setting.allowed_ports': [],
-  'fetch_setting.apply_ip_filter_for_domain': false,
+  'fetch_setting.apply_ip_filter_for_domain': true,
 };
 
 const SystemSetting = () => {
@@ -185,6 +186,7 @@ const SystemSetting = () => {
           case 'EmailDomainRestrictionEnabled':
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
+          case 'SMTPForceAuthLogin':
           case 'LinuxDOOAuthEnabled':
           case 'discord.enabled':
           case 'oidc.enabled':
@@ -752,7 +754,7 @@ const SystemSetting = () => {
                   </Button>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
- 
+
                   >
                     <Col xs={24} sm={24} md={24} lg={24} xl={24}>
                       <Form.Input
@@ -776,7 +778,7 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitCLIProxy}>
                     {t('更新CLI服务地址')}
-                  </Button>                
+                  </Button>
                 </Form.Section>
               </Card>
 
@@ -894,7 +896,7 @@ const SystemSetting = () => {
                         }
                         style={{ marginBottom: 8 }}
                       >
-                        {t('对域名启用 IP 过滤（实验性）')}
+                        {t('对域名启用 IP 过滤（推荐开启）')}
                       </Form.Checkbox>
                       <Text strong>
                         {t(domainFilterMode ? '域名白名单' : '域名黑名单')}
@@ -1381,6 +1383,15 @@ const SystemSetting = () => {
                         }
                       >
                         {t('启用SMTP SSL')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='SMTPForceAuthLogin'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('SMTPForceAuthLogin', e)
+                        }
+                      >
+                        {t('强制使用 AUTH LOGIN')}
                       </Form.Checkbox>
                     </Col>
                   </Row>
