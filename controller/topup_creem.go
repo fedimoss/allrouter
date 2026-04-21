@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -310,12 +309,28 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 	// Try complete subscription order first
 	LockOrder(referenceId)
 	defer UnlockOrder(referenceId)
-	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(event)); err == nil {
+
+	// 先尝试按订阅订单处理：订阅订单金额固定，可做严格对账。
+	if order := model.GetSubscriptionOrderByTradeNo(referenceId); order != nil {
+		if !minorUnitAmountMatchesMoney(event.Object.Order.AmountPaid, event.Object.Order.Currency, order.Money) {
+			log.Printf("Creem订阅金额校验失败: 订单号=%s, callback_amount_paid=%d, currency=%s, local_money=%.2f",
+				referenceId, event.Object.Order.AmountPaid, event.Object.Order.Currency, order.Money)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		if plan, err := model.GetSubscriptionPlanById(order.PlanId); err == nil && plan != nil &&
+			plan.CreemProductId != "" && event.Object.Product.Id != "" && plan.CreemProductId != event.Object.Product.Id {
+			log.Printf("Creem订阅产品校验失败: 订单号=%s, callback_product_id=%s, local_product_id=%s",
+				referenceId, event.Object.Product.Id, plan.CreemProductId)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(event), PaymentMethodCreem); err != nil {
+			log.Printf("Creem订阅订单处理失败: %s, 订单号: %s", err.Error(), referenceId)
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
 		c.Status(http.StatusOK)
-		return
-	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
-		log.Printf("Creem订阅订单处理失败: %s, 订单号: %s", err.Error(), referenceId)
-		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
@@ -338,6 +353,17 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 	topUp := model.GetTopUpByTradeNo(referenceId)
 	if topUp == nil {
 		log.Printf("Creem充值订单不存在: %s", referenceId)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if topUp.PaymentMethod != PaymentMethodCreem {
+		log.Printf("Creem充值订单支付方式不匹配: %s, 订单号: %s", topUp.PaymentMethod, referenceId)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if !minorUnitAmountMatchesMoney(event.Object.Order.AmountPaid, event.Object.Order.Currency, topUp.Money) {
+		log.Printf("Creem充值金额校验失败: 订单号=%s, callback_amount_paid=%d, currency=%s, local_money=%.2f",
+			referenceId, event.Object.Order.AmountPaid, event.Object.Order.Currency, topUp.Money)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}

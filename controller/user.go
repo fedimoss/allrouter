@@ -1,11 +1,16 @@
 package controller
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/google/uuid"
 
 	"github.com/QuantumNous/new-api/constant"
 
@@ -381,6 +387,54 @@ func GetSelf(c *gin.Context) {
 		return
 	}
 
+	// 计算总充值金额
+	totalTopupQuota, err := model.SumTopUpByUserId(id, 0, 0, model.TopUpBizTypePayment)
+	if err != nil {
+		common.SysError("failed to get user topup quota: " + err.Error())
+	}
+
+	// 计算福利奖励总额
+	var welfareQuota float64
+
+	// 1. 兑换码奖励
+	var redemptionQuota int64
+	redemptionResult := model.DB.Model(&model.Redemption{}).
+		Select("COALESCE(SUM(quota), 0)").
+		Where("used_user_id = ? AND status = ?", id, common.RedemptionCodeStatusUsed).
+		Scan(&redemptionQuota)
+	if redemptionResult.Error != nil {
+		common.SysError("failed to get user redemption quota: " + redemptionResult.Error.Error())
+	}
+
+	// 2. 签到奖励
+	var checkinQuota int64
+	checkinResult := model.DB.Model(&model.Checkin{}).
+		Select("COALESCE(SUM(quota_awarded), 0)").
+		Where("user_id = ?", id).
+		Scan(&checkinQuota)
+	if checkinResult.Error != nil {
+		common.SysError("failed to get user checkin quota: " + checkinResult.Error.Error())
+	}
+
+	// 3. 邀请转移奖励（邀请历史总额 - 邀请剩余额度）
+	var inviteTransferQuota int64
+	if user.AffHistoryQuota > 0 {
+		inviteTransferQuota = int64(user.AffHistoryQuota - user.AffQuota)
+	}
+
+	// 福利奖励总额 = 兑换码 + 签到 + 邀请转移 + 新用户注册赠送(单位是token数,要转化为金额)
+	welfareQuota_token := redemptionQuota + checkinQuota + inviteTransferQuota
+	welfareQuota_amount := float64(welfareQuota_token) / common.QuotaPerUnit
+	// 4. 新用户注册赠送奖励
+	newuserQuota, err := model.GetUserNewUserRewardQuota(id)
+	if err != nil {
+		common.SysError("failed to get user newuser quota: " + err.Error())
+		newuserQuota = 0
+	}
+
+	// 最终福利奖励总额（金额单位，float64）
+	welfareQuota = welfareQuota_amount + newuserQuota
+
 	// 获取指定时间范围内的请求成功次数和失败次数
 	var requestResult model.RequestCountResult
 	if userRole == common.RoleRootUser || userRole == common.RoleAdminUser {
@@ -411,32 +465,38 @@ func GetSelf(c *gin.Context) {
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
-		"id":                user.Id,
-		"username":          user.Username,
-		"display_name":      user.DisplayName,
-		"role":              user.Role,
-		"status":            user.Status,
-		"email":             user.Email,
-		"github_id":         user.GitHubId,
-		"discord_id":        user.DiscordId,
-		"oidc_id":           user.OidcId,
-		"wechat_id":         user.WeChatId,
-		"telegram_id":       user.TelegramId,
-		"group":             user.Group,
-		"quota":             user.Quota,
-		"used_quota":        user.UsedQuota,
-		"request_count":     periodRequestCount, // 请求次数
-		"total_count":       totalRequestCount,  // 统计次数
-		"aff_code":          user.AffCode,
-		"aff_count":         user.AffCount,
-		"aff_quota":         user.AffQuota,
-		"aff_history_quota": user.AffHistoryQuota,
-		"inviter_id":        user.InviterId,
-		"linux_do_id":       user.LinuxDOId,
-		"setting":           user.Setting,
-		"stripe_customer":   user.StripeCustomer,
-		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":       permissions,                // 新增权限字段
+		"id":                 user.Id,
+		"username":           user.Username,
+		"display_name":       user.DisplayName,
+		"avatar":             user.Avatar,
+		"role":               user.Role,
+		"status":             user.Status,
+		"email":              user.Email,
+		"github_id":          user.GitHubId,
+		"discord_id":         user.DiscordId,
+		"oidc_id":            user.OidcId,
+		"wechat_id":          user.WeChatId,
+		"telegram_id":        user.TelegramId,
+		"group":              user.Group,
+		"quota":              user.Quota,
+		"used_quota":         user.UsedQuota,
+		"request_count":      periodRequestCount, // 请求次数
+		"total_count":        totalRequestCount,  // 统计次数
+		"aff_code":           user.AffCode,
+		"aff_count":          user.AffCount,
+		"aff_quota":          user.AffQuota,
+		"aff_history_quota":  user.AffHistoryQuota,
+		"total_topup_quota":  totalTopupQuota, // 总充值金额
+		"welfare_quota":      welfareQuota,    // 福利奖励（兑换码+签到+邀请转移）
+		"inviter_id":         user.InviterId,
+		"linux_do_id":        user.LinuxDOId,
+		"setting":            user.Setting,
+		"stripe_customer":    user.StripeCustomer,
+		"phone_country_code": user.PhoneCountryCode,
+		"phone_number":       user.PhoneNumber,
+		"timezone":           user.Timezone,
+		"sidebar_modules":    userSetting.SidebarModules, // 正确提取sidebar_modules字段
+		"permissions":        permissions,                // 新增权限字段
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -708,6 +768,76 @@ func UpdateSelf(c *gin.Context) {
 		user.SetSetting(currentSetting)
 		if err := user.Update(false); err != nil {
 			common.ApiErrorI18n(c, i18n.MsgUpdateFailed)
+			return
+		}
+
+		common.ApiSuccessI18n(c, i18n.MsgUpdateSuccess, nil)
+		return
+	}
+
+	// ============== 个人资料更新分支 ==============
+	// 与 sidebar_modules、language 分支并列，在原有用户信息更新逻辑之前拦截。
+	// 拦截条件：请求中包含以下 5 个 key 中的任意一个：
+	//   avatar、phone_country_code、phone_number、timezone、email
+	// 注意：username 不作为拦截条件，因为原来的用户名/密码/显示名更新逻辑也会传 username，
+	//       避免误拦截导致密码修改等功能失效。
+	//       但 username 会作为更新字段写入数据库（个人资料请求中 username 必定有值）。
+	//
+	// 空字符串处理：前端传 "phone_number": "" 时，map 中 key 存在、值为空字符串，
+	//   hasXxx 为 true，会触发拦截并将空字符串写入数据库，实现字段清空效果。
+	//   只有前端完全不传某个 key 时，hasXxx 才为 false，该字段不会更新。
+	_, hasUsername := requestData["username"]
+	_, hasAvatar := requestData["avatar"]
+	_, hasPhoneCountryCode := requestData["phone_country_code"]
+	_, hasPhoneNumber := requestData["phone_number"]
+	_, hasTimezone := requestData["timezone"]
+	if hasAvatar || hasPhoneCountryCode || hasPhoneNumber || hasTimezone {
+		updates := map[string]interface{}{}
+		// username 不作为拦截条件，但进入分支后作为更新字段
+		if hasUsername {
+			// 检测用户名是否已存在
+			if v, ok := requestData["username"].(string); ok {
+				userId := c.GetInt("id")
+				exist, err := model.CheckUserExistOrDeleted(v, "")
+				if err != nil {
+					common.ApiError(c, err)
+					return
+				}
+				if exist {
+					var existingUser model.User
+					if err := model.DB.Unscoped().Where("username = ?", v).First(&existingUser).Error; err == nil && existingUser.Id != userId {
+						common.ApiErrorI18n(c, i18n.MsgUserExists)
+						return
+					}
+				}
+				updates["username"] = v
+			}
+		}
+		if hasAvatar {
+			if v, ok := requestData["avatar"].(string); ok {
+				updates["avatar"] = v
+			}
+		}
+		if hasPhoneCountryCode {
+			if v, ok := requestData["phone_country_code"].(string); ok {
+				updates["phone_country_code"] = v
+			}
+		}
+		if hasPhoneNumber {
+			if v, ok := requestData["phone_number"].(string); ok {
+				updates["phone_number"] = v
+			}
+		}
+		if hasTimezone {
+			if v, ok := requestData["timezone"].(string); ok {
+				updates["timezone"] = v
+			}
+		}
+
+		userId := c.GetInt("id")
+		// 调用 model 层方法，使用 map[string]interface{} 更新，支持空字符串清空字段
+		if err := model.UpdateUserProfile(userId, updates); err != nil {
+			common.ApiError(c, err)
 			return
 		}
 
@@ -1271,4 +1401,95 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)
+}
+
+// UploadAvatar 上传头像
+func UploadAvatar(c *gin.Context) {
+	userId := c.GetInt("id") // 用户ID
+	file, err := c.FormFile("avatar")
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserAvatarNotSelected)
+		return
+	}
+
+	// 校验文件大小（比如限制 2MB）
+	if file.Size > 2<<20 {
+		common.ApiErrorI18n(c, i18n.MsgUserAvatarSizeExceeded)
+		return
+	}
+
+	// 校验文件类型
+	contentType := file.Header.Get("Content-Type")
+	if contentType != "image/jpeg" && contentType != "image/png" {
+		common.ApiErrorI18n(c, i18n.MsgUserAvatarFormatUnsupported)
+		return
+	}
+
+	// 打开文件内容
+	src, err := file.Open()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	defer src.Close()
+
+	// 路径: static/avatar/用户ID
+	baseDir := filepath.Join("static", "avatar", strconv.Itoa(userId))
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 创建SHA256哈希计算器，用于生成文件唯一标识
+	hasher := sha256.New()
+
+	// 创建临时目录，用于暂存文件
+	// 路径: static/avatar/用户ID/tmp
+	tmpDir := filepath.Join(baseDir, "tmp")
+	_ = os.MkdirAll(tmpDir, 0755) // 忽略创建错误，可能已存在
+
+	// 获取文件扩展名
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+
+	// 构建临时文件路径（使用随机文件名）,防止上传文件名重复
+	// 路径: static/avatar/用户ID/tmp/xxxxxx.jpg
+	tmpPath := filepath.Join(tmpDir, uuid.New().String()+ext)
+
+	// 创建临时文件
+	dst, err := os.Create(tmpPath)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 手动控制关闭时机：将文件内容同时复制到临时文件和哈希计算器
+	// 使用io.MultiWriter实现一次读取，同时写入两个目标
+	_, err = io.Copy(io.MultiWriter(dst, hasher), src)
+	if err != nil {
+		dst.Close() // 出错时立即关闭目标文件
+		common.ApiError(c, err)
+	}
+
+	// 先关闭目标文件，确保数据完全写入
+	if err := dst.Close(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 生成文件哈希值（十六进制字符串）
+	hash := hex.EncodeToString(hasher.Sum(nil))
+
+	// 构建最终文件路径（使用哈希值+原始扩展名）
+	// 路径: static/avatar/用户ID/xxxxxx.jpg
+	finalPath := filepath.Join(baseDir, hash+ext)
+
+	// 将临时文件移动到最终位置（原子操作，比复制更高效）
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 返回成功响应
+	avatarURL := "/static/avatar/" + strconv.Itoa(userId) + "/" + hash + ext
+	common.ApiSuccess(c, gin.H{"url": avatarURL})
 }

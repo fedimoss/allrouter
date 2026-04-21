@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -356,6 +357,24 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 
 	LockOrder(merchantOrderId)
 	defer UnlockOrder(merchantOrderId)
+
+	topUp := model.GetTopUpByTradeNo(merchantOrderId)
+	if topUp == nil {
+		log.Printf("Waffo 充值订单不存在: %s", merchantOrderId)
+		sendWaffoWebhookResponse(c, wh, false, "order not found")
+		return
+	}
+	if !amountStringMatchesMoney(result.OrderAmount, topUp.Money) {
+		log.Printf("Waffo 金额校验失败: 订单=%s, callback_order_amount=%s, local_money=%.2f", merchantOrderId, result.OrderAmount, topUp.Money)
+		sendWaffoWebhookResponse(c, wh, false, "amount mismatch")
+		return
+	}
+	expectedCurrency := strings.ToUpper(getWaffoCurrency())
+	if expectedCurrency != "" && result.OrderCurrency != "" && !strings.EqualFold(result.OrderCurrency, expectedCurrency) {
+		log.Printf("Waffo 币种校验失败: 订单=%s, callback_currency=%s, expected_currency=%s", merchantOrderId, result.OrderCurrency, expectedCurrency)
+		sendWaffoWebhookResponse(c, wh, false, "currency mismatch")
+		return
+	}
 
 	if err := model.RechargeWaffo(merchantOrderId); err != nil {
 		log.Printf("Waffo 充值处理失败: %v, 订单: %s", err, merchantOrderId)

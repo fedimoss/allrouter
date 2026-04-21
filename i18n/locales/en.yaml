@@ -102,6 +102,9 @@ user.telegram_id_empty: "Telegram ID is empty!"
 user.telegram_not_bound: "This Telegram account is not bound"
 user.linux_do_id_empty: "Linux DO ID is empty!"
 user.quota_change_zero: "Quota change amount cannot be zero"
+user.avatar_not_selected: "Please select an avatar file"
+user.avatar_size_exceeded: "Avatar file cannot exceed 2MB"
+user.avatar_format_unsupported: "Only JPG/PNG format is supported"
 
 # Quota messages
 quota.negative: "Quota cannot be negative!"

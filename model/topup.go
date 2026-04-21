@@ -96,6 +96,8 @@ func (topUp *TopUp) GetQuotaToAdd() (int, error) {
 	case TopUpBizTypePayment:
 		switch topUp.PaymentMethod {
 		case "stripe":
+			// Stripe 订单的 Money 存储的是“应发放的充值额度（基础额度 × 分组倍率）”，
+			// 因此这里直接按额度换算，不走 Amount 字段。
 			return int(decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()), nil
 		case "creem":
 			if topUp.Amount <= 0 {
@@ -237,7 +239,7 @@ func Recharge(referenceId string, customerId string) (err error) {
 	return nil
 }
 
-func RechargeEpay(referenceId string) (err error) {
+func RechargeEpay(referenceId string, expectedPaymentMethod string) (err error) {
 	if referenceId == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -258,6 +260,11 @@ func RechargeEpay(referenceId string) (err error) {
 		}
 
 		topUp.BizType = topUp.GetBizType()
+		// 关键防线：易支付回调必须与本地订单记录的支付方式完全一致，
+		// 否则一律拒绝，避免其他网关的成功回调串用到该订单。
+		if expectedPaymentMethod == "" || topUp.PaymentMethod != expectedPaymentMethod {
+			return ErrPaymentMethodMismatch
+		}
 		if topUp.Status == common.TopUpStatusSuccess {
 			return nil
 		}

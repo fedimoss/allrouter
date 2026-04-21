@@ -114,6 +114,9 @@ const (
 	MsgUserTelegramNotBound          = "user.telegram_not_bound"
 	MsgUserLinuxDOIdEmpty            = "user.linux_do_id_empty"
 	MsgUserQuotaChangeZero           = "user.quota_change_zero"
+	MsgUserAvatarNotSelected         = "user.avatar_not_selected"       // 请选择头像文件或上传头像
+	MsgUserAvatarSizeExceeded        = "user.avatar_size_exceeded"      // 头像尺寸超出限制
+	MsgUserAvatarFormatUnsupported   = "user.avatar_format_unsupported" // 头像格式不支持
 )
 
 // Quota related messages

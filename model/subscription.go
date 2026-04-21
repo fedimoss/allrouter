@@ -505,7 +505,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 }
 
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.
-func CompleteSubscriptionOrder(tradeNo string, providerPayload string) error {
+func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentMethod string) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
@@ -522,6 +522,10 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string) error {
 		var order SubscriptionOrder
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
+		}
+		// 关键防线：订阅补单/回调处理时，必须确认“当前回调网关”和“本地订单支付方式”一致。
+		if expectedPaymentMethod != "" && order.PaymentMethod != expectedPaymentMethod {
+			return ErrPaymentMethodMismatch
 		}
 		if order.Status == common.TopUpStatusSuccess {
 			return nil
@@ -613,7 +617,7 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	return tx.Save(&topup).Error
 }
 
-func ExpireSubscriptionOrder(tradeNo string) error {
+func ExpireSubscriptionOrder(tradeNo string, expectedPaymentMethod string) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
@@ -625,6 +629,10 @@ func ExpireSubscriptionOrder(tradeNo string) error {
 		var order SubscriptionOrder
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
+		}
+		// 过期/关闭订单也要做同样的支付方式校验，避免不同支付通道互相影响订单状态。
+		if expectedPaymentMethod != "" && order.PaymentMethod != expectedPaymentMethod {
+			return ErrPaymentMethodMismatch
 		}
 		if order.Status != common.TopUpStatusPending {
 			return nil
