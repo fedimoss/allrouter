@@ -31,7 +31,7 @@ import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
-import { Coins } from 'lucide-react';
+import { CheckCircle, Coins, Gift } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
 import {
@@ -116,9 +116,9 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const renderStatusBadge = (status, record) => {
     if (isInviteRebateTopup(record)) {
       return (
-        <span className='flex items-center gap-2'>
-          <Badge dot type='success' />
-          <span>{t('已入账')}</span>
+        <span className='inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+          <CheckCircle size={14} />
+          <span className='font-medium'>{t('已入账')}</span>
         </span>
       );
     }
@@ -142,9 +142,13 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
 
   const renderBizTypeTag = (record) => {
     const config = getTopupBizTypeConfig(record);
+    const inviteRebate = isInviteRebateTopup(record);
     return (
       <Tag color={config.color} shape='circle' size='small'>
-        {t(config.label)}
+        <span className='inline-flex items-center gap-1'>
+          {inviteRebate ? <Gift size={12} /> : null}
+          {t(config.label)}
+        </span>
       </Tag>
     );
   };
@@ -179,6 +183,16 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
               <Tag color='purple' shape='circle' size='small'>
                 {t('订阅套餐')}
               </Tag>
+            );
+          }
+          if (isInviteRebateTopup(record)) {
+            return (
+              <span className='inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+                <Gift size={14} />
+                <Text strong className='!text-emerald-600 dark:!text-emerald-300'>
+                  +{amount}
+                </Text>
+              </span>
             );
           }
           return (
@@ -262,7 +276,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
             darkModeImage={
               <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
             }
-            description={t('暂无充值记录')}
+            description={t('暂无账单记录')}
             style={{ padding: 30 }}
           />
         }

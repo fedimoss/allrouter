@@ -34,8 +34,8 @@ type TopUp struct {
 	DisplayName   string  `json:"display_name" gorm:"->;-:migration;column:display_name"` // 用户昵称（从users表关联）
 }
 type TopUpDetails struct {
-	*TopUp
-	//Level1Rate
+	*TopUp     `json:"topup"`
+	Level1Rate *TopUpRebate `json:"level1_rate"`
 }
 
 // 业务类型常量定义
@@ -1048,6 +1048,33 @@ func RechargeWaffo(tradeNo string) (err error) {
 }
 
 // 管理员获取订单详情byid
-func GetTopUpDetailsById(id string) (*TopUp, error) {
-	return nil, nil
+func GetTopUpDetailsById(id int) (*TopUpDetails, error) {
+	if id <= 0 {
+		return nil, errors.New("invalid topup id")
+	}
+
+	topUp := &TopUp{}
+	if err := DB.Model(&TopUp{}).
+		Select("top_ups.*, COALESCE(users.display_name, '') AS display_name").
+		Joins("LEFT JOIN users ON users.id = top_ups.user_id").
+		Where("top_ups.id = ?", id).
+		First(topUp).Error; err != nil {
+		return nil, err
+	}
+	topUp.BizType = topUp.GetBizType()
+
+	var rebate *TopUpRebate
+	rebateRecord := &TopUpRebate{}
+	if err := DB.Where("topup_id = ?", id).First(rebateRecord).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	} else {
+		rebate = rebateRecord
+	}
+
+	return &TopUpDetails{
+		TopUp:      topUp,
+		Level1Rate: rebate,
+	}, nil
 }

@@ -3959,5 +3959,10 @@
     "已入账": "Credited",
     "账单类型": "Billing type",
     "在线充值": "Online recharge",
-    "搜索订单号或用户昵称": "Search order number or user nickname"
+    "搜索订单号或用户昵称": "Search order number or user nickname",
+    "查看全平台充值、邀请返佣与用户账单状态。": "View platform-wide top-ups, referral rebates, and user billing status.",
+    "查看您的充值、邀请返佣与消费明细。": "View your top-ups, referral rebates, and spending details.",
+    "充值与返佣记录": "Top-up and rebate records",
+    "邀请返佣已自动入账，无需手动处理。": "Referral rebates are credited automatically and do not require manual processing.",
+    "暂无账单记录": "No billing records yet"
 }

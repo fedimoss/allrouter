@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -21,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 func GetTopUpInfo(c *gin.Context) {
@@ -462,14 +464,25 @@ func AdminCompleteTopUp(c *gin.Context) {
 
 // 管理员查看订单详情
 func GetUserTopupDetails(c *gin.Context) {
+	var req struct {
+		TopUpID int `json:"topup_id" form:"topup_id"`
+	}
 
-	topupId := c.Query("topup_id")
-
-	if topupId == "" {
-		common.ApiError(c, errors.New("topup_id不能为空"))
+	if err := c.ShouldBind(&req); err != nil || req.TopUpID <= 0 {
+		common.ApiErrorMsg(c, "无效的topup_id")
 		return
 	}
 
-	model.GetTopUpDetailsById(topupId)
+	topDetails, err := model.GetTopUpDetailsById(req.TopUpID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "充值记录不存在")
+			return
+		}
+		logger.LogError(c, "query topup detail failed: "+err.Error())
+		common.ApiErrorMsg(c, "查询充值详情失败")
+		return
+	}
 
+	common.ApiSuccess(c, topDetails)
 }
