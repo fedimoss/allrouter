@@ -48,6 +48,7 @@ const PaymentSetting = () => {
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
+    InviteTopupRebateRatio: 0,
   });
 
   let [loading, setLoading] = useState(false);
@@ -96,6 +97,7 @@ const PaymentSetting = () => {
           case 'MinTopUp':
           case 'StripeUnitPrice':
           case 'StripeMinTopUp':
+          case 'InviteTopupRebateRatio':
             newInputs[item.key] = parseFloat(item.value);
             break;
           default:

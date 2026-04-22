@@ -422,8 +422,18 @@ func GetSelf(c *gin.Context) {
 		inviteTransferQuota = int64(user.AffHistoryQuota - user.AffQuota)
 	}
 
-	// 福利奖励总额 = 兑换码 + 签到 + 邀请转移 + 新用户注册赠送(单位是token数,要转化为金额)
-	welfareQuota_token := redemptionQuota + checkinQuota + inviteTransferQuota
+	// 5 充值返利(被邀请人充值,邀请人会被返利)
+	var topuprebatesQuota int64
+	topuprebatesResult := model.DB.Model(&model.TopUpRebate{}).
+		Select("COALESCE(SUM(rebate_quota), 0)").
+		Where("inviter_id = ? ", id).
+		Scan(&topuprebatesQuota)
+	if topuprebatesResult.Error != nil {
+		common.SysError("failed to get user topup rebates quota: " + redemptionResult.Error.Error())
+	}
+
+	// 福利奖励总额 = 兑换码 + 签到 + 邀请转移 + 充值返利(单位是token数,要转化为金额)
+	welfareQuota_token := redemptionQuota + checkinQuota + inviteTransferQuota + topuprebatesQuota
 	welfareQuota_amount := float64(welfareQuota_token) / common.QuotaPerUnit
 	// 4. 新用户注册赠送奖励
 	newuserQuota, err := model.GetUserNewUserRewardQuota(id)
