@@ -31,7 +31,6 @@ const PaymentConfirmModal = ({
   handleCancel,
   confirmLoading,
   topUpCount,
-  renderQuotaWithAmount,
   amountLoading,
   renderAmount,
   payWay,
@@ -39,16 +38,24 @@ const PaymentConfirmModal = ({
   // 新增：用于显示折扣明细
   amountNumber,
   discountRate,
+  stripeSymbol, // Stripe 支付的币种符号（根据用户时区决定，如 ¥ 或 $）
 }) => {
+  // 判断是否有有效折扣（0 < 折扣率 < 1 且原价大于 0）
   const hasDiscount =
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
+  // 根据折扣率反算原价
   const originalAmount = hasDiscount ? amountNumber / discountRate : 0;
+  // 计算优惠金额
   const discountAmount = hasDiscount ? originalAmount - amountNumber : 0;
+  // 格式化金额：Stripe 支付时使用传入的币种符号（整数），否则显示"元"（两位小数）
   const formatAmount = (value, { negative = false } = {}) => {
-    const numericValue = Number(value || 0).toFixed(2);
     if (payWay === 'stripe') {
-      return `${negative ? '-' : ''}$${numericValue}`;
+      // Stripe 支付：显示币种符号 + 整数金额
+      const sym = stripeSymbol || '$';
+      return `${negative ? '-' : ''}${sym}${parseInt(value) || 0}`;
     }
+    // 其他支付方式：显示两位小数 + "元"
+    const numericValue = Number(value || 0).toFixed(2);
     return `${negative ? '- ' : ''}${numericValue} ${t('元')}`;
   };
   return (
@@ -75,7 +82,7 @@ const PaymentConfirmModal = ({
                 {t('充值数量')}：
               </Text>
               <Text className='text-slate-900 dark:text-slate-100'>
-                {renderQuotaWithAmount(topUpCount)}
+                {formatAmount(topUpCount)}
               </Text>
             </div>
             <div className='flex justify-between items-center'>
@@ -104,7 +111,7 @@ const PaymentConfirmModal = ({
                     {t('原价')}：
                   </Text>
                   <Text delete className='text-slate-500 dark:text-slate-400'>
-                      {`${originalAmount.toFixed(2)} ${t('元')}`}
+                      {formatAmount(originalAmount)}
 
                   </Text>
                 </div>
@@ -113,7 +120,7 @@ const PaymentConfirmModal = ({
                     {t('优惠')}：
                   </Text>
                   <Text className='text-emerald-600 dark:text-emerald-400'>
-                    {`- ${discountAmount.toFixed(2)} ${t('元')}`}
+                    {formatAmount(discountAmount, { negative: true })}
                   </Text>
                 </div>
               </>

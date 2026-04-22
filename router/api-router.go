@@ -177,6 +177,14 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/migrate_console_setting", controller.MigrateConsoleSetting) // 用于迁移检测的旧键，下个版本会删除
 		}
 
+		// 币种 Stripe 价格配置（管理后台）
+		currencyStripeRoute := apiRouter.Group("/currency-stripe-config")
+		currencyStripeRoute.Use(middleware.RootAuth())
+		{
+			currencyStripeRoute.GET("/", controller.GetAdminCurrencyStripeConfigs)
+			currencyStripeRoute.PUT("/", controller.UpdateAdminCurrencyStripeConfig)
+		}
+
 		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")
 		customOAuthRoute.Use(middleware.RootAuth())

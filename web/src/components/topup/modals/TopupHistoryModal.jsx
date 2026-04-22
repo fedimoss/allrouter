@@ -33,7 +33,7 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { Coins } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
-import { API, timestamp2string } from '../../../helpers';
+import { API, timestamp2string, formatDisplayMoney } from '../../../helpers';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const { Text } = Typography;
 
@@ -176,11 +176,14 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         key: 'money',
         render: (money, record) => {
           const normalizedMoney = Number(money || 0);
+          const paySymbol =
+          // 优先使用后端返回的币种符号，Stripe 默认 $，其他默认 ¥
+            record.display_symbol ||
+            (record.payment_method === 'stripe' ? '$' : '\u00A5');
           const prefix = normalizedMoney <= 0 ? '' : record.payment_method === 'stripe' ? '$' : '¥';
           return (
             <Text type='danger'>
-              {prefix}
-              {normalizedMoney.toFixed(2)}
+              {formatDisplayMoney(money, paySymbol)}
             </Text>
           );
         },

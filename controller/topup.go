@@ -22,9 +22,41 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// applyTopUpDisplayCurrency 将充值记录列表中的美元金额按用户时区转换为本地币种
+// 同时填充 DisplayCurrency 和 DisplaySymbol 字段供前端展示
+func applyTopUpDisplayCurrency(topups []*model.TopUp, timezone string) {
+	// 提前获取一次展示币种信息，避免在循环中重复查库
+	displayInfo := model.GetDisplayCurrencyInfoByTimezone(timezone)
+	for _, topUp := range topups {
+		if topUp == nil {
+			continue
+		}
+		// 根据展示币种将美元金额转换为本地币种金额
+		topUp.DisplayCurrency = displayInfo.Currency
+		topUp.DisplaySymbol = displayInfo.Symbol
+		if displayInfo.Currency != "CNY" {
+			continue
+		}
+		// 人民币用户按汇率换算
+		topUp.Money = model.RoundDisplayCurrencyAmount(topUp.Money * displayInfo.Rate)
+	}
+}
+
 func GetTopUpInfo(c *gin.Context) {
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
+	// 获取当前用户信息，用于根据时区决定展示币种
+	var user *model.User
+	userId := c.GetInt("id")
+	if userId > 0 {
+		user, _ = model.GetUserById(userId, false)
+	}
+	// 获取默认展示币种（未登录时为美元）
+	displayInfo := model.GetDisplayCurrencyInfoByTimezone("")
+	if user != nil {
+		// 已登录用户根据其配置的时区获取对应的展示币种
+		displayInfo = model.GetDisplayCurrencyInfoByTimezone(user.Timezone)
+	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
 	if setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "" {
@@ -78,9 +110,35 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	// 根据用户时区解析币种和 Stripe 价格配置
+	var stripeCurrency *model.CurrencyStripeConfig
+	// Stripe 支付前提条件：已配置 API 密钥和 Webhook 密钥
+	enableStripeTopup := setting.StripeApiSecret != "" && setting.StripeWebhookSecret != ""
+	if enableStripeTopup {
+		// 优先根据用户时区匹配 Stripe 价格配置
+		if user != nil && user.Timezone != "" {
+			config, _ := model.GetStripeConfigByTimezone(user.Timezone, "")
+			if config != nil && config.StripePriceID != "" {
+				stripeCurrency = config
+			}
+		}
+		// 回退：使用全局 StripePriceId 对应的币种（兼容未配置映射的场景）
+		if stripeCurrency == nil && setting.StripePriceId != "" {
+			configs, _ := model.GetEnabledCurrencyConfigs()
+			for _, cfg := range configs {
+				if cfg.StripePriceID == setting.StripePriceId {
+					stripeCurrency = &cfg
+					break
+				}
+			}
+		}
+		// 仅当找到有效的 Stripe 价格配置时才启用 Stripe 充值
+		enableStripeTopup = stripeCurrency != nil
+	}
+
 	data := gin.H{
 		"enable_online_topup": operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != "",
-		"enable_stripe_topup": setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
+		"enable_stripe_topup": enableStripeTopup,
 		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
 		"enable_waffo_topup":  enableWaffo,
 		"waffo_pay_methods": func() interface{} {
@@ -89,13 +147,22 @@ func GetTopUpInfo(c *gin.Context) {
 			}
 			return nil
 		}(),
-		"creem_products":   setting.CreemProducts,
-		"pay_methods":      payMethods,
-		"min_topup":        operation_setting.MinTopUp,
-		"stripe_min_topup": setting.StripeMinTopUp,
-		"waffo_min_topup":  setting.WaffoMinTopUp,
-		"amount_options":   operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":         operation_setting.GetPaymentSetting().AmountDiscount,
+		"creem_products":     setting.CreemProducts,
+		"pay_methods":        payMethods,
+		"min_topup":          operation_setting.MinTopUp,
+		"stripe_min_topup":   setting.StripeMinTopUp,
+		"waffo_min_topup":    setting.WaffoMinTopUp,
+		"amount_options":     operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":           operation_setting.GetPaymentSetting().AmountDiscount,
+		"display_currency":   displayInfo.Currency,
+		"display_symbol":     displayInfo.Symbol,
+		"display_unit_price": displayInfo.Rate,
+	}
+	// 附加币种信息供前端展示
+	if stripeCurrency != nil {
+		data["stripe_currency"] = stripeCurrency.Currency
+		data["stripe_symbol"] = stripeCurrency.Symbol
+		data["stripe_unit_price"] = stripeCurrency.UnitPrice
 	}
 	common.ApiSuccess(c, data)
 }
@@ -404,6 +471,11 @@ func GetUserTopUps(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	// 查询用户信息，将充值金额转换为用户本地币种展示
+	user, userErr := model.GetUserById(userId, false)
+	if userErr == nil {
+		applyTopUpDisplayCurrency(topups, user.Timezone)
 	}
 
 	pageInfo.SetTotal(int(total))

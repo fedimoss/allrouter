@@ -14,18 +14,20 @@ import (
 )
 
 type TopUp struct {
-	Id            int     `json:"id"`
-	UserId        int     `json:"user_id" gorm:"index"`
-	Amount        int64   `json:"amount"`
-	Money         float64 `json:"money"`
-	TradeNo       string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod string  `json:"payment_method" gorm:"type:varchar(50)"`
-	BizType       string  `json:"biz_type" gorm:"type:varchar(32);default:payment;index"`
-	SourceID      int     `json:"source_id" gorm:"default:0;index"`
-	CreateTime    int64   `json:"create_time"`
-	CompleteTime  int64   `json:"complete_time"`
-	Status        string  `json:"status"`
-	DisplayName   string  `json:"display_name" gorm:"->;-:migration;column:display_name"`
+	Id              int     `json:"id"`
+	UserId          int     `json:"user_id" gorm:"index"`
+	Amount          int64   `json:"amount"`
+	Money           float64 `json:"money"`
+	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
+	BizType         string  `json:"biz_type" gorm:"type:varchar(32);default:payment;index"`
+	SourceID        int     `json:"source_id" gorm:"default:0;index"`
+	CreateTime      int64   `json:"create_time"`
+	CompleteTime    int64   `json:"complete_time"`
+	Status          string  `json:"status"`
+	DisplayName     string  `json:"display_name" gorm:"->;-:migration;column:display_name"`
+	DisplayCurrency string  `json:"display_currency,omitempty" gorm:"-"` // 展示用币种代码（非数据库字段，由 controller 层填充）
+	DisplaySymbol   string  `json:"display_symbol,omitempty" gorm:"-"`   // 展示用币种符号（非数据库字段，由 controller 层填充）
 }
 
 const (

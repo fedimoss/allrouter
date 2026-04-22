@@ -36,7 +36,7 @@ type StripePayRequest struct {
 	// PaymentMethod specifies the payment method (e.g., "stripe").
 	PaymentMethod string `json:"payment_method"`
 	// SuccessURL is the optional custom URL to redirect after successful payment.
-	// If empty, defaults to the server's console log page.
+	// If empty, defaults to the server's console topup page.
 	SuccessURL string `json:"success_url,omitempty"`
 	// CancelURL is the optional custom URL to redirect when payment is canceled.
 	// If empty, defaults to the server's console topup page.
@@ -57,7 +57,13 @@ func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 		c.JSON(200, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
-	payMoney := getStripePayMoney(float64(req.Amount), group)
+
+	// 根据用户时区解析实际单价
+	user, _ := model.GetUserById(id, false)
+	unitPrice := resolveStripeUnitPrice(user)
+
+	// 根据单价、分组倍率、折扣计算实际应付金额
+	payMoney := getStripePayMoney(float64(req.Amount), group, unitPrice)
 	if payMoney <= 0.01 {
 		c.JSON(200, gin.H{"message": "error", "data": "充值金额过低"})
 		return
@@ -91,14 +97,30 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 
 	id := c.GetInt("id")
 	user, _ := model.GetUserById(id, false)
-	// Stripe 订单的 Money 字段存储“应发放的充值额度（已乘分组倍率）”，
+	// 查询用户失败时无法继续，直接返回错误
+	if user == nil {
+		c.JSON(200, gin.H{"message": "error", "data": "获取用户信息失败"})
+		return
+	}
+
+	// 根据用户时区查找对应的 Stripe Price ID
+	priceId := resolveStripePriceId(user)
+	// 如果最终没有找到有效的 Price ID，拒绝发起支付
+	if priceId == "" {
+		c.JSON(200, gin.H{"message": "error", "data": "未找到对应币种的支付配置"})
+		return
+	}
+
+	// Stripe 订单的 Money 字段存储"应发放的充值额度（已乘分组倍率）"，
 	// 不是实际支付金额；实际支付金额由 Stripe Checkout/回调金额决定。
 	chargedMoney := GetChargedAmount(float64(req.Amount), *user)
 
+	// 生成唯一的订单参考号，格式：new-api-ref-{用户ID}-{毫秒时间戳}-{4位随机字符串}
 	reference := fmt.Sprintf("new-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "ref_" + common.Sha1([]byte(reference))
 
-	payLink, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, req.Amount, req.SuccessURL, req.CancelURL)
+	// 调用 Stripe API 创建 Checkout Session，传入时区对应的 priceId
+	payLink, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, req.Amount, priceId, req.SuccessURL, req.CancelURL)
 	if err != nil {
 		log.Println("获取Stripe Checkout支付链接失败", err)
 		c.JSON(200, gin.H{"message": "error", "data": "拉起支付失败"})
@@ -279,7 +301,7 @@ func fulfillOrder(event stripe.Event, referenceId string, customerId string) {
 		"event_type":   string(event.Type),
 	}
 
-	// 先尝试按“订阅订单”处理；订阅单金额固定，允许做严格金额校验。
+	// 先尝试按"订阅订单"处理；订阅单金额固定，允许做严格金额校验。
 	if subscriptionOrder := model.GetSubscriptionOrderByTradeNo(referenceId); subscriptionOrder != nil {
 		if !stripeAmountTotalMatchesMoney(event.GetObjectValue("amount_total"), subscriptionOrder.Money) {
 			log.Printf("Stripe 订阅金额校验失败: ref=%s, callback_amount_total=%s, local_money=%.2f", referenceId, event.GetObjectValue("amount_total"), subscriptionOrder.Money)
@@ -385,7 +407,7 @@ func sessionExpired(event stripe.Event) error {
 //   - cancelURL: custom URL to redirect when payment is canceled (empty for default)
 //
 // Returns the checkout session URL or an error if the session creation fails.
-func genStripeLink(referenceId string, customerId string, email string, amount int64, successURL string, cancelURL string) (string, error) {
+func genStripeLink(referenceId string, customerId string, email string, amount int64, priceId string, successURL string, cancelURL string) (string, error) {
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
 		return "", fmt.Errorf("无效的Stripe API密钥")
 	}
@@ -393,8 +415,9 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 	stripe.Key = setting.StripeApiSecret
 
 	// Use custom URLs if provided, otherwise use defaults
+	// "支付成功" 和 "支付取消" 都跳转到充值页面
 	if successURL == "" {
-		successURL = system_setting.ServerAddress + "/console/log"
+		successURL = system_setting.ServerAddress + "/console/topup"
 	}
 	if cancelURL == "" {
 		cancelURL = system_setting.ServerAddress + "/console/topup"
@@ -406,7 +429,7 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 		CancelURL:         stripe.String(cancelURL),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
-				Price:    stripe.String(setting.StripePriceId),
+				Price:    stripe.String(priceId),
 				Quantity: stripe.Int64(amount),
 			},
 		},
@@ -446,8 +469,13 @@ func GetChargedAmount(count float64, user model.User) float64 {
 	return count * topUpGroupRatio
 }
 
-func getStripePayMoney(amount float64, group string) float64 {
+// getStripePayMoney 计算用户实际应付金额
+// 参数：amount 充值数量，group 用户分组，unitPrice 单价（根据时区解析）
+// 计算：充值数量 × 单价 × 分组倍率 × 档位折扣
+func getStripePayMoney(amount float64, group string, unitPrice float64) float64 {
+	// 保留原始数量，用于匹配档位折扣
 	originalAmount := amount
+	// Token 展示模式下，前端传入的是 token 数量，需折算回基础充值额度
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		amount = amount / common.QuotaPerUnit
 	}
@@ -456,15 +484,39 @@ func getStripePayMoney(amount float64, group string) float64 {
 	if topupGroupRatio == 0 {
 		topupGroupRatio = 1
 	}
-	// apply optional preset discount by the original request amount (if configured), default 1.0
+	// 查找该充值数量对应的档位折扣，无配置则默认不打折
 	discount := 1.0
 	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(originalAmount)]; ok {
 		if ds > 0 {
 			discount = ds
 		}
 	}
-	payMoney := amount * setting.StripeUnitPrice * topupGroupRatio * discount
+	payMoney := amount * unitPrice * topupGroupRatio * discount
 	return payMoney
+}
+
+// resolveStripeUnitPrice 根据用户时区解析 Stripe 单价
+// 优先使用时区映射的币种配置，找不到则回退到全局 StripeUnitPrice
+func resolveStripeUnitPrice(user *model.User) float64 {
+	unitPrice := setting.StripeUnitPrice
+	if user != nil && user.Timezone != "" {
+		if config, _ := model.GetStripeConfigByTimezone(user.Timezone, ""); config != nil && config.UnitPrice > 0 {
+			unitPrice = config.UnitPrice
+		}
+	}
+	return unitPrice
+}
+
+// resolveStripePriceId 根据用户时区解析 Stripe Price ID
+// 优先使用时区映射的币种配置，找不到则回退到全局 StripePriceId
+func resolveStripePriceId(user *model.User) string {
+	priceId := setting.StripePriceId
+	if user != nil && user.Timezone != "" {
+		if config, _ := model.GetStripeConfigByTimezone(user.Timezone, ""); config != nil && config.StripePriceID != "" {
+			priceId = config.StripePriceID
+		}
+	}
+	return priceId
 }
 
 func getStripeMinTopup() int64 {

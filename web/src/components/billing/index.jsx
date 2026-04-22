@@ -39,7 +39,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { BarChart3, BadgeDollarSign, CalendarCheck2, Coins } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
-import { API, timestamp2string } from '../../helpers';
+import { API, timestamp2string, formatDisplayMoney } from '../../helpers';
 import { isAdmin } from '../../helpers/utils';
 
 const { Text } = Typography;
@@ -356,21 +356,16 @@ const Billing = () => {
         title: t('支付金额'),
         dataIndex: 'money',
         key: 'money',
-        render: (money, record) => {
-          const normalizedMoney = Number(money || 0);
-          const prefix =
-            normalizedMoney <= 0
-              ? ''
-              : record.payment_method === 'stripe'
-                ? '$'
-                : '￥';
-          return (
-            <Text type='danger'>
-              {prefix}
-              {normalizedMoney.toFixed(2)}
-            </Text>
-          );
-        },
+        render: (money, record) => (
+          <Text type='danger'>
+            {formatDisplayMoney(
+              money,
+              // 优先使用后端返回的币种符号，Stripe 默认 $，其他默认 ¥
+              record.display_symbol ||
+                (record.payment_method === 'stripe' ? '$' : '\u00A5'),
+            )}
+          </Text>
+        ),
       },
       {
         title: t('状态'),

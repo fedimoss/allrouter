@@ -189,32 +189,51 @@ export function getTodayStartTimestamp() {
   return Math.floor(now.getTime() / 1000);
 }
 
+// getUserTimezone 从 localStorage 中读取当前用户在个人中心设置的时区（如 "Asia/Shanghai"）
+// 如果用户未设置时区，返回 undefined，后续格式化时将回退到浏览器默认时区
+function getUserTimezone() {
+  try {
+    // 从 localStorage 取出登录后缓存的用户信息 JSON 字符串
+    const raw = localStorage.getItem('user');
+    if (raw) {
+      const user = JSON.parse(raw);
+      // 如果用户对象中有时区字段且非空，直接返回该时区
+      if (user?.timezone) return user.timezone;
+    }
+  } catch { /* JSON 解析失败时静默忽略，回退到浏览器本地时区 */ }
+  // 未登录或未配置时区，返回 undefined
+  return undefined;
+}
+
+// timestamp2string 将 Unix 秒级时间戳转换为 "YYYY-MM-DD HH:mm:ss" 格式的字符串
+// 优先使用用户在个人中心配置的时区进行格式化，未配置时使用浏览器本地时区
 export function timestamp2string(timestamp) {
-  let date = new Date(timestamp * 1000);
-  let year = date.getFullYear().toString();
-  let month = (date.getMonth() + 1).toString();
-  let day = date.getDate().toString();
-  let hour = date.getHours().toString();
-  let minute = date.getMinutes().toString();
-  let second = date.getSeconds().toString();
-  if (month.length === 1) {
-    month = '0' + month;
+  // 获取用户配置的时区，可能为 undefined
+  const timezone = getUserTimezone();
+  // 构造 Intl.DateTimeFormat 的格式化选项
+  const options = {
+    year: 'numeric',     // 年份完整显示（如 2026）
+    month: '2-digit',    // 月份两位数（如 04）
+    day: '2-digit',      // 日期两位数（如 19）
+    hour: '2-digit',     // 小时两位数（如 08）
+    minute: '2-digit',   // 分钟两位数（如 31）
+    second: '2-digit',   // 秒两位数（如 31）
+    hour12: false,       // 使用 24 小时制
+  };
+  // 如果用户配置了时区，将其注入格式化选项
+  if (timezone) {
+    options.timeZone = timezone;
   }
-  if (day.length === 1) {
-    day = '0' + day;
-  }
-  if (hour.length === 1) {
-    hour = '0' + hour;
-  }
-  if (minute.length === 1) {
-    minute = '0' + minute;
-  }
-  if (second.length === 1) {
-    second = '0' + second;
-  }
-  return (
-    year + '-' + month + '-' + day + ' ' + hour + ':' + minute + ':' + second
+  // 使用 sv-SE（瑞典语）locale，其日期格式天然为 YYYY-MM-DD
+  // formatToParts 返回拆分后的日期时间片段数组，方便精确拼接
+  const parts = new Intl.DateTimeFormat('sv-SE', options).formatToParts(
+    // 将 Unix 秒级时间戳转为 JavaScript 毫秒级 Date 对象
+    new Date(timestamp * 1000),
   );
+  // 从 parts 数组中按类型查找对应值的辅助函数
+  const get = (type) => parts.find((p) => p.type === type)?.value || '';
+  // 拼接为 "YYYY-MM-DD HH:mm:ss" 格式返回
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
 }
 
 export function timestamp2string1(
