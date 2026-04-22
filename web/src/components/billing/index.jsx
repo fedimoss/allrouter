@@ -38,9 +38,22 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, BadgeDollarSign, CalendarCheck2, Coins, CheckCircle } from 'lucide-react';
-import { IconCopy, IconEyeOpened, IconSearch } from '@douyinfe/semi-icons';
+import {
+  BadgeDollarSign,
+  CalendarCheck2,
+  CheckCircle,
+  Coins,
+  Gift,
+  Wallet,
+  BarChart3
+} from 'lucide-react';
+import { IconSearch, IconCopy, IconEyeOpened } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../helpers';
+import {
+  getTopupBizTypeConfig,
+  isInviteRebateTopup,
+  isSubscriptionTopup,
+} from '../../helpers/topup';
 import { isAdmin } from '../../helpers/utils';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 
@@ -343,6 +356,10 @@ const Billing = () => {
   const [selectedRecord, setSelectedRecord] = useState(null);
 
   const userIsAdmin = useMemo(() => isAdmin(), []);
+  const billingPageTitle = userIsAdmin ? t('账单管理') : t('账单中心');
+  const billingPageDescription = userIsAdmin
+    ? t('查看全平台充值、邀请返佣与用户账单状态。')
+    : t('查看您的充值、邀请返佣与消费明细。');
 
   const loadTopups = async (page, pageSize, keyword) => {
     setHistoryLoading(true);
@@ -470,87 +487,115 @@ const Billing = () => {
     }
   };
 
-  const renderStatusBadge = (status) => {
-    const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
-    return (
-      <span className='flex items-center justify-center gap-2'>
-        <Badge dot type={config.type} />
-        <span>{t(config.key)}</span>
-      </span>
-    );
-  };
-
-  const renderPaymentMethod = (paymentMethod) => {
-    const displayName = PAYMENT_METHOD_MAP[paymentMethod];
-    return <Text>{displayName ? t(displayName) : paymentMethod || '-'}</Text>;
-  };
-
-  const periodOptionList = useMemo(
-    () => BILL_PERIOD_OPTIONS.map((item) => ({ value: item.value, label: t(item.label) })),
-    [t],
-  );
-
-  const summaryCards = useMemo(
-    () => [
-      {
-        key: 'current_quota',
-        title: t('支出/消费'),
-        value: formatCurrency(billingSummary.expense),
-        description: (
-          <span className='inline-flex items-center gap-1'>
-            <span className='text-slate-400'>{t('较上月')}</span>
-            <span className={getPercentToneClassName(billingSummary.expense_trend)}>
-              {formatPercent(billingSummary.expense_trend)}
-            </span>
+  const renderStatusBadge = (status, record) => {
+      if (isInviteRebateTopup(record)) {
+        return (
+          <span className='inline-flex items-center justify-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+            <CheckCircle size={14} />
+            <span className='font-medium'>{t('已入账')}</span>
           </span>
-        ),
-        icon: BadgeDollarSign,
-        iconClassName: 'text-slate-500',
-        iconWrapClassName: 'bg-slate-100',
-        valueClassName: 'text-slate-700',
-      },
-      {
-        key: 'topup_amount',
-        title: t('充值/本金'),
-        value: formatCurrency(billingSummary.topup),
-        description: t('实际支付充值的金额'),
-        icon: CalendarCheck2,
-        iconClassName: 'text-slate-500',
-        iconWrapClassName: 'bg-slate-100',
-        valueClassName: 'text-slate-700',
-      },
-      {
-        key: 'redemption_amount',
-        title: t('获赠/福利'),
-        value: formatCurrency(billingSummary.bonus),
-        description: t('获得的平台赠送或活动奖励'),
-        icon: Coins,
-        iconClassName: 'text-slate-500',
-        iconWrapClassName: 'bg-slate-100',
-        valueClassName: 'text-slate-700',
-      },
-      {
-        key: 'net_change',
-        title: t('净变动'),
-        value: formatCurrency(billingSummary.net_change, { signed: true }),
-        description: t('账户资金的净增减情况'),
-        icon: BarChart3,
-        iconClassName: 'text-slate-500',
-        iconWrapClassName: 'bg-slate-100',
-        valueClassName: 'text-slate-700',
-      },
-    ],
-    [billingSummary, t],
-  );
+        );
+      }
+      if (!status) {
+        return <Text type='tertiary'>-</Text>;
+      }
+      const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
+      return (
+        <span className='flex items-center justify-center gap-2'>
+          <Badge dot type={config.type} />
+          <span>{t(config.key)}</span>
+        </span>
+      );
+    };
 
-  const startIndex =
-    historyTotal === 0 ? 0 : (activePage - 1) * historyPageSize + 1;
-  const endIndex = Math.min(activePage * historyPageSize, historyTotal);
-  const detailSections = useMemo(
-    () => buildDetailSections(selectedRecord, t),
-    [selectedRecord, t],
-  );
+    const renderPaymentMethod = (paymentMethod) => {
+      const displayName = PAYMENT_METHOD_MAP[paymentMethod];
+      return <Text>{displayName ? t(displayName) : paymentMethod || '-'}</Text>;
+    };
 
+    const renderBizTypeTag = (record) => {
+      const config = getTopupBizTypeConfig(record);
+      const inviteRebate = isInviteRebateTopup(record);
+      return (
+        <Tag color={config.color} shape='circle' size='small'>
+          <span className='inline-flex items-center gap-1'>
+            {inviteRebate ? <Gift size={12} /> : null}
+            {t(config.label)}
+          </span>
+        </Tag>
+      );
+    };
+
+    const periodOptionList = useMemo(
+      () => BILL_PERIOD_OPTIONS.map((item) => ({ value: item.value, label: t(item.label) })),
+      [t],
+    );
+
+    const summaryCards = useMemo(
+      () => [
+        {
+          key: 'current_quota',
+          title: t('支出/消费'),
+          value: formatCurrency(billingSummary.expense),
+          description: (
+            <span className='inline-flex items-center gap-1'>
+              <span className='text-slate-400'>{t('较上月')}</span>
+              <span className={getPercentToneClassName(billingSummary.expense_trend)}>
+                {formatPercent(billingSummary.expense_trend)}
+              </span>
+            </span>
+          ),
+          icon: BadgeDollarSign,
+          iconClassName: 'text-slate-500',
+          iconWrapClassName: 'bg-slate-100',
+          valueClassName: 'text-slate-700',
+        },
+        {
+          key: 'topup_amount',
+          title: t('充值/本金'),
+          value: formatCurrency(billingSummary.topup),
+          description: t('实际支付充值的金额'),
+          icon: CalendarCheck2,
+          iconClassName: 'text-slate-500',
+          iconWrapClassName: 'bg-slate-100',
+          valueClassName: 'text-slate-700',
+        },
+        {
+          key: 'redemption_amount',
+          title: t('获赠/福利'),
+          value: formatCurrency(billingSummary.bonus),
+          description: t('获得的平台赠送或活动奖励'),
+          icon: Coins,
+          iconClassName: 'text-slate-500',
+          iconWrapClassName: 'bg-slate-100',
+          valueClassName: 'text-slate-700',
+        },
+        {
+          key: 'net_change',
+          title: t('净变动'),
+          value: formatCurrency(billingSummary.net_change, { signed: true }),
+          description: t('账户资金的净增减情况'),
+          icon: BarChart3,
+          iconClassName: 'text-slate-500',
+          iconWrapClassName: 'bg-slate-100',
+          valueClassName: 'text-slate-700',
+        },
+      ],
+      [billingSummary, t],
+    );
+
+    const startIndex =
+      historyTotal === 0 ? 0 : (activePage - 1) * historyPageSize + 1;
+    const endIndex = Math.min(activePage * historyPageSize, historyTotal);
+    const detailSections = useMemo(
+      () => buildDetailSections(selectedRecord, t),
+      [selectedRecord, t],
+  
+    );
+    const hasInviteRebateRecords = useMemo(
+      () => historyRows.some((record) => isInviteRebateTopup(record)),
+      [historyRows],
+    );
   const columns = useMemo(() => {
     const baseColumns = [
       {
@@ -558,6 +603,12 @@ const Billing = () => {
         dataIndex: 'trade_no',
         key: 'trade_no',
         render: (text) => <Text copyable>{text}</Text>,
+      },
+      {
+        title: t('账单类型'),
+        dataIndex: 'biz_type',
+        key: 'biz_type',
+        render: (_, record) => renderBizTypeTag(record),
       },
       {
         title: t('支付方式'),
@@ -574,6 +625,13 @@ const Billing = () => {
             <Tag color='purple' shape='circle' size='small'>
               {t('订阅套餐')}
             </Tag>
+          ) : isInviteRebateTopup(record) ? (
+            <span className='inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+              <Gift size={14} />
+              <Text strong className='!text-emerald-600 dark:!text-emerald-300'>
+                +{record.amount}
+              </Text>
+            </span>
           ) : (
             <span className='flex items-center gap-1'>
               <Coins size={16} />
@@ -587,12 +645,13 @@ const Billing = () => {
         key: 'money',
         render: (money, record) => {
           const normalizedMoney = Number(money || 0);
+          if (normalizedMoney <= 0) {
+            return <Text type='tertiary'>-</Text>;
+          }
           const prefix =
-            normalizedMoney <= 0
-              ? ''
-              : record.payment_method === 'stripe'
-                ? '$'
-                : '￥';
+            record.payment_method === 'stripe'
+              ? '$'
+              : '￥';
           return (
             <Text type='danger'>
               {prefix}
@@ -671,10 +730,10 @@ const Billing = () => {
             <div className='flex items-center gap-3'>
               <div>
                 <div className='text-[30px] font-medium text-[#475569] dark:text-slate-200'>
-                  {t('账单中心')}
+                  {billingPageTitle}
                 </div>
                 <div className='mt-2 text-[18px] font-medium text-[#94A3B8]'>
-                  {t('实时监控您的 API 消耗、Token 使用明细以及账户余额。基于矩阵算力引擎提供精确到毫秒级的计费服务。')}
+                  {billingPageDescription}
                 </div>
               </div>
             </div>
@@ -754,8 +813,29 @@ const Billing = () => {
         className='billing-table-card !rounded-2xl'
       >
         <div className='flex items-center justify-between border-b border-slate-100 px-6 py-4'>
-          <div className='flex items-center gap-2 text-slate-800'>
-            <span className='text-lg font-bold dark:text-slate-300'>{t('消费明细')}</span>
+          <div className='flex flex-col gap-2 text-slate-800'>
+            <span className='text-lg font-bold dark:text-slate-300'>
+              {t('充值与返佣记录')}
+            </span>
+            <div className='flex flex-wrap items-center gap-2'>
+              <Tag color='blue' shape='circle' size='small'>
+                <span className='inline-flex items-center gap-1'>
+                  <Wallet size={12} />
+                  {t('在线充值')}
+                </span>
+              </Tag>
+              <Tag color='green' shape='circle' size='small'>
+                <span className='inline-flex items-center gap-1'>
+                  <Gift size={12} />
+                  {t('邀请返佣')}
+                </span>
+              </Tag>
+              {hasInviteRebateRecords ? (
+                <span className='text-xs text-emerald-600 dark:text-emerald-300'>
+                  {t('邀请返佣已自动入账，无需手动处理。')}
+                </span>
+              ) : null}
+            </div>
           </div>
           <div className='flex items-center gap-3'>
             <span className='text-xs text-slate-400'>
@@ -763,7 +843,9 @@ const Billing = () => {
             </span>
             <Input
               prefix={<IconSearch />}
-              placeholder={t('搜索订单号')}
+              placeholder={t(
+                userIsAdmin ? '搜索订单号或用户昵称' : '搜索订单号',
+              )}
               value={historyKeyword}
               onChange={(value) => {
                 setHistoryKeyword(value);
@@ -788,7 +870,7 @@ const Billing = () => {
               darkModeImage={
                 <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
               }
-              description={t('暂无充值记录')}
+              description={t('暂无账单记录')}
               style={{ padding: 30 }}
             />
           }
