@@ -1,8 +1,12 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -27,6 +31,10 @@ type TopUp struct {
 	Status        string  `json:"status"`
 	DisplayName   string  `json:"display_name" gorm:"->;-:migration;column:display_name"`
 }
+type TopUpDetails struct {
+	*TopUp
+	//Level1Rate
+}
 
 const (
 	TopUpBizTypePayment      = "payment"
@@ -46,13 +54,91 @@ func normalizeTopUps(topups []*TopUp) {
 		if topUp == nil {
 			continue
 		}
-		topUp.BizType = topUp.GetBizType()
+		bizType := topUp.GetBizType()
+		if bizType == "invite_rebate" {
+			topUp.PaymentMethod = "invite_rebate"
+			money := decimal.NewFromBigInt(big.NewInt(topUp.Amount), 0).Div(decimal.NewFromFloat(common.QuotaPerUnit)).InexactFloat64()
+			topUp.Money = money
+
+			//获取充值基本单位
+			pr, err := strconv.ParseFloat(common.OptionMap["Price"], 64)
+			if err != nil {
+				logger.LogError(context.Background(), "获取充值基本单位失败")
+				topUp.Amount = -1
+
+			} else {
+				//换算成数量
+
+				topUp.Amount = int64(math.Round(money / pr))
+			}
+			topUp.Status = common.TopUpStatusSuccess
+
+		}
+		topUp.BizType = bizType
 	}
 }
 
-func withTopUpDisplayName(tx *gorm.DB) *gorm.DB {
-	return tx.Model(&TopUp{}).
-		Joins("LEFT JOIN users ON users.id = top_ups.user_id")
+const topUpRecordAlias = "topup_records"
+
+func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
+	return tx.Table("(?) AS "+topUpRecordAlias, tx.Raw(`
+		SELECT
+			t.id,
+			t.user_id,
+			t.amount,
+			t.money,
+			t.trade_no,
+			t.payment_method,
+			t.create_time,
+			t.complete_time,
+			t.status,
+			t.biz_type,
+			t.source_id,
+			COALESCE(users.display_name, '') AS display_name
+		FROM top_ups AS t
+		LEFT JOIN users ON users.id = t.user_id
+
+		UNION ALL
+
+		SELECT
+			tr.id,
+			tr.inviter_id AS user_id,
+			tr.rebate_quota AS amount,
+			0 AS money,
+			tr.trade_no AS trade_no,
+			tr.payment_method AS payment_method,
+			tr.created_at AS create_time,
+			0 AS complete_time,
+			'' AS status,
+			'invite_rebate' AS biz_type,
+			0 AS source_id,
+			COALESCE(users.display_name, '') AS display_name
+		FROM topup_rebates AS tr
+		LEFT JOIN users ON users.id = tr.inviter_id
+	`))
+}
+
+func withUserTopUpRecords(tx *gorm.DB, userId int) *gorm.DB {
+	return withAllTopUpRecords(tx).
+		Where(topUpRecordAlias+".user_id = ?", userId)
+}
+
+func withTopUpRecordKeyword(query *gorm.DB, keyword string) *gorm.DB {
+	if keyword == "" {
+		return query
+	}
+	like := "%" + keyword + "%"
+	return query.Where(
+		fmt.Sprintf("%s.trade_no LIKE ? OR COALESCE(%s.display_name, '') LIKE ?", topUpRecordAlias, topUpRecordAlias),
+		like,
+		like,
+	)
+}
+
+func withTopUpRecordOrder(query *gorm.DB) *gorm.DB {
+	return query.
+		Order(topUpRecordAlias + ".create_time desc").
+		Order(topUpRecordAlias + ".id desc")
 }
 
 func (topUp *TopUp) applyDefaults() {
@@ -307,7 +393,6 @@ func RechargeEpay(referenceId string, expectedPaymentMethod string) (err error) 
 }
 
 func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
-	// Start transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -318,16 +403,17 @@ func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, tota
 		}
 	}()
 
-	// Get total count within transaction
-	err = tx.Model(&TopUp{}).Where("user_id = ?", userId).Count(&total).Error
-	if err != nil {
+	countQuery := withUserTopUpRecords(tx, userId)
+	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	// Get paginated topups within same transaction
-	err = tx.Where("user_id = ?", userId).Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error
-	if err != nil {
+	dataQuery := withUserTopUpRecords(tx, userId)
+	if err = withTopUpRecordOrder(dataQuery).
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&topups).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
@@ -353,16 +439,14 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 		}
 	}()
 
-	countQuery := withTopUpDisplayName(tx)
+	countQuery := withAllTopUpRecords(tx)
 	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	dataQuery := withTopUpDisplayName(tx)
-	if err = dataQuery.
-		Select("top_ups.*, COALESCE(users.display_name, '') AS display_name").
-		Order("top_ups.id desc").
+	dataQuery := withAllTopUpRecords(tx)
+	if err = withTopUpRecordOrder(dataQuery).
 		Limit(pageInfo.GetPageSize()).
 		Offset(pageInfo.GetStartIdx()).
 		Find(&topups).Error; err != nil {
@@ -390,18 +474,18 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 		}
 	}()
 
-	query := tx.Model(&TopUp{}).Where("user_id = ?", userId)
-	if keyword != "" {
-		like := "%%" + keyword + "%%"
-		query = query.Where("trade_no LIKE ?", like)
-	}
+	countQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword)
 
-	if err = query.Count(&total).Error; err != nil {
+	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	if err = query.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
+	dataQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword)
+	if err = withTopUpRecordOrder(dataQuery).
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&topups).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
@@ -425,26 +509,15 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 		}
 	}()
 
-	countQuery := withTopUpDisplayName(tx)
-	if keyword != "" {
-		like := "%%" + keyword + "%%"
-		countQuery = countQuery.Where("top_ups.trade_no LIKE ? OR COALESCE(users.display_name, '') LIKE ?", like, like)
-	}
+	countQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword)
 
 	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	dataQuery := withTopUpDisplayName(tx)
-	if keyword != "" {
-		like := "%%" + keyword + "%%"
-		dataQuery = dataQuery.Where("top_ups.trade_no LIKE ? OR COALESCE(users.display_name, '') LIKE ?", like, like)
-	}
-
-	if err = dataQuery.
-		Select("top_ups.*, COALESCE(users.display_name, '') AS display_name").
-		Order("top_ups.id desc").
+	dataQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword)
+	if err = withTopUpRecordOrder(dataQuery).
 		Limit(pageInfo.GetPageSize()).
 		Offset(pageInfo.GetStartIdx()).
 		Find(&topups).Error; err != nil {
@@ -724,4 +797,9 @@ func RechargeWaffo(tradeNo string) (err error) {
 	}
 
 	return nil
+}
+
+// 管理员获取订单详情byid
+func GetTopUpDetailsById(id string) (*TopUp, error) {
+	return nil, nil
 }

@@ -29,6 +29,7 @@ import ThemeToggle from './ThemeToggle';
 import LanguageSelector from './LanguageSelector';
 import NotificationButton from './NotificationButton';
 import UserArea from './UserArea';
+import { isAdmin } from '../../../helpers';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const {
@@ -87,7 +88,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     '/console/subscription': t('订阅管理'),
     '/console/models': t('模型管理'),
     '/console/deployment': t('模型部署'),
-    '/console/billing': t('账单管理'),
+    '/console/billing': isAdmin() ? t('账单管理') : t('账单中心'),
     '/console/operational': t('运营数据'),
     '/console/user': t('用户管理'),
     '/console/setting': t('系统设置'),

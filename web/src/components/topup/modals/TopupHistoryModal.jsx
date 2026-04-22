@@ -34,6 +34,11 @@ import {
 import { Coins } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
+import {
+  getTopupBizTypeConfig,
+  isInviteRebateTopup,
+  isSubscriptionTopup,
+} from '../../../helpers/topup';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const { Text } = Typography;
 
@@ -108,7 +113,18 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   };
 
   // 渲染状态徽章
-  const renderStatusBadge = (status) => {
+  const renderStatusBadge = (status, record) => {
+    if (isInviteRebateTopup(record)) {
+      return (
+        <span className='flex items-center gap-2'>
+          <Badge dot type='success' />
+          <span>{t('已入账')}</span>
+        </span>
+      );
+    }
+    if (!status) {
+      return <Text type='tertiary'>-</Text>;
+    }
     const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
     return (
       <span className='flex items-center gap-2'>
@@ -124,17 +140,14 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
     return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
   };
 
-  const getBizType = (record) => {
-    if (record?.biz_type) {
-      return record.biz_type;
-    }
-    const tradeNo = (record?.trade_no || '').toLowerCase();
-    return Number(record?.amount || 0) === 0 && tradeNo.startsWith('sub')
-      ? 'subscription'
-      : 'payment';
+  const renderBizTypeTag = (record) => {
+    const config = getTopupBizTypeConfig(record);
+    return (
+      <Tag color={config.color} shape='circle' size='small'>
+        {t(config.label)}
+      </Tag>
+    );
   };
-
-  const isSubscriptionTopup = (record) => getBizType(record) === 'subscription';
 
   const columns = useMemo(() => {
     const baseColumns = [
@@ -143,6 +156,12 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         dataIndex: 'trade_no',
         key: 'trade_no',
         render: (text) => <Text copyable>{text}</Text>,
+      },
+      {
+        title: t('账单类型'),
+        dataIndex: 'biz_type',
+        key: 'biz_type',
+        render: (_, record) => renderBizTypeTag(record),
       },
       {
         title: t('支付方式'),
@@ -176,7 +195,10 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         key: 'money',
         render: (money, record) => {
           const normalizedMoney = Number(money || 0);
-          const prefix = normalizedMoney <= 0 ? '' : record.payment_method === 'stripe' ? '$' : '¥';
+          if (normalizedMoney <= 0) {
+            return <Text type='tertiary'>-</Text>;
+          }
+          const prefix = record.payment_method === 'stripe' ? '$' : '¥';
           return (
             <Text type='danger'>
               {prefix}

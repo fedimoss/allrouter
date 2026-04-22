@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -457,4 +458,18 @@ func AdminCompleteTopUp(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, nil)
+}
+
+// 管理员查看订单详情
+func GetUserTopupDetails(c *gin.Context) {
+
+	topupId := c.Query("topup_id")
+
+	if topupId == "" {
+		common.ApiError(c, errors.New("topup_id不能为空"))
+		return
+	}
+
+	model.GetTopUpDetailsById(topupId)
+
 }

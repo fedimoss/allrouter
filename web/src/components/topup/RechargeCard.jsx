@@ -50,12 +50,18 @@ import {
   Sparkles,
   History,
   CheckCircle,
+  Gift,
   Lightbulb
 } from 'lucide-react';
 import { IconGift, IconSearch } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
 import { API, timestamp2string } from '../../helpers';
+import {
+  getTopupBizTypeConfig,
+  isInviteRebateTopup,
+  isSubscriptionTopup,
+} from '../../helpers/topup';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
 import balanceBgimg from '../../../public/wallet-balance.png';
 import dateBgimg from '../../../public/wallet-date.png';
@@ -258,7 +264,22 @@ const RechargeCard = ({
     preTopUp(selectedPayMethod);
   };
 
-  const renderStatusBadge = (status) => {
+  const renderStatusBadge = (status, record) => {
+    if (isInviteRebateTopup(record)) {
+      return (
+        <span className='flex items-center gap-2'>
+          <Tag color='green' style={{ padding: '0 10px', height: 26, lineHeight: '24px' }}>
+            <span className='inline-flex items-center gap-1 font-medium' style={{ color: 'rgb(10, 130, 54)' }}>
+              <CheckCircle size={14} />
+              {t('已入账')}
+            </span>
+          </Tag>
+        </span>
+      );
+    }
+    if (!status) {
+      return <Text type='tertiary'>-</Text>;
+    }
     const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
     return (
       <span className='flex items-center gap-2'>
@@ -274,6 +295,18 @@ const RechargeCard = ({
     return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
   };
 
+  const renderBizTypeTag = (record) => {
+    const config = getTopupBizTypeConfig(record);
+    const inviteRebate = isInviteRebateTopup(record);
+    return (
+      <Tag color={config.color} shape='circle' size='small'>
+        <span className='inline-flex items-center gap-1'>
+          {inviteRebate ? <Gift size={12} /> : null}
+          {t(config.label)}
+        </span>
+      </Tag>
+    );
+  };
 
 
   const historyColumns = useMemo(() => {
@@ -284,6 +317,12 @@ const RechargeCard = ({
         dataIndex: 'trade_no',
         key: 'trade_no',
         render: (text) => <Text copyable>{text}</Text>,
+      },
+      {
+        title: t('账单类型'),
+        dataIndex: 'biz_type',
+        key: 'biz_type',
+        render: (_, record) => renderBizTypeTag(record),
       },
       {
         title: t('充值时间'),
@@ -298,12 +337,38 @@ const RechargeCard = ({
         render: renderPaymentMethod,
       },
       {
+        title: t('充值额度'),
+        dataIndex: 'amount',
+        key: 'amount',
+        render: (amount, record) =>
+          isSubscriptionTopup(record) ? (
+            <Tag color='purple' shape='circle' size='small'>
+              {t('订阅套餐')}
+            </Tag>
+          ) : isInviteRebateTopup(record) ? (
+            <span className='inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+              <Gift size={14} />
+              <Text strong className='!text-emerald-600 dark:!text-emerald-300'>
+                +{amount}
+              </Text>
+            </span>
+          ) : (
+            <span className='flex items-center gap-1'>
+              <Coins size={16} />
+              <Text>{amount}</Text>
+            </span>
+          ),
+      },
+      {
         title: t('充值金额'),
         dataIndex: 'money',
         key: 'money',
         render: (money, record) => {
           const normalizedMoney = Number(money || 0);
-          const prefix = normalizedMoney <= 0 ? '' : record.payment_method === 'stripe' ? '$' : localSymbol;
+          if (normalizedMoney <= 0) {
+            return <Text type='tertiary'>-</Text>;
+          }
+          const prefix = record.payment_method === 'stripe' ? '$' : localSymbol;
           return (
             <Text className='text-xl dark:!text-cyan-300' style={
               {
@@ -784,7 +849,7 @@ const RechargeCard = ({
             <Empty
               image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
               darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
-              description={t('暂无充值记录')}
+              description={t('暂无账单记录')}
               style={{ padding: 30 }}
             />
           }
