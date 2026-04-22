@@ -34,6 +34,17 @@ p {
   margin-bottom: 0 !important;
 }
 
+.semi-select,
+.semi-select-focus,
+.semi-select:active,
+.semi-select-open:hover, 
+.semi-select-focus:hover,
+.semi-select-open:active, 
+.semi-select-focus:active{
+  border-color: var(--personal-border-soft) !important;
+  background-color: var(--personal-shell-bg-strong) !important;
+}
+
 /* 桌面端禁止 body 纵向滚动 - 防止 VChart tooltip 触发页面滚动条 */
 @media (min-width: 768px) {
   body {

@@ -104,6 +104,12 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
+
+// InviteTopupRebateRatio 邀请充值返利比例
+// 配置参数：当被邀请人充值成功后，按此比例给邀请人返利
+// 示例：设置为 10.0 表示返利 10%（充值 100 美元，邀请人获得 10 美元价值的额度）
+// 设置为 0.0 表示关闭返利功能
+var InviteTopupRebateRatio = 10.0
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false

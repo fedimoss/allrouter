@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -259,6 +260,16 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": err.Error(),
+			})
+			return
+		}
+	case "InviteTopupRebateRatio":
+		var ratio float64
+		ratio, err = strconv.ParseFloat(option.Value.(string), 64)
+		if err != nil || ratio < 0 || ratio > 100 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "邀请充值返利比例必须在 0 到 100 之间",
 			})
 			return
 		}
