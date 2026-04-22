@@ -183,6 +183,7 @@ export default function LoginPage() {
     password: '',
   });
   const [loginLoading, setLoginLoading] = useState(false);
+  const [rememberPassword, setRememberPassword] = useState(false);
 
   const [showTwoFA, setShowTwoFA] = useState(false);
   const handle2FASuccess = (data) => {
@@ -457,6 +458,16 @@ export default function LoginPage() {
                   }
                   autoComplete='current-password'
                 />
+              </div>
+
+              <div className='form-group'>
+                <label
+                  className='remember-checkbox'
+                  onClick={() => setRememberPassword(!rememberPassword)}
+                >
+                  <span className={`remember-checkbox-box ${rememberPassword ? 'checked' : ''}`} />
+                  <span className='remember-checkbox-label'>{t('保持登录状态 (30天)')}</span>
+                </label>
               </div>
 
               {renderTermsInline()}

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -20,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 // applyTopUpDisplayCurrency 将充值记录列表中的美元金额按用户时区转换为本地币种
@@ -529,4 +532,29 @@ func AdminCompleteTopUp(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, nil)
+}
+
+// 管理员查看订单详情
+func GetUserTopupDetails(c *gin.Context) {
+	var req struct {
+		TopUpID int `json:"topup_id" form:"topup_id"`
+	}
+
+	if err := c.ShouldBind(&req); err != nil || req.TopUpID <= 0 {
+		common.ApiErrorMsg(c, "无效的topup_id")
+		return
+	}
+
+	topDetails, err := model.GetTopUpDetailsById(req.TopUpID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "充值记录不存在")
+			return
+		}
+		logger.LogError(c, "query topup detail failed: "+err.Error())
+		common.ApiErrorMsg(c, "查询充值详情失败")
+		return
+	}
+
+	common.ApiSuccess(c, topDetails)
 }

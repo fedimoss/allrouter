@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Typography,
   Tag,
@@ -50,6 +51,7 @@ import {
   Sparkles,
   History,
   CheckCircle,
+  Gift,
   Lightbulb
 } from 'lucide-react';
 import { IconGift, IconSearch } from '@douyinfe/semi-icons';
@@ -62,6 +64,11 @@ import {
   convertUsdToDisplayAmount,
   formatDisplayMoney,
 } from '../../helpers';
+import {
+  getTopupBizTypeConfig,
+  isInviteRebateTopup,
+  isSubscriptionTopup,
+} from '../../helpers/topup';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
 import balanceBgimg from '../../../public/wallet-balance.png';
 import dateBgimg from '../../../public/wallet-date.png';
@@ -135,6 +142,7 @@ const RechargeCard = ({
   allSubscriptions = [],
   reloadSubscriptionSelf,
 }) => {
+  const navigate = useNavigate();
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
   const initialTabSetRef = useRef(false);
@@ -200,6 +208,11 @@ const RechargeCard = ({
     enableWaffoTopUp,
     waffoPayMethods,
   ]);
+
+  // 跳转邀请详情
+  const toInvitationDetail = () => {
+    navigate('/console/invitation');
+  };
 
   // 加载充值记录
   const loadTopups = async (currentPage, currentPageSize) => {
@@ -272,7 +285,22 @@ const RechargeCard = ({
     preTopUp(selectedPayMethod);
   };
 
-  const renderStatusBadge = (status) => {
+  const renderStatusBadge = (status, record) => {
+    if (isInviteRebateTopup(record)) {
+      return (
+        <span className='flex items-center gap-2'>
+          <Tag color='green' style={{ padding: '0 10px', height: 26, lineHeight: '24px' }}>
+            <span className='inline-flex items-center gap-1 font-medium' style={{ color: 'rgb(10, 130, 54)' }}>
+              <CheckCircle size={14} />
+              {t('已入账')}
+            </span>
+          </Tag>
+        </span>
+      );
+    }
+    if (!status) {
+      return <Text type='tertiary'>-</Text>;
+    }
     const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
     return (
       <span className='flex items-center gap-2'>
@@ -307,6 +335,19 @@ const RechargeCard = ({
     return formatDisplayMoney(displayAmount, normalizedDisplayCurrency.symbol);
   };
 
+  const renderBizTypeTag = (record) => {
+    const config = getTopupBizTypeConfig(record);
+    const inviteRebate = isInviteRebateTopup(record);
+    return (
+      <Tag color={config.color} shape='circle' size='small'>
+        <span className='inline-flex items-center gap-1'>
+          {inviteRebate ? <Gift size={12} /> : null}
+          {t(config.label)}
+        </span>
+      </Tag>
+    );
+  };
+
   const historyColumns = useMemo(() => {
     return [
       {
@@ -314,6 +355,12 @@ const RechargeCard = ({
         dataIndex: 'trade_no',
         key: 'trade_no',
         render: (text) => <Text copyable>{text}</Text>,
+      },
+      {
+        title: t('账单类型'),
+        dataIndex: 'biz_type',
+        key: 'biz_type',
+        render: (_, record) => renderBizTypeTag(record),
       },
       {
         title: t('充值时间'),
@@ -328,17 +375,40 @@ const RechargeCard = ({
         render: renderPaymentMethod,
       },
       {
+        title: t('充值额度'),
+        dataIndex: 'amount',
+        key: 'amount',
+        render: (amount, record) =>
+          isSubscriptionTopup(record) ? (
+            <Tag color='purple' shape='circle' size='small'>
+              {t('订阅套餐')}
+            </Tag>
+          ) : isInviteRebateTopup(record) ? (
+            <span className='inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+              <Gift size={14} />
+              <Text strong className='!text-emerald-600 dark:!text-emerald-300'>
+                +{amount}
+              </Text>
+            </span>
+          ) : (
+            <span className='flex items-center gap-1'>
+              <Coins size={16} />
+              <Text>{amount}</Text>
+            </span>
+          ),
+      },
+      {
         title: t('充值金额'),
         dataIndex: 'money',
         key: 'money',
         render: (money, record) => {
+          const normalizedMoney = Number(money || 0);
+          if (normalizedMoney <= 0) {
+            return <Text type="tertiary">-</Text>;
+          }
           // 优先使用后端返回的币种符号，回退到用户默认展示币种
           const paySymbol =
             record.display_symbol || normalizedDisplayCurrency.symbol;
-          // 币种符号：Stripe 支付时，中国时区显示 ¥，其他时区显示 $
-          const legacyPaySymbol = record.payment_method === 'stripe'
-            ? (stripeCurrency?.currency === 'CNY' ? '¥' : '$')
-            : normalizedDisplayCurrency.symbol;
           return (
             <Text className='text-xl dark:!text-cyan-300' style={
               {
@@ -667,38 +737,87 @@ const RechargeCard = ({
       </div> */}
 
       {/* 顶部概览卡片 */}
-      <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+      <div className='grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4'>
         <div className='rounded-2xl from-cyan-50 bg-white dark:border-cyan-900/50 dark:from-slate-900 dark:bg-slate-800 dark:via-slate-900 dark:to-slate-950 p-5'
-          style={{backgroundImage:`url(${balanceBgimg})`, backgroundPosition: 'top right', backgroundRepeat: 'no-repeat'}}
         >
           <div className='flex items-center justify-between mb-2'>
-            <h3 className='text-sm font-medium text-slate-500 dark:text-slate-400'>
+            <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
               {t('当前余额')}
             </h3>
+            <div className=''>
+
+            </div>
           </div>
-          <p className='text-4xl dark:text-cyan-400' style={{ fontWeight: '900' }}>
+          <p className='text-[24px] text-[#475569] dark:text-cyan-400' style={{ fontWeight: '900' }}>
             {renderBalanceAmount(userState?.user?.quota)}
           </p>
-          <p className='text-xs text-slate-500 dark:text-slate-400 mt-2 flex items-center gap-1'>
-            <Sparkles className='w-3.5 h-3.5' />
-            {t('可用额度')}
+          <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2 flex items-center gap-1'>
+            {t('当前账户剩余的全部金额')}
           </p>
         </div>
 
         <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
-          style={{backgroundImage:`url(${dateBgimg})`, backgroundPosition: 'top right', backgroundRepeat: 'no-repeat'}}
         >
           <div className='flex items-center justify-between mb-2'>
-            <h3 className='text-sm font-medium text-slate-500 dark:text-slate-400'>
+            <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
               {t('历史消费')}
             </h3>
           </div>
-          <p className='text-4xl dark:text-white' style={{ fontWeight: '900' }}>
+          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
             {renderBalanceAmount(userState?.user?.used_quota)}
           </p>
-          <p className='text-xs text-slate-500 dark:text-slate-400 mt-2'>
-            {t('请求次数')}：{userState?.user?.request_count || 0}
+          <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
+            {t('历史全部的消耗金额')}
           </p>
+        </div>
+        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
+        >
+          <div className='flex items-center justify-between mb-2'>
+            <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
+              {t('历史充值')}
+            </h3>
+          </div>
+          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
+            ${userState?.user?.total_topup_quota}
+          </p>
+          <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
+            {t('历史充值的全部金额')}
+          </p>
+        </div>
+        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
+        >
+          <div className='flex items-center justify-between mb-2'>
+            <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
+              {t('历史奖励/获赠')}
+            </h3>
+          </div>
+          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
+            ${userState?.user?.welfare_quota}
+          </p>
+          <div className='flex items-center justify-between'>
+            <span className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
+              {t('平台赠送或活动奖励')}
+            </span>
+            <span className='text-xs text-[#1CDFD5] underline cursor-pointer mt-2' onClick={toInvitationDetail}>
+              {t('查看收益详情')}
+            </span>
+          </div>
+        </div>
+        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
+        >
+          <div className='flex items-center justify-between mb-2'>
+            <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
+              {t('请求次数')}
+            </h3>
+          </div>
+          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
+            {userState?.user?.request_count || 0}
+          </p>
+          <div className='flex items-center justify-between'>
+            <span className='text-[12px] text-[#1CDFD5] flex items-center  mt-2' onClick={toInvitationDetail}>
+              <TrendingUp size={16} className='mr-1' /> {t('较昨日') + ' +' + (userState?.user?.request_count_change || 0)}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -816,7 +935,7 @@ const RechargeCard = ({
             <Empty
               image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
               darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
-              description={t('暂无充值记录')}
+              description={t('暂无账单记录')}
               style={{ padding: 30 }}
             />
           }

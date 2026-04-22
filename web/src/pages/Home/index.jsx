@@ -403,6 +403,7 @@ const Home = () => {
             </div>
 
             <div className='landing-v2-nav-links'>
+              <Link to='/' className='landing-v2-nav-link-active'>{t('首页')}</Link>
               <Link to={consoleNavTarget}>{t('控制台')}</Link>
               <Link to={pricingNavTarget}>{t('模型广场')}</Link>
               <a href={docsHref} target='_blank' rel='noreferrer'>

@@ -282,7 +282,7 @@ const Invitation = () => {
             disabled={!affQuota || affQuota <= 0}
             onClick={() => setOpenTransfer(true)}
           >
-            {t('立即提现')}
+            {t('可立即划转至余额')}
           </Button>
         </div>
 

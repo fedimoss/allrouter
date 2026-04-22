@@ -30,6 +30,7 @@ import {
   Table,
   Tag,
   Toast,
+  Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
 import {
@@ -37,10 +38,24 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, BadgeDollarSign, CalendarCheck2, Coins } from 'lucide-react';
-import { IconSearch } from '@douyinfe/semi-icons';
+import {
+  BadgeDollarSign,
+  CalendarCheck2,
+  CheckCircle,
+  Coins,
+  Gift,
+  Wallet,
+  BarChart3
+} from 'lucide-react';
+import { IconSearch, IconCopy, IconEyeOpened } from '@douyinfe/semi-icons';
 import { API, timestamp2string, formatDisplayMoney } from '../../helpers';
+import {
+  getTopupBizTypeConfig,
+  isInviteRebateTopup,
+  isSubscriptionTopup,
+} from '../../helpers/topup';
 import { isAdmin } from '../../helpers/utils';
+import { useIsMobile } from '../../hooks/common/useIsMobile';
 
 const { Text } = Typography;
 
@@ -125,8 +140,208 @@ const getPercentToneClassName = (value) => {
   return 'text-slate-400';
 };
 
+const DETAIL_MODAL_WIDTH = 600;
+const DETAIL_MODAL_CONTENT_HEIGHT = 640;
+
+const DETAIL_TYPE_CONFIG = {
+  payment: { color: 'cyan', label: '在线充值' },
+  subscription: { color: 'violet', label: '订阅套餐' },
+  redemption: { color: 'green', label: '兑换码' },
+};
+
+const getDetailTypeConfig = (record, t) => {
+  const config = DETAIL_TYPE_CONFIG[record?.biz_type] || {
+    color: 'grey',
+    label: record?.biz_type || '订单详情',
+  };
+  return {
+    color: config.color,
+    label: t(config.label),
+  };
+};
+
+const getDetailStatusTag = (status, t) => {
+  const statusMap = {
+    success: {
+      color: '#22C55E',
+      background: '#EEFDF3',
+      borderColor: '#B7E6C1',
+      label: t('已结算'),
+    },
+    pending: {
+      color: '#F59E0B',
+      background: '#FFF7E8',
+      borderColor: '#F7D59F',
+      label: t('待支付'),
+    },
+    failed: {
+      color: '#EF4444',
+      background: '#FFF1F2',
+      borderColor: '#F8C6CC',
+      label: t('失败'),
+    },
+    expired: {
+      color: '#EF4444',
+      background: '#FFF1F2',
+      borderColor: '#F8C6CC',
+      label: t('已过期'),
+    },
+  };
+  return (
+    statusMap[status] || {
+      color: '#64748B',
+      background: '#F8FAFC',
+      borderColor: '#E2E8F0',
+      label: status || '--',
+    }
+  );
+};
+
+const isSubscriptionDetailRecord = (record) => {
+  if (record?.biz_type) {
+    return record.biz_type === 'subscription';
+  }
+  const tradeNo = (record?.trade_no || '').toLowerCase();
+  return Number(record?.amount || 0) === 0 && tradeNo.startsWith('sub');
+};
+
+const buildDetailSections = (record, t) => {
+  if (!record) {
+    return {
+      mainInfo: [],
+      commissionGroups: [],
+    };
+  }
+
+  const typeConfig = getDetailTypeConfig(record, t);
+  const statusConfig = getDetailStatusTag(record.status, t);
+  const displayName = record.display_name || '--';
+  const tradeNo = record.trade_no || '--';
+  const paymentMethod = PAYMENT_METHOD_MAP[record.payment_method]
+    ? t(PAYMENT_METHOD_MAP[record.payment_method])
+    : record.payment_method || '--';
+  const createTime = timestamp2string(record.complete_time || record.create_time);
+  const payAmount = formatCurrency(record.money, { signed: Number(record.money) > 0 });
+  const quotaAmount = isSubscriptionDetailRecord(record)
+    ? t('订阅套餐')
+    : `${record.amount ?? '--'}`;
+
+  return {
+    mainInfo: [
+      { label: t('关联主单号'), value: tradeNo, copyValue: tradeNo },
+      {
+        label: t('子结算单号'),
+        value: `${tradeNo}${record.id ? `-${record.id}` : ''}`,
+        copyValue: `${tradeNo}${record.id ? `-${record.id}` : ''}`,
+      },
+      { label: t('交易时间'), value: createTime },
+      {
+        label: t('交易类型'),
+        value: (
+          <Tag
+            size='small'
+            color={typeConfig.color}
+            shape='circle'
+            style={{
+              minWidth: 72,
+              justifyContent: 'center',
+              borderRadius: 6,
+            }}
+          >
+            {typeConfig.label}
+          </Tag>
+        ),
+      },
+      { label: t('金额变动'), value: payAmount },
+    ],
+    commissionGroups: [
+      {
+        title: t('一级分佣（供应商）'),
+        items: [
+          { label: t('接收账户'), value: paymentMethod, copyValue: paymentMethod },
+          { label: t('分佣比例'), value: isSubscriptionDetailRecord(record) ? '--' : '100%' },
+          { label: t('结算金额'), value: payAmount },
+          {
+            label: t('状态'),
+            value: (
+              <span
+                className='inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm'
+                style={{
+                  color: statusConfig.color,
+                  background: statusConfig.background,
+                  borderColor: statusConfig.borderColor,
+                }}
+              >
+                <span
+                  className='h-2 w-2 rounded-full'
+                  style={{ backgroundColor: statusConfig.color }}
+                />
+                {statusConfig.label}
+              </span>
+            ),
+          },
+        ],
+      },
+      {
+        title: t('二级分佣（代理商）'),
+        items: [
+          { label: t('接收账户'), value: displayName, copyValue: displayName },
+          { label: t('分佣比例'), value: record.display_name ? '0%' : '--' },
+          { label: t('结算金额'), value: quotaAmount },
+          {
+            label: t('状态'),
+            value: (
+              <span
+                className='inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm'
+                style={{
+                  color: statusConfig.color,
+                  background: statusConfig.background,
+                  borderColor: statusConfig.borderColor,
+                }}
+              >
+                <span
+                  className='h-2 w-2 rounded-full'
+                  style={{ backgroundColor: statusConfig.color }}
+                />
+                {statusConfig.label}
+              </span>
+            ),
+          },
+        ],
+      },
+    ],
+  };
+};
+
+const DetailField = ({ label, value, copyValue, onCopy }) => (
+  <div className='grid grid-cols-[96px,1fr] items-center gap-x-2 gap-y-1 py-2'>
+    <span className='text-sm font-medium text-[#94A3B8]'>{label}</span>
+    <div className='flex min-w-0 items-center gap-2'>
+      <span className='min-w-0 break-all text-[15px] font-semibold text-[#475569]'>
+        {value}
+      </span>
+      {copyValue ? (
+        <Button
+          theme='borderless'
+          type='tertiary'
+          size='small'
+          icon={<IconCopy />}
+          onClick={() => onCopy(copyValue)}
+          style={{
+            color: '#475569',
+            padding: 0,
+            minWidth: 'auto',
+            height: 20,
+          }}
+        />
+      ) : null}
+    </div>
+  </div>
+);
+
 const Billing = () => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [billingPeriod, setBillingPeriod] = useState('day');
   const [billingSummary, setBillingSummary] = useState(BILLING_SUMMARY_DEFAULTS);
   const [billingSummaryLoading, setBillingSummaryLoading] = useState(false);
@@ -137,8 +352,14 @@ const Billing = () => {
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyPageSize, setHistoryPageSize] = useState(10);
   const [historyKeyword, setHistoryKeyword] = useState('');
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
 
   const userIsAdmin = useMemo(() => isAdmin(), []);
+  const billingPageTitle = userIsAdmin ? t('账单管理') : t('账单中心');
+  const billingPageDescription = userIsAdmin
+    ? t('查看全平台充值、邀请返佣与用户账单状态。')
+    : t('查看您的充值、邀请返佣与消费明细。');
 
   const loadTopups = async (page, pageSize, keyword) => {
     setHistoryLoading(true);
@@ -245,83 +466,136 @@ const Billing = () => {
 
   const isSubscriptionTopup = (record) => getBizType(record) === 'subscription';
 
-  const renderStatusBadge = (status) => {
-    const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
-    return (
-      <span className='flex items-center justify-center gap-2'>
-        <Badge dot type={config.type} />
-        <span>{t(config.key)}</span>
-      </span>
-    );
+  const handleOpenDetail = (record) => {
+    setSelectedRecord({
+      ...record,
+      biz_type: getBizType(record),
+    });
+    setDetailVisible(true);
   };
 
-  const renderPaymentMethod = (paymentMethod) => {
-    const displayName = PAYMENT_METHOD_MAP[paymentMethod];
-    return <Text>{displayName ? t(displayName) : paymentMethod || '-'}</Text>;
+  const handleCopyDetailValue = async (value) => {
+    if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      Toast.error({ content: t('复制失败') });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(String(value));
+      Toast.success({ content: t('复制成功') });
+    } catch (error) {
+      Toast.error({ content: t('复制失败') });
+    }
   };
 
-  const periodOptionList = useMemo(
-    () => BILL_PERIOD_OPTIONS.map((item) => ({ value: item.value, label: t(item.label) })),
-    [t],
-  );
-
-  const summaryCards = useMemo(
-    () => [
-      {
-        key: 'current_quota',
-        title: t('支出/消费'),
-        value: formatCurrency(billingSummary.expense),
-        description: (
-          <span className='inline-flex items-center gap-1'>
-            <span className='text-slate-400'>{t('较上月')}</span>
-            <span className={getPercentToneClassName(billingSummary.expense_trend)}>
-              {formatPercent(billingSummary.expense_trend)}
-            </span>
+  const renderStatusBadge = (status, record) => {
+      if (isInviteRebateTopup(record)) {
+        return (
+          <span className='inline-flex items-center justify-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+            <CheckCircle size={14} />
+            <span className='font-medium'>{t('已入账')}</span>
           </span>
-        ),
-        icon: BadgeDollarSign,
-        iconClassName: 'text-slate-500',
-        iconWrapClassName: 'bg-slate-100',
-        valueClassName: 'text-slate-700',
-      },
-      {
-        key: 'topup_amount',
-        title: t('充值/本金'),
-        value: formatCurrency(billingSummary.topup),
-        description: t('实际支付充值的金额'),
-        icon: CalendarCheck2,
-        iconClassName: 'text-slate-500',
-        iconWrapClassName: 'bg-slate-100',
-        valueClassName: 'text-slate-700',
-      },
-      {
-        key: 'redemption_amount',
-        title: t('获赠/福利'),
-        value: formatCurrency(billingSummary.bonus),
-        description: t('获得的平台赠送或活动奖励'),
-        icon: Coins,
-        iconClassName: 'text-slate-500',
-        iconWrapClassName: 'bg-slate-100',
-        valueClassName: 'text-slate-700',
-      },
-      {
-        key: 'net_change',
-        title: t('净变动'),
-        value: formatCurrency(billingSummary.net_change, { signed: true }),
-        description: t('账户资金的净增减情况'),
-        icon: BarChart3,
-        iconClassName: 'text-slate-500',
-        iconWrapClassName: 'bg-slate-100',
-        valueClassName: 'text-slate-700',
-      },
-    ],
-    [billingSummary, t],
-  );
+        );
+      }
+      if (!status) {
+        return <Text type='tertiary'>-</Text>;
+      }
+      const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
+      return (
+        <span className='flex items-center justify-center gap-2'>
+          <Badge dot type={config.type} />
+          <span>{t(config.key)}</span>
+        </span>
+      );
+    };
 
-  const startIndex =
-    historyTotal === 0 ? 0 : (activePage - 1) * historyPageSize + 1;
-  const endIndex = Math.min(activePage * historyPageSize, historyTotal);
+    const renderPaymentMethod = (paymentMethod) => {
+      const displayName = PAYMENT_METHOD_MAP[paymentMethod];
+      return <Text>{displayName ? t(displayName) : paymentMethod || '-'}</Text>;
+    };
 
+    const renderBizTypeTag = (record) => {
+      const config = getTopupBizTypeConfig(record);
+      const inviteRebate = isInviteRebateTopup(record);
+      return (
+        <Tag color={config.color} shape='circle' size='small'>
+          <span className='inline-flex items-center gap-1'>
+            {inviteRebate ? <Gift size={12} /> : null}
+            {t(config.label)}
+          </span>
+        </Tag>
+      );
+    };
+
+    const periodOptionList = useMemo(
+      () => BILL_PERIOD_OPTIONS.map((item) => ({ value: item.value, label: t(item.label) })),
+      [t],
+    );
+
+    const summaryCards = useMemo(
+      () => [
+        {
+          key: 'current_quota',
+          title: t('支出/消费'),
+          value: formatCurrency(billingSummary.expense),
+          description: (
+            <span className='inline-flex items-center gap-1'>
+              <span className='text-slate-400'>{t('较上月')}</span>
+              <span className={getPercentToneClassName(billingSummary.expense_trend)}>
+                {formatPercent(billingSummary.expense_trend)}
+              </span>
+            </span>
+          ),
+          icon: BadgeDollarSign,
+          iconClassName: 'text-slate-500',
+          iconWrapClassName: 'bg-slate-100',
+          valueClassName: 'text-slate-700',
+        },
+        {
+          key: 'topup_amount',
+          title: t('充值/本金'),
+          value: formatCurrency(billingSummary.topup),
+          description: t('实际支付充值的金额'),
+          icon: CalendarCheck2,
+          iconClassName: 'text-slate-500',
+          iconWrapClassName: 'bg-slate-100',
+          valueClassName: 'text-slate-700',
+        },
+        {
+          key: 'redemption_amount',
+          title: t('获赠/福利'),
+          value: formatCurrency(billingSummary.bonus),
+          description: t('获得的平台赠送或活动奖励'),
+          icon: Coins,
+          iconClassName: 'text-slate-500',
+          iconWrapClassName: 'bg-slate-100',
+          valueClassName: 'text-slate-700',
+        },
+        {
+          key: 'net_change',
+          title: t('净变动'),
+          value: formatCurrency(billingSummary.net_change, { signed: true }),
+          description: t('账户资金的净增减情况'),
+          icon: BarChart3,
+          iconClassName: 'text-slate-500',
+          iconWrapClassName: 'bg-slate-100',
+          valueClassName: 'text-slate-700',
+        },
+      ],
+      [billingSummary, t],
+    );
+
+    const startIndex =
+      historyTotal === 0 ? 0 : (activePage - 1) * historyPageSize + 1;
+    const endIndex = Math.min(activePage * historyPageSize, historyTotal);
+    const detailSections = useMemo(
+      () => buildDetailSections(selectedRecord, t),
+      [selectedRecord, t],
+  
+    );
+    const hasInviteRebateRecords = useMemo(
+      () => historyRows.some((record) => isInviteRebateTopup(record)),
+      [historyRows],
+    );
   const columns = useMemo(() => {
     const baseColumns = [
       {
@@ -329,6 +603,12 @@ const Billing = () => {
         dataIndex: 'trade_no',
         key: 'trade_no',
         render: (text) => <Text copyable>{text}</Text>,
+      },
+      {
+        title: t('账单类型'),
+        dataIndex: 'biz_type',
+        key: 'biz_type',
+        render: (_, record) => renderBizTypeTag(record),
       },
       {
         title: t('支付方式'),
@@ -345,6 +625,13 @@ const Billing = () => {
             <Tag color='purple' shape='circle' size='small'>
               {t('订阅套餐')}
             </Tag>
+          ) : isInviteRebateTopup(record) ? (
+            <span className='inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+              <Gift size={14} />
+              <Text strong className='!text-emerald-600 dark:!text-emerald-300'>
+                +{record.amount}
+              </Text>
+            </span>
           ) : (
             <span className='flex items-center gap-1'>
               <Coins size={16} />
@@ -356,16 +643,21 @@ const Billing = () => {
         title: t('支付金额'),
         dataIndex: 'money',
         key: 'money',
-        render: (money, record) => (
-          <Text type='danger'>
-            {formatDisplayMoney(
-              money,
-              // 优先使用后端返回的币种符号，Stripe 默认 $，其他默认 ¥
-              record.display_symbol ||
-                (record.payment_method === 'stripe' ? '$' : '\u00A5'),
-            )}
-          </Text>
-        ),
+        render: (money, record) => {
+          const normalizedMoney = Number(money || 0);
+          if (normalizedMoney <= 0) {
+            return <Text type="tertiary">-</Text>;
+          }
+          // 优先使用后端返回的币种符号，Stripe 默认 $，其他默认 ¥
+          const paySymbol =
+            record.display_symbol ||
+            (record.payment_method === "stripe" ? "$" : "¥");
+          return (
+            <Text type="danger">
+              {formatDisplayMoney(money, paySymbol)}
+            </Text>
+          );
+        },
       },
       {
         title: t('状态'),
@@ -384,6 +676,37 @@ const Billing = () => {
           </span>
         ),
       },
+      {
+        title: t('操作'),
+        key: 'action',
+        align: 'left',
+        render: (_, record) => (
+          <div className='flex items-center justify-start gap-2'>
+            {userIsAdmin && record.status === 'pending' ? (
+              <Tooltip content={t('补单')}>
+                <Button
+                  size='small'
+                  type='tertiary'
+                  theme='borderless'
+                  icon={<CheckCircle size={16} />}
+                  onClick={() => confirmAdminComplete(record.trade_no)}
+                  style={{ color: '#475569' }}
+                />
+              </Tooltip>
+            ) : null}
+            <Tooltip content={t('详情')}>
+              <Button
+                size='small'
+                type='tertiary'
+                theme='borderless'
+                icon={<IconEyeOpened />}
+                onClick={() => handleOpenDetail(record)}
+                style={{ color: '#475569' }}
+              />
+            </Tooltip>
+          </div>
+        ),
+      },
     ];
 
     if (userIsAdmin) {
@@ -392,22 +715,6 @@ const Billing = () => {
         dataIndex: 'display_name',
         key: 'display_name',
         render: (text) => text || '-',
-      });
-      baseColumns.push({
-        title: t('操作'),
-        key: 'action',
-        align: 'center',
-        render: (_, record) =>
-          record.status === 'pending' ? (
-            <Button
-              size='small'
-              type='primary'
-              theme='outline'
-              onClick={() => confirmAdminComplete(record.trade_no)}
-            >
-              {t('补单')}
-            </Button>
-          ) : null,
       });
     }
 
@@ -422,10 +729,10 @@ const Billing = () => {
             <div className='flex items-center gap-3'>
               <div>
                 <div className='text-[30px] font-medium text-[#475569] dark:text-slate-200'>
-                  {t('账单中心')}
+                  {billingPageTitle}
                 </div>
                 <div className='mt-2 text-[18px] font-medium text-[#94A3B8]'>
-                  {t('实时监控您的 API 消耗、Token 使用明细以及账户余额。基于矩阵算力引擎提供精确到毫秒级的计费服务。')}
+                  {billingPageDescription}
                 </div>
               </div>
             </div>
@@ -505,8 +812,29 @@ const Billing = () => {
         className='billing-table-card !rounded-2xl'
       >
         <div className='flex items-center justify-between border-b border-slate-100 px-6 py-4'>
-          <div className='flex items-center gap-2 text-slate-800'>
-            <span className='text-lg font-bold dark:text-slate-300'>{t('消费明细')}</span>
+          <div className='flex flex-col gap-2 text-slate-800'>
+            <span className='text-lg font-bold dark:text-slate-300'>
+              {t('充值与返佣记录')}
+            </span>
+            <div className='flex flex-wrap items-center gap-2'>
+              <Tag color='blue' shape='circle' size='small'>
+                <span className='inline-flex items-center gap-1'>
+                  <Wallet size={12} />
+                  {t('在线充值')}
+                </span>
+              </Tag>
+              <Tag color='green' shape='circle' size='small'>
+                <span className='inline-flex items-center gap-1'>
+                  <Gift size={12} />
+                  {t('邀请返佣')}
+                </span>
+              </Tag>
+              {hasInviteRebateRecords ? (
+                <span className='text-xs text-emerald-600 dark:text-emerald-300'>
+                  {t('邀请返佣已自动入账，无需手动处理。')}
+                </span>
+              ) : null}
+            </div>
           </div>
           <div className='flex items-center gap-3'>
             <span className='text-xs text-slate-400'>
@@ -514,7 +842,9 @@ const Billing = () => {
             </span>
             <Input
               prefix={<IconSearch />}
-              placeholder={t('搜索订单号')}
+              placeholder={t(
+                userIsAdmin ? '搜索订单号或用户昵称' : '搜索订单号',
+              )}
               value={historyKeyword}
               onChange={(value) => {
                 setHistoryKeyword(value);
@@ -539,7 +869,7 @@ const Billing = () => {
               darkModeImage={
                 <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
               }
-              description={t('暂无充值记录')}
+              description={t('暂无账单记录')}
               style={{ padding: 30 }}
             />
           }
@@ -577,6 +907,110 @@ const Billing = () => {
           </div>
         </div>
       </Card>
+
+      <Modal
+        title={
+          <span className='text-[18px] font-[700] text-[#334155]'>{t('详情')}</span>
+        }
+        visible={detailVisible}
+        onCancel={() => setDetailVisible(false)}
+        width={isMobile ? undefined : DETAIL_MODAL_WIDTH}
+        size={isMobile ? 'full-width' : undefined}
+        closeOnEsc
+        footer={
+          <div className='flex items-center justify-end gap-4'>
+            <Button
+              theme='light'
+              type='tertiary'
+              onClick={() => setDetailVisible(false)}
+              style={{
+                minWidth: 78,
+                height: 40,
+                borderRadius: 10,
+                color: '#475569',
+                background: '#F8FAFC',
+              }}
+            >
+              {t('取消')}
+            </Button>
+            <Button
+              onClick={() => setDetailVisible(false)}
+              style={{
+                minWidth: 78,
+                height: 40,
+                borderRadius: 10,
+                border: 'none',
+                color: '#0F172A',
+                background:
+                  'linear-gradient(90deg, rgba(30, 235, 211, 1) 0%, rgba(176, 255, 45, 1) 100%)',
+              }}
+            >
+              {t('确定')}
+            </Button>
+          </div>
+        }
+        centered={!isMobile}
+        bodyStyle={{
+          padding: isMobile ? '4px 16px 0' : '4px 0',
+          height: isMobile ? 'calc(100vh - 220px)' : DETAIL_MODAL_CONTENT_HEIGHT,
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          className='border-t border-[#E9EEF5]'
+          style={{
+            height: '100%',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingTop: 20,
+            paddingRight: 6,
+          }}
+        >
+          <div className='pb-7'>
+            <div className='mb-4 text-[16px] font-[700] text-[#475569]'>
+              {t('主订单信息')}
+            </div>
+            <div className='space-y-2'>
+              {detailSections.mainInfo.map((item) => (
+                <DetailField
+                  key={item.label}
+                  label={item.label}
+                  value={item.value}
+                  copyValue={item.copyValue}
+                  onCopy={handleCopyDetailValue}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className='border-t border-[#E9EEF5] py-7'>
+            <div className='mb-4 text-[16px] font-[700] text-[#475569]'>
+              {t('分佣明细')}
+            </div>
+
+            <div className='space-y-7'>
+              {detailSections.commissionGroups.map((group) => (
+                <div key={group.title}>
+                  <div className='mb-3 text-sm font-semibold text-[#94A3B8]'>
+                    {group.title}
+                  </div>
+                  <div className='space-y-2'>
+                    {group.items.map((item) => (
+                      <DetailField
+                        key={`${group.title}-${item.label}`}
+                        label={item.label}
+                        value={item.value}
+                        copyValue={item.copyValue}
+                        onCopy={handleCopyDetailValue}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

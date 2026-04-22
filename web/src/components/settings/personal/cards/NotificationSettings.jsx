@@ -82,6 +82,7 @@ const NotificationSettings = ({
     personal: {
       enabled: true,
       topup: true,
+      billing: true,
       personal: true,
     },
     admin: {
@@ -171,7 +172,7 @@ const NotificationSettings = ({
         invitation: true,
         exchange: true,
       },
-      personal: { enabled: true, topup: true, personal: true },
+      personal: { enabled: true, topup: true, billing: true, personal: true },
       admin: {
         enabled: true,
         channel: true,
@@ -288,6 +289,11 @@ const NotificationSettings = ({
       modules: [
         { key: 'topup', title: t('钱包管理'), description: t('余额充值管理') },
         {
+          key: 'billing',
+          title: t('账单中心'),
+          description: t('查看消费记录与账单明细'),
+        },
+        {
           key: 'personal',
           title: t('个人设置'),
           description: t('个人信息设置'),
@@ -319,7 +325,7 @@ const NotificationSettings = ({
         },
         {
           key: 'billing',
-          title: t('账单管理'),
+          title: t('账单中心'),
           description: t('账单和支付管理'),
         },
         {

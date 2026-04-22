@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Breadcrumb } from '@douyinfe/semi-ui';
+import { ChevronRight } from 'lucide-react';
 import { useHeaderBar } from '../../../hooks/common/useHeaderBar';
 import { useNotifications } from '../../../hooks/common/useNotifications';
 import NoticeModal from '../NoticeModal';
@@ -29,6 +30,7 @@ import ThemeToggle from './ThemeToggle';
 import LanguageSelector from './LanguageSelector';
 import NotificationButton from './NotificationButton';
 import UserArea from './UserArea';
+import { isAdmin } from '../../../helpers';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const {
@@ -61,7 +63,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     handleNoticeClose,
     getUnreadKeys,
   } = useNotifications(statusState);
-
+  // 获取当前路由地址
+  const location = useLocation();
+  console.log(location.pathname);
   const isPublicRoute = !isConsoleRoute;
   const docsLangPrefix = currentLang.startsWith('zh') ? 'zh' : 'en';
   const docsHref = docsLink || `https://allrouter.ai/${docsLangPrefix}/docs`;
@@ -87,7 +91,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     '/console/subscription': t('订阅管理'),
     '/console/models': t('模型管理'),
     '/console/deployment': t('模型部署'),
-    '/console/billing': t('账单管理'),
+    '/console/billing': isAdmin() ? t('账单管理') : t('账单中心'),
     '/console/operational': t('运营数据'),
     '/console/user': t('用户管理'),
     '/console/setting': t('系统设置'),
@@ -131,9 +135,10 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             <span>{systemName}</span>
           </Link>
 
-          <div className='landing-v2-nav-links'>
+          <div className={`landing-v2-nav-links ${location.pathname === '/pricing' ? 'nav-left' : ''}`}>
+            <Link to='/'>{t('首页')}</Link>
             <Link to={consoleNavTarget}>{t('控制台')}</Link>
-            <Link to={pricingNavTarget}>{t('模型广场')}</Link>
+            <Link to={pricingNavTarget} className='landing-v2-nav-link-active'>{t('模型广场')}</Link>
             <a href={docsHref} target='_blank' rel='noreferrer'>
               {t('文档')}
             </a>
@@ -194,7 +199,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
               />
               <div className='header-console-breadcrumb-wrap hidden md:flex'>
                 <Breadcrumb
-                  separator='/'
+                    separator={<ChevronRight size={14} />}
                   className='header-console-breadcrumb'
                 >
                   {breadcrumbItems.map((item, index) => {

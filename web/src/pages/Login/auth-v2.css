@@ -676,13 +676,13 @@
   margin-top: 22px;
   text-align: center;
   color: #AAABAD;
-  font-size: 0.75rem;
+  font-size: 12px;
   line-height: 1.75;
 }
 
 .auth-v2 .terms a,
 .auth-v2 .terms-check a {
-  color: rgba(170, 171, 173, 0.45);
+  color: #D8D8D8;
   text-decoration: underline;
 }
 
@@ -705,6 +705,49 @@
 .auth-v2 .terms-check .semi-checkbox-inner {
   width: 16px;
   height: 16px;
+}
+
+.auth-v2 .semi-checkbox-inner.semi-checkbox-checked {
+  background-color: #25dfe0 !important;
+  border-color: #25dfe0 !important;
+}
+
+.auth-v2 .remember-checkbox {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.auth-v2 .remember-checkbox-box {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid #BACBB9;
+  transition: border-color 0.2s;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.auth-v2 .remember-checkbox-box.checked {
+  border-color: #25dfe0;
+}
+
+.auth-v2 .remember-checkbox-box.checked::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #25dfe0;
+}
+
+.auth-v2 .remember-checkbox-label {
+  color: #AAABAD;
+  font-size: 12px;
 }
 
 .auth-v2 .password-strength {

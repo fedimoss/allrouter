@@ -1074,6 +1074,7 @@ function TokensPage() {
                 </label>
 
                 <Select
+                  prefix={tokensData.t('状态')}
                   className='token-v2-select'
                   value={statusFilter}
                   onChange={val => setStatusFilter(val)}
@@ -1086,6 +1087,7 @@ function TokensPage() {
                 </Select>
 
                 <Select
+                  prefix={tokensData.t('分组')}
                   className='token-v2-select'
                   value={groupFilter}
                   onChange={val => setGroupFilter(val)}

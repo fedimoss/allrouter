@@ -164,6 +164,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         badge: t('充值'),
         section: 'personal',
       },
+      ...(!isAdmin()
+        ? [
+            {
+              text: t('账单中心'),
+              itemKey: 'billing',
+              to: '/billing',
+              section: 'personal',
+            },
+          ]
+        : []),
       // {
       //   text: t('个人设置'),
       //   itemKey: 'personal',
@@ -186,6 +196,10 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       {
         text: t('认证文件'),
         itemKey: 'certification',
+      },
+      {
+        text: t('商家收益'),
+        itemKey: 'businessProfits',
       },
     ];
 
@@ -240,7 +254,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
-        text: t('账单管理'),
+        text: t('账单中心'),
         itemKey: 'billing',
         to: '/billing',
         className: isAdmin() ? '' : 'tableHiddle',

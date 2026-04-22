@@ -31,9 +31,14 @@ import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
-import { Coins } from 'lucide-react';
+import { CheckCircle, Coins, Gift } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string, formatDisplayMoney } from '../../../helpers';
+import {
+  getTopupBizTypeConfig,
+  isInviteRebateTopup,
+  isSubscriptionTopup,
+} from '../../../helpers/topup';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const { Text } = Typography;
 
@@ -108,7 +113,18 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   };
 
   // 渲染状态徽章
-  const renderStatusBadge = (status) => {
+  const renderStatusBadge = (status, record) => {
+    if (isInviteRebateTopup(record)) {
+      return (
+        <span className='inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+          <CheckCircle size={14} />
+          <span className='font-medium'>{t('已入账')}</span>
+        </span>
+      );
+    }
+    if (!status) {
+      return <Text type='tertiary'>-</Text>;
+    }
     const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
     return (
       <span className='flex items-center gap-2'>
@@ -124,17 +140,18 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
     return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
   };
 
-  const getBizType = (record) => {
-    if (record?.biz_type) {
-      return record.biz_type;
-    }
-    const tradeNo = (record?.trade_no || '').toLowerCase();
-    return Number(record?.amount || 0) === 0 && tradeNo.startsWith('sub')
-      ? 'subscription'
-      : 'payment';
+  const renderBizTypeTag = (record) => {
+    const config = getTopupBizTypeConfig(record);
+    const inviteRebate = isInviteRebateTopup(record);
+    return (
+      <Tag color={config.color} shape='circle' size='small'>
+        <span className='inline-flex items-center gap-1'>
+          {inviteRebate ? <Gift size={12} /> : null}
+          {t(config.label)}
+        </span>
+      </Tag>
+    );
   };
-
-  const isSubscriptionTopup = (record) => getBizType(record) === 'subscription';
 
   const columns = useMemo(() => {
     const baseColumns = [
@@ -143,6 +160,12 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         dataIndex: 'trade_no',
         key: 'trade_no',
         render: (text) => <Text copyable>{text}</Text>,
+      },
+      {
+        title: t('账单类型'),
+        dataIndex: 'biz_type',
+        key: 'biz_type',
+        render: (_, record) => renderBizTypeTag(record),
       },
       {
         title: t('支付方式'),
@@ -162,6 +185,16 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
               </Tag>
             );
           }
+          if (isInviteRebateTopup(record)) {
+            return (
+              <span className='inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+                <Gift size={14} />
+                <Text strong className='!text-emerald-600 dark:!text-emerald-300'>
+                  +{amount}
+                </Text>
+              </span>
+            );
+          }
           return (
             <span className='flex items-center gap-1'>
               <Coins size={16} />
@@ -176,11 +209,13 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         key: 'money',
         render: (money, record) => {
           const normalizedMoney = Number(money || 0);
-          const paySymbol =
+          if (normalizedMoney <= 0) {
+            return <Text type="tertiary">-</Text>;
+          }
           // 优先使用后端返回的币种符号，Stripe 默认 $，其他默认 ¥
+          const paySymbol =
             record.display_symbol ||
-            (record.payment_method === 'stripe' ? '$' : '\u00A5');
-          const prefix = normalizedMoney <= 0 ? '' : record.payment_method === 'stripe' ? '$' : '¥';
+            (record.payment_method === "stripe" ? "$" : "¥");
           return (
             <Text type='danger'>
               {formatDisplayMoney(money, paySymbol)}
@@ -243,7 +278,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
             darkModeImage={
               <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
             }
-            description={t('暂无充值记录')}
+            description={t('暂无账单记录')}
             style={{ padding: 30 }}
           />
         }
