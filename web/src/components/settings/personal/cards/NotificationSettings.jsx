@@ -319,7 +319,7 @@ const NotificationSettings = ({
         },
         {
           key: 'billing',
-          title: t('账单管理'),
+          title: t('账单中心'),
           description: t('账单和支付管理'),
         },
         {

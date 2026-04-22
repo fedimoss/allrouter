@@ -121,7 +121,7 @@ const SearchActions = memo(
           {supportsCurrencyDisplay && (
             <label className='pricing-market-toolbar-toggle'>
               <span>{t('充值价格')}</span>
-              <Switch checked={showWithRecharge} onChange={setShowWithRecharge} />
+              <Switch color='red' checked={showWithRecharge} onChange={setShowWithRecharge} />
             </label>
           )}
 

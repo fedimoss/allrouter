@@ -28,11 +28,14 @@ import {
   renderQuotaWithAmount,
   copy,
   getQuotaPerUnit,
+  timestamp2string,
 } from '../../helpers';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
+
+import { getInitialTimestamp } from '../../helpers/dashboard';
 
 import RechargeCard from './RechargeCard';
 import InvitationCard from './InvitationCard';
@@ -348,7 +351,10 @@ const TopUp = () => {
   };
 
   const getUserQuota = async () => {
-    let res = await API.get(`/api/user/self`);
+    const startTimestamp = Date.parse(getInitialTimestamp()) / 1000;
+    const endTimestamp = Date.parse(timestamp2string(new Date().getTime() / 1000)) / 1000;
+
+    let res = await API.get(`/api/user/self?start_timestamp=${startTimestamp}&end_timestamp=${endTimestamp}`);
     const { success, message, data } = res.data;
     if (success) {
       userDispatch({ type: 'login', payload: data });

@@ -187,6 +187,10 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('认证文件'),
         itemKey: 'certification',
       },
+      {
+        text: t('商家收益'),
+        itemKey: 'businessProfits',
+      },
     ];
 
     return items.filter((item) => isModuleVisible('merchant', item.itemKey));
@@ -240,7 +244,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
-        text: t('账单管理'),
+        text: t('账单中心'),
         itemKey: 'billing',
         to: '/billing',
         className: isAdmin() ? '' : 'tableHiddle',

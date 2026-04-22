@@ -198,7 +198,7 @@ const PricingSidebar = ({
       <div className='pricing-market-sidebar-header'>
         <div className='pricing-market-sidebar-heading'>
           <IconRadio style={{color:'#1CDFD5',fontSize:'20px'}} />
-          <span className='text-[#1CDFD5] text-[12px] font-400'>{t('多维筛选')}</span>
+          <span className='text-[#1CDFD5] text-[12px] font-400' style={{letterSpacing:'2.4px'}}>{t('多维筛选')}</span>
         </div>
         {/* <Button theme='borderless' type='tertiary' onClick={handleResetFilters}>
           {t('重置')}

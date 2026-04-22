@@ -30,6 +30,7 @@ import {
   Table,
   Tag,
   Toast,
+  Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
 import {
@@ -37,7 +38,7 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, BadgeDollarSign, CalendarCheck2, Coins } from 'lucide-react';
+import { BarChart3, BadgeDollarSign, CalendarCheck2, Coins, CheckCircle } from 'lucide-react';
 import { IconCopy, IconEyeOpened, IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../helpers';
 import { isAdmin } from '../../helpers/utils';
@@ -620,29 +621,31 @@ const Billing = () => {
       {
         title: t('操作'),
         key: 'action',
-        align: 'center',
+        align: 'left',
         render: (_, record) => (
-          <div className='flex items-center justify-center gap-2'>
-            <Button
-              size='small'
-              type='tertiary'
-              theme='borderless'
-              icon={<IconEyeOpened />}
-              onClick={() => handleOpenDetail(record)}
-              style={{ color: '#475569' }}
-            >
-              {t('详情')}
-            </Button>
+          <div className='flex items-center justify-start gap-2'>
             {userIsAdmin && record.status === 'pending' ? (
+              <Tooltip content={t('补单')}>
+                <Button
+                  size='small'
+                  type='tertiary'
+                  theme='borderless'
+                  icon={<CheckCircle size={16} />}
+                  onClick={() => confirmAdminComplete(record.trade_no)}
+                  style={{ color: '#475569' }}
+                />
+              </Tooltip>
+            ) : null}
+            <Tooltip content={t('详情')}>
               <Button
                 size='small'
-                type='primary'
-                theme='outline'
-                onClick={() => confirmAdminComplete(record.trade_no)}
-              >
-                {t('补单')}
-              </Button>
-            ) : null}
+                type='tertiary'
+                theme='borderless'
+                icon={<IconEyeOpened />}
+                onClick={() => handleOpenDetail(record)}
+                style={{ color: '#475569' }}
+              />
+            </Tooltip>
           </div>
         ),
       },
