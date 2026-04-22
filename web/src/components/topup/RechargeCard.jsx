@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Typography,
   Tag,
@@ -50,7 +51,7 @@ import {
   Sparkles,
   History,
   CheckCircle,
-  Lightbulb
+  Lightbulb,
 } from 'lucide-react';
 import { IconGift, IconSearch } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
@@ -126,6 +127,7 @@ const RechargeCard = ({
   allSubscriptions = [],
   reloadSubscriptionSelf,
 }) => {
+  const navigate = useNavigate();
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
   const initialTabSetRef = useRef(false);
@@ -186,6 +188,11 @@ const RechargeCard = ({
     enableWaffoTopUp,
     waffoPayMethods,
   ]);
+
+  // 跳转邀请详情
+  const toInvitationDetail = () => {
+    navigate('/console/invitation');
+  };
 
   // 加载充值记录
   const loadTopups = async (currentPage, currentPageSize) => {
@@ -635,38 +642,87 @@ const RechargeCard = ({
       </div> */}
 
       {/* 顶部概览卡片 */}
-      <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+      <div className='grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4'>
         <div className='rounded-2xl from-cyan-50 bg-white dark:border-cyan-900/50 dark:from-slate-900 dark:bg-slate-800 dark:via-slate-900 dark:to-slate-950 p-5'
-          style={{backgroundImage:`url(${balanceBgimg})`, backgroundPosition: 'top right', backgroundRepeat: 'no-repeat'}}
         >
           <div className='flex items-center justify-between mb-2'>
-            <h3 className='text-sm font-medium text-slate-500 dark:text-slate-400'>
+            <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
               {t('当前余额')}
             </h3>
+            <div className=''>
+
+            </div>
           </div>
-          <p className='text-4xl dark:text-cyan-400' style={{ fontWeight: '900' }}>
+          <p className='text-[24px] text-[#475569] dark:text-cyan-400' style={{ fontWeight: '900' }}>
             {renderQuota(userState?.user?.quota)}
           </p>
-          <p className='text-xs text-slate-500 dark:text-slate-400 mt-2 flex items-center gap-1'>
-            <Sparkles className='w-3.5 h-3.5' />
-            {t('可用额度')}
+          <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2 flex items-center gap-1'>
+            {t('当前账户剩余的全部金额')}
           </p>
         </div>
 
         <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
-          style={{backgroundImage:`url(${dateBgimg})`, backgroundPosition: 'top right', backgroundRepeat: 'no-repeat'}}
         >
           <div className='flex items-center justify-between mb-2'>
-            <h3 className='text-sm font-medium text-slate-500 dark:text-slate-400'>
+            <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
               {t('历史消费')}
             </h3>
           </div>
-          <p className='text-4xl dark:text-white' style={{ fontWeight: '900' }}>
+          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
             {renderQuota(userState?.user?.used_quota)}
           </p>
-          <p className='text-xs text-slate-500 dark:text-slate-400 mt-2'>
-            {t('请求次数')}：{userState?.user?.request_count || 0}
+          <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
+            {t('历史全部的消耗金额')}
           </p>
+        </div>
+        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
+        >
+          <div className='flex items-center justify-between mb-2'>
+            <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
+              {t('历史充值')}
+            </h3>
+          </div>
+          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
+            ${userState?.user?.total_topup_quota}
+          </p>
+          <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
+            {t('历史充值的全部金额')}
+          </p>
+        </div>
+        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
+        >
+          <div className='flex items-center justify-between mb-2'>
+            <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
+              {t('历史奖励/获赠')}
+            </h3>
+          </div>
+          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
+            ${userState?.user?.welfare_quota}
+          </p>
+          <div className='flex items-center justify-between'>
+            <span className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
+              {t('平台赠送或活动奖励')}
+            </span>
+            <span className='text-xs text-[#1CDFD5] underline cursor-pointer mt-2' onClick={toInvitationDetail}>
+              {t('查看收益详情')}
+            </span>
+          </div>
+        </div>
+        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
+        >
+          <div className='flex items-center justify-between mb-2'>
+            <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
+              {t('请求次数')}
+            </h3>
+          </div>
+          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
+            {userState?.user?.request_count || 0}
+          </p>
+          <div className='flex items-center justify-between'>
+            <span className='text-[12px] text-[#1CDFD5] flex items-center  mt-2' onClick={toInvitationDetail}>
+              <TrendingUp size={16} className='mr-1' /> {t('较昨日')}
+            </span>
+          </div>
         </div>
       </div>
 
