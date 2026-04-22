@@ -14,6 +14,10 @@ type TopUpRebate struct {
 	RebateRatio   float64 `json:"rebate_ratio"`                                // 返利比例（百分比）
 	RebateQuota   int     `json:"rebate_quota"`                                // 返利额度
 	CreatedAt     int64   `json:"created_at" gorm:"bigint;index"`              // 创建时间（Unix时间戳）
+
+	// TODO: 添加其他字段，如返利状态、返利金额等
+	Money  float64 `json:"money"`
+	Status string  `json:"status"`
 }
 
 // TableName 返回返利记录表的名称

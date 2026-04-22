@@ -1070,6 +1070,9 @@ func GetTopUpDetailsById(id int) (*TopUpDetails, error) {
 			return nil, err
 		}
 	} else {
+		//计算返佣金额
+		rebateRecord.Money = decimal.NewFromInt(int64(rebateRecord.RebateQuota)).Div(decimal.NewFromFloat(common.QuotaPerUnit)).InexactFloat64()
+		rebateRecord.Status = common.TopUpStatusSuccess
 		rebate = rebateRecord
 	}
 
