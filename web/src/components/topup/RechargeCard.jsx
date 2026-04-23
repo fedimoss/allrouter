@@ -61,7 +61,7 @@ import {
   timestamp2string,
   getQuotaPerUnit,
   normalizeDisplayCurrency,
-  convertUsdToDisplayAmount,
+  convertAndFormat,
   formatDisplayMoney,
 } from '../../helpers';
 import {
@@ -316,23 +316,29 @@ const RechargeCard = ({
     return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
   };
 
-  // renderBalanceAmount 将内部 quota（额度）转换为用户本地币种的展示金额
-  // 步骤：quota ÷ quotaPerUnit → 美元金额 → 按汇率转换为本地币种 → 格式化输出
+  // renderBalanceAmount 将内部 quota 转换为本地币种展示
+  // quota ÷ quotaPerUnit → 四舍五入到分 → × 汇率 → 格式化
   const renderBalanceAmount = (quota) => {
     const quotaPerUnit = getQuotaPerUnit();
     const normalizedQuota = Number(quota || 0);
-    // 额度或单位非法时显示 0
     if (!Number.isFinite(normalizedQuota) || !Number.isFinite(quotaPerUnit) || quotaPerUnit <= 0) {
-      return formatDisplayMoney(0, normalizedDisplayCurrency.symbol);
+      return convertAndFormat(0, normalizedDisplayCurrency);
     }
-    // 先转为美元金额
     const usdAmount = normalizedQuota / quotaPerUnit;
-    // 再按展示币种汇率转换
-    const displayAmount = convertUsdToDisplayAmount(
-      usdAmount,
-      normalizedDisplayCurrency,
-    );
-    return formatDisplayMoney(displayAmount, normalizedDisplayCurrency.symbol);
+    // 先四舍五入到分，消除 quotaPerUnit 除法的精度损失（248.98775 → 248.99）
+    const roundedUsd = Math.round(usdAmount * 100) / 100;
+    return convertAndFormat(roundedUsd, normalizedDisplayCurrency);
+  };
+
+  // renderUsdAmount 将美元金额转换为本地币种展示（不经过 quotaPerUnit 除法）
+  // 先四舍五入到分，消除浮点精度损失
+  const renderUsdAmount = (usdValue) => {
+    const amount = Number(usdValue || 0);
+    if (!Number.isFinite(amount)) {
+      return convertAndFormat(0, normalizedDisplayCurrency);
+    }
+    const roundedUsd = Math.round(amount * 100) / 100;
+    return convertAndFormat(roundedUsd, normalizedDisplayCurrency);
   };
 
   const renderBizTypeTag = (record) => {
@@ -778,7 +784,7 @@ const RechargeCard = ({
             </h3>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            ${userState?.user?.total_topup_quota}
+            {renderUsdAmount(userState?.user?.total_topup_quota)}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
             {t('历史充值的全部金额')}
@@ -792,7 +798,7 @@ const RechargeCard = ({
             </h3>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            ${userState?.user?.welfare_quota}
+            {renderUsdAmount(userState?.user?.welfare_quota)}
           </p>
           <div className='flex items-center justify-between'>
             <span className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>

@@ -7,13 +7,9 @@ export const normalizeCurrencyAmount = (value) => {
 // normalizeDisplayCurrency 将后端返回的展示币种配置标准化为统一结构
 // 非人民币统一回退为美元，人民币必须提供合法的正汇率
 export const normalizeDisplayCurrency = (config) => {
-  // 只支持 CNY 和 USD 两种展示币种，其他一律回退为 USD
   const currency = config?.currency === 'CNY' ? 'CNY' : 'USD';
-  // 根据币种选择默认符号
   const fallbackSymbol = currency === 'CNY' ? '¥' : '$';
-  // 兼容驼峰和下划线两种字段名
   const rawUnitPrice = Number(config?.unitPrice ?? config?.unit_price ?? 1);
-  // 人民币汇率必须为有限正数，否则回退为 1
   const unitPrice =
     currency === 'CNY' && Number.isFinite(rawUnitPrice) && rawUnitPrice > 0
       ? rawUnitPrice
@@ -26,21 +22,22 @@ export const normalizeDisplayCurrency = (config) => {
   };
 };
 
-// convertUsdToDisplayAmount 将美元金额转换为展示币种金额
-// 人民币按汇率换算，美元直接返回原值
-export const convertUsdToDisplayAmount = (usdAmount, config) => {
+// convertUsdToDisplayCurrency 将美元金额按汇率转换为展示币种金额并格式化
+// config 为已标准化的 normalizedDisplayCurrency 对象
+export const convertAndFormat = (usdAmount, config) => {
   const amount = normalizeCurrencyAmount(usdAmount);
-  const displayCurrency = normalizeDisplayCurrency(config);
-  return displayCurrency.currency === 'CNY'
-    ? amount * displayCurrency.unitPrice
-    : amount;
+  // CNY 按汇率换算，USD 直接使用原值
+  const displayAmount =
+    config.currency === 'CNY' ? amount * config.unitPrice : amount;
+  return formatDisplayMoney(displayAmount, config.symbol);
 };
 
 // formatDisplayMoney 格式化金额为带符号的字符串
-// amount 金额数值，symbol 币种符号（默认 $），digits 小数位数（默认 2）
-// 金额 <= 0 时不显示符号
+// 先四舍五入到指定小数位（消除浮点精度损失），金额 <= 0 时不显示符号
 export const formatDisplayMoney = (amount, symbol = '$', digits = 2) => {
   const normalizedAmount = normalizeCurrencyAmount(amount);
-  const prefix = normalizedAmount <= 0 ? '' : symbol;
-  return `${prefix}${normalizedAmount.toFixed(digits)}`;
+  const factor = Math.pow(10, digits);
+  const rounded = Math.round(normalizedAmount * factor) / factor;
+  const prefix = rounded <= 0 ? '' : symbol;
+  return `${prefix}${rounded.toFixed(digits)}`;
 };
