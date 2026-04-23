@@ -65,7 +65,7 @@ export function formatInteger(value) {
   }).format(numberValue);
 }
 
-export function formatQuotaValue(value) {
+export function formatQuotaValue(value, symbol) {
   if (!hasValue(value)) {
     return '--';
   }
@@ -77,6 +77,10 @@ export function formatQuotaValue(value) {
   const numberValue = normalizeNumber(value);
   if (numberValue === null) {
     return String(value);
+  }
+
+  if (symbol) {
+    return symbol + numberValue.toFixed(2);
   }
 
   return renderQuotaWithAmount(numberValue);

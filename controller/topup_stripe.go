@@ -495,28 +495,41 @@ func getStripePayMoney(amount float64, group string, unitPrice float64) float64 
 	return payMoney
 }
 
-// resolveStripeUnitPrice 根据用户时区解析 Stripe 单价
-// 优先使用时区映射的币种配置，找不到则回退到全局 StripeUnitPrice
-func resolveStripeUnitPrice(user *model.User) float64 {
-	unitPrice := setting.StripeUnitPrice
+// resolveStripeCurrencyConfig 根据用户时区解析 Stripe 币种配置
+// 优先使用时区映射，回退到全局 StripePriceId 对应的币种配置，找不到返回 nil
+func resolveStripeCurrencyConfig(user *model.User) *model.CurrencyStripeConfig {
+	// 优先根据用户时区匹配
 	if user != nil && user.Timezone != "" {
-		if config, _ := model.GetStripeConfigByTimezone(user.Timezone, ""); config != nil && config.UnitPrice > 0 {
-			unitPrice = config.UnitPrice
+		if config, _ := model.GetStripeConfigByTimezone(user.Timezone, ""); config != nil && config.StripePriceID != "" {
+			return config
 		}
 	}
-	return unitPrice
+	// 回退：使用全局 StripePriceId 对应的币种（兼容未配置映射的场景）
+	if setting.StripePriceId != "" {
+		configs, _ := model.GetEnabledCurrencyConfigs()
+		for _, cfg := range configs {
+			if cfg.StripePriceID == setting.StripePriceId {
+				return &cfg
+			}
+		}
+	}
+	return nil
+}
+
+// resolveStripeUnitPrice 根据用户时区解析 Stripe 单价
+func resolveStripeUnitPrice(user *model.User) float64 {
+	if config := resolveStripeCurrencyConfig(user); config != nil && config.UnitPrice > 0 {
+		return config.UnitPrice
+	}
+	return setting.StripeUnitPrice
 }
 
 // resolveStripePriceId 根据用户时区解析 Stripe Price ID
-// 优先使用时区映射的币种配置，找不到则回退到全局 StripePriceId
 func resolveStripePriceId(user *model.User) string {
-	priceId := setting.StripePriceId
-	if user != nil && user.Timezone != "" {
-		if config, _ := model.GetStripeConfigByTimezone(user.Timezone, ""); config != nil && config.StripePriceID != "" {
-			priceId = config.StripePriceID
-		}
+	if config := resolveStripeCurrencyConfig(user); config != nil {
+		return config.StripePriceID
 	}
-	return priceId
+	return setting.StripePriceId
 }
 
 func getStripeMinTopup() int64 {

@@ -492,6 +492,9 @@ func GetSelf(c *gin.Context) {
 	// 获取用户设置并提取sidebar_modules
 	userSetting := user.GetSetting()
 
+	// 获取展示币种信息，计算各项展示金额
+	displayInfo := getDisplayCurrencyForUser(c)
+
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
 		"id":                   user.Id,
@@ -507,17 +510,17 @@ func GetSelf(c *gin.Context) {
 		"wechat_id":            user.WeChatId,
 		"telegram_id":          user.TelegramId,
 		"group":                user.Group,
-		"quota":                user.Quota,
-		"used_quota":           user.UsedQuota,
-		"request_count":        periodRequestCount, // 请求次数
-		"request_count_change": yesterdayChange,    // 和昨天相比的变化
-		"total_count":          totalRequestCount,  // 统计次数
+		"quota":                convertQuotaToDisplay(user.Quota, displayInfo),     // 转换后的余额
+		"used_quota":           convertQuotaToDisplay(user.UsedQuota, displayInfo), // 转换后的消费
+		"request_count":        periodRequestCount,                                 // 请求次数
+		"request_count_change": yesterdayChange,                                    // 和昨天相比的变化
+		"total_count":          totalRequestCount,                                  // 统计次数
 		"aff_code":             user.AffCode,
 		"aff_count":            user.AffCount,
 		"aff_quota":            user.AffQuota,
 		"aff_history_quota":    user.AffHistoryQuota,
-		"total_topup_quota":    totalTopupQuota, // 总充值金额
-		"welfare_quota":        welfareQuota,    // 福利奖励（兑换码+签到+邀请转移）
+		"total_topup_quota":    convertUsdToDisplay(float64(totalTopupQuota), displayInfo), // 转换后的充值
+		"welfare_quota":        convertUsdToDisplay(welfareQuota, displayInfo),             // 转换后的奖励
 		"inviter_id":           user.InviterId,
 		"linux_do_id":          user.LinuxDOId,
 		"setting":              user.Setting,

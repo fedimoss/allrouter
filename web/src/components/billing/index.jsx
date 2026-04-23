@@ -72,6 +72,7 @@ const BILLING_SUMMARY_DEFAULTS = {
   net_change: 0,
   expense_trend: 0,
   topup: 0,
+  display_symbol: '$',
 };
 
 const STATUS_CONFIG = {
@@ -103,16 +104,16 @@ const toNumber = (value) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
-const formatCurrency = (value, { signed = false } = {}) => {
+const formatCurrency = (value, { signed = false, symbol = '$' } = {}) => {
   const numeric = toNumber(value);
   const formattedValue = amountFormatter.format(Math.abs(numeric));
   if (numeric < 0) {
-    return `-$${formattedValue}`;
+    return `-${symbol}${formattedValue}`;
   }
   if (signed && numeric > 0) {
-    return `+$${formattedValue}`;
+    return `+${symbol}${formattedValue}`;
   }
-  return `$${formattedValue}`;
+  return `${symbol}${formattedValue}`;
 };
 
 const formatPercent = (value) => {
@@ -373,6 +374,7 @@ const Billing = () => {
           net_change: source.net_change,
           expense_trend: source.expense_trend,
           topup: source.topup,
+          display_symbol: source.display_symbol,
         });
       })
       .catch(() => {
@@ -514,7 +516,7 @@ const Billing = () => {
         {
           key: 'current_quota',
           title: t('支出/消费'),
-          value: formatCurrency(billingSummary.expense),
+          value: formatCurrency(billingSummary.expense, { symbol: billingSummary.display_symbol }),
           description: (
             <span className='inline-flex items-center gap-1'>
               <span className='text-slate-400'>{t('较上月')}</span>
@@ -531,7 +533,7 @@ const Billing = () => {
         {
           key: 'topup_amount',
           title: t('充值/本金'),
-          value: formatCurrency(billingSummary.topup),
+          value: formatCurrency(billingSummary.topup, { symbol: billingSummary.display_symbol }),
           description: t('实际支付充值的金额'),
           icon: CalendarCheck2,
           iconClassName: 'text-slate-500',
@@ -541,7 +543,7 @@ const Billing = () => {
         {
           key: 'redemption_amount',
           title: t('获赠/福利'),
-          value: formatCurrency(billingSummary.bonus),
+          value: formatCurrency(billingSummary.bonus, { symbol: billingSummary.display_symbol }),
           description: t('获得的平台赠送或活动奖励'),
           icon: Coins,
           iconClassName: 'text-slate-500',
@@ -551,7 +553,7 @@ const Billing = () => {
         {
           key: 'net_change',
           title: t('净变动'),
-          value: formatCurrency(billingSummary.net_change, { signed: true }),
+          value: formatCurrency(billingSummary.net_change, { signed: true, symbol: billingSummary.display_symbol }),
           description: t('账户资金的净增减情况'),
           icon: BarChart3,
           iconClassName: 'text-slate-500',

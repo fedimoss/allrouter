@@ -25,22 +25,18 @@ import (
 	"gorm.io/gorm"
 )
 
-// applyTopUpDisplayCurrency 将充值记录列表中的美元金额按用户时区转换为本地币种
+// applyTopUpDisplayCurrency 将充值记录列表中的美元金额按展示币种转换为本地币种
 // 同时填充 DisplayCurrency 和 DisplaySymbol 字段供前端展示
-func applyTopUpDisplayCurrency(topups []*model.TopUp, timezone string) {
-	// 提前获取一次展示币种信息，避免在循环中重复查库
-	displayInfo := model.GetDisplayCurrencyInfoByTimezone(timezone)
+func applyTopUpDisplayCurrency(topups []*model.TopUp, displayInfo model.DisplayCurrencyInfo) {
 	for _, topUp := range topups {
 		if topUp == nil {
 			continue
 		}
-		// 根据展示币种将美元金额转换为本地币种金额
 		topUp.DisplayCurrency = displayInfo.Currency
 		topUp.DisplaySymbol = displayInfo.Symbol
 		if displayInfo.Currency != "CNY" {
 			continue
 		}
-		// 人民币用户按汇率换算
 		topUp.Money = model.RoundDisplayCurrencyAmount(topUp.Money * displayInfo.Rate)
 	}
 }
@@ -48,19 +44,10 @@ func applyTopUpDisplayCurrency(topups []*model.TopUp, timezone string) {
 func GetTopUpInfo(c *gin.Context) {
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
-	// 获取当前用户信息，用于根据时区决定展示币种
-	var user *model.User
-	userId := c.GetInt("id")
-	if userId > 0 {
-		user, _ = model.GetUserById(userId, false)
-	}
-	// 获取默认展示币种（未登录时为美元）
-	displayInfo := model.GetDisplayCurrencyInfoByTimezone("")
-	if user != nil {
-		// 已登录用户根据其配置的时区获取对应的展示币种
-		displayInfo = model.GetDisplayCurrencyInfoByTimezone(user.Timezone)
-	}
+	// 获取当前用户的展示币种信息
+	displayInfo := getDisplayCurrencyForUser(c)
 
+	user, _ := model.GetUserById(c.GetInt("id"), false)
 	// 如果启用了 Stripe 支付，添加到支付方法列表
 	if setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "" {
 		// 检查是否已经包含 Stripe
@@ -113,29 +100,11 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
-	// 根据用户时区解析币种和 Stripe 价格配置
+	// 根据用户时区解析 Stripe 价格配置
 	var stripeCurrency *model.CurrencyStripeConfig
-	// Stripe 支付前提条件：已配置 API 密钥和 Webhook 密钥
 	enableStripeTopup := setting.StripeApiSecret != "" && setting.StripeWebhookSecret != ""
 	if enableStripeTopup {
-		// 优先根据用户时区匹配 Stripe 价格配置
-		if user != nil && user.Timezone != "" {
-			config, _ := model.GetStripeConfigByTimezone(user.Timezone, "")
-			if config != nil && config.StripePriceID != "" {
-				stripeCurrency = config
-			}
-		}
-		// 回退：使用全局 StripePriceId 对应的币种（兼容未配置映射的场景）
-		if stripeCurrency == nil && setting.StripePriceId != "" {
-			configs, _ := model.GetEnabledCurrencyConfigs()
-			for _, cfg := range configs {
-				if cfg.StripePriceID == setting.StripePriceId {
-					stripeCurrency = &cfg
-					break
-				}
-			}
-		}
-		// 仅当找到有效的 Stripe 价格配置时才启用 Stripe 充值
+		stripeCurrency = resolveStripeCurrencyConfig(user)
 		enableStripeTopup = stripeCurrency != nil
 	}
 
@@ -475,11 +444,9 @@ func GetUserTopUps(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	// 查询用户信息，将充值金额转换为用户本地币种展示
-	user, userErr := model.GetUserById(userId, false)
-	if userErr == nil {
-		applyTopUpDisplayCurrency(topups, user.Timezone)
-	}
+	// 将充值金额转换为用户本地币种展示
+	displayInfo := getDisplayCurrencyForUser(c)
+	applyTopUpDisplayCurrency(topups, displayInfo)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(topups)
@@ -506,6 +473,9 @@ func GetAllTopUps(c *gin.Context) {
 		return
 	}
 
+	// 将充值金额转换为管理员本地币种展示
+	displayInfo := getDisplayCurrencyForUser(c)
+	applyTopUpDisplayCurrency(topups, displayInfo)
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(topups)
 	common.ApiSuccess(c, pageInfo)
@@ -537,15 +507,28 @@ func AdminCompleteTopUp(c *gin.Context) {
 // 管理员查看订单详情
 func GetUserTopupDetails(c *gin.Context) {
 	var req struct {
-		TopUpID int `json:"topup_id" form:"topup_id"`
+		TopUpID int    `json:"topup_id" form:"topup_id"`
+		TradeNo string `json:"trade_no" form:"trade_no"`
 	}
 
-	if err := c.ShouldBind(&req); err != nil || req.TopUpID <= 0 {
-		common.ApiErrorMsg(c, "无效的topup_id")
+	if err := c.ShouldBind(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
 
-	topDetails, err := model.GetTopUpDetailsById(req.TopUpID)
+	var (
+		topDetails *model.TopUpDetails
+		err        error
+	)
+	if req.TradeNo != "" {
+		topDetails, err = model.GetTopUpDetailsByTradeNo(req.TradeNo)
+	} else if req.TopUpID > 0 {
+		topDetails, err = model.GetTopUpDetailsById(req.TopUpID)
+	} else {
+		common.ApiErrorMsg(c, "无效的topup_id或trade_no")
+		return
+	}
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			common.ApiErrorMsg(c, "充值记录不存在")

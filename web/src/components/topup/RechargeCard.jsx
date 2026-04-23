@@ -60,9 +60,6 @@ import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime'
 import {
   API,
   timestamp2string,
-  getQuotaPerUnit,
-  normalizeDisplayCurrency,
-  convertUsdToDisplayAmount,
   formatDisplayMoney,
 } from '../../helpers';
 import {
@@ -151,11 +148,6 @@ const RechargeCard = ({
   const [activeTab, setActiveTab] = useState('topup');
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;
-  // 将后端返回的展示币种配置标准化为统一结构，用于余额和历史金额的展示
-  const normalizedDisplayCurrency = useMemo(
-    () => normalizeDisplayCurrency(displayCurrency),
-    [displayCurrency],
-  );
 
   // 充值记录相关状态
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -317,25 +309,6 @@ const RechargeCard = ({
     return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
   };
 
-  // renderBalanceAmount 将内部 quota（额度）转换为用户本地币种的展示金额
-  // 步骤：quota ÷ quotaPerUnit → 美元金额 → 按汇率转换为本地币种 → 格式化输出
-  const renderBalanceAmount = (quota) => {
-    const quotaPerUnit = getQuotaPerUnit();
-    const normalizedQuota = Number(quota || 0);
-    // 额度或单位非法时显示 0
-    if (!Number.isFinite(normalizedQuota) || !Number.isFinite(quotaPerUnit) || quotaPerUnit <= 0) {
-      return formatDisplayMoney(0, normalizedDisplayCurrency.symbol);
-    }
-    // 先转为美元金额
-    const usdAmount = normalizedQuota / quotaPerUnit;
-    // 再按展示币种汇率转换
-    const displayAmount = convertUsdToDisplayAmount(
-      usdAmount,
-      normalizedDisplayCurrency,
-    );
-    return formatDisplayMoney(displayAmount, normalizedDisplayCurrency.symbol);
-  };
-
   const renderBizTypeTag = (record) => {
     const config = getTopupBizTypeConfig(record);
     const inviteRebate = isInviteRebateTopup(record);
@@ -409,7 +382,7 @@ const RechargeCard = ({
           }
           // 优先使用后端返回的币种符号，回退到用户默认展示币种
           const paySymbol =
-            record.display_symbol || normalizedDisplayCurrency.symbol;
+            record.display_symbol || displayCurrency?.symbol || '$';
           return (
             <Text className='text-xl dark:!text-cyan-300' style={
               {
@@ -446,7 +419,7 @@ const RechargeCard = ({
         ),
       },
     ];
-  }, [normalizedDisplayCurrency.symbol, t]);
+  }, [displayCurrency?.symbol, t]);
 
   const topupContent = (
     <div className='space-y-6'>
@@ -758,7 +731,7 @@ const RechargeCard = ({
             </div>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-cyan-400' style={{ fontWeight: '900' }}>
-            {renderBalanceAmount(userState?.user?.quota)}
+            {formatDisplayMoney(userState?.user?.quota, displayCurrency?.symbol)}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2 flex items-center gap-1'>
             {t('当前账户剩余的全部金额')}
@@ -773,7 +746,7 @@ const RechargeCard = ({
             </h3>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            {renderBalanceAmount(userState?.user?.used_quota)}
+            {formatDisplayMoney(userState?.user?.used_quota, displayCurrency?.symbol)}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
             {t('历史全部的消耗金额')}
@@ -787,7 +760,7 @@ const RechargeCard = ({
             </h3>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            ${userState?.user?.total_topup_quota}
+            {formatDisplayMoney(userState?.user?.total_topup_quota, displayCurrency?.symbol)}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
             {t('历史充值的全部金额')}
@@ -801,7 +774,7 @@ const RechargeCard = ({
             </h3>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            ${userState?.user?.welfare_quota}
+            {formatDisplayMoney(userState?.user?.welfare_quota, displayCurrency?.symbol)}
           </p>
           <div className='flex items-center justify-between'>
             <span className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>

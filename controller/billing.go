@@ -168,15 +168,18 @@ func GetAllBill(c *gin.Context) {
 	// 当前周期净变动 = 充值 + 获赠 - 消费
 	netChange := paymentAmount + redemptionAmount - int64(currentQuota)
 
+	// 币种转换：内部额度 ÷ QuotaPerUnit → 美元 → 按汇率转换为本地币种
+	displayInfo := getDisplayCurrencyForUser(c)
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"expense":       float64(currentQuota) / common.QuotaPerUnit,
-			"expense_trend": calcPercentChange(currentQuota, prevQuota),
-			"topup":         float64(paymentAmount) / common.QuotaPerUnit,
-			"bonus":         float64(redemptionAmount) / common.QuotaPerUnit,
-			"net_change":    float64(netChange) / common.QuotaPerUnit,
+			"expense":        convertUsdToDisplay(float64(currentQuota)/common.QuotaPerUnit, displayInfo),
+			"expense_trend":  calcPercentChange(currentQuota, prevQuota),
+			"topup":          convertUsdToDisplay(float64(paymentAmount)/common.QuotaPerUnit, displayInfo),
+			"bonus":          convertUsdToDisplay(float64(redemptionAmount)/common.QuotaPerUnit, displayInfo),
+			"net_change":     convertUsdToDisplay(float64(netChange)/common.QuotaPerUnit, displayInfo),
+			"display_symbol": displayInfo.Symbol,
 		},
 	})
 }
@@ -248,15 +251,18 @@ func GetSelfBill(c *gin.Context) {
 	// 当前周期净变动 = 充值 + 获赠(兑换码) - 消费
 	netChange := paymentAmount + redemptionAmount - int64(currentQuota)
 
+	// 币种转换：内部额度 ÷ QuotaPerUnit → 美元 → 按汇率转换为本地币种
+	displayInfo := getDisplayCurrencyForUser(c)
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"expense":       float64(currentQuota) / common.QuotaPerUnit,
-			"expense_trend": calcPercentChange(currentQuota, prevQuota),
-			"topup":         float64(paymentAmount) / common.QuotaPerUnit,
-			"bonus":         float64(redemptionAmount) / common.QuotaPerUnit,
-			"net_change":    float64(netChange) / common.QuotaPerUnit,
+			"expense":        convertUsdToDisplay(float64(currentQuota)/common.QuotaPerUnit, displayInfo),
+			"expense_trend":  calcPercentChange(currentQuota, prevQuota),
+			"topup":          convertUsdToDisplay(float64(paymentAmount)/common.QuotaPerUnit, displayInfo),
+			"bonus":          convertUsdToDisplay(float64(redemptionAmount)/common.QuotaPerUnit, displayInfo),
+			"net_change":     convertUsdToDisplay(float64(netChange)/common.QuotaPerUnit, displayInfo),
+			"display_symbol": displayInfo.Symbol,
 		},
 	})
 }
