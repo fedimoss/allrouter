@@ -59,9 +59,6 @@ import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime'
 import {
   API,
   timestamp2string,
-  getQuotaPerUnit,
-  normalizeDisplayCurrency,
-  convertAndFormat,
   formatDisplayMoney,
 } from '../../helpers';
 import {
@@ -150,11 +147,6 @@ const RechargeCard = ({
   const [activeTab, setActiveTab] = useState('topup');
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;
-  // 将后端返回的展示币种配置标准化为统一结构，用于余额和历史金额的展示
-  const normalizedDisplayCurrency = useMemo(
-    () => normalizeDisplayCurrency(displayCurrency),
-    [displayCurrency],
-  );
 
   // 充值记录相关状态
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -316,31 +308,6 @@ const RechargeCard = ({
     return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
   };
 
-  // renderBalanceAmount 将内部 quota 转换为本地币种展示
-  // quota ÷ quotaPerUnit → 四舍五入到分 → × 汇率 → 格式化
-  const renderBalanceAmount = (quota) => {
-    const quotaPerUnit = getQuotaPerUnit();
-    const normalizedQuota = Number(quota || 0);
-    if (!Number.isFinite(normalizedQuota) || !Number.isFinite(quotaPerUnit) || quotaPerUnit <= 0) {
-      return convertAndFormat(0, normalizedDisplayCurrency);
-    }
-    const usdAmount = normalizedQuota / quotaPerUnit;
-    // 先四舍五入到分，消除 quotaPerUnit 除法的精度损失（248.98775 → 248.99）
-    const roundedUsd = Math.round(usdAmount * 100) / 100;
-    return convertAndFormat(roundedUsd, normalizedDisplayCurrency);
-  };
-
-  // renderUsdAmount 将美元金额转换为本地币种展示（不经过 quotaPerUnit 除法）
-  // 先四舍五入到分，消除浮点精度损失
-  const renderUsdAmount = (usdValue) => {
-    const amount = Number(usdValue || 0);
-    if (!Number.isFinite(amount)) {
-      return convertAndFormat(0, normalizedDisplayCurrency);
-    }
-    const roundedUsd = Math.round(amount * 100) / 100;
-    return convertAndFormat(roundedUsd, normalizedDisplayCurrency);
-  };
-
   const renderBizTypeTag = (record) => {
     const config = getTopupBizTypeConfig(record);
     const inviteRebate = isInviteRebateTopup(record);
@@ -414,7 +381,7 @@ const RechargeCard = ({
           }
           // 优先使用后端返回的币种符号，回退到用户默认展示币种
           const paySymbol =
-            record.display_symbol || normalizedDisplayCurrency.symbol;
+            record.display_symbol || displayCurrency?.symbol || '$';
           return (
             <Text className='text-xl dark:!text-cyan-300' style={
               {
@@ -443,7 +410,7 @@ const RechargeCard = ({
         ),
       },
     ];
-  }, [normalizedDisplayCurrency.symbol, t]);
+  }, [displayCurrency?.symbol, t]);
 
   const topupContent = (
     <div className='space-y-6'>
@@ -755,7 +722,7 @@ const RechargeCard = ({
             </div>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-cyan-400' style={{ fontWeight: '900' }}>
-            {renderBalanceAmount(userState?.user?.quota)}
+            {formatDisplayMoney(userState?.user?.quota, displayCurrency?.symbol)}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2 flex items-center gap-1'>
             {t('当前账户剩余的全部金额')}
@@ -770,7 +737,7 @@ const RechargeCard = ({
             </h3>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            {renderBalanceAmount(userState?.user?.used_quota)}
+            {formatDisplayMoney(userState?.user?.used_quota, displayCurrency?.symbol)}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
             {t('历史全部的消耗金额')}
@@ -784,7 +751,7 @@ const RechargeCard = ({
             </h3>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            {renderUsdAmount(userState?.user?.total_topup_quota)}
+            {formatDisplayMoney(userState?.user?.total_topup_quota, displayCurrency?.symbol)}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
             {t('历史充值的全部金额')}
@@ -798,7 +765,7 @@ const RechargeCard = ({
             </h3>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            {renderUsdAmount(userState?.user?.welfare_quota)}
+            {formatDisplayMoney(userState?.user?.welfare_quota, displayCurrency?.symbol)}
           </p>
           <div className='flex items-center justify-between'>
             <span className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
