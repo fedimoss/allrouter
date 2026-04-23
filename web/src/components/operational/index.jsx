@@ -246,7 +246,7 @@ function ColumnMenu({ columns, visibleColumnKeys, onToggle }) {
   );
 }
 
-function renderCell(column, row) {
+function renderCell(column, row, displaySymbol) {
   const displayName = row.userId || '--';
   const subTitle = row.nickname || '';
 
@@ -283,22 +283,22 @@ function renderCell(column, row) {
     case 'lastActiveTime':
       return formatDateTime(row.lastActiveTime);
     case 'quota':
-      return formatQuotaValue(row.quota);
+      return formatQuotaValue(row.quota, displaySymbol);
     case 'requestCount':
       return formatInteger(row.requestCount);
     case 'topupQuota':
-      return formatQuotaValue(row.topupQuota);
+      return formatQuotaValue(row.topupQuota, displaySymbol);
     case 'welfareQuota':
-      return formatQuotaValue(row.welfareQuota);
+      return formatQuotaValue(row.welfareQuota, displaySymbol);
     case 'usedQuota':
-      return formatQuotaValue(row.usedQuota);
+      return formatQuotaValue(row.usedQuota, displaySymbol);
     case 'registerAt':
       return formatDateTime(row.registerAt);
     default:
       return hasValue(row[column.key]) ? String(row[column.key]) : '--';
   }
 }
-function DesktopTable({ columns, rows, sortState, onSortChange }) {
+function DesktopTable({ columns, rows, sortState, displaySymbol, onSortChange }) {
   return (
     <div className='overflow-x-auto'>
       <table className='min-w-full'>
@@ -339,7 +339,7 @@ function DesktopTable({ columns, rows, sortState, onSortChange }) {
               {columns.map((column) => (
                 <td key={column.key} className='px-4 py-5 align-middle'>
                   <div className='text-sm font-medium text-slate-700 dark:text-slate-200'>
-                    {renderCell(column, row)}
+                    {renderCell(column, row, displaySymbol)}
                   </div>
                 </td>
               ))}
@@ -351,7 +351,7 @@ function DesktopTable({ columns, rows, sortState, onSortChange }) {
   );
 }
 
-function MobileCards({ columns, rows }) {
+function MobileCards({ columns, rows, displaySymbol }) {
   return (
     <div className='space-y-4'>
       {rows.map((row) => {
@@ -377,7 +377,7 @@ function MobileCards({ columns, rows }) {
                       {column.title}
                     </p>
                     <div className='text-sm font-medium text-slate-700 dark:text-slate-200'>
-                      {renderCell(column, row)}
+                      {renderCell(column, row, displaySymbol)}
                     </div>
                   </div>
                 ))}
@@ -522,6 +522,7 @@ export default function Operational () {
   const [dashboardPayload, setDashboardPayload] = useState({});
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
+  const [displaySymbol, setDisplaySymbol] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [searchInput, setSearchInput] = useState('');
@@ -658,6 +659,7 @@ export default function Operational () {
         }
 
         const payload = extractListPayload(data);
+        setDisplaySymbol(data?.display_symbol || '');
         setRows(payload.list.map((item, index) => normalizeRow(activeTab, item, index)));
         setTotal(payload.total || 0);
         if (payload.pageSize && payload.pageSize !== pageSize) {
@@ -902,13 +904,14 @@ export default function Operational () {
                 <div className='hidden xl:block'>
                   <DesktopTable
                     columns={visibleColumns}
+                    displaySymbol={displaySymbol}
                     onSortChange={handleSortChange}
                     rows={rows}
                     sortState={sortState}
                   />
                 </div>
                 <div className='xl:hidden'>
-                  <MobileCards columns={visibleColumns} rows={rows} />
+                  <MobileCards columns={visibleColumns} rows={rows} displaySymbol={displaySymbol} />
                 </div>
               </>
             )}

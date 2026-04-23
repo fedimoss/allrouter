@@ -203,6 +203,9 @@ func GetUserOperationRecords(c *gin.Context) {
 		return
 	}
 
+	// 获取展示币种
+	displayInfo := getDisplayCurrencyForUser(c)
+
 	// 构建响应列表
 	items := make([]userRecordItem, 0, len(users))
 	for _, u := range users {
@@ -224,22 +227,33 @@ func GetUserOperationRecords(c *gin.Context) {
 		}
 
 		items = append(items, userRecordItem{
-			UserId:         u.Id,                                              // 用户ID
-			RequestCount:   countResult.SuccessCount + countResult.ErrorCount, // 使用次数
-			UsedQuota:      float64(u.UsedQuota) / common.QuotaPerUnit,        // 消耗情况
-			Invited:        u.InviterId > 0,                                   // 注册来源(是否是邀请注册)
-			CreatedAt:      u.CreatedAt,                                       // 注册时间
-			LastActiveTime: lastActiveMap[u.Id],                               // 最后活跃时间
-			Retention:      retention,                                         // 留存状态
-			Quota:          float64(u.Quota) / common.QuotaPerUnit,            // 余额
-			TopupQuota:     float64(topupMap[u.Id]) / common.QuotaPerUnit,     // 充值金额
-			WelfareQuota:   float64(welfareMap[u.Id]) / common.QuotaPerUnit,   // 福利金额
+			UserId:         u.Id,                                                      // 用户ID
+			RequestCount:   countResult.SuccessCount + countResult.ErrorCount,         // 使用次数
+			UsedQuota:      convertQuotaToDisplay(u.UsedQuota, displayInfo),           // 消耗情况
+			Invited:        u.InviterId > 0,                                           // 注册来源(是否是邀请注册)
+			CreatedAt:      u.CreatedAt,                                               // 注册时间
+			LastActiveTime: lastActiveMap[u.Id],                                       // 最后活跃时间
+			Retention:      retention,                                                 // 留存状态
+			Quota:          convertQuotaToDisplay(u.Quota, displayInfo),               // 余额
+			TopupQuota:     convertQuotaToDisplay(int(topupMap[u.Id]), displayInfo),   // 充值金额
+			WelfareQuota:   convertQuotaToDisplay(int(welfareMap[u.Id]), displayInfo), // 福利金额
 		})
 	}
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(items)
-	common.ApiSuccess(c, pageInfo)
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"page":             pageInfo.Page,
+			"page_size":        pageInfo.PageSize,
+			"total":            pageInfo.Total,
+			"items":            items,
+			"display_symbol":   displayInfo.Symbol,
+			"display_currency": displayInfo.Currency,
+		},
+	})
 }
 
 // GetDistributorOperationRecords 代理商列表
