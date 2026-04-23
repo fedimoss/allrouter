@@ -1050,17 +1050,11 @@ func RechargeWaffo(tradeNo string) (err error) {
 	return nil
 }
 
-// 管理员获取订单详情byid
-func GetTopUpDetailsById(id int) (*TopUpDetails, error) {
-	if id <= 0 {
-		return nil, errors.New("invalid topup id")
-	}
-
+func getTopUpDetails(query *gorm.DB) (*TopUpDetails, error) {
 	topUp := &TopUp{}
-	if err := DB.Model(&TopUp{}).
+	if err := query.
 		Select("top_ups.*, COALESCE(users.display_name, '') AS display_name").
 		Joins("LEFT JOIN users ON users.id = top_ups.user_id").
-		Where("top_ups.id = ?", id).
 		First(topUp).Error; err != nil {
 		return nil, err
 	}
@@ -1068,12 +1062,12 @@ func GetTopUpDetailsById(id int) (*TopUpDetails, error) {
 
 	var rebate *TopUpRebate
 	rebateRecord := &TopUpRebate{}
-	if err := DB.Where("topup_id = ?", id).First(rebateRecord).Error; err != nil {
+	if err := DB.Where("topup_id = ?", topUp.Id).First(rebateRecord).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
 	} else {
-		//计算返佣金额
+		// 计算返佣金额
 		rebateRecord.Money = decimal.NewFromInt(int64(rebateRecord.RebateQuota)).Div(decimal.NewFromFloat(common.QuotaPerUnit)).InexactFloat64()
 		rebateRecord.Status = common.TopUpStatusSuccess
 		rebate = rebateRecord
@@ -1083,4 +1077,24 @@ func GetTopUpDetailsById(id int) (*TopUpDetails, error) {
 		TopUp:      topUp,
 		Level1Rate: rebate,
 	}, nil
+}
+
+// GetTopUpDetailsById 管理员获取订单详情 by top_ups.id
+func GetTopUpDetailsById(id int) (*TopUpDetails, error) {
+	if id <= 0 {
+		return nil, errors.New("invalid topup id")
+	}
+
+	return getTopUpDetails(DB.Model(&TopUp{}).Where("top_ups.id = ?", id))
+}
+
+// GetTopUpDetailsByTradeNo 管理员获取订单详情 by trade_no
+// trade_no 是业务主键，适合前端在聚合列表里查询详情，避免混用 top_ups.id / topup_rebates.id
+func GetTopUpDetailsByTradeNo(tradeNo string) (*TopUpDetails, error) {
+	tradeNo = strings.TrimSpace(tradeNo)
+	if tradeNo == "" {
+		return nil, errors.New("invalid trade no")
+	}
+
+	return getTopUpDetails(DB.Model(&TopUp{}).Where("top_ups.trade_no = ?", tradeNo))
 }

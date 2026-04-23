@@ -537,15 +537,28 @@ func AdminCompleteTopUp(c *gin.Context) {
 // 管理员查看订单详情
 func GetUserTopupDetails(c *gin.Context) {
 	var req struct {
-		TopUpID int `json:"topup_id" form:"topup_id"`
+		TopUpID int    `json:"topup_id" form:"topup_id"`
+		TradeNo string `json:"trade_no" form:"trade_no"`
 	}
 
-	if err := c.ShouldBind(&req); err != nil || req.TopUpID <= 0 {
-		common.ApiErrorMsg(c, "无效的topup_id")
+	if err := c.ShouldBind(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
 
-	topDetails, err := model.GetTopUpDetailsById(req.TopUpID)
+	var (
+		topDetails *model.TopUpDetails
+		err        error
+	)
+	if req.TradeNo != "" {
+		topDetails, err = model.GetTopUpDetailsByTradeNo(req.TradeNo)
+	} else if req.TopUpID > 0 {
+		topDetails, err = model.GetTopUpDetailsById(req.TopUpID)
+	} else {
+		common.ApiErrorMsg(c, "无效的topup_id或trade_no")
+		return
+	}
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			common.ApiErrorMsg(c, "充值记录不存在")
