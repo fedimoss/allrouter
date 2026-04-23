@@ -62,8 +62,8 @@ func normalizeTopUps(topups []*TopUp) {
 			continue
 		}
 		bizType := topUp.GetBizType()
-		if bizType == "invite_rebate" {
-			topUp.PaymentMethod = "invite_rebate"
+		if bizType == "topup_rebate" {
+			topUp.PaymentMethod = "topup_rebate"
 			money := decimal.NewFromBigInt(big.NewInt(topUp.Amount), 0).Div(decimal.NewFromFloat(common.QuotaPerUnit)).InexactFloat64()
 			topUp.Money = money
 
