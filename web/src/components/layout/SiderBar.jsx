@@ -164,16 +164,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         badge: t('充值'),
         section: 'personal',
       },
-      ...(!isAdmin()
-        ? [
-            {
-              text: t('账单中心'),
-              itemKey: 'billing',
-              to: '/billing',
-              section: 'personal',
-            },
-          ]
-        : []),
+      // ...(isAdmin()
+      //   ? [
+      //       {
+      //         text: t('账单中心'),
+      //         itemKey: 'billing',
+      //         to: '/billing',
+      //         section: 'personal',
+      //       },
+      //     ]
+      //   : []),
       // {
       //   text: t('个人设置'),
       //   itemKey: 'personal',

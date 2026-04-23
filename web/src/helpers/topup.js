@@ -2,7 +2,7 @@ export const TOPUP_BIZ_TYPE_CONFIG = {
   payment: { label: '在线充值', color: 'blue' },
   subscription: { label: '订阅套餐', color: 'purple' },
   redemption: { label: '兑换码', color: 'cyan' },
-  invite_rebate: { label: '邀请返佣', color: 'green' },
+  topup_rebate: { label: '充值返佣', color: 'green' },
 };
 
 export const getTopupBizType = (record) => {
@@ -19,7 +19,7 @@ export const isSubscriptionTopup = (record) =>
   getTopupBizType(record) === 'subscription';
 
 export const isInviteRebateTopup = (record) =>
-  getTopupBizType(record) === 'invite_rebate';
+  getTopupBizType(record) === 'topup_rebate';
 
 export const getTopupBizTypeConfig = (record) => {
   const bizType = getTopupBizType(record);

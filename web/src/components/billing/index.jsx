@@ -356,10 +356,10 @@ const Billing = () => {
   const [selectedRecord, setSelectedRecord] = useState(null);
 
   const userIsAdmin = useMemo(() => isAdmin(), []);
-  const billingPageTitle = userIsAdmin ? t('账单管理') : t('账单中心');
+  const billingPageTitle = t('账单中心');
   const billingPageDescription = userIsAdmin
-    ? t('查看全平台充值、邀请返佣与用户账单状态。')
-    : t('查看您的充值、邀请返佣与消费明细。');
+    ? t('查看全平台充值、充值返佣与用户账单状态。')
+    : t('查看您的充值、充值返佣与消费明细。');
 
   const loadTopups = async (page, pageSize, keyword) => {
     setHistoryLoading(true);
@@ -826,12 +826,12 @@ const Billing = () => {
               <Tag color='green' shape='circle' size='small'>
                 <span className='inline-flex items-center gap-1'>
                   <Gift size={12} />
-                  {t('邀请返佣')}
+                  {t('充值返佣')}
                 </span>
               </Tag>
               {hasInviteRebateRecords ? (
                 <span className='text-xs text-emerald-600 dark:text-emerald-300'>
-                  {t('邀请返佣已自动入账，无需手动处理。')}
+                  {t('充值返佣已自动入账，无需手动处理。')}
                 </span>
               ) : null}
             </div>
