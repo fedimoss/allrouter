@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
+import { Modal, Typography, Card, Skeleton, Button, Toast } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
 
@@ -67,12 +67,20 @@ const PaymentConfirmModal = ({
         </div>
       }
       visible={open}
-      onOk={onlineTopUp}
+      // onOk={onlineTopUp}
       onCancel={handleCancel}
       maskClosable={false}
       size='small'
       centered
       confirmLoading={confirmLoading}
+      footer={
+        <>
+          <div className='flex justify-end'>
+            <Button onClick={handleCancel} style={{color:'#000'}}>{t('取消')}</Button>
+            <Button style={{ color: '#000', background:'linear-gradient(90deg, #09FEF7 0%, #BAFF29 100%)'}}  onClick={onlineTopUp}>{t('充值')}</Button>
+          </div>
+        </>
+      }
     >
       <div className='space-y-4'>
         <Card className='!rounded-xl !border-0 bg-slate-50 dark:bg-slate-800'>

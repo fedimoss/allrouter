@@ -16,7 +16,7 @@ html.dark .mjlog-v2-filter-card{box-shadow:0 16px 30px rgba(0,0,0,.2)}
 .mjlog-v2-header-icon{display:inline-flex;width:40px;height:40px;flex-shrink:0;align-items:center;justify-content:center;border-radius:14px;background:linear-gradient(135deg,#8b5cf6,#ec4899);color:#fff;box-shadow:0 16px 28px rgba(168,85,247,.24)}
 .mjlog-v2-header-copy{min-width:0}
 .mjlog-v2-header-title{margin:0;font-size:20px;font-weight:700;line-height:1.2;color:var(--mj-text)}
-.mjlog-v2-header-description{margin:4px 0 0;font-size:13px;color:var(--mj-text-muted)}
+.mjlog-v2-header-description{margin:4px 0 0;font-size:16px;color:#94A3B8}
 .mjlog-v2-header-tags{flex-wrap:wrap;justify-content:flex-end;gap:10px}
 .mjlog-v2-header-tag{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;border-radius:999px;padding:0 14px;font-size:13px;font-weight:600;white-space:nowrap}
 .mjlog-v2-header-tag-violet{border:1px solid #ddd6fe;background:#f5f3ff;color:#7c3aed}
