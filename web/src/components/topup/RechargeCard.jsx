@@ -56,8 +56,14 @@ import {
 } from 'lucide-react';
 import { IconGift, IconSearch } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { getCurrencyConfig } from '../../helpers/render';
-import { API, timestamp2string } from '../../helpers';
+import {
+  API,
+  timestamp2string,
+  getQuotaPerUnit,
+  normalizeDisplayCurrency,
+  convertUsdToDisplayAmount,
+  formatDisplayMoney,
+} from '../../helpers';
 import {
   getTopupBizTypeConfig,
   isInviteRebateTopup,
@@ -92,6 +98,8 @@ const RechargeCard = ({
   t,
   enableOnlineTopUp,
   enableStripeTopUp,
+  stripeCurrency,
+  displayCurrency,
   enableCreemTopUp,
   creemProducts,
   creemPreTopUp,
@@ -104,6 +112,7 @@ const RechargeCard = ({
   minTopUp,
   renderQuotaWithAmount,
   getAmount,
+  getStripeAmount,
   setTopUpCount,
   setSelectedPreset,
   renderAmount,
@@ -141,6 +150,11 @@ const RechargeCard = ({
   const [activeTab, setActiveTab] = useState('topup');
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;
+  // 将后端返回的展示币种配置标准化为统一结构，用于余额和历史金额的展示
+  const normalizedDisplayCurrency = useMemo(
+    () => normalizeDisplayCurrency(displayCurrency),
+    [displayCurrency],
+  );
 
   // 充值记录相关状态
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -302,6 +316,25 @@ const RechargeCard = ({
     return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
   };
 
+  // renderBalanceAmount 将内部 quota（额度）转换为用户本地币种的展示金额
+  // 步骤：quota ÷ quotaPerUnit → 美元金额 → 按汇率转换为本地币种 → 格式化输出
+  const renderBalanceAmount = (quota) => {
+    const quotaPerUnit = getQuotaPerUnit();
+    const normalizedQuota = Number(quota || 0);
+    // 额度或单位非法时显示 0
+    if (!Number.isFinite(normalizedQuota) || !Number.isFinite(quotaPerUnit) || quotaPerUnit <= 0) {
+      return formatDisplayMoney(0, normalizedDisplayCurrency.symbol);
+    }
+    // 先转为美元金额
+    const usdAmount = normalizedQuota / quotaPerUnit;
+    // 再按展示币种汇率转换
+    const displayAmount = convertUsdToDisplayAmount(
+      usdAmount,
+      normalizedDisplayCurrency,
+    );
+    return formatDisplayMoney(displayAmount, normalizedDisplayCurrency.symbol);
+  };
+
   const renderBizTypeTag = (record) => {
     const config = getTopupBizTypeConfig(record);
     const inviteRebate = isInviteRebateTopup(record);
@@ -315,9 +348,7 @@ const RechargeCard = ({
     );
   };
 
-
   const historyColumns = useMemo(() => {
-    const { symbol: localSymbol } = getCurrencyConfig();
     return [
       {
         title: t('流水号'),
@@ -373,9 +404,11 @@ const RechargeCard = ({
         render: (money, record) => {
           const normalizedMoney = Number(money || 0);
           if (normalizedMoney <= 0) {
-            return <Text type='tertiary'>-</Text>;
+            return <Text type="tertiary">-</Text>;
           }
-          const prefix = record.payment_method === 'stripe' ? '$' : localSymbol;
+          // 优先使用后端返回的币种符号，回退到用户默认展示币种
+          const paySymbol =
+            record.display_symbol || normalizedDisplayCurrency.symbol;
           return (
             <Text className='text-xl dark:!text-cyan-300' style={
               {
@@ -383,7 +416,7 @@ const RechargeCard = ({
                 color:'#1CDFD5'
               }
             }>
-              {prefix}{normalizedMoney.toFixed(2)}
+              {formatDisplayMoney(money, paySymbol)}
             </Text>
           );
         },
@@ -404,7 +437,7 @@ const RechargeCard = ({
         ),
       },
     ];
-  }, [t]);
+  }, [normalizedDisplayCurrency.symbol, t]);
 
   const topupContent = (
     <div className='space-y-6'>
@@ -428,7 +461,11 @@ const RechargeCard = ({
                   hideButtons
                   label={t('请输入充值金额')}
                   disabled={!enableOnlineTopUp && !enableStripeTopUp && !enableWaffoTopUp}
-                  placeholder={t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)}
+                  placeholder={
+                    stripeCurrency
+                      ? t('充值数量，最低 ') + (stripeCurrency.currency === 'CNY' ? '¥' : '$') + minTopUp
+                      : t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
+                  }
                   className='charge-input'
                   value={topUpCount}
                   min={minTopUp}
@@ -439,18 +476,36 @@ const RechargeCard = ({
                     if (value && value >= 1) {
                       setTopUpCount(value);
                       setSelectedPreset(null);
-                      await getAmount(value);
+                      // 有时区币种配置时，renderAmount 直接用 topUpCount 显示，无需调后端金额接口
+                      if (!stripeCurrency) {
+                        if (selectedPayMethod === 'stripe' && getStripeAmount) {
+                          await getStripeAmount(value);
+                        } else {
+                          await getAmount(value);
+                        }
+                      }
                     }
                   }}
                   onBlur={(e) => {
-                    const value = parseInt(e.target.value);
-                    if (!value || value < 1) {
-                      setTopUpCount(1);
-                      getAmount(1);
+                    // 输入框失焦时校验，无效值回退到最低充值数量
+                    const parsed = parseInt(e.target.value);
+                    if (!parsed || parsed < 1) {
+                      setTopUpCount(minTopUp);
+                      // 无时区币种配置时需重新请求金额
+                      if (!stripeCurrency) {
+                        if (selectedPayMethod === 'stripe' && getStripeAmount) {
+                          getStripeAmount(minTopUp);
+                        } else {
+                          getAmount(minTopUp);
+                        }
+                      }
                     }
                   }}
                   formatter={(value) => (value ? `${value}` : '')}
-                  parser={(value) => (value ? parseInt(value.replace(/[^\d]/g, '')) : 0)}
+                  parser={(value) => {
+                    if (!value) return 0;
+                    return parseInt(value.replace(/[^\d]/g, '')) || 0;
+                  }}
                   extraText={
                     <Skeleton
                       loading={showAmountSkeleton}
@@ -478,46 +533,15 @@ const RechargeCard = ({
                   label={
                     <div className='flex items-center gap-2'>
                       {/* <span>{t('选择充值额度')}</span> */}
-                      {(() => {
-                        const { symbol, rate, type } = getCurrencyConfig();
-                        if (type === 'USD') return null;
-                        return (
-                          <span className='text-xs text-slate-500 dark:text-slate-400'>
-                            (1 $ = {rate.toFixed(2)} {symbol})
-                          </span>
-                        );
-                      })()}
                     </div>
                   }
                 >
                   <div className='grid grid-cols-2 md:grid-cols-6 gap-3'>
                     {presetAmounts.map((preset, index) => {
                       const discount = preset.discount || topupInfo?.discount?.[preset.value] || 1.0;
-                      const originalPrice = preset.value * priceRatio;
-                      const discountedPrice = originalPrice * discount;
                       const hasDiscount = discount < 1.0;
-
-                      const { symbol, rate, type } = getCurrencyConfig();
-                      const statusStr = localStorage.getItem('status');
-                      let usdRate = 7;
-                      try {
-                        if (statusStr) {
-                          const s = JSON.parse(statusStr);
-                          usdRate = s?.usd_exchange_rate || 7;
-                        }
-                      } catch (e) {}
-
-                      let displayValue = preset.value;
-                      let displayActualPay = discountedPrice;
-
-                      if (type === 'USD') {
-                        displayActualPay = discountedPrice / usdRate;
-                      } else if (type === 'CNY') {
-                        displayValue = preset.value * usdRate;
-                      } else if (type === 'CUSTOM') {
-                        displayValue = preset.value * rate;
-                        displayActualPay = (discountedPrice / usdRate) * rate;
-                      }
+                      // 币种符号：中国时区显示 ¥，其他时区都显示 $
+                      const symbol = stripeCurrency?.currency === 'CNY' ? '¥' : '$';
 
                       return (
                         <button
@@ -529,11 +553,17 @@ const RechargeCard = ({
                               : 'bg-[#F8FAFC] text-slate-700 dark:bg-gray-800 dark:text-slate-200'
                           }`}
                           onClick={() => {
-                            selectPresetAmount(preset);
+                            setTopUpCount(preset.value);
+                            setSelectedPreset(preset.value);
                             onlineFormApiRef.current?.setValue('topUpCount', preset.value);
+                            // 有时区币种配置时无需调后端金额接口
+                            if (!stripeCurrency) {
+                              const disc = preset.discount || topupInfo?.discount?.[preset.value] || 1.0;
+                              setAmount(preset.value * priceRatio * disc);
+                            }
                           }}
                         >
-                          {formatLargeNumber(displayValue)} {symbol}
+                          {preset.value} {symbol}
                           {hasDiscount && (
                             <Tag style={{ marginLeft: 6 }} color='green' size='small'>
                               {t('折')}
@@ -719,7 +749,7 @@ const RechargeCard = ({
             </div>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-cyan-400' style={{ fontWeight: '900' }}>
-            {renderQuota(userState?.user?.quota)}
+            {renderBalanceAmount(userState?.user?.quota)}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2 flex items-center gap-1'>
             {t('当前账户剩余的全部金额')}
@@ -734,7 +764,7 @@ const RechargeCard = ({
             </h3>
           </div>
           <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            {renderQuota(userState?.user?.used_quota)}
+            {renderBalanceAmount(userState?.user?.used_quota)}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
             {t('历史全部的消耗金额')}

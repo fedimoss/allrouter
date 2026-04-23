@@ -455,6 +455,25 @@ func GetSelf(c *gin.Context) {
 	// 指定时间范围内的请求次数
 	periodRequestCount := requestResult.SuccessCount + requestResult.ErrorCount
 
+	// 和昨天的请求次数比较
+	var yesterdayChange string
+	oneDay := int64(24 * 60 * 60)
+	yesterdayStart := startTimestamp - oneDay
+	yesterdayEnd := endTimestamp - oneDay
+	var yesterdayResult model.RequestCountResult
+	if userRole == common.RoleRootUser || userRole == common.RoleAdminUser {
+		yesterdayResult, _ = model.CountRequestLogs(yesterdayStart, yesterdayEnd, 0)
+	} else {
+		yesterdayResult, _ = model.CountRequestLogs(yesterdayStart, yesterdayEnd, id)
+	}
+	yesterdayCount := yesterdayResult.SuccessCount + yesterdayResult.ErrorCount
+	requestCountDelta := periodRequestCount - yesterdayCount
+	if requestCountDelta == 0 {
+		yesterdayChange = "0"
+	} else {
+		yesterdayChange = fmt.Sprintf("%+d", requestCountDelta)
+	}
+
 	// 全部请求次数（无时间限制）
 	var totalRequestResult model.RequestCountResult
 	if userRole == common.RoleRootUser || userRole == common.RoleAdminUser {
@@ -475,38 +494,39 @@ func GetSelf(c *gin.Context) {
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
-		"id":                 user.Id,
-		"username":           user.Username,
-		"display_name":       user.DisplayName,
-		"avatar":             user.Avatar,
-		"role":               user.Role,
-		"status":             user.Status,
-		"email":              user.Email,
-		"github_id":          user.GitHubId,
-		"discord_id":         user.DiscordId,
-		"oidc_id":            user.OidcId,
-		"wechat_id":          user.WeChatId,
-		"telegram_id":        user.TelegramId,
-		"group":              user.Group,
-		"quota":              user.Quota,
-		"used_quota":         user.UsedQuota,
-		"request_count":      periodRequestCount, // 请求次数
-		"total_count":        totalRequestCount,  // 统计次数
-		"aff_code":           user.AffCode,
-		"aff_count":          user.AffCount,
-		"aff_quota":          user.AffQuota,
-		"aff_history_quota":  user.AffHistoryQuota,
-		"total_topup_quota":  totalTopupQuota, // 总充值金额
-		"welfare_quota":      welfareQuota,    // 福利奖励（兑换码+签到+邀请转移）
-		"inviter_id":         user.InviterId,
-		"linux_do_id":        user.LinuxDOId,
-		"setting":            user.Setting,
-		"stripe_customer":    user.StripeCustomer,
-		"phone_country_code": user.PhoneCountryCode,
-		"phone_number":       user.PhoneNumber,
-		"timezone":           user.Timezone,
-		"sidebar_modules":    userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":        permissions,                // 新增权限字段
+		"id":                   user.Id,
+		"username":             user.Username,
+		"display_name":         user.DisplayName,
+		"avatar":               user.Avatar,
+		"role":                 user.Role,
+		"status":               user.Status,
+		"email":                user.Email,
+		"github_id":            user.GitHubId,
+		"discord_id":           user.DiscordId,
+		"oidc_id":              user.OidcId,
+		"wechat_id":            user.WeChatId,
+		"telegram_id":          user.TelegramId,
+		"group":                user.Group,
+		"quota":                user.Quota,
+		"used_quota":           user.UsedQuota,
+		"request_count":        periodRequestCount, // 请求次数
+		"request_count_change": yesterdayChange,    // 和昨天相比的变化
+		"total_count":          totalRequestCount,  // 统计次数
+		"aff_code":             user.AffCode,
+		"aff_count":            user.AffCount,
+		"aff_quota":            user.AffQuota,
+		"aff_history_quota":    user.AffHistoryQuota,
+		"total_topup_quota":    totalTopupQuota, // 总充值金额
+		"welfare_quota":        welfareQuota,    // 福利奖励（兑换码+签到+邀请转移）
+		"inviter_id":           user.InviterId,
+		"linux_do_id":          user.LinuxDOId,
+		"setting":              user.Setting,
+		"stripe_customer":      user.StripeCustomer,
+		"phone_country_code":   user.PhoneCountryCode,
+		"phone_number":         user.PhoneNumber,
+		"timezone":             user.Timezone,
+		"sidebar_modules":      userSetting.SidebarModules, // 正确提取sidebar_modules字段
+		"permissions":          permissions,                // 新增权限字段
 	}
 
 	c.JSON(http.StatusOK, gin.H{

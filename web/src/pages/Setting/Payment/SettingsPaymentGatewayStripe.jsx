@@ -26,6 +26,8 @@ import {
   Col,
   Typography,
   Spin,
+  Input,
+  InputNumber,
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import {
@@ -36,13 +38,18 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
+// 固定支持的币种列表：币种代码 → 显示标签
+const CURRENCY_LABELS = {
+  USD: 'USD ($)',
+  CNY: 'CNY (¥)',
+};
+
 export default function SettingsPaymentGateway(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     StripeApiSecret: '',
     StripeWebhookSecret: '',
-    StripePriceId: '',
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
@@ -50,12 +57,46 @@ export default function SettingsPaymentGateway(props) {
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
 
+  // 币种 → Stripe Price ID 的映射，用于多币种支付
+  const [currencyPriceIds, setCurrencyPriceIds] = useState({
+    USD: '', // 美元对应的 Stripe 商品价格 ID
+    CNY: '', // 人民币对应的 Stripe 商品价格 ID
+  });
+  // 人民币对美元的汇率，初始值从后端加载，未配置时默认 7.25
+  const [cnyUnitPrice, setCnyUnitPrice] = useState(7.25);
+
+  // 加载币种 Stripe 配置（从后端 currency_stripe_config 表获取）
+  useEffect(() => {
+    const fetchCurrencyConfigs = async () => {
+      try {
+        const res = await API.get('/api/currency-stripe-config/');
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          const mapping = { USD: '', CNY: '' };
+          res.data.data.forEach((cfg) => {
+            // 只处理白名单中的币种
+            if (cfg.currency in mapping) {
+              mapping[cfg.currency] = cfg.stripe_price_id || '';
+            }
+            // 更新人民币汇率
+            if (cfg.currency === 'CNY' && Number(cfg.unit_price) > 0) {
+              setCnyUnitPrice(Number(cfg.unit_price));
+            }
+          });
+          setCurrencyPriceIds(mapping);
+        }
+      } catch (e) {
+        // 表可能尚未创建（首次运行），静默忽略
+      }
+    };
+    fetchCurrencyConfigs();
+  }, []);
+
+  // 加载其他 Stripe 选项
   useEffect(() => {
     if (props.options && formApiRef.current) {
       const currentInputs = {
         StripeApiSecret: props.options.StripeApiSecret || '',
         StripeWebhookSecret: props.options.StripeWebhookSecret || '',
-        StripePriceId: props.options.StripePriceId || '',
         StripeUnitPrice:
           props.options.StripeUnitPrice !== undefined
             ? parseFloat(props.options.StripeUnitPrice)
@@ -84,6 +125,11 @@ export default function SettingsPaymentGateway(props) {
       showError(t('请先填写服务器地址'));
       return;
     }
+    // 校验人民币汇率必须为有效正数
+    if (!Number.isFinite(Number(cnyUnitPrice)) || Number(cnyUnitPrice) <= 0) {
+      showError(t('请输入有效的人民币价格比例'));
+      return;
+    }
 
     setLoading(true);
     try {
@@ -97,9 +143,6 @@ export default function SettingsPaymentGateway(props) {
           key: 'StripeWebhookSecret',
           value: inputs.StripeWebhookSecret,
         });
-      }
-      if (inputs.StripePriceId !== '') {
-        options.push({ key: 'StripePriceId', value: inputs.StripePriceId });
       }
       if (
         inputs.StripeUnitPrice !== undefined &&
@@ -130,11 +173,28 @@ export default function SettingsPaymentGateway(props) {
         });
       }
 
-      // 发送请求
+      // 发送普通选项请求
       const requestQueue = options.map((opt) =>
         API.put('/api/option/', {
           key: opt.key,
           value: opt.value,
+        }),
+      );
+
+      // 同时发送币种价格 ID 配置请求（写 currency_stripe_config 表）
+      requestQueue.push(
+        API.put('/api/currency-stripe-config/', {
+          // 遍历所有币种，CNY 时附带汇率
+          configs: Object.entries(currencyPriceIds).map(
+            ([currency, stripe_price_id]) => ({
+              currency,
+              stripe_price_id,
+              // 人民币额外提交汇率
+              ...(currency === 'CNY'
+                ? { unit_price: Number(cnyUnitPrice) }
+                : {}),
+            }),
+          ),
         }),
       );
 
@@ -213,14 +273,50 @@ export default function SettingsPaymentGateway(props) {
                 type='password'
               />
             </Col>
+          </Row>
+
+          {/* 币种 → 商品价格 ID 映射 */}
+          <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
+            {Object.entries(CURRENCY_LABELS).map(([currency]) => (
+              <Col key={currency} xs={24} sm={12} md={8} lg={8} xl={8}>
+                <div style={{ marginTop: 16, marginBottom: 4 }}>
+                  <Text strong>
+                    {`${t('商品价格 ID')} ${currency === 'USD' ? '($)' : '(¥)'}`}
+                  </Text>
+                </div>
+                <Input
+                  value={currencyPriceIds[currency]}
+                  onChange={(value) =>
+                    setCurrencyPriceIds((prev) => ({
+                      ...prev,
+                      [currency]: value,
+                    }))
+                  }
+                  placeholder={t('price_xxx 的商品价格 ID')}
+                />
+              </Col>
+            ))}
+          </Row>
+
+          <Row
+            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+            style={{ marginTop: 16 }}
+          >
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='StripePriceId'
-                label={t('商品价格 ID')}
-                placeholder={t('price_xxx 的商品价格 ID，新建产品后可获得')}
+              <div style={{ marginBottom: 4 }}>
+                <Text strong>{t('美元人民币汇率')}</Text>
+              </div>
+              <InputNumber
+                value={cnyUnitPrice}
+                min={0.000001}
+                precision={6}
+                step={0.01}
+                onChange={(value) => setCnyUnitPrice(value)}
+                placeholder={t('例如：7.25')}
               />
             </Col>
           </Row>
+
           <Row
             gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
             style={{ marginTop: 16 }}

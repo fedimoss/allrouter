@@ -48,7 +48,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import { IconSearch, IconCopy, IconEyeOpened } from '@douyinfe/semi-icons';
-import { API, timestamp2string } from '../../helpers';
+import { API, timestamp2string, formatDisplayMoney } from '../../helpers';
 import {
   getTopupBizTypeConfig,
   isInviteRebateTopup,
@@ -646,16 +646,15 @@ const Billing = () => {
         render: (money, record) => {
           const normalizedMoney = Number(money || 0);
           if (normalizedMoney <= 0) {
-            return <Text type='tertiary'>-</Text>;
+            return <Text type="tertiary">-</Text>;
           }
-          const prefix =
-            record.payment_method === 'stripe'
-              ? '$'
-              : '￥';
+          // 优先使用后端返回的币种符号，Stripe 默认 $，其他默认 ¥
+          const paySymbol =
+            record.display_symbol ||
+            (record.payment_method === "stripe" ? "$" : "¥");
           return (
-            <Text type='danger'>
-              {prefix}
-              {normalizedMoney.toFixed(2)}
+            <Text type="danger">
+              {formatDisplayMoney(money, paySymbol)}
             </Text>
           );
         },

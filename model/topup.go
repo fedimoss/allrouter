@@ -20,19 +20,22 @@ import (
 // TopUp 充值记录数据模型
 // 记录用户所有的充值行为，包括在线支付、兑换码、订阅等
 type TopUp struct {
-	Id            int     `json:"id"`                                                     // 充值记录ID（主键）
-	UserId        int     `json:"user_id" gorm:"index"`                                   // 用户ID（索引）
-	Amount        int64   `json:"amount"`                                                 // 充值额度（基础额度，未计算分组倍率）
-	Money         float64 `json:"money"`                                                  // 支付金额（美元）
-	TradeNo       string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`         // 交易号（唯一索引）
-	PaymentMethod string  `json:"payment_method" gorm:"type:varchar(50)"`                 // 支付方式（stripe/creem/waffo/epay等）
-	BizType       string  `json:"biz_type" gorm:"type:varchar(32);default:payment;index"` // 业务类型（payment/subscription/redemption）
-	SourceID      int     `json:"source_id" gorm:"default:0;index"`                       // 关联源ID（订阅ID/兑换码ID等）
-	CreateTime    int64   `json:"create_time"`                                            // 创建时间（Unix时间戳）
-	CompleteTime  int64   `json:"complete_time"`                                          // 完成时间（Unix时间戳）
-	Status        string  `json:"status"`                                                 // 状态（pending/success/failed等）
-	DisplayName   string  `json:"display_name" gorm:"->;-:migration;column:display_name"` // 用户昵称（从users表关联）
+	Id              int     `json:"id"`                                                     // 充值记录ID（主键）
+	UserId          int     `json:"user_id" gorm:"index"`                                   // 用户ID（索引）
+	Amount          int64   `json:"amount"`                                                 // 充值额度（基础额度，未计算分组倍率）
+	Money           float64 `json:"money"`                                                  // 支付金额（美元）
+	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`         // 交易号（唯一索引）
+	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`                 // 支付方式（stripe/creem/waffo/epay等）
+	BizType         string  `json:"biz_type" gorm:"type:varchar(32);default:payment;index"` // 业务类型（payment/subscription/redemption）
+	SourceID        int     `json:"source_id" gorm:"default:0;index"`                       // 关联源ID（订阅ID/兑换码ID等）
+	CreateTime      int64   `json:"create_time"`                                            // 创建时间（Unix时间戳）
+	CompleteTime    int64   `json:"complete_time"`                                          // 完成时间（Unix时间戳）
+	Status          string  `json:"status"`                                                 // 状态（pending/success/failed等）
+	DisplayName     string  `json:"display_name" gorm:"->;-:migration;column:display_name"` // 用户昵称（从users表关联）
+	DisplayCurrency string  `json:"display_currency,omitempty" gorm:"-"`                    // 展示用币种代码（非数据库字段，由 controller 层填充）
+	DisplaySymbol   string  `json:"display_symbol,omitempty" gorm:"-"`                      // 展示用币种符号（非数据库字段，由 controller 层填充）
 }
+
 type TopUpDetails struct {
 	*TopUp     `json:"topup"`
 	Level1Rate *TopUpRebate `json:"level1_rate"`

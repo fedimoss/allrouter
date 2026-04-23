@@ -65,6 +65,14 @@ const TopUp = () => {
   const [enableStripeTopUp, setEnableStripeTopUp] = useState(
     statusState?.status?.enable_stripe_topup || false,
   );
+  // 当前用户的 Stripe 币种配置（根据时区映射得到），null 表示未配置
+  const [stripeCurrency, setStripeCurrency] = useState(null);
+  // 当前用户的展示币种信息，用于余额和历史金额的币种转换
+  const [displayCurrency, setDisplayCurrency] = useState({
+    currency: 'USD',
+    symbol: '$',
+    unitPrice: 1,
+  });
   const [statusLoading, setStatusLoading] = useState(true);
 
   // Creem 相关状态
@@ -171,10 +179,13 @@ const TopUp = () => {
     setPayWay(payment);
     setPaymentLoading(true);
     try {
-      if (payment === 'stripe') {
-        await getStripeAmount();
-      } else {
-        await getAmount();
+      // 有时区币种配置时，renderAmount 直接用 topUpCount 显示，无需调后端金额接口
+      if (!stripeCurrency) {
+        if (payment === 'stripe') {
+          await getStripeAmount();
+        } else {
+          await getAmount();
+        }
       }
 
       if (topUpCount < minTopUp) {
@@ -190,15 +201,18 @@ const TopUp = () => {
   };
 
   const onlineTopUp = async () => {
-    if (payWay === 'stripe') {
-      // Stripe 支付处理
-      if (amount === 0) {
-        await getStripeAmount();
-      }
-    } else {
-      // 普通支付处理
-      if (amount === 0) {
-        await getAmount();
+    // 有时区币种配置时跳过金额查询，直接用 topUpCount 作为展示金额
+    if (!stripeCurrency) {
+      if (payWay === 'stripe') {
+        // Stripe 支付且金额未计算时，先请求后端计算
+        if (amount === 0) {
+          await getStripeAmount();
+        }
+      } else {
+        // 其他支付方式且金额未计算时，先请求后端计算
+        if (amount === 0) {
+          await getAmount();
+        }
       }
     }
 
@@ -493,6 +507,23 @@ const TopUp = () => {
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
+          // 保存后端返回的展示币种信息，用于余额和历史金额的币种转换
+          setDisplayCurrency({
+            currency: data.display_currency || 'USD',
+            symbol: data.display_symbol || '$',
+            unitPrice: data.display_unit_price || 1,
+          });
+          // 保存后端根据用户时区匹配的 Stripe 币种配置
+          if (data.stripe_currency) {
+            setStripeCurrency({
+              currency: data.stripe_currency,
+              symbol: data.stripe_symbol || '$',
+              unitPrice: data.stripe_unit_price || 1,
+            });
+          } else {
+            // 无时区映射时清空，回退到全局配置
+            setStripeCurrency(null);
+          }
           const enableWaffoTopUp = data.enable_waffo_topup || false;
           setEnableWaffoTopUp(enableWaffoTopUp);
           setWaffoPayMethods(data.waffo_pay_methods || []);
@@ -510,11 +541,13 @@ const TopUp = () => {
 
           // 如果没有自定义充值数量选项，根据最小充值金额生成预设充值额度选项
           if (topupInfo.amount_options.length === 0) {
-            setPresetAmounts(generatePresetAmounts(minTopUpValue));
+            setPresetAmounts(generatePresetAmounts());
           }
 
-          // 初始化显示实付金额
-          getAmount(minTopUpValue);
+          // 初始化显示实付金额：stripeCurrency 时 renderAmount 直接用 topUpCount，无需调 API
+          if (!data.stripe_currency) {
+            getAmount(minTopUpValue);
+          }
         } catch (e) {
           setPayMethods([]);
         }
@@ -612,9 +645,12 @@ const TopUp = () => {
   }, [statusState?.status]);
 
   const renderAmount = () => {
-    // if (payWay === 'stripe') {
-    //   return `${amount} $`;
-    // }
+    // 有时区币种配置时，直接用用户输入的数量 + 币种符号显示（输入多少显示多少）
+    // 币种符号：中国时区显示 ¥，其他时区都显示 $；金额均为整数
+    if (stripeCurrency) {
+      const symbol = stripeCurrency.currency === 'CNY' ? '¥' : '$';
+      return `${symbol}${parseInt(topUpCount) || 0}`;
+    }
     return amount + ' ' + t('元');
   };
 
@@ -700,12 +736,9 @@ const TopUp = () => {
     return num.toString();
   };
 
-  // 根据最小充值金额生成预设充值额度选项
-  const generatePresetAmounts = (minAmount) => {
-    const multipliers = [1, 5, 10, 30, 50, 100, 300, 500];
-    return multipliers.map((multiplier) => ({
-      value: minAmount * multiplier,
-    }));
+  // 固定预设充值额度选项
+  const generatePresetAmounts = () => {
+    return [10, 20, 50, 100, 200, 500].map((value) => ({ value }));
   };
 
   return (
@@ -731,13 +764,14 @@ const TopUp = () => {
         handleCancel={handleCancel}
         confirmLoading={confirmLoading}
         topUpCount={topUpCount}
-        renderQuotaWithAmount={renderQuotaWithAmount}
         amountLoading={amountLoading}
         renderAmount={renderAmount}
         payWay={payWay}
         payMethods={payMethods}
         amountNumber={amount}
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
+        // 币种符号：中国时区显示 ¥，其他时区都显示 $
+        stripeSymbol={stripeCurrency?.currency === 'CNY' ? '¥' : '$'}
       />
 
       {/* Creem 充值确认模态框 */}
@@ -774,6 +808,8 @@ const TopUp = () => {
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}
           enableStripeTopUp={enableStripeTopUp}
+          stripeCurrency={stripeCurrency}
+          displayCurrency={displayCurrency}
           enableCreemTopUp={enableCreemTopUp}
           creemProducts={creemProducts}
           creemPreTopUp={creemPreTopUp}
@@ -789,6 +825,7 @@ const TopUp = () => {
           minTopUp={minTopUp}
           renderQuotaWithAmount={renderQuotaWithAmount}
           getAmount={getAmount}
+          getStripeAmount={getStripeAmount}
           setTopUpCount={setTopUpCount}
           setSelectedPreset={setSelectedPreset}
           renderAmount={renderAmount}
