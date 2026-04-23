@@ -117,7 +117,7 @@ func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
 			tr.created_at AS create_time,
 			0 AS complete_time,
 			'' AS status,
-			'invite_rebate' AS biz_type,
+			'topup_rebate' AS biz_type,
 			0 AS source_id,
 			COALESCE(users.display_name, '') AS display_name
 		FROM topup_rebates AS tr
