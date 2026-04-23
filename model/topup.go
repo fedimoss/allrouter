@@ -65,8 +65,8 @@ func normalizeTopUps(topups []*TopUp) {
 			continue
 		}
 		bizType := topUp.GetBizType()
-		if bizType == "invite_rebate" {
-			topUp.PaymentMethod = "invite_rebate"
+		if bizType == "topup_rebate" {
+			topUp.PaymentMethod = "topup_rebate"
 			money := decimal.NewFromBigInt(big.NewInt(topUp.Amount), 0).Div(decimal.NewFromFloat(common.QuotaPerUnit)).InexactFloat64()
 			topUp.Money = money
 
@@ -120,7 +120,7 @@ func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
 			tr.created_at AS create_time,
 			0 AS complete_time,
 			'' AS status,
-			'invite_rebate' AS biz_type,
+			'topup_rebate' AS biz_type,
 			0 AS source_id,
 			COALESCE(users.display_name, '') AS display_name
 		FROM topup_rebates AS tr
