@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/samber/hot"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -504,6 +505,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	return sub, nil
 }
 
+// 订阅成功后处理逻辑
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.
 func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentMethod string) error {
 	if tradeNo == "" {
@@ -547,6 +549,13 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		}
 		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
 			return err
+		}
+		paidQuota := int(decimal.NewFromFloat(order.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		if paidQuota > 0 {
+			if err := tx.Model(&User{}).Where("id = ?", order.UserId).
+				Update("used_quota", gorm.Expr("used_quota + ?", paidQuota)).Error; err != nil {
+				return err
+			}
 		}
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = common.GetTimestamp()
