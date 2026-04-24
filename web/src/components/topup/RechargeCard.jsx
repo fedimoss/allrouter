@@ -796,8 +796,8 @@ const RechargeCard = ({
             {userState?.user?.request_count || 0}
           </p>
           <div className='flex items-center justify-between'>
-            <span className='text-[12px] text-[#1CDFD5] flex items-center  mt-2' onClick={toInvitationDetail}>
-              <TrendingUp size={16} className='mr-1' /> {t('较昨日') + ' +' + (userState?.user?.request_count_change || 0)}
+            <span className='text-[12px] text-[#1CDFD5] flex items-center  mt-2'>
+              <TrendingUp size={16} className='mr-1' /> {t('较昨日') + (userState?.user?.request_count_change || 0)}
             </span>
           </div>
         </div>
