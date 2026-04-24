@@ -80,6 +80,7 @@ const Dashboard = () => {
     dashboardData.times,
     dashboardData.trendData,
     dashboardData.performanceMetrics,
+    dashboardData.displayCurrency,
     dashboardData.navigate,
     dashboardData.t,
   );

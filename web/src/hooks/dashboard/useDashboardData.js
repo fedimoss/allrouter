@@ -60,7 +60,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [pieData, setPieData] = useState([{ type: 'null', value: '0' }]);
   const [lineData, setLineData] = useState([]);
   const [modelColors, setModelColors] = useState({});
-
+  const [displayCurrency, setDisplayCurrency] = useState({ currency: 'USD', rate: 1, symbol: '$' });
+  
   // ========== 图表状态 ==========
   const [activeChartTab, setActiveChartTab] = useState('1');
 
@@ -174,6 +175,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       const res = await API.get(url);
       const { success, message, data } = res.data;
       if (success) {
+        // 存储后端返回的展示币种信息（根据用户时区从 currency_stripe_config 表获取）
+        setDisplayCurrency({
+          currency: res.data.display_currency || 'USD',
+          unit_price: res.data.display_rate || 1,
+        });
         setQuotaData(data);
         if (data.length === 0) {
           data.push({
@@ -302,6 +308,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setLineData,
     modelColors,
     setModelColors,
+    displayCurrency,
 
     // 图表状态
     activeChartTab,
