@@ -30,6 +30,24 @@ func amountStringMatchesMoney(amount string, expected float64) bool {
 	return dAmount.Round(2).Equal(normalizeMoneyDecimal(expected))
 }
 
+// epayCallbackMoneyMatches epay 回调金额是人民币，topUp.Money 存储美元等值金额，
+// 需要先把回调的人民币换算为美元再比对。
+func epayCallbackMoneyMatches(cnyAmount string, expectedUsd float64) bool {
+	if strings.TrimSpace(cnyAmount) == "" {
+		return false
+	}
+	dCny, err := decimal.NewFromString(strings.TrimSpace(cnyAmount))
+	if err != nil || !dCny.IsPositive() {
+		return false
+	}
+	cnyConfig, err := model.GetCurrencyConfig("CNY")
+	if err != nil || cnyConfig == nil || cnyConfig.UnitPrice <= 0 {
+		return false
+	}
+	dUsd := dCny.Div(decimal.NewFromFloat(cnyConfig.UnitPrice)).Round(6)
+	return dUsd.Equal(normalizeMoneyPrecisionDecimal(expectedUsd))
+}
+
 // minorUnitAmountMatchesMoney 比较支付网关返回的"分/美分"等最小货币单位金额与本地订单金额是否一致。
 func minorUnitAmountMatchesMoney(amount int, currency string, expected float64) bool {
 	dAmount := decimal.NewFromInt(int64(amount))

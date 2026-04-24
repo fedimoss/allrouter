@@ -39,6 +39,7 @@ const PaymentConfirmModal = ({
   amountNumber,
   discountRate,
   stripeSymbol, // Stripe 支付的币种符号（根据用户时区决定，如 ¥ 或 $）
+  displayCurrency, // 展示币种信息 { currency, symbol, unitPrice }
 }) => {
   // 判断是否有有效折扣（0 < 折扣率 < 1 且原价大于 0）
   const hasDiscount =
@@ -47,14 +48,40 @@ const PaymentConfirmModal = ({
   const originalAmount = hasDiscount ? amountNumber / discountRate : 0;
   // 计算优惠金额
   const discountAmount = hasDiscount ? originalAmount - amountNumber : 0;
-  // 格式化金额：Stripe 支付时使用传入的币种符号（整数），否则显示"元"（两位小数）
-  const formatAmount = (value, { negative = false } = {}) => {
+
+  // 判断是否为微信/支付宝等人民币支付方式
+  const isCNYOnlyPayment = payWay === 'wxpay' || payWay === 'alipay';
+  // 用户展示币种是否为美元
+  const isUSDDisplay = displayCurrency?.currency !== 'CNY';
+
+  // 将金额从美元换算为人民币（美元金额 × CNY 汇率）
+  const convertUsdToCNY = (usdValue) => {
+    const rate = displayCurrency?.cnyRate || 1;
+    return (Number(usdValue) * rate).toFixed(1);
+  };
+
+  // 格式化"充值数量"：始终使用用户展示币种符号
+  const formatChargeAmount = (value) => {
     if (payWay === 'stripe') {
-      // Stripe 支付：显示币种符号 + 整数金额
+      const sym = stripeSymbol || '$';
+      return `${sym}${parseInt(value) || 0}`;
+    }
+    // 微信/支付宝：显示展示币种符号（美元用户显示 $，人民币用户显示 ¥）
+    const sym = displayCurrency?.symbol || '$';
+    return `${sym}${parseInt(value) || 0}`;
+  };
+
+  // 格式化"实付金额"：微信/支付宝始终显示人民币，美元用户需换算
+  const formatPayAmount = (value, { negative = false } = {}) => {
+    if (payWay === 'stripe') {
       const sym = stripeSymbol || '$';
       return `${negative ? '-' : ''}${sym}${parseInt(value) || 0}`;
     }
-    // 其他支付方式：显示两位小数 + "元"
+    // 微信/支付宝：美元用户换算为人民币，人民币用户直接显示
+    if (isCNYOnlyPayment && isUSDDisplay) {
+      const cnyAmount = convertUsdToCNY(value);
+      return `${negative ? '- ' : ''}${cnyAmount} ${t('元')}`;
+    }
     const numericValue = Number(value || 0).toFixed(2);
     return `${negative ? '- ' : ''}${numericValue} ${t('元')}`;
   };
@@ -90,7 +117,7 @@ const PaymentConfirmModal = ({
                 {t('充值数量')}：
               </Text>
               <Text className='text-slate-900 dark:text-slate-100'>
-                {formatAmount(topUpCount)}
+                {formatChargeAmount(topUpCount)}
               </Text>
             </div>
             <div className='flex justify-between items-center'>
@@ -102,7 +129,7 @@ const PaymentConfirmModal = ({
               ) : (
                 <div className='flex items-baseline space-x-2'>
                   <Text strong className='font-bold' style={{ color: 'red' }}>
-                    {renderAmount()}
+                    {formatPayAmount(topUpCount)}
                   </Text>
                   {hasDiscount && (
                     <Text size='small' className='text-rose-500'>
@@ -119,7 +146,7 @@ const PaymentConfirmModal = ({
                     {t('原价')}：
                   </Text>
                   <Text delete className='text-slate-500 dark:text-slate-400'>
-                      {formatAmount(originalAmount)}
+                      {formatPayAmount(originalAmount)}
 
                   </Text>
                 </div>
@@ -128,7 +155,7 @@ const PaymentConfirmModal = ({
                     {t('优惠')}：
                   </Text>
                   <Text className='text-emerald-600 dark:text-emerald-400'>
-                    {formatAmount(discountAmount, { negative: true })}
+                    {formatPayAmount(discountAmount, { negative: true })}
                   </Text>
                 </div>
               </>

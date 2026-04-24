@@ -130,6 +130,10 @@ func GetTopUpInfo(c *gin.Context) {
 		"display_symbol":     displayInfo.Symbol,
 		"display_unit_price": displayInfo.Rate,
 	}
+	// 附加 CNY 汇率，供微信/支付宝支付时 USD→CNY 换算使用
+	if cnyConfig, err := model.GetCurrencyConfig("CNY"); err == nil && cnyConfig.UnitPrice > 0 {
+		data["cny_unit_price"] = cnyConfig.UnitPrice
+	}
 	// 附加币种信息供前端展示
 	if stripeCurrency != nil {
 		data["stripe_currency"] = stripeCurrency.Currency
@@ -221,7 +225,30 @@ func RequestEpay(c *gin.Context) {
 		return
 	}
 	payMoney := getPayMoney(req.Amount, group)
-	if payMoney < 0.01 {
+
+	// epay 只接受人民币，统一换算：
+	//   epayChargeMoney → 发给 epay 的人民币金额
+	//   usdMoney        → 存入 top_ups.money 的美元等值金额（与 Stripe 一致）
+	displayInfo := getDisplayCurrencyForUser(c)
+	cnyConfig, _ := model.GetCurrencyConfig("CNY")
+	cnyRate := 1.0
+	if cnyConfig != nil && cnyConfig.UnitPrice > 0 {
+		cnyRate = cnyConfig.UnitPrice
+	}
+
+	var epayChargeMoney float64 // 发送给 epay 的 CNY 金额
+	var usdMoney float64        // 存入 DB 的 USD 金额
+	if displayInfo.Currency == "CNY" {
+		// CNY 用户：payMoney 是人民币
+		epayChargeMoney = payMoney
+		usdMoney = decimal.NewFromFloat(payMoney).Div(decimal.NewFromFloat(cnyRate)).Round(6).InexactFloat64()
+	} else {
+		// USD 用户：payMoney 是美元
+		epayChargeMoney = decimal.NewFromFloat(payMoney).Mul(decimal.NewFromFloat(cnyRate)).Round(2).InexactFloat64()
+		usdMoney = payMoney
+	}
+
+	if epayChargeMoney < 0.01 {
 		c.JSON(200, gin.H{"message": "error", "data": "充值金额过低"})
 		return
 	}
@@ -245,7 +272,7 @@ func RequestEpay(c *gin.Context) {
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
 		Name:           fmt.Sprintf("TUC%d", req.Amount),
-		Money:          strconv.FormatFloat(payMoney, 'f', 2, 64),
+		Money:          strconv.FormatFloat(epayChargeMoney, 'f', 2, 64),
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
 		ReturnUrl:      returnUrl,
@@ -263,7 +290,7 @@ func RequestEpay(c *gin.Context) {
 	topUp := &model.TopUp{
 		UserId:        id,
 		Amount:        amount,
-		Money:         payMoney,
+		Money:         usdMoney,
 		TradeNo:       tradeNo,
 		PaymentMethod: req.PaymentMethod,
 		BizType:       model.TopUpBizTypePayment,
@@ -378,8 +405,8 @@ func EpayNotify(c *gin.Context) {
 			_, _ = c.Writer.Write([]byte("fail"))
 			return
 		}
-		if !amountStringMatchesMoney(verifyInfo.Money, topUp.Money) {
-			log.Printf("易支付回调金额校验失败: tradeNo=%s, callback_money=%s, local_money=%.2f", verifyInfo.ServiceTradeNo, verifyInfo.Money, topUp.Money)
+		if !epayCallbackMoneyMatches(verifyInfo.Money, topUp.Money) {
+			log.Printf("易支付回调金额校验失败: tradeNo=%s, callback_money=%s, local_money=%.6f", verifyInfo.ServiceTradeNo, verifyInfo.Money, topUp.Money)
 			_, _ = c.Writer.Write([]byte("fail"))
 			return
 		}
