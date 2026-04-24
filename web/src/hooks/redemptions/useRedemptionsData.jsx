@@ -39,6 +39,7 @@ export const useRedemptionsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [tokenCount, setTokenCount] = useState(0);
   const [selectedKeys, setSelectedKeys] = useState([]);
+  const [displaySymbol, setDisplaySymbol] = useState('');
 
   // Edit state
   const [editingRedemption, setEditingRedemption] = useState({
@@ -82,6 +83,7 @@ export const useRedemptionsData = () => {
         const newPageData = data.items;
         setActivePage(data.page <= 0 ? 1 : data.page);
         setTokenCount(data.total);
+        setDisplaySymbol(data.display_symbol || '');
         setRedemptionFormat(newPageData);
       } else {
         showError(message);
@@ -312,6 +314,7 @@ export const useRedemptionsData = () => {
     pageSize,
     tokenCount,
     selectedKeys,
+    displaySymbol,
 
     // Edit state
     editingRedemption,

@@ -248,20 +248,21 @@ func GetSelfBill(c *gin.Context) {
 	// }
 	// inviteQuota := inviteCount * int64(common.QuotaForInviter)
 
-	// 当前周期净变动 = 充值 + 获赠(兑换码) - 消费
-	netChange := paymentAmount + redemptionAmount - int64(currentQuota)
+	// 当前周期净变动 = 充值(money,美元) + 获赠(兑换码,money,美元) - 消费(内部额度→美元)
+	currentQuotaUsd := float64(currentQuota) / common.QuotaPerUnit
+	netChange := paymentAmount + redemptionAmount - currentQuotaUsd
 
-	// 币种转换：内部额度 ÷ QuotaPerUnit → 美元 → 按汇率转换为本地币种
+	// paymentAmount / redemptionAmount 已是美元，直接转展示币种
 	displayInfo := getDisplayCurrencyForUser(c)
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"expense":        convertUsdToDisplay(float64(currentQuota)/common.QuotaPerUnit, displayInfo),
+			"expense":        convertUsdToDisplay(currentQuotaUsd, displayInfo),
 			"expense_trend":  calcPercentChange(currentQuota, prevQuota),
-			"topup":          convertUsdToDisplay(float64(paymentAmount)/common.QuotaPerUnit, displayInfo),
-			"bonus":          convertUsdToDisplay(float64(redemptionAmount)/common.QuotaPerUnit, displayInfo),
-			"net_change":     convertUsdToDisplay(float64(netChange)/common.QuotaPerUnit, displayInfo),
+			"topup":          convertUsdToDisplay(paymentAmount, displayInfo),
+			"bonus":          convertUsdToDisplay(redemptionAmount, displayInfo),
+			"net_change":     convertUsdToDisplay(netChange, displayInfo),
 			"display_symbol": displayInfo.Symbol,
 		},
 	})

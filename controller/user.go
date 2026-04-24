@@ -512,6 +512,7 @@ func GetSelf(c *gin.Context) {
 		"group":                user.Group,
 		"quota":                convertQuotaToDisplay(user.Quota, displayInfo),     // 转换后的余额
 		"used_quota":           convertQuotaToDisplay(user.UsedQuota, displayInfo), // 转换后的消费
+		"display_symbol":       displayInfo.Symbol,                                 // 展示币种符号
 		"request_count":        periodRequestCount,                                 // 请求次数
 		"request_count_change": yesterdayChange,                                    // 和昨天相比的变化
 		"total_count":          totalRequestCount,                                  // 统计次数
@@ -519,8 +520,8 @@ func GetSelf(c *gin.Context) {
 		"aff_count":            user.AffCount,
 		"aff_quota":            user.AffQuota,
 		"aff_history_quota":    user.AffHistoryQuota,
-		"total_topup_quota":    convertUsdToDisplay(float64(totalTopupQuota), displayInfo), // 转换后的充值
-		"welfare_quota":        convertUsdToDisplay(welfareQuota, displayInfo),             // 转换后的奖励
+		"total_topup_quota":    totalTopupQuota,
+		"welfare_quota":        convertUsdToDisplay(welfareQuota, displayInfo), // 转换后的奖励
 		"inviter_id":           user.InviterId,
 		"linux_do_id":          user.LinuxDOId,
 		"setting":              user.Setting,

@@ -9,9 +9,13 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+func normalizeMoneyPrecisionDecimal(value float64) decimal.Decimal {
+	return decimal.NewFromFloat(value).Round(6)
+}
+
 // normalizeMoneyDecimal 将金额统一收敛到两位小数，避免不同支付网关的字符串/浮点格式差异导致误判。
 func normalizeMoneyDecimal(value float64) decimal.Decimal {
-	return decimal.NewFromFloat(value).Round(2)
+	return normalizeMoneyPrecisionDecimal(value).Round(2)
 }
 
 // amountStringMatchesMoney 比较支付网关返回的"元/美元"等主单位金额字符串与本地订单金额是否一致。
@@ -66,5 +70,13 @@ func getStripeExpectedPayMoneyFromTopUp(topUp *model.TopUp) float64 {
 			unitPrice = resolveStripeUnitPrice(user)
 		}
 	}
-	return normalizeMoneyDecimal(topUp.Money).Mul(decimal.NewFromFloat(unitPrice)).Mul(decimal.NewFromFloat(discount)).Round(2).InexactFloat64()
+	// 第一步：充值额度 × 单价 → 原始应收金额（6 位小数）
+	subTotal := normalizeMoneyPrecisionDecimal(topUp.Money).
+		Mul(normalizeMoneyPrecisionDecimal(unitPrice)).
+		Round(6)
+	// 第二步：原始金额 × 档位折扣 → 最终应收金额（2 位小数）
+	return subTotal.
+		Mul(normalizeMoneyPrecisionDecimal(discount)).
+		Round(2).
+		InexactFloat64()
 }
