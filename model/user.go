@@ -1164,6 +1164,18 @@ func UpdateUserUsedQuotaAndRequestCount(id int, quota int) {
 	updateUserUsedQuotaAndRequestCount(id, quota, 1)
 }
 
+// 单独更新请求次数
+func UpdateUserRequestCount(id int, count int) {
+	if count == 0 {
+		return
+	}
+	if common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeRequestCount, id, count)
+		return
+	}
+	updateUserRequestCount(id, count)
+}
+
 func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 	err := DB.Model(&User{}).Where("id = ?", id).Updates(
 		map[string]interface{}{

@@ -387,11 +387,19 @@ func GetSelf(c *gin.Context) {
 		return
 	}
 
-	// 计算总充值金额
+	// 计算充值金额
 	totalTopupQuota, err := model.SumTopUpByUserId(id, 0, 0, model.TopUpBizTypePayment)
 	if err != nil {
 		common.SysError("failed to get user topup quota: " + err.Error())
 	}
+
+	// 计算订阅总金额
+	totalSubscriptionQuota, err := model.SumTopUpByUserId(id, 0, 0, model.TopUpBizTypeSubscription)
+	if err != nil {
+		common.SysError("failed to get user topup quota: " + err.Error())
+	}
+	//相加获取总充值金额
+	totalTopupQuota += totalSubscriptionQuota
 
 	// 计算福利奖励总额
 	var welfareQuota float64
