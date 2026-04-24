@@ -3905,6 +3905,21 @@
         "查看收益详情": "Voir les détails des revenus",
         "已留存": "Conservé",
         "流失预警": "Avertissement de perte",
-        "已流失": "Perdu"
+        "已流失": "Perdu",
+        "中国大陆 (+86)": "Chine (+86)",
+        "中国香港 (+852)": "Hong Kong (+852)",
+        "中国澳门 (+853)": "Macao (+853)",
+        "中国台湾 (+886)": "Taïwan (+886)",
+        "美国/加拿大 (+1)": "États-Unis/Canada (+1)",
+        "日本 (+81)": "Japon (+81)",
+        "韩国 (+82)": "Corée du Sud (+82)",
+        "新加坡 (+65)": "Singapour (+65)",
+        "泰国 (+66)": "Thaïlande (+66)",
+        "越南 (+84)": "Vietnam (+84)",
+        "印度 (+91)": "Inde (+91)",
+        "英国 (+44)": "Royaume-Uni (+44)",
+        "德国 (+49)": "Allemagne (+49)",
+        "法国 (+33)": "France (+33)",
+        "澳大利亚 (+61)": "Australie (+61)"
     }
 }
