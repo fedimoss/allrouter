@@ -206,35 +206,28 @@ const isSubscriptionDetailRecord = (record) => {
   return Number(record?.amount || 0) === 0 && tradeNo.startsWith('sub');
 };
 
-const buildDetailSections = (record, t) => {
-  if (!record) {
+const buildDetailSections = (orderInfo, commissionDetails, t) => {
+  if (!orderInfo) {
     return {
       mainInfo: [],
       commissionGroups: [],
     };
   }
 
-  const typeConfig = getDetailTypeConfig(record, t);
-  const statusConfig = getDetailStatusTag(record.status, t);
-  const displayName = record.display_name || '--';
-  const tradeNo = record.trade_no || '--';
-  const paymentMethod = PAYMENT_METHOD_MAP[record.payment_method]
-    ? t(PAYMENT_METHOD_MAP[record.payment_method])
-    : record.payment_method || '--';
-  const createTime = timestamp2string(record.complete_time || record.create_time);
-  const payAmount = formatCurrency(record.money, { signed: Number(record.money) > 0, symbol: record.display_symbol || '$' });
-  const quotaAmount = isSubscriptionDetailRecord(record)
-    ? t('订阅套餐')
-    : `${record.amount ?? '--'}`;
+  const typeConfig = getDetailTypeConfig(orderInfo, t);
+  const statusConfig = getDetailStatusTag(orderInfo.status, t);
+  const tradeNo = orderInfo.user_id || '--';
+  const createTime = timestamp2string(orderInfo.create_time);
+  const payAmount = formatCurrency(orderInfo.money, { signed: Number(orderInfo.money) > 0 });
 
   return {
     mainInfo: [
       { label: t('关联主单号'), value: tradeNo, copyValue: tradeNo },
-      {
-        label: t('子结算单号'),
-        value: `${tradeNo}${record.id ? `-${record.id}` : ''}`,
-        copyValue: `${tradeNo}${record.id ? `-${record.id}` : ''}`,
-      },
+      // {
+      //   label: t('子结算单号'),
+      //   value: `${tradeNo}${record.id ? `-${record.id}` : ''}`,
+      //   copyValue: `${tradeNo}${record.id ? `-${record.id}` : ''}`,
+      // },
       { label: t('交易时间'), value: createTime },
       {
         label: t('交易类型'),
@@ -255,62 +248,33 @@ const buildDetailSections = (record, t) => {
       },
       { label: t('金额变动'), value: payAmount },
     ],
-    commissionGroups: [
-      {
-        title: t('一级分佣（供应商）'),
-        items: [
-          { label: t('接收账户'), value: paymentMethod, copyValue: paymentMethod },
-          { label: t('分佣比例'), value: isSubscriptionDetailRecord(record) ? '--' : '100%' },
-          { label: t('结算金额'), value: payAmount },
-          {
-            label: t('状态'),
-            value: (
+    commissionGroups: commissionDetails.length>0 ? commissionDetails.map((item) => ({
+      title: t('一级分佣（供应商）'),
+      items: [
+        { label: t('接收账户'), value: item.inviter_id, copyValue: item.inviter_id },
+        { label: t('分佣比例'), value: formatPercent(item.rebate_ratio) },
+        { label: t('结算金额'), value: formatCurrency(item.money) },
+        {
+          label: t('状态'),
+          value: (
+            <span
+              className='inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm'
+              style={{
+                color: statusConfig.color,
+                background: statusConfig.background,
+                borderColor: statusConfig.borderColor,
+              }}
+            >
               <span
-                className='inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm'
-                style={{
-                  color: statusConfig.color,
-                  background: statusConfig.background,
-                  borderColor: statusConfig.borderColor,
-                }}
-              >
-                <span
-                  className='h-2 w-2 rounded-full'
-                  style={{ backgroundColor: statusConfig.color }}
-                />
-                {statusConfig.label}
-              </span>
-            ),
-          },
-        ],
-      },
-      {
-        title: t('二级分佣（代理商）'),
-        items: [
-          { label: t('接收账户'), value: displayName, copyValue: displayName },
-          { label: t('分佣比例'), value: record.display_name ? '0%' : '--' },
-          { label: t('结算金额'), value: quotaAmount },
-          {
-            label: t('状态'),
-            value: (
-              <span
-                className='inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm'
-                style={{
-                  color: statusConfig.color,
-                  background: statusConfig.background,
-                  borderColor: statusConfig.borderColor,
-                }}
-              >
-                <span
-                  className='h-2 w-2 rounded-full'
-                  style={{ backgroundColor: statusConfig.color }}
-                />
-                {statusConfig.label}
-              </span>
-            ),
-          },
-        ],
-      },
-    ],
+                className='h-2 w-2 rounded-full'
+                style={{ backgroundColor: statusConfig.color }}
+              />
+              {statusConfig.label}
+            </span>
+          ),
+        },
+      ],
+    }))  : [],
   };
 };
 
@@ -354,13 +318,12 @@ const Billing = () => {
   const [historyPageSize, setHistoryPageSize] = useState(10);
   const [historyKeyword, setHistoryKeyword] = useState('');
   const [detailVisible, setDetailVisible] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [orderInfo, setOrderInfo] = useState(null);
+  const [commissionDetails, setCommissionDetails] = useState([]);
 
   const userIsAdmin = useMemo(() => isAdmin(), []);
   const billingPageTitle = t('账单中心');
-  const billingPageDescription = userIsAdmin
-    ? t('查看全平台充值、充值返佣与用户账单状态。')
-    : t('查看您的充值、充值返佣与消费明细。');
+  const billingPageDescription = t('查看全平台充值、充值返佣与用户账单状态。');
 
   const loadTopups = async (page, pageSize, keyword) => {
     setHistoryLoading(true);
@@ -468,12 +431,27 @@ const Billing = () => {
 
   const isSubscriptionTopup = (record) => getBizType(record) === 'subscription';
 
-  const handleOpenDetail = (record) => {
-    setSelectedRecord({
-      ...record,
-      biz_type: getBizType(record),
-    });
-    setDetailVisible(true);
+  const handleOpenDetail = async (record) => {
+    console.log('handleOpenDetail==', record);
+
+    try {
+      const res = await API.post(`/api/user/topup/detail`, {
+        trade_no: record?.trade_no,
+      });
+      const { success, message, data } = res.data;
+      if (success) {
+        setOrderInfo(data.topup || {});
+        setCommissionDetails(data.level1_rate? [data.level1_rate] : []);
+        setDetailVisible(true);
+      } else {
+        Toast.error({ content: message || t('加载失败') });
+      }
+    } catch (error) {
+      Toast.error({ content: t('加载失败') });
+    }
+    
+    
+    
   };
 
   const handleCopyDetailValue = async (value) => {
@@ -590,8 +568,8 @@ const Billing = () => {
       historyTotal === 0 ? 0 : (activePage - 1) * historyPageSize + 1;
     const endIndex = Math.min(activePage * historyPageSize, historyTotal);
     const detailSections = useMemo(
-      () => buildDetailSections(selectedRecord, t),
-      [selectedRecord, t],
+      () => buildDetailSections(orderInfo, commissionDetails, t),
+      [orderInfo, commissionDetails, t],
   
     );
     const hasInviteRebateRecords = useMemo(
@@ -991,7 +969,7 @@ const Billing = () => {
             </div>
 
             <div className='space-y-7'>
-              {detailSections.commissionGroups.map((group) => (
+              {detailSections.commissionGroups.length>0 ? detailSections.commissionGroups.map((group) => (
                 <div key={group.title}>
                   <div className='mb-3 text-sm font-semibold text-[#94A3B8]'>
                     {group.title}
@@ -1008,7 +986,15 @@ const Billing = () => {
                     ))}
                   </div>
                 </div>
-              ))}
+              )) :
+                <div className='text-center text-[#94A3B8] h-full flex items-center justify-center'>
+                  <Empty
+                    image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+                    description={t('暂无分佣明细')}
+                    style={{ padding: 30 }}
+                  />
+                </div>
+              }
             </div>
           </div>
         </div>

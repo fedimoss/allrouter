@@ -16,7 +16,7 @@ html.dark .tasklog-v2-filter-card{box-shadow:0 16px 30px rgba(0,0,0,.2)}
 .tasklog-v2-header-icon{display:inline-flex;width:40px;height:40px;flex-shrink:0;align-items:center;justify-content:center;border-radius:14px;background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff;box-shadow:0 16px 28px rgba(249,115,22,.2)}
 .tasklog-v2-header-copy{min-width:0}
 .tasklog-v2-header-title{margin:0;font-size:20px;font-weight:700;line-height:1.2;color:var(--task-text)}
-.tasklog-v2-header-description{margin:4px 0 0;font-size:13px;color:var(--task-text-muted)}
+.tasklog-v2-header-description{margin:4px 0 0;font-size:16px;color:#94A3B8}
 .tasklog-v2-export-button,.tasklog-v2-primary-button,.tasklog-v2-secondary-button,.tasklog-v2-icon-button,.tasklog-v2-page-button,.tasklog-v2-copy-button,.tasklog-v2-ghost-icon{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;cursor:pointer;transition:transform .18s ease,background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,opacity .18s ease}
 .tasklog-v2-export-button,.tasklog-v2-secondary-button,.tasklog-v2-icon-button,.tasklog-v2-page-button,.tasklog-v2-ghost-icon{border:1px solid var(--task-border);background:var(--task-surface);color:var(--task-text-muted)}
 .tasklog-v2-export-button{min-height:36px;padding:0 14px;border-radius:999px;font-size:12px;font-weight:600}

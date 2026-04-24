@@ -52,7 +52,8 @@ import {
   History,
   CheckCircle,
   Gift,
-  Lightbulb
+  Lightbulb,
+  Clipboard
 } from 'lucide-react';
 import { IconGift, IconSearch } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
@@ -327,7 +328,7 @@ const RechargeCard = ({
         title: t('流水号'),
         dataIndex: 'trade_no',
         key: 'trade_no',
-        render: (text) => <Text copyable>{text}</Text>,
+        render: (text) => <Text>{text}</Text>,
       },
       {
         title: t('账单类型'),
@@ -404,9 +405,17 @@ const RechargeCard = ({
         title: t('操作'),
         key: 'action',
         render: (_, record) => (
-          <Text copyable={{ content: record?.trade_no || '' }}>
-            {t('复制')}
-          </Text>
+          <Tooltip content={t('复制')}>
+            <Button
+              type='tertiary'
+              icon={<Clipboard size={14} style={{color:'#999'}} />}
+              size='small'
+              onClick={() => {
+                navigator.clipboard.writeText(record?.trade_no || '');
+                Toast.success({ content: t('复制成功') });
+              }}
+            />
+          </Tooltip>
         ),
       },
     ];
@@ -857,15 +866,15 @@ const RechargeCard = ({
             </h3>
             <ul className='space-y-3 text-sm text-slate-600 dark:text-slate-300'>
               <li className='flex items-center gap-2 pl-1'>
-                <span className='text-lg font-bold text-cyan-300 dark:text-cyan-400'>01</span>
+                <span className='text-lg font-bold text-[#1CDFD5] dark:text-cyan-400'>01</span>
                 <span>{t('如需查看消费明细，请到「账单中心」页面。')}</span>
               </li>
               <li className='flex items-center gap-2 pl-1'>
-                <span className='text-lg font-bold text-cyan-300 dark:text-cyan-400'>02</span>
+                <span className='text-lg font-bold text-[#1CDFD5] dark:text-cyan-400'>02</span>
                 <span>{t('设置合适充值档位，可减少频繁操作。')}</span>
               </li>
               <li className='flex items-center gap-2 pl-1'>
-                <span className='text-lg font-bold text-cyan-300 dark:text-cyan-400'>03</span>
+                <span className='text-lg font-bold text-[#1CDFD5] dark:text-cyan-400'>03</span>
                 <span>{t('如遇支付问题，请通过帮助中心联系支持。')}</span>
               </li>
             </ul>

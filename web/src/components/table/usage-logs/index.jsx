@@ -54,7 +54,7 @@ const LogsPage = () => {
         <div className='log-v2-shell'>
           <div className='log-v2-stack'>
             <section className='usage-logs-v2-header'>
-              <h2 className='usage-logs-v2-title'>{logsData.t('使用日志')}</h2>
+              <div className='usage-logs-v2-title'>{logsData.t('使用日志')}</div>
               <p className='usage-logs-v2-description'>
                 {logsData.t('查看并分析您的 API 调用详细数据和实时状态。')}
               </p>

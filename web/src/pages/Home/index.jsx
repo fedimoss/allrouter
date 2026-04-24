@@ -38,6 +38,7 @@ import ThemeToggle from '../../components/layout/headerbar/ThemeToggle';
 import LanguageSelector from '../../components/layout/headerbar/LanguageSelector';
 import NotificationButton from '../../components/layout/headerbar/NotificationButton';
 import UserArea from '../../components/layout/headerbar/UserArea';
+import MarqueeLogos from '../../components/common/MarqueeLogos';
 
 import { getLogo, getSystemName } from '../../helpers';
 
@@ -49,6 +50,9 @@ import metaLogo from '../../../public/logos/meta.svg';
 import deepseekLogo from '../../../public/logos/deepseek.svg';
 import huggingFaceLogo from '../../../public/logos/huggingface.svg';
 import kimiLogo from '../../../public/logos/kimi.svg';
+import minimaxLogo from '../../../public/logos/minimax.svg';
+import chatglmLogo from '../../../public/logos/chatglm.svg';
+import doubaoLogo from '../../../public/logos/doubao.svg';
 
 const logo = getLogo();
 const systemName = getSystemName();
@@ -62,6 +66,9 @@ const partnerLogos = [
   { src: deepseekLogo, alt: 'DeepSeek' },
   { src: huggingFaceLogo, alt: 'Hugging Face' },
   { src: kimiLogo, alt: 'Kimi' },
+  { src: minimaxLogo, alt: 'Minimax' },
+  { src: chatglmLogo, alt: 'ChatGLM' },
+  { src: doubaoLogo, alt: 'Doubao' },
 ];
 
 const featureCards = [
@@ -511,18 +518,7 @@ const Home = () => {
 
             <section id='models' className='landing-v2-logo-section'>
               <p>{t('支持全球主流及国产自研模型')}</p>
-              <div className='landing-v2-logo-grid'>
-                {partnerLogos.map((logo) => (
-                  <div key={logo.alt} className='landing-v2-logo-item'>
-                    <img
-                      src={logo.src}
-                      alt={logo.alt}
-                      className='landing-v2-partner-logo'
-                    />
-                    <span className='landing-v2-logo-name'>{logo.alt}</span>
-                  </div>
-                ))}
-              </div>
+              <MarqueeLogos logos={partnerLogos} speed={0.5} />
             </section>
 
             <section id='features' className='landing-v2-features'>

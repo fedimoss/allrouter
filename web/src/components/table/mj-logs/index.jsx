@@ -683,7 +683,7 @@ const MjLogsPage = () => {
                   <ImageIcon size={20} />
                 </div> */}
                 <div className='mjlog-v2-header-copy'>
-                  <div className='text-[30px] text-[#475569] font-medium dark:text-slate-200'>
+                  <div className='text-[30px] font-medium text-[#000000] font-medium dark:text-slate-200'>
                     {logsData.t('绘图日志')}
                   </div>
                   <p className='mjlog-v2-header-description'>

@@ -81,7 +81,7 @@ const LogsFilters = ({
             type='tertiary'
             onClick={() => setShowAdvanced((value) => !value)}
             icon={<SlidersHorizontal size={15} />}
-            className='usage-logs-v2-button usage-logs-v2-button-secondary'
+            className='usage-logs-v2-button usage-logs-v2-button-secondary usage-logs-v2-button-secondary-active'
           >
             {t('高级筛选')}
           </Button>

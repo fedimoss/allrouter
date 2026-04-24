@@ -768,7 +768,7 @@ const TaskLogsPage = () => {
             <section className='tasklog-v2-page-header'>
               <div className='tasklog-v2-header-main'>
                 <div className='tasklog-v2-header-copy'>
-                  <div className='text-[30px] text-[#475569] font-medium dark:text-slate-200'>{logsData.t('任务记录')}</div>
+                  <div className='text-[30px] font-medium text-[#000000] dark:text-slate-200'>{logsData.t('任务记录')}</div>
                   <p className='tasklog-v2-header-description'>
                     {logsData.t('查看所有异步批量任务的执行记录与状态追踪')}
                   </p>

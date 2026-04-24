@@ -52,6 +52,9 @@ p {
 .semi-switch-checked,.semi-switch-checked:hover{
   background-color: #1CDFD5;
 }
+.semi-datepicker-range-input-wrapper-active{
+  border-color: transparent;
+}
 
 /* 桌面端禁止 body 纵向滚动 - 防止 VChart tooltip 触发页面滚动条 */
 @media (min-width: 768px) {
@@ -198,6 +201,10 @@ code {
 
 .sidebar-header-collapsed .sidebar-brand-text {
   display: none;
+}
+.sidebar-header-collapsed .sidebar-collapse-toggle{
+  position: relative;
+  right: -17px;
 }
 
 .sidebar-brand {
@@ -1916,6 +1923,46 @@ html.dark .landing-home.landing-v2 .landing-v2-hero-badge {
   gap: 32px;
 }
 
+.landing-home.landing-v2 .landing-v2-logo-marquee {
+  overflow: hidden;
+  width: 100%;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 5%,
+    black 95%,
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 5%,
+    black 95%,
+    transparent
+  );
+}
+
+.landing-home.landing-v2 .landing-v2-logo-marquee-content {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  width: max-content;
+  animation: marquee-scroll linear infinite;
+}
+
+.landing-home.landing-v2 .landing-v2-logo-marquee-content.paused {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-33.333%);
+  }
+}
+
 .landing-home.landing-v2 .landing-v2-logo-item {
   display: flex;
   align-items: center;
@@ -1924,7 +1971,8 @@ html.dark .landing-home.landing-v2 .landing-v2-hero-badge {
   color: var(--landing-v2-text-sub);
   font-size: 14px;
   font-weight: 700;
-  flex: 1;
+  flex-shrink: 0;
+  min-width: fit-content;
 }
 
 .landing-home.landing-v2 .landing-v2-partner-logo {
@@ -2273,17 +2321,33 @@ html.dark .landing-home.landing-v2 .landing-v2-cta-box {
     line-height: 1.7;
   }
 
-  .landing-home.landing-v2 .landing-v2-logo-section {
-    padding: 22px 0 26px;
+.landing-home.landing-v2 .landing-v2-logo-marquee {
+    mask-image: none;
+    -webkit-mask-image: none;
   }
 
-  .landing-home.landing-v2 .landing-v2-logo-grid {
-    gap: 12px 16px;
+  .landing-home.landing-v2 .landing-v2-logo-marquee-content {
+    flex-wrap: nowrap;
     justify-content: flex-start;
+    gap: 40px;
+    width: max-content;
+    animation: marquee-scroll linear infinite;
+    overflow-x: visible;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .landing-home.landing-v2 .landing-v2-logo-marquee-content::-webkit-scrollbar {
+    display: none;
   }
 
   .landing-home.landing-v2 .landing-v2-logo-item {
-    width: calc(50% - 8px);
+    width: fit-content;
+    flex-shrink: 0;
+  }
+
+  .landing-home.landing-v2 .landing-v2-logo-section {
+    padding: 22px 0 26px;
   }
 
   .landing-home.landing-v2 .landing-v2-features {
