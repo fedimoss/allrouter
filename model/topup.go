@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/shopspring/decimal"
@@ -330,6 +331,64 @@ func applyInviteTopupRebateTx(tx *gorm.DB, topUp *TopUp, quotaToAdd int) (int, i
 	return invitee.InviterId, rebateQuota, nil
 }
 
+// getTopUpAmountDiscount 获取充值数量对应的档位折扣系数
+// 无配置时返回 1.0（不打折）
+func getTopUpAmountDiscount(amount int64) float64 {
+	discount := 1.0
+	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amount)]; ok && ds > 0 {
+		discount = ds
+	}
+	return discount
+}
+
+// getStripeRechargeDisplayAmount 计算充值订单在用户本地币种下的展示金额
+// 用于日志中显示用户实际支付的原始金额（未做美元换算）
+// 公式：充值数量 × 分组倍率（Token 展示模式下先折算回基础额度）
+func getStripeRechargeDisplayAmount(topUp *TopUp, user *User) float64 {
+	if topUp == nil || user == nil {
+		return 0
+	}
+
+	amount := float64(topUp.Amount)
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		amount = amount / common.QuotaPerUnit
+	}
+
+	topupGroupRatio := common.GetTopupGroupRatio(user.Group)
+	if topupGroupRatio == 0 {
+		topupGroupRatio = 1
+	}
+
+	return decimal.NewFromFloat(amount).Mul(decimal.NewFromFloat(topupGroupRatio)).Round(6).InexactFloat64()
+}
+
+// formatStripeTopUpSuccessLog 格式化 Stripe 充值成功的日志内容
+// 根据用户时区区分币种：USD 显示 ＄，CNY 显示 ￥
+// 充值金额 = 原始金额（6 位小数），支付金额 = 原始金额 × 档位折扣（2 位小数）
+func formatStripeTopUpSuccessLog(topUp *TopUp) string {
+	if topUp == nil {
+		return "使用在线充值成功"
+	}
+
+	discount := getTopUpAmountDiscount(topUp.Amount)
+	rechargeAmount := decimal.NewFromFloat(topUp.Money).Round(6).InexactFloat64()
+	payAmount := decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(discount)).Round(2).InexactFloat64()
+	defaultContent := fmt.Sprintf("使用在线充值成功，充值金额: ＄%.6f，支付金额：%.2f", rechargeAmount, payAmount)
+
+	user, err := GetUserById(topUp.UserId, false)
+	if err != nil || user == nil {
+		return defaultContent
+	}
+
+	if GetDisplayCurrencyInfoByTimezone(user.Timezone).Currency != "CNY" {
+		return defaultContent
+	}
+
+	rechargeAmount = getStripeRechargeDisplayAmount(topUp, user)
+	payAmount = decimal.NewFromFloat(rechargeAmount).Mul(decimal.NewFromFloat(discount)).Round(2).InexactFloat64()
+	return fmt.Sprintf("使用在线充值成功，充值金额: ￥%.6f，支付金额：%.2f", rechargeAmount, payAmount)
+}
+
 var ErrPaymentMethodMismatch = errors.New("payment method mismatch")
 
 func (topUp *TopUp) Insert() error {
@@ -485,7 +544,7 @@ func Recharge(referenceId string, customerId string) (err error) {
 	}
 
 	// 记录用户充值成功日志
-	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+	RecordLog(topUp.UserId, LogTypeTopup, formatStripeTopUpSuccessLog(topUp))
 
 	return nil
 }
@@ -962,10 +1021,10 @@ func SumAllTopUp(startTimestamp, endTimestamp int64, bizType string) (int64, err
 }
 
 // SumTopUpByUserId 查询指定用户在时间范围内、指定业务类型且已完成的充值/获赠额度总和
-func SumTopUpByUserId(userId int, startTimestamp, endTimestamp int64, bizType string) (int64, error) {
-	var total int64
+func SumTopUpByUserId(userId int, startTimestamp, endTimestamp int64, bizType string) (float64, error) {
+	var total float64
 	tx := DB.Model(&TopUp{}).
-		Select("COALESCE(SUM(amount), 0)").
+		Select("COALESCE(SUM(money), 0)").
 		Where("user_id = ? AND status = ? AND biz_type = ?", userId, common.TopUpStatusSuccess, bizType)
 	if startTimestamp != 0 {
 		tx = tx.Where("create_time >= ?", startTimestamp)
@@ -974,7 +1033,21 @@ func SumTopUpByUserId(userId int, startTimestamp, endTimestamp int64, bizType st
 		tx = tx.Where("create_time < ?", endTimestamp)
 	}
 	err := tx.Scan(&total).Error
-	return total, err
+	if err != nil {
+		return 0, err
+	}
+
+	// CNY 用户：金额乘以汇率转换为人民币
+	result := decimal.NewFromFloat(total)
+	if user, uErr := GetUserById(userId, false); uErr == nil && user != nil {
+		if GetDisplayCurrencyInfoByTimezone(user.Timezone).Currency == "CNY" {
+			if config, cErr := GetCurrencyConfig("CNY"); cErr == nil && config.UnitPrice > 0 {
+				result = result.Mul(decimal.NewFromFloat(config.UnitPrice))
+			}
+		}
+	}
+
+	return result.Round(2).InexactFloat64(), nil
 }
 
 func RechargeWaffo(tradeNo string) (err error) {

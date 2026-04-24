@@ -35,6 +35,7 @@ const RedemptionsTable = (redemptionsData) => {
     pageSize,
     tokenCount,
     compactMode,
+    displaySymbol,
     handlePageChange,
     rowSelection,
     handleRow,
@@ -67,6 +68,7 @@ const RedemptionsTable = (redemptionsData) => {
       refresh,
       redemptions,
       activePage,
+      displaySymbol,
       showDeleteRedemptionModal,
     });
   }, [
@@ -78,6 +80,7 @@ const RedemptionsTable = (redemptionsData) => {
     refresh,
     redemptions,
     activePage,
+    displaySymbol,
     showDeleteRedemptionModal,
   ]);
 

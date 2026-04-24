@@ -512,6 +512,7 @@ const TopUp = () => {
             currency: data.display_currency || 'USD',
             symbol: data.display_symbol || '$',
             unitPrice: data.display_unit_price || 1,
+            cnyRate: data.cny_unit_price || 1,
           });
           // 保存后端根据用户时区匹配的 Stripe 币种配置
           if (data.stripe_currency) {
@@ -772,6 +773,8 @@ const TopUp = () => {
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
         // 币种符号：中国时区显示 ¥，其他时区都显示 $
         stripeSymbol={stripeCurrency?.currency === 'CNY' ? '¥' : '$'}
+        // 展示币种信息，用于微信/支付宝支付时的 CNY 换算
+        displayCurrency={displayCurrency}
       />
 
       {/* Creem 充值确认模态框 */}

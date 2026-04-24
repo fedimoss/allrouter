@@ -29,7 +29,8 @@ import {
   IconTypograph,
   IconSend,
 } from '@douyinfe/semi-icons';
-import { renderQuota } from '../../helpers';
+import { formatDisplayMoney } from '../../helpers';
+import { convertAndFormat, normalizeDisplayCurrency } from '../../helpers/currency';
 import { createSectionTitle } from '../../helpers/dashboard';
 
 export const useDashboardStats = (
@@ -39,6 +40,7 @@ export const useDashboardStats = (
   times,
   trendData,
   performanceMetrics,
+  displayCurrency,
   navigate,
   t,
 ) => {
@@ -50,7 +52,7 @@ export const useDashboardStats = (
         items: [
           {
             title: t('当前余额'),
-            value: renderQuota(userState?.user?.quota),
+            value: formatDisplayMoney(userState?.user?.quota, userState?.user?.display_symbol),
             icon: <IconMoneyExchangeStroked />,
             avatarColor: 'blue',
             trendData: [],
@@ -58,7 +60,7 @@ export const useDashboardStats = (
           },
           {
             title: t('历史消耗'),
-            value: renderQuota(userState?.user?.used_quota),
+            value: formatDisplayMoney(userState?.user?.used_quota, userState?.user?.display_symbol),
             icon: <IconHistogram />,
             avatarColor: 'purple',
             trendData: [],
@@ -94,7 +96,10 @@ export const useDashboardStats = (
         items: [
           {
             title: t('统计额度'),
-            value: renderQuota(consumeQuota),
+            value: convertAndFormat(
+              consumeQuota / parseFloat(localStorage.getItem('quota_per_unit')),
+              normalizeDisplayCurrency(displayCurrency),
+            ),
             icon: <IconCoinMoneyStroked />,
             avatarColor: 'yellow',
             trendData: trendData.consumeQuota,
@@ -143,6 +148,7 @@ export const useDashboardStats = (
       consumeTokens,
       trendData,
       performanceMetrics,
+      displayCurrency,
       navigate,
       t,
     ],

@@ -14,15 +14,35 @@ import (
 
 func GetAllRedemptions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	redemptions, _, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(redemptions)
-	common.ApiSuccess(c, pageInfo)
-	return
+	// 获取当前用户的展示币种信息
+	displayInfo := getDisplayCurrencyForUser(c)
+	// 序列化原始结构体为 map，再替换 quota 字段为币种转换后的值
+	var items []map[string]any
+	if raw, err := common.Marshal(redemptions); err == nil {
+		common.Unmarshal(raw, &items)
+	}
+	for i, r := range redemptions {
+		if i < len(items) {
+			// 内部额度 ÷ QuotaPerUnit → 美元 → × 汇率 → 展示币种金额
+			items[i]["quota"] = convertQuotaToDisplay(r.Quota, displayInfo)
+		}
+	}
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"page":           pageInfo.Page,
+			"page_size":      pageInfo.PageSize,
+			"total":          pageInfo.Total,
+			"items":          items,
+			"display_symbol": displayInfo.Symbol,
+		},
+	})
 }
 
 func SearchRedemptions(c *gin.Context) {

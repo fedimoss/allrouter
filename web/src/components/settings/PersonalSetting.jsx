@@ -31,6 +31,7 @@ import {
   isPasskeySupported,
   setUserData,
   renderQuota,
+  formatDisplayMoney,
   stringToColor,
   isAdmin,
   isRoot,
@@ -310,13 +311,13 @@ const PersonalSetting = () => {
       {
         key: 'quota',
         label: t('当前余额'),
-        value: renderQuota(currentUser?.quota || 0),
+        value: formatDisplayMoney(currentUser?.quota || 0, currentUser?.display_symbol),
         icon: Wallet,
       },
       {
         key: 'used',
         label: t('历史消耗'),
-        value: renderQuota(currentUser?.used_quota || 0),
+        value: formatDisplayMoney(currentUser?.used_quota || 0, currentUser?.display_symbol),
         icon: BarChart3,
       },
       {

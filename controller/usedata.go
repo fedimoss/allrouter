@@ -20,10 +20,14 @@ func GetAllQuotaDates(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 获取当前用户的展示币种信息（根据时区判断 USD/CNY，汇率取 currency_stripe_config 表）
+	displayInfo := getDisplayCurrencyForUser(c)
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    dates,
+		"success":          true,
+		"message":          "",
+		"data":             dates,
+		"display_currency": displayInfo.Currency, // 展示币种，如 "USD"、"CNY"
+		"display_rate":     displayInfo.Rate,     // 相对于 1 美元的汇率，USD 为 1，CNY 为 currency_stripe_config.unit_price
 	})
 	return
 }
@@ -60,10 +64,14 @@ func GetUserQuotaDates(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 获取当前用户的展示币种信息（根据时区判断 USD/CNY，汇率取 currency_stripe_config 表）
+	displayInfo := getDisplayCurrencyForUser(c)
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    dates,
+		"success":          true,
+		"message":          "",
+		"data":             dates,
+		"display_currency": displayInfo.Currency, // 展示币种，如 "USD"、"CNY"
+		"display_rate":     displayInfo.Rate,     // 相对于 1 美元的汇率，USD 为 1，CNY 为 currency_stripe_config.unit_price
 	})
 	return
 }

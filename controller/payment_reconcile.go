@@ -9,9 +9,13 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+func normalizeMoneyPrecisionDecimal(value float64) decimal.Decimal {
+	return decimal.NewFromFloat(value).Round(6)
+}
+
 // normalizeMoneyDecimal 将金额统一收敛到两位小数，避免不同支付网关的字符串/浮点格式差异导致误判。
 func normalizeMoneyDecimal(value float64) decimal.Decimal {
-	return decimal.NewFromFloat(value).Round(2)
+	return normalizeMoneyPrecisionDecimal(value).Round(2)
 }
 
 // amountStringMatchesMoney 比较支付网关返回的"元/美元"等主单位金额字符串与本地订单金额是否一致。
@@ -24,6 +28,24 @@ func amountStringMatchesMoney(amount string, expected float64) bool {
 		return false
 	}
 	return dAmount.Round(2).Equal(normalizeMoneyDecimal(expected))
+}
+
+// epayCallbackMoneyMatches epay 回调金额是人民币，topUp.Money 存储美元等值金额，
+// 需要先把回调的人民币换算为美元再比对。
+func epayCallbackMoneyMatches(cnyAmount string, expectedUsd float64) bool {
+	if strings.TrimSpace(cnyAmount) == "" {
+		return false
+	}
+	dCny, err := decimal.NewFromString(strings.TrimSpace(cnyAmount))
+	if err != nil || !dCny.IsPositive() {
+		return false
+	}
+	cnyConfig, err := model.GetCurrencyConfig("CNY")
+	if err != nil || cnyConfig == nil || cnyConfig.UnitPrice <= 0 {
+		return false
+	}
+	dUsd := dCny.Div(decimal.NewFromFloat(cnyConfig.UnitPrice)).Round(6)
+	return dUsd.Equal(normalizeMoneyPrecisionDecimal(expectedUsd))
 }
 
 // minorUnitAmountMatchesMoney 比较支付网关返回的"分/美分"等最小货币单位金额与本地订单金额是否一致。
@@ -66,5 +88,13 @@ func getStripeExpectedPayMoneyFromTopUp(topUp *model.TopUp) float64 {
 			unitPrice = resolveStripeUnitPrice(user)
 		}
 	}
-	return normalizeMoneyDecimal(topUp.Money).Mul(decimal.NewFromFloat(unitPrice)).Mul(decimal.NewFromFloat(discount)).Round(2).InexactFloat64()
+	// 第一步：充值额度 × 单价 → 原始应收金额（6 位小数）
+	subTotal := normalizeMoneyPrecisionDecimal(topUp.Money).
+		Mul(normalizeMoneyPrecisionDecimal(unitPrice)).
+		Round(6)
+	// 第二步：原始金额 × 档位折扣 → 最终应收金额（2 位小数）
+	return subTotal.
+		Mul(normalizeMoneyPrecisionDecimal(discount)).
+		Round(2).
+		InexactFloat64()
 }

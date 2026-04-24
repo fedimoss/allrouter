@@ -22,7 +22,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Avatar, Button, Dropdown } from '@douyinfe/semi-ui';
 import { IconExit, IconUserSetting } from '@douyinfe/semi-icons';
-import { API, renderQuota, showSuccess, stringToColor } from '../../../helpers';
+import { API, renderQuota, showSuccess, stringToColor, formatDisplayMoney } from '../../../helpers';
 import { UserContext } from '../../../context/User';
 
 const SidebarUserPanel = ({ collapsed }) => {
@@ -88,7 +88,7 @@ const SidebarUserPanel = ({ collapsed }) => {
               <div className='sidebar-user-meta'>
                 <div className='sidebar-user-name'>{userState.user.username}</div>
                 <div className='sidebar-user-balance'>
-                  {t('余额')}: {renderQuota(userState.user.quota ?? 0)}
+                  {t('余额')}: {formatDisplayMoney(userState.user.quota ?? 0, userState.user.display_symbol)}
                 </div>
               </div>
             )}

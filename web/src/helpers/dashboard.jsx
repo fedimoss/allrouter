@@ -266,7 +266,7 @@ export const processRawData = (
   data.forEach((item) => {
     result.uniqueModels.add(item.model_name);
     result.totalTokens += item.token_used;
-    result.totalQuota += item.quota;
+    result.totalQuota += item.quota;  // 累加得到总额度
     result.totalTimes += item.count;
 
     const timeKey = timestamp2string1(

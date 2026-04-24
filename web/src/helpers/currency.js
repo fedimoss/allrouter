@@ -25,7 +25,10 @@ export const normalizeDisplayCurrency = (config) => {
 // convertUsdToDisplayCurrency 将美元金额按汇率转换为展示币种金额并格式化
 // config 为已标准化的 normalizedDisplayCurrency 对象
 export const convertAndFormat = (usdAmount, config) => {
+  console.log("usdAmount------>", usdAmount)
   const amount = normalizeCurrencyAmount(usdAmount);
+  console.log("amount------>", amount)
+  console.log("config------>", config)
   // CNY 按汇率换算，USD 直接使用原值
   const displayAmount =
     config.currency === 'CNY' ? amount * config.unitPrice : amount;

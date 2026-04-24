@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/checkout/session"
 	"github.com/stripe/stripe-go/v81/webhook"
@@ -113,7 +114,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 
 	// Stripe 订单的 Money 字段存储"应发放的充值额度（已乘分组倍率）"，
 	// 不是实际支付金额；实际支付金额由 Stripe Checkout/回调金额决定。
-	chargedMoney := GetChargedAmount(float64(req.Amount), *user)
+	chargedMoney := calcStripeChargedMoney(req.Amount, user)
 
 	// 生成唯一的订单参考号，格式：new-api-ref-{用户ID}-{毫秒时间戳}-{4位随机字符串}
 	reference := fmt.Sprintf("new-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
@@ -395,6 +396,16 @@ func sessionExpired(event stripe.Event) error {
 	return nil
 }
 
+func resolveStripeRedirectURLs(successURL string, cancelURL string) (string, string) {
+	if successURL == "" {
+		successURL = system_setting.ServerAddress + "/console/topup"
+	}
+	if cancelURL == "" {
+		cancelURL = system_setting.ServerAddress + "/console/topup"
+	}
+	return successURL, cancelURL
+}
+
 // genStripeLink generates a Stripe Checkout session URL for payment.
 // It creates a new checkout session with the specified parameters and returns the payment URL.
 //
@@ -414,14 +425,8 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 
 	stripe.Key = setting.StripeApiSecret
 
-	// Use custom URLs if provided, otherwise use defaults
-	// "支付成功" 和 "支付取消" 都跳转到充值页面
-	if successURL == "" {
-		successURL = system_setting.ServerAddress + "/console/topup"
-	}
-	if cancelURL == "" {
-		cancelURL = system_setting.ServerAddress + "/console/topup"
-	}
+	// Use custom URLs if provided, otherwise use defaults.
+	successURL, cancelURL = resolveStripeRedirectURLs(successURL, cancelURL)
 
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),
@@ -467,6 +472,25 @@ func GetChargedAmount(count float64, user model.User) float64 {
 	}
 
 	return count * topUpGroupRatio
+}
+
+// calcStripeChargedMoney 计算Stripe充值订单存储到 topUp.Money 的美元等值金额
+// USD 用户：充值数量 × 分组倍率（无需换算）
+// CNY 用户：充值数量 × 分组倍率 ÷ unitPrice（换算为美元），保留 6 位小数
+func calcStripeChargedMoney(amount int64, user *model.User) float64 {
+	if user == nil {
+		return 0
+	}
+
+	chargedMoney := decimal.NewFromFloat(GetChargedAmount(float64(amount), *user))
+	if model.GetDisplayCurrencyInfoByTimezone(user.Timezone).Currency == "CNY" {
+		unitPrice := resolveStripeUnitPrice(user)
+		if unitPrice > 0 {
+			chargedMoney = chargedMoney.Div(decimal.NewFromFloat(unitPrice))
+		}
+	}
+
+	return chargedMoney.Round(6).InexactFloat64()
 }
 
 // getStripePayMoney 计算用户实际应付金额
