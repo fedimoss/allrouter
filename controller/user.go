@@ -449,9 +449,14 @@ func GetSelf(c *gin.Context) {
 		common.SysError("failed to get user newuser quota: " + err.Error())
 		newuserQuota = 0
 	}
+	inviteeQuota, err := model.GetUserInviteeRewardQuota(id)
+	if err != nil {
+		common.SysError("failed to get user invitee quota: " + err.Error())
+		inviteeQuota = 0
+	}
 
 	// 最终福利奖励总额（金额单位，float64）
-	welfareQuota = welfareQuota_amount + newuserQuota
+	welfareQuota = welfareQuota_amount + newuserQuota + inviteeQuota
 
 	// 获取指定时间范围内的请求成功次数和失败次数
 	var requestResult model.RequestCountResult

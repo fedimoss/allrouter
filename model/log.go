@@ -611,6 +611,35 @@ func SumUsedQuotaByUserId(userId int, startTimestamp, endTimestamp int64) (int, 
 	return quota, err
 }
 
+func GetUserInviteeRewardQuota(userId int) (float64, error) {
+	var logContent string
+
+	err := LOG_DB.Model(&Log{}).
+		Where("user_id = ? AND type = ? AND content LIKE ?", userId, LogTypeSystem, "使用邀请码赠送%").
+		Order("id DESC").
+		Pluck("content", &logContent).Error
+	if err != nil {
+		return 0, err
+	}
+
+	if logContent == "" {
+		return 0, nil
+	}
+
+	re := regexp.MustCompile(`赠送\s*[^\d]*([\d]+(\.[\d]+)?)`)
+	match := re.FindStringSubmatch(logContent)
+	if len(match) < 2 {
+		return 0, nil
+	}
+
+	amount, err := strconv.ParseFloat(match[1], 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return amount, nil
+}
+
 func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string) (token int) {
 	tx := LOG_DB.Table("logs").Select("ifnull(sum(prompt_tokens),0) + ifnull(sum(completion_tokens),0)")
 	if username != "" {
