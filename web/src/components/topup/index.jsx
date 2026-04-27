@@ -41,6 +41,7 @@ import RechargeCard from './RechargeCard';
 import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
+import { getEffectiveTopupMin } from '../../helpers/topup';
 
 const TopUp = () => {
   const { t } = useTranslation();
@@ -179,6 +180,13 @@ const TopUp = () => {
     setPayWay(payment);
     setPaymentLoading(true);
     try {
+      // 根据支付方式和币种计算实际最低充值金额（Stripe CNY 有更高下限）
+      const effectiveMinTopUp = getEffectiveTopupMin({
+        paymentType: payment,
+        minTopup: minTopUp,
+        stripeCurrency,
+        fallback: 1,
+      });
       // 有时区币种配置时，renderAmount 直接用 topUpCount 显示，无需调后端金额接口
       if (!stripeCurrency) {
         if (payment === 'stripe') {
@@ -188,8 +196,8 @@ const TopUp = () => {
         }
       }
 
-      if (topUpCount < minTopUp) {
-        showError(t('充值数量不能小于') + minTopUp);
+      if (topUpCount < effectiveMinTopUp) {
+        showError(t('充值数量不能小于') + effectiveMinTopUp);
         return;
       }
       setOpen(true);
@@ -201,6 +209,13 @@ const TopUp = () => {
   };
 
   const onlineTopUp = async () => {
+    // 根据支付方式和币种计算实际最低充值金额（Stripe CNY 有更高下限）
+    const effectiveMinTopUp = getEffectiveTopupMin({
+      paymentType: payWay,
+      minTopup: minTopUp,
+      stripeCurrency,
+      fallback: 1,
+    });
     // 有时区币种配置时跳过金额查询，直接用 topUpCount 作为展示金额
     if (!stripeCurrency) {
       if (payWay === 'stripe') {
@@ -216,8 +231,8 @@ const TopUp = () => {
       }
     }
 
-    if (topUpCount < minTopUp) {
-      showError('充值数量不能小于' + minTopUp);
+    if (topUpCount < effectiveMinTopUp) {
+      showError(t('充值数量不能小于') + effectiveMinTopUp);
       return;
     }
     setConfirmLoading(true);

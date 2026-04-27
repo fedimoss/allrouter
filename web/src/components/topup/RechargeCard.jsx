@@ -64,6 +64,7 @@ import {
 } from '../../helpers';
 import {
   getTopupBizTypeConfig,
+  getEffectiveTopupMin,
   isInviteRebateTopup,
   isSubscriptionTopup,
 } from '../../helpers/topup';
@@ -157,6 +158,21 @@ const RechargeCard = ({
   const [historyPageSize, setHistoryPageSize] = useState(10);
   const [historyKeyword, setHistoryKeyword] = useState('');
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
+  // 当未选择支付方式且仅 Stripe 可用时，回退为 stripe，用于输入框的最低金额计算
+  const fallbackInputPaymentType =
+    !selectedPayMethod && enableStripeTopUp && !enableOnlineTopUp
+      ? 'stripe'
+      : selectedPayMethod;
+  // 根据支付方式和币种计算实际生效的最低充值金额（Stripe CNY 有额外下限要求）
+  const inputMinTopUp = getEffectiveTopupMin({
+    paymentType: fallbackInputPaymentType,
+    minTopup: minTopUp,
+    stripeCurrency,
+    fallback: 1,
+  });
+  // 是否为 Stripe 且有时区币种配置（用于决定输入框 placeholder 的金额展示格式）
+  const isStripeCurrencyInput =
+    fallbackInputPaymentType === 'stripe' && !!stripeCurrency;
 
   useEffect(() => {
     if (initialTabSetRef.current) return;
@@ -200,6 +216,23 @@ const RechargeCard = ({
     topUpCount,
     enableWaffoTopUp,
     waffoPayMethods,
+    stripeCurrency,
+  ]);
+
+  // 切换到 Stripe 支付时，若当前充值金额低于 Stripe 最低要求，自动修正为最低金额
+  useEffect(() => {
+    if (fallbackInputPaymentType !== 'stripe') return;
+    const currentValue = Number(topUpCount || 0);
+    if (!currentValue || currentValue >= inputMinTopUp) return;
+
+    setTopUpCount(inputMinTopUp);
+    setSelectedPreset(null);
+    onlineFormApiRef.current?.setValue('topUpCount', inputMinTopUp);
+  }, [
+    fallbackInputPaymentType,
+    inputMinTopUp,
+    setSelectedPreset,
+    setTopUpCount,
   ]);
 
   // 跳转邀请详情
@@ -444,13 +477,15 @@ const RechargeCard = ({
                   label={t('请输入充值金额')}
                   disabled={!enableOnlineTopUp && !enableStripeTopUp && !enableWaffoTopUp}
                   placeholder={
-                    stripeCurrency
-                      ? t('充值数量，最低 ') + (stripeCurrency.currency === 'CNY' ? '¥' : '$') + minTopUp
-                      : t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
+                    isStripeCurrencyInput
+                      ? t('充值数量，最低 ') +
+                        (stripeCurrency.currency === 'CNY' ? '¥' : '$') +
+                        inputMinTopUp
+                      : t('充值数量，最低 ') + renderQuotaWithAmount(inputMinTopUp)
                   }
                   className='charge-input'
                   value={topUpCount}
-                  min={minTopUp}
+                  min={inputMinTopUp}
                   max={999999999}
                   step={1}
                   precision={0}
@@ -471,14 +506,16 @@ const RechargeCard = ({
                   onBlur={(e) => {
                     // 输入框失焦时校验，无效值回退到最低充值数量
                     const parsed = parseInt(e.target.value);
-                    if (!parsed || parsed < 1) {
-                      setTopUpCount(minTopUp);
+                    if (!parsed || parsed < inputMinTopUp) {
+                      setTopUpCount(inputMinTopUp);
+                      setSelectedPreset(null);
+                      onlineFormApiRef.current?.setValue('topUpCount', inputMinTopUp);
                       // 无时区币种配置时需重新请求金额
                       if (!stripeCurrency) {
                         if (selectedPayMethod === 'stripe' && getStripeAmount) {
-                          getStripeAmount(minTopUp);
+                          getStripeAmount(inputMinTopUp);
                         } else {
-                          getAmount(minTopUp);
+                          getAmount(inputMinTopUp);
                         }
                       }
                     }
