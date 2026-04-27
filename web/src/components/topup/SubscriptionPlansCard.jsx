@@ -31,7 +31,13 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess, renderQuota } from '../../helpers';
-import { getCurrencyConfig } from '../../helpers/render';
+// 使用统一的币种格式化工具，替代旧的 getCurrencyConfig 静态方法
+// formatDisplayMoney：将金额格式化为带币种符号的显示字符串
+// normalizeDisplayCurrency：标准化币种配置，确保 symbol / currency / unitPrice 等字段均有合理默认值
+import {
+  formatDisplayMoney, // 格式化金额为带币种符号的字符串（如 "$9.99"、"¥69.00"）
+  normalizeDisplayCurrency, // 标准化币种配置对象，补全缺失字段并设置默认值
+} from '../../helpers/currency';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
 import {
@@ -69,11 +75,24 @@ function submitEpayForm({ url, params }) {
   document.body.removeChild(form);
 }
 
+// 根据展示币种选择对应的 Stripe Price ID
+// CNY -> stripe_price_cny_id（人民币专用 Stripe Price）
+// 其他币种 -> stripe_price_id（美元 Stripe Price）
+function getStripePriceIdForDisplayCurrency(plan, displayCurrency) {
+  if (!plan) return ''; // 套餐为空时返回空字符串
+  const normalized = normalizeDisplayCurrency(displayCurrency); // 标准化币种配置
+  if (normalized.currency === 'CNY') { // 如果是人民币
+    return plan.stripe_price_cny_id || ''; // 返回人民币 Stripe Price ID
+  }
+  return plan.stripe_price_id || ''; // 否则返回美元 Stripe Price ID
+}
+
 const SubscriptionPlansCard = ({
   t,
   loading = false,
   plans = [],
-  payMethods = [],
+  payMethods = [], // 可用的支付方式列表（包含 stripe、creem、易支付等）
+  displayCurrency, // 从父组件传入的展示币种配置（含 symbol、currency、unitPrice 等）
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
@@ -90,7 +109,22 @@ const SubscriptionPlansCard = ({
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
-  const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
+  const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]); // 过滤出易支付方式列表
+  // 标准化币种配置，确保 symbol / currency / unitPrice 等字段均有合理默认值
+  const normalizedDisplayCurrency = useMemo(
+    () => normalizeDisplayCurrency(displayCurrency), // 调用工具函数补全缺失字段
+    [displayCurrency], // 当 displayCurrency 变化时重新计算
+  );
+
+  // 根据币种配置格式化套餐价格：CNY 时按 unitPrice 换算，其他币种直接展示原价
+  const formatPlanPrice = (priceAmount) => {
+    const price = Number(priceAmount || 0); // 将价格转为数字，空值默认为 0
+    const displayAmount =
+      normalizedDisplayCurrency.currency === 'CNY' // 如果展示币种是人民币
+        ? price * normalizedDisplayCurrency.unitPrice // 原价 × 汇率 = 人民币金额
+        : price; // 非人民币直接使用原价（USD）
+    return formatDisplayMoney(displayAmount, normalizedDisplayCurrency.symbol); // 格式化为带符号的字符串
+  };
 
   const openBuy = (p) => {
     setSelectedPlan(p);
@@ -114,14 +148,20 @@ const SubscriptionPlansCard = ({
   };
 
   const payStripe = async () => {
-    if (!selectedPlan?.plan?.stripe_price_id) {
+    // 根据展示币种选择对应的 Stripe Price ID（USD 或 CNY）
+    const stripePriceId = getStripePriceIdForDisplayCurrency(
+      selectedPlan?.plan, // 当前选中的套餐
+      normalizedDisplayCurrency, // 标准化后的币种配置
+    );
+    if (!stripePriceId) { // 如果当前币种没有配置对应的 Stripe Price ID
       showError(t('该套餐未配置 Stripe'));
       return;
     }
     setPaying(true);
     try {
       const res = await API.post('/api/subscription/stripe/pay', {
-        plan_id: selectedPlan.plan.id,
+        plan_id: selectedPlan.plan.id, // 套餐 ID
+        display_currency: normalizedDisplayCurrency.currency, // 前端展示币种（USD/CNY），后端据此选择对应的 Stripe Price
       });
       if (res.data?.message === 'success') {
         window.open(res.data.data?.pay_link, '_blank');
@@ -490,12 +530,9 @@ const SubscriptionPlansCard = ({
               {plans.map((p, index) => {
                 const plan = p?.plan;
                 const totalAmount = Number(plan?.total_amount || 0);
-                const { symbol, rate } = getCurrencyConfig();
-                const price = Number(plan?.price_amount || 0);
-                const convertedPrice = price * rate;
-                const displayPrice = convertedPrice.toFixed(
-                  Number.isInteger(convertedPrice) ? 0 : 2,
-                );
+                // 使用统一的 formatPlanPrice 格式化价格，替代旧的 getCurrencyConfig + 手动换算
+                // formatPlanPrice 内部会根据币种自动进行汇率换算（CNY 时 ×unitPrice）
+                const displayPrice = formatPlanPrice(plan?.price_amount || 0);
                 const isPopular = index === 0 && plans.length > 1;
                 const limit = Number(plan?.max_purchase_per_user || 0);
                 const limitLabel = limit > 0 ? `${t('限购')} ${limit}` : null;
@@ -564,12 +601,10 @@ const SubscriptionPlansCard = ({
                         )}
                       </div>
 
-                      {/* 价格区域 */}
+                      {/* 价格区域：displayPrice 已包含币种符号，无需再单独渲染 symbol */}
                       <div className='py-2'>
                         <div className='flex items-baseline justify-start'>
-                          <span className='text-xl font-bold text-purple-600'>
-                            {symbol}
-                          </span>
+                          {/* displayPrice 由 formatPlanPrice 生成，已包含币种符号（如 $、¥） */}
                           <span className='text-3xl font-bold text-purple-600'>
                             {displayPrice}
                           </span>
@@ -670,6 +705,7 @@ const SubscriptionPlansCard = ({
         selectedEpayMethod={selectedEpayMethod}
         setSelectedEpayMethod={setSelectedEpayMethod}
         epayMethods={epayMethods}
+        displayCurrency={normalizedDisplayCurrency} // 传入标准化后的币种配置给购买弹窗使用（含 symbol、currency、unitPrice）
         enableOnlineTopUp={enableOnlineTopUp}
         enableStripeTopUp={enableStripeTopUp}
         enableCreemTopUp={enableCreemTopUp}

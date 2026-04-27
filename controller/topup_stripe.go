@@ -304,8 +304,15 @@ func fulfillOrder(event stripe.Event, referenceId string, customerId string) {
 
 	// 先尝试按"订阅订单"处理；订阅单金额固定，允许做严格金额校验。
 	if subscriptionOrder := model.GetSubscriptionOrderByTradeNo(referenceId); subscriptionOrder != nil {
-		if !stripeAmountTotalMatchesMoney(event.GetObjectValue("amount_total"), subscriptionOrder.Money) {
-			log.Printf("Stripe 订阅金额校验失败: ref=%s, callback_amount_total=%s, local_money=%.2f", referenceId, event.GetObjectValue("amount_total"), subscriptionOrder.Money)
+		// 根据回调中的币种，重新计算该订阅订单的预期支付金额
+		// 因为订阅可能使用 USD 或 CNY 的 Stripe Price，金额不同
+		expectedPayMoney := getSubscriptionStripeExpectedPayMoney(
+			subscriptionOrder,
+			event.GetObjectValue("currency"), // 回调中的币种，用于确定按哪种币种校验
+		)
+		// 校验 Stripe 回调金额与预期金额是否一致
+		if !stripeAmountTotalMatchesMoney(event.GetObjectValue("amount_total"), expectedPayMoney) {
+			log.Printf("Stripe 订阅金额校验失败: ref=%s, callback_amount_total=%s, expected_pay_money=%.2f", referenceId, event.GetObjectValue("amount_total"), expectedPayMoney)
 			return
 		}
 		if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload), PaymentMethodStripe); err == nil {
