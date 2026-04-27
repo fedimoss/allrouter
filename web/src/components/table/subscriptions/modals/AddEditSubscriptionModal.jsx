@@ -96,6 +96,7 @@ const AddEditSubscriptionModal = ({
     total_amount: 0,
     upgrade_group: '',
     stripe_price_id: '',
+    stripe_price_cny_id: '',
     creem_product_id: '',
   });
 
@@ -122,6 +123,7 @@ const AddEditSubscriptionModal = ({
       ),
       upgrade_group: p.upgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
+      stripe_price_cny_id: p.stripe_price_cny_id || '',
       creem_product_id: p.creem_product_id || '',
     };
   };
@@ -522,10 +524,19 @@ const AddEditSubscriptionModal = ({
                   </div>
 
                   <Row gutter={12}>
-                    <Col span={24}>
+                    <Col span={12}>
                       <Form.Input
                         field='stripe_price_id'
-                        label='Stripe PriceId'
+                        label='Stripe PriceId ($)'
+                        placeholder='price_...'
+                        showClear
+                      />
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.Input
+                        field='stripe_price_cny_id'
+                        label={'Stripe PriceId (\uFFE5)'}
                         placeholder='price_...'
                         showClear
                       />

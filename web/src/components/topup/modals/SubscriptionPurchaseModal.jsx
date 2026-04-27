@@ -32,13 +32,29 @@ import { Crown, CalendarClock, Package } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../helpers';
-import { getCurrencyConfig } from '../../../helpers/render';
+// 使用统一的币种格式化工具，替代旧的 getCurrencyConfig 静态方法
+import {
+  formatDisplayMoney, // 将金额格式化为带币种符号的字符串（如 "$9.99"、"¥69.00"）
+  normalizeDisplayCurrency, // 标准化币种配置对象，补全缺失字段并设置默认值
+} from '../../../helpers/currency';
 import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
 } from '../../../helpers/subscriptionFormat';
 
 const { Text } = Typography;
+
+// 根据展示币种选择对应的 Stripe Price ID
+// CNY -> stripe_price_cny_id（人民币专用 Stripe Price）
+// 其他币种 -> stripe_price_id（美元 Stripe Price）
+const getStripePriceIdForDisplayCurrency = (plan, displayCurrency) => {
+  if (!plan) return ''; // 套餐为空时返回空字符串
+  const normalized = normalizeDisplayCurrency(displayCurrency); // 标准化币种配置
+  if (normalized.currency === 'CNY') { // 如果是人民币
+    return plan.stripe_price_cny_id || ''; // 返回人民币 Stripe Price ID
+  }
+  return plan.stripe_price_id || ''; // 否则返回美元 Stripe Price ID
+};
 
 const SubscriptionPurchaseModal = ({
   t,
@@ -48,7 +64,8 @@ const SubscriptionPurchaseModal = ({
   paying,
   selectedEpayMethod,
   setSelectedEpayMethod,
-  epayMethods = [],
+  epayMethods = [], // 易支付方式列表
+  displayCurrency, // 从父组件传入的标准化币种配置（含 symbol、currency、unitPrice 等）
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
@@ -57,19 +74,39 @@ const SubscriptionPurchaseModal = ({
   onPayCreem,
   onPayEpay,
 }) => {
-  const plan = selectedPlan?.plan;
-  const totalAmount = Number(plan?.total_amount || 0);
-  const { symbol, rate } = getCurrencyConfig();
-  const price = plan ? Number(plan.price_amount || 0) : 0;
-  const convertedPrice = price * rate;
-  const displayPrice = convertedPrice.toFixed(
-    Number.isInteger(convertedPrice) ? 0 : 2,
+  const plan = selectedPlan?.plan; // 获取当前选中的套餐对象
+  const totalAmount = Number(plan?.total_amount || 0); // 套餐总额度（0 表示不限）
+  // 标准化币种配置，确保 symbol / currency / unitPrice 等字段均有合理默认值
+  const normalizedDisplayCurrency = normalizeDisplayCurrency(displayCurrency);
+  const price = plan ? Number(plan.price_amount || 0) : 0; // 套餐原价（USD）
+  // 根据展示币种选择对应的 Stripe Price ID（USD 或 CNY）
+  const stripePriceId = getStripePriceIdForDisplayCurrency(
+    plan, // 当前套餐
+    normalizedDisplayCurrency, // 标准化后的币种配置
   );
-  // 只有当管理员开启支付网关 AND 套餐配置了对应的支付ID时才显示
-  const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
-  const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
-  const hasEpay = enableOnlineTopUp && epayMethods.length > 0;
-  const hasAnyPayment = hasStripe || hasCreem || hasEpay;
+  // 只有管理员开启 Stripe 支付 且 套餐配置了对应币种的 Stripe Price ID 时才显示 Stripe 按钮
+  const hasStripe = enableStripeTopUp && !!stripePriceId;
+  const hasCreem = enableCreemTopUp && !!plan?.creem_product_id; // 是否启用 Creem 支付
+  const hasEpay = enableOnlineTopUp && epayMethods.length > 0; // 是否启用易支付
+  const hasAnyPayment = hasStripe || hasCreem || hasEpay; // 是否有任意一种支付方式可用
+  // 是否仅有易支付可用（无 Stripe / Creem），用于后续决定价格显示逻辑
+  const isEpayOnly = hasEpay && !hasStripe && !hasCreem;
+  // 从币种配置中读取人民币汇率，兼容驼峰和下划线两种命名
+  const cnyRate = Number(
+    displayCurrency?.cnyRate || displayCurrency?.cny_rate || 0,
+  );
+  // 计算展示金额：仅易支付且有 CNY 汇率时，直接用 cnyRate 换算人民币；否则走通用币种逻辑
+  const displayAmount =
+    isEpayOnly && cnyRate > 0 // 仅易支付且有人民币汇率
+      ? price * cnyRate // 原价 × 汇率 = 人民币金额
+      : normalizedDisplayCurrency.currency === 'CNY' // 非仅易支付，判断是否为人民币
+        ? price * normalizedDisplayCurrency.unitPrice // 原价 × unitPrice（汇率）= 人民币金额
+        : price; // 非人民币直接使用原价（USD）
+  // 决定显示的币种符号：仅易支付走 CNY 时显示 ¥，其他场景使用标准化后的币种符号
+  const displaySymbol =
+    isEpayOnly && cnyRate > 0 ? '¥' : normalizedDisplayCurrency.symbol;
+  // 使用 formatDisplayMoney 将金额和符号格式化为最终显示的价格字符串
+  const displayPrice = formatDisplayMoney(displayAmount, displaySymbol);
   const purchaseLimit = Number(purchaseLimitInfo?.limit || 0);
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
   const purchaseLimitReached =
@@ -162,7 +199,6 @@ const SubscriptionPurchaseModal = ({
                   {t('应付金额')}：
                 </Text>
                 <Text strong className='text-xl text-purple-600'>
-                  {symbol}
                   {displayPrice}
                 </Text>
               </div>

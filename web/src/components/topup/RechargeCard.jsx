@@ -865,6 +865,7 @@ const RechargeCard = ({
                       loading={subscriptionLoading}
                       plans={subscriptionPlans}
                       payMethods={payMethods}
+                      displayCurrency={displayCurrency}
                       enableOnlineTopUp={enableOnlineTopUp}
                       enableStripeTopUp={enableStripeTopUp}
                       enableCreemTopUp={enableCreemTopUp}

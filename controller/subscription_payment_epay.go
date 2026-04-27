@@ -22,6 +22,44 @@ type SubscriptionEpayPayRequest struct {
 	PaymentMethod string `json:"payment_method"`
 }
 
+// getSubscriptionEpayChargeMoney 计算订阅易支付的实际扣款金额
+// 易支付面向人民币支付页面，始终将存储的 USD 套餐价格转换为 CNY
+func getSubscriptionEpayChargeMoney(_ *gin.Context, usdPrice float64) (float64, error) {
+	// 套餐原价必须大于 0
+	if usdPrice <= 0 {
+		return 0, fmt.Errorf("invalid subscription price")
+	}
+
+	// 从数据库获取 CNY 币种配置（含汇率）
+	cnyConfig, err := model.GetCurrencyConfig("CNY")
+	if err != nil || cnyConfig == nil || cnyConfig.UnitPrice <= 0 {
+		return 0, fmt.Errorf("cny currency config not found")
+	}
+
+	// USD 价格 × CNY 汇率，保留两位小数
+	chargeMoney := normalizeDisplayMoneyDecimal(usdPrice).
+		Mul(normalizeDisplayMoneyDecimal(cnyConfig.UnitPrice)).
+		Round(2).
+		InexactFloat64()
+	// 转换后金额必须大于 0
+	if chargeMoney <= 0 {
+		return 0, fmt.Errorf("invalid converted cny amount")
+	}
+
+	return chargeMoney, nil
+}
+
+// subscriptionEpayOrderMoneyMatches 校验易支付回调金额是否与订单金额匹配
+// 统一使用 epayCallbackMoneyMatches（支持浮点容差匹配），兼容 CNY 转换后的金额
+func subscriptionEpayOrderMoneyMatches(order *model.SubscriptionOrder, callbackMoney string) bool {
+	// 订单为空直接不匹配
+	if order == nil {
+		return false
+	}
+	// 使用容差匹配，处理浮点精度问题
+	return epayCallbackMoneyMatches(callbackMoney, order.Money)
+}
+
 func SubscriptionRequestEpay(c *gin.Context) {
 	var req SubscriptionEpayPayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
@@ -81,6 +119,18 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		return
 	}
 
+	// 根据用户时区币种计算实际支付金额（USD 转 CNY）
+	chargeMoney, err := getSubscriptionEpayChargeMoney(c, plan.PriceAmount)
+	if err != nil {
+		common.ApiErrorMsg(c, "计算支付金额失败")
+		return
+	}
+	// 转换后金额不能低于 0.01
+	if chargeMoney < 0.01 {
+		common.ApiErrorMsg(c, "套餐金额过低")
+		return
+	}
+
 	order := &model.SubscriptionOrder{
 		UserId:        userId,
 		PlanId:        plan.Id,
@@ -94,11 +144,12 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorMsg(c, "创建订单失败")
 		return
 	}
+
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
 		Name:           fmt.Sprintf("SUB:%s", plan.Title),
-		Money:          strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64),
+		Money:          strconv.FormatFloat(chargeMoney, 'f', 2, 64), // 使用币种转换后的实际扣款金额
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
 		ReturnUrl:      returnUrl,
@@ -108,6 +159,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorMsg(c, "拉起支付失败")
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri})
 }
 
@@ -157,12 +209,8 @@ func SubscriptionEpayNotify(c *gin.Context) {
 	defer UnlockOrder(verifyInfo.ServiceTradeNo)
 
 	order := model.GetSubscriptionOrderByTradeNo(verifyInfo.ServiceTradeNo)
-	if order == nil {
-		_, _ = c.Writer.Write([]byte("fail"))
-		return
-	}
-	// 订阅订单金额是固定值，回调金额必须与本地订单一致。
-	if !amountStringMatchesMoney(verifyInfo.Money, order.Money) {
+	// 校验回调金额与订单金额是否匹配（支持 CNY 容差匹配）
+	if !subscriptionEpayOrderMoneyMatches(order, verifyInfo.Money) {
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
@@ -216,8 +264,10 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
+
 		order := model.GetSubscriptionOrderByTradeNo(verifyInfo.ServiceTradeNo)
-		if order == nil || !amountStringMatchesMoney(verifyInfo.Money, order.Money) {
+		// 校验回调金额与订单金额是否匹配（支持 CNY 容差匹配）
+		if !subscriptionEpayOrderMoneyMatches(order, verifyInfo.Money) {
 			c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
 			return
 		}
@@ -228,5 +278,6 @@ func SubscriptionEpayReturn(c *gin.Context) {
 		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=success")
 		return
 	}
+
 	c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=pending")
 }

@@ -232,7 +232,8 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"custom_seconds":             req.Plan.CustomSeconds,
 			"enabled":                    req.Plan.Enabled,
 			"sort_order":                 req.Plan.SortOrder,
-			"stripe_price_id":            req.Plan.StripePriceId,
+			"stripe_price_id":            req.Plan.StripePriceId,    // Stripe 美元价格 ID
+			"stripe_price_cny_id":        req.Plan.StripePriceCnyId, // Stripe 人民币价格 ID
 			"creem_product_id":           req.Plan.CreemProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
