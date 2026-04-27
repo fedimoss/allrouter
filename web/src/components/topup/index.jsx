@@ -752,6 +752,25 @@ const TopUp = () => {
     return num.toString();
   };
 
+  useEffect(() => {
+    const payStatus = searchParams.get('pay');
+    if (!payStatus) return;
+
+    if (payStatus === 'success') {
+      showSuccess(t('支付成功，正在刷新订阅状态'));
+      getSubscriptionSelf().then();
+      getUserQuota().then();
+    } else if (payStatus === 'pending') {
+      showInfo(t('支付处理中，请稍后刷新订阅状态'));
+    } else if (payStatus === 'fail') {
+      showError(t('支付失败'));
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('pay');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, t]);
+
   // 固定预设充值额度选项
   const generatePresetAmounts = () => {
     return [10, 20, 50, 100, 200, 500].map((value) => ({ value }));

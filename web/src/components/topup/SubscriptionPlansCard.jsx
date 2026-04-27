@@ -147,6 +147,26 @@ const SubscriptionPlansCard = ({
     }
   };
 
+  const startSubscriptionRefreshPolling = () => {
+    let attempts = 0;
+    const maxAttempts = 15;
+    const intervalMs = 3000;
+
+    const poll = async () => {
+      attempts += 1;
+      try {
+        await reloadSubscriptionSelf?.();
+      } catch (e) {
+        // ignore polling errors within the retry window
+      }
+      if (attempts < maxAttempts) {
+        window.setTimeout(poll, intervalMs);
+      }
+    };
+
+    window.setTimeout(poll, intervalMs);
+  };
+
   const payStripe = async () => {
     // 根据展示币种选择对应的 Stripe Price ID（USD 或 CNY）
     const stripePriceId = getStripePriceIdForDisplayCurrency(
@@ -165,6 +185,7 @@ const SubscriptionPlansCard = ({
       });
       if (res.data?.message === 'success') {
         window.open(res.data.data?.pay_link, '_blank');
+        startSubscriptionRefreshPolling();
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
@@ -193,6 +214,7 @@ const SubscriptionPlansCard = ({
       });
       if (res.data?.message === 'success') {
         window.open(res.data.data?.checkout_url, '_blank');
+        startSubscriptionRefreshPolling();
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
@@ -222,6 +244,7 @@ const SubscriptionPlansCard = ({
       });
       if (res.data?.message === 'success') {
         submitEpayForm({ url: res.data.url, params: res.data.data });
+        startSubscriptionRefreshPolling();
         showSuccess(t('已发起支付'));
         closeBuy();
       } else {
