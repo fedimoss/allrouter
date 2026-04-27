@@ -197,8 +197,8 @@ function MetricCard({ metric, loading }) {
         </div>
       </div>
       <div className='mt-5 min-h-[22px] text-sm'>
-        {metric.footer?.trend ? <span className={joinClasses('font-semibold', footerToneClass)}>{t(metric.footer.trend)}</span> : null}
         {metric.footer?.text ? <span className={joinClasses(metric.footer?.trend ? 'ml-2' : '', 'text-slate-400 dark:text-slate-500')}>{t(metric.footer.text)}</span> : null}
+        {<span className={joinClasses('font-semibold ml-2', footerToneClass)}>{t(metric.footer.trend)}</span>}
       </div>
     </article>
   );

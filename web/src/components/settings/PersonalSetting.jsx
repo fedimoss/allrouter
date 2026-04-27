@@ -100,23 +100,6 @@ const notificationTypeOptions = [
   { value: 'gotify', label: 'Gotify' },
 ];
 
-const phoneCountryCodeOptions = [
-  { value: '+86', label: '+86 中国大陆' },
-  { value: '+852', label: '+852 中国香港' },
-  { value: '+853', label: '+853 中国澳门' },
-  { value: '+886', label: '+886 中国台湾' },
-  { value: '+1', label: '+1 美国/加拿大' },
-  { value: '+81', label: '+81 日本' },
-  { value: '+82', label: '+82 韩国' },
-  { value: '+65', label: '+65 新加坡' },
-  { value: '+66', label: '+66 泰国' },
-  { value: '+84', label: '+84 越南' },
-  { value: '+91', label: '+91 印度' },
-  { value: '+44', label: '+44 英国' },
-  { value: '+49', label: '+49 德国' },
-  { value: '+33', label: '+33 法国' },
-  { value: '+61', label: '+61 澳大利亚' },
-];
 
 const fallbackTimezones = [
   'Asia/Shanghai',
@@ -254,6 +237,24 @@ const PersonalSetting = () => {
     const unique = Array.from(new Set(raw));
     return unique.map((tz) => ({ value: tz, label: tz }));
   }, []);
+
+  const phoneCountryCodeOptions = useMemo(() => [
+    { value: '+86', label: t('中国大陆 (+86)') },
+    { value: '+852', label: t('中国香港 (+852)') },
+    { value: '+853', label: t('中国澳门 (+853)') },
+    { value: '+886', label: t('中国台湾 (+886)') },
+    { value: '+1', label: t('美国/加拿大 (+1)') },
+    { value: '+81', label: t('日本 (+81)') },
+    { value: '+82', label: t('韩国 (+82)') },
+    { value: '+65', label: t('新加坡 (+65)') },
+    { value: '+66', label: t('泰国 (+66)') },
+    { value: '+84', label: t('越南 (+84)') },
+    { value: '+91', label: t('印度 (+91)') },
+    { value: '+44', label: t('英国 (+44)') },
+    { value: '+49', label: t('德国 (+49)') },
+    { value: '+33', label: t('法国 (+33)') },
+    { value: '+61', label: t('澳大利亚 (+61)') },
+  ], [t]);
 
   const currentLanguageLabel = useMemo(() => {
     const activeLanguage = normalizeLanguage(
