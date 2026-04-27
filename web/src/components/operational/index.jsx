@@ -246,7 +246,8 @@ function ColumnMenu({ columns, visibleColumnKeys, onToggle }) {
   );
 }
 
-function renderCell(column, row, displaySymbol) {
+function renderCell (column, row, displaySymbol) {
+  const { t } = useTranslation();
   const displayName = row.userId || '--';
   const subTitle = row.nickname || '';
 
@@ -270,7 +271,7 @@ function renderCell(column, row, displaySymbol) {
             retentionMeta.className,
           )}
         >
-          {retentionMeta.label}
+          {t(retentionMeta.label)}
         </span>
       );
     }

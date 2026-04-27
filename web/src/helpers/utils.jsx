@@ -521,7 +521,7 @@ export const getLastAssistantMessage = (messages) => {
 };
 
 // 计算相对时间（几天前、几小时前等）
-export const getRelativeTime = (publishDate) => {
+export const getRelativeTime = (publishDate, t = (key) => key) => {
   if (!publishDate) return '';
 
   const now = new Date();
@@ -546,19 +546,19 @@ export const getRelativeTime = (publishDate) => {
 
   // 根据时间差返回相应的描述
   if (diffSeconds < 60) {
-    return '刚刚';
+    return `${t('刚刚')}`;
   } else if (diffMinutes < 60) {
-    return `${diffMinutes} 分钟前`;
+    return `${diffMinutes} ${t('分钟前')}`;
   } else if (diffHours < 24) {
-    return `${diffHours} 小时前`;
+    return `${diffHours} ${t('小时前')}`;
   } else if (diffDays < 7) {
-    return `${diffDays} 天前`;
+    return `${diffDays} ${t('天前')}`;
   } else if (diffWeeks < 4) {
-    return `${diffWeeks} 周前`;
+    return `${diffWeeks} ${t('周前')}`;
   } else if (diffMonths < 12) {
-    return `${diffMonths} 个月前`;
+    return `${diffMonths} ${t('月前')}`;
   } else if (diffYears < 2) {
-    return '1 年前';
+    return `${diffYears} ${t('年前')}`;
   } else {
     // 超过2年显示具体日期
     return formatDateString(pubDate);

@@ -34,25 +34,6 @@ import { API, getRelativeTime, showError, showSuccess } from '../../../helpers';
 
 const PAGE_SIZE = 10;
 
-const formatLastActiveAt = (value) => {
-  if (value === null || value === undefined || value === '') return '-';
-  if (typeof value === 'number') {
-    const ms = value > 1e12 ? value : value * 1000;
-    return getRelativeTime(new Date(ms).toISOString());
-  }
-  if (value instanceof Date) {
-    return getRelativeTime(value.toISOString());
-  }
-  if (typeof value === 'string') {
-    const parsed = Date.parse(value);
-    if (!Number.isNaN(parsed)) {
-      return getRelativeTime(new Date(parsed).toISOString());
-    }
-    return value;
-  }
-  return String(value);
-};
-
 const getFileNameFromDisposition = (contentDisposition, fallbackFileName) => {
   if (!contentDisposition || typeof contentDisposition !== 'string') {
     return fallbackFileName;
@@ -115,6 +96,25 @@ const CertificationList = () => {
   const [deletingIds, setDeletingIds] = useState({});
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+
+  const formatLastActiveAt = (value) => {
+    if (value === null || value === undefined || value === '') return '-';
+    if (typeof value === 'number') {
+      const ms = value > 1e12 ? value : value * 1000;
+      return getRelativeTime(new Date(ms).toISOString(), t);
+    }
+    if (value instanceof Date) {
+      return getRelativeTime(value.toISOString(), t);
+    }
+    if (typeof value === 'string') {
+      const parsed = Date.parse(value);
+      if (!Number.isNaN(parsed)) {
+        return getRelativeTime(new Date(parsed).toISOString(), t);
+      }
+      return value;
+    }
+    return String(value);
+  };
 
   useEffect(() => {
     const loadData = async () => {

@@ -3996,6 +3996,19 @@
         "英国 (+44)": "UK (+44)",
         "德国 (+49)": "Germany (+49)",
         "法国 (+33)": "France (+33)",
-        "澳大利亚 (+61)": "Australia (+61)"
+        "澳大利亚 (+61)": "Australia (+61)",
+
+        "筛选条件": "Filter conditions",
+        "分钟前": "minutes ago",
+        "小时前": "hours ago",
+        "周前": "weeks ago",
+        "月前": "months ago",
+        "年前": "years ago",
+        "刚刚": "Just now",
+        "已使用": "Used",
+        "商家入驻区域": "Merchant Onboarding Area",
+        "商家接入与认证管理": "Merchant Access and Authentication Management",
+        "营销区域": "Marketing Area",
+        "邀请和兑换功能": "Invitation and Redemption Features"
     }
 }
