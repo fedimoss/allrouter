@@ -1,5 +1,7 @@
 package model
 
+import "github.com/QuantumNous/new-api/common"
+
 // TopUpRebate 充值返利记录数据模型
 // 记录每次充值返利的详细信息，用于返利统计和审计
 type TopUpRebate struct {
@@ -23,4 +25,33 @@ type TopUpRebate struct {
 // TableName 返回返利记录表的名称
 func (TopUpRebate) TableName() string {
 	return "topup_rebates"
+}
+
+// GetTopUpRebateRecordsByInviteeId 获取用户充值返利记录
+func GetTopUpRebateRecordsByInviteeId(userId int, pageInfo *common.PageInfo) (records []*TopUpRebate, total int64, err error) {
+	query := DB.Model(&TopUpRebate{}).
+		Select("rebate_quota, created_at").
+		Order("created_at desc").
+		Order("id desc").
+		Where("invitee_id = ?", userId)
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err = query.
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&records).Error; err != nil {
+		return nil, 0, err
+	}
+	return records, total, nil
+}
+
+// SumTopUpRebateQuotaByInviteeId 获取用户充值返利额度总和
+func SumTopUpRebateQuotaByInviteeId(userId int) (int64, error) {
+	var totalQuota int64
+	err := DB.Model(&TopUpRebate{}).
+		Select("COALESCE(SUM(rebate_quota), 0)").
+		Where("invitee_id = ?", userId).
+		Scan(&totalQuota).Error
+	return totalQuota, err
 }

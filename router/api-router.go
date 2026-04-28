@@ -82,6 +82,9 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/passkey/verify/finish", controller.PasskeyVerifyFinish)
 				selfRoute.DELETE("/passkey", controller.PasskeyDelete)
 				selfRoute.GET("/aff", controller.GetAffCode)
+				selfRoute.GET("/aff/records", controller.GetUserAffRecords)              // 管理员邀请记录列表
+				selfRoute.GET("/self/aff/records", controller.GetSelfAffRecords)         // 用户邀请记录列表
+				selfRoute.GET("/topup/rebate/records", controller.GetTopUpRebateRecords) // 用户返利记录列表
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)

@@ -376,6 +376,133 @@ func GetAffCode(c *gin.Context) {
 	return
 }
 
+// 邀请记录列表(管理员)
+func GetUserAffRecords(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c) // 分页信息
+
+	// 获取展示币种信息，计算各项展示金额
+	displayInfo := getDisplayCurrencyForUser(c)
+
+	// 获取全部邀请记录
+	records, total, err := model.GetUserAffRecords(pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 因为convertQuotaToDisplay后是小数, 用原有model必须转为整数, 影响精度
+	displayRecords := make([]gin.H, 0, len(records))
+	for _, record := range records {
+		displayRecords = append(displayRecords, gin.H{
+			"id":            record.Id,
+			"inviter_id":    record.InviterId,
+			"invitee_id":    record.InviteeId,
+			"invitee_name":  record.InviteeName,
+			"register_time": record.RegisterTime,
+			"reward_quota":  convertQuotaToDisplay(record.RewardQuota, displayInfo),
+			"created_at":    record.CreatedAt,
+		})
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(displayRecords)
+	common.ApiSuccess(c, gin.H{
+		"page":           pageInfo.Page,
+		"page_size":      pageInfo.PageSize,
+		"total":          pageInfo.Total,
+		"items":          pageInfo.Items,
+		"display_symbol": displayInfo.Symbol, // 展示币种符号
+	})
+}
+
+// 邀请记录列表(用户)
+func GetSelfAffRecords(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c) // 分页信息
+	userId := c.GetInt("id")           // 用户ID
+
+	// 获取展示币种信息，计算各项展示金额
+	displayInfo := getDisplayCurrencyForUser(c)
+
+	// 获取用户邀请记录
+	records, total, err := model.GetSelfAffRecords(userId, pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 因为convertQuotaToDisplay后是小数, 用原有model必须转为整数, 影响精度
+	displayRecords := make([]gin.H, 0, len(records))
+	for _, record := range records {
+		displayRecords = append(displayRecords, gin.H{
+			"id":            record.Id,
+			"inviter_id":    record.InviterId,
+			"invitee_id":    record.InviteeId,
+			"invitee_name":  record.InviteeName,
+			"register_time": record.RegisterTime,
+			"reward_quota":  convertQuotaToDisplay(record.RewardQuota, displayInfo),
+			"created_at":    record.CreatedAt,
+		})
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(displayRecords)
+	common.ApiSuccess(c, gin.H{
+		"page":           pageInfo.Page,
+		"page_size":      pageInfo.PageSize,
+		"total":          pageInfo.Total,
+		"items":          pageInfo.Items,
+		"display_symbol": displayInfo.Symbol, // 展示币种符号
+	})
+}
+
+// 返利记录列表
+func GetTopUpRebateRecords(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c) // 分页信息
+	userId, err := strconv.Atoi(c.Query("user_id"))
+	if err != nil || userId <= 0 {
+		common.ApiError(c, errors.New("invalid user_id"))
+		return
+	}
+
+	// 获取展示币种信息，计算各项展示金额
+	displayInfo := getDisplayCurrencyForUser(c)
+
+	// 获取用户充值返利记录
+	records, total, err := model.GetTopUpRebateRecordsByInviteeId(userId, pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 计算用户充值返利额度总和
+	totalRebateQuota, err := model.SumTopUpRebateQuotaByInviteeId(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 因为convertQuotaToDisplay后是小数, 用原有model必须转为整数, 影响精度
+	displayRecords := make([]gin.H, 0, len(records))
+	for _, record := range records {
+		displayRecords = append(displayRecords, gin.H{
+			"rebate_quota": convertQuotaToDisplay(record.RebateQuota, displayInfo),
+			"created_at":   record.CreatedAt,
+		})
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(displayRecords)
+	common.ApiSuccess(c, gin.H{
+		"page":               pageInfo.Page,
+		"page_size":          pageInfo.PageSize,
+		"total":              pageInfo.Total,
+		"items":              pageInfo.Items,                                            // 返利记录列表
+		"total_rebate_quota": convertQuotaToDisplay(int(totalRebateQuota), displayInfo), // 充值返利额度总和
+		"invitee_id":         userId,                                                    // 被邀请人ID
+		"display_symbol":     displayInfo.Symbol,                                        // 展示币种符号
+	})
+}
+
 func GetSelf(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)

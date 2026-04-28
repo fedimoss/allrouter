@@ -547,6 +547,7 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	user.InviterId = inviterId
 	//user.SetAccessToken(common.GetUUID())
 	user.AffCode = common.GetRandomString(4)
 
@@ -567,6 +568,10 @@ func (user *User) Insert(inviterId int) error {
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
+	}
+	if err := createInviteRecordTx(tx, inviterId, user); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	// 用户创建成功后，根据角色初始化边栏配置
@@ -633,6 +638,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	user.InviterId = inviterId
 	user.AffCode = common.GetRandomString(4)
 
 	// 初始化用户设置
@@ -645,6 +651,9 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	result := tx.Create(user)
 	if result.Error != nil {
 		return result.Error
+	}
+	if err := createInviteRecordTx(tx, inviterId, user); err != nil {
+		return err
 	}
 
 	return nil
