@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, DatePicker, Input, Pagination, Table, Tag, Typography } from '@douyinfe/semi-ui';
 import { IconFilter, IconRefresh, IconSearch } from '@douyinfe/semi-icons';
-import { BadgeCheck, CircleAlert, CircleCheckBig, CircleDollarSign, ShieldCheck } from 'lucide-react';
+import { BadgeCheck, CircleAlert, CircleCheckBig, SquareKanban, ShieldCheck } from 'lucide-react';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -13,8 +13,8 @@ import weChatImg from '../../../public/WeChat.png';
 const { Text } = Typography;
 
 const CARD_META = [
-  { key: 'total', title: '充值订单总额', desc: '系统生成订单的总金额', tone: 'normal', icon: CircleDollarSign },
-  { key: 'success', title: '支付成功总数', desc: '微信/Stripe确认收到单子', tone: 'normal', icon: BadgeCheck },
+  { key: 'total', title: '充值订单总额', desc: '系统生成订单的总金额', tone: 'normal', icon: SquareKanban },
+  { key: 'success', title: '支付成功总数', desc: '微信/Stripe确认收到单子', tone: 'normal', icon: ShieldCheck },
   { key: 'matched', title: '对账一致（平账）', desc: '正常', tone: 'success', icon: ShieldCheck },
   { key: 'abnormal', title: '对账异常', desc: '需要人工处理', tone: 'danger', icon: CircleAlert, dangerIconText: '!' },
   { key: 'abnormalAmount', title: '异常涉及总金额', desc: '', tone: 'danger-soft', icon: CircleAlert, dangerIconText: '¥' },
@@ -158,9 +158,9 @@ const PayReconciliationList = () => {
     const abnormalAmount = Number(stat.abnormal_amount || 0).toFixed(2);
     return CARD_META.map((m) => {
       if (m.key === 'total') return { ...m, value: `¥ ${totalAmount}` };
-      if (m.key === 'success') return { ...m, value: `${stat.payment_success_count || 0} ${t('笔')}` };
-      if (m.key === 'matched') return { ...m, value: `${stat.matched_count || 0} ${t('笔')}` };
-      if (m.key === 'abnormal') return { ...m, value: `${stat.abnormal_count || 0} ${t('笔')}` };
+      if (m.key === 'success') return { ...m, value: `${stat.payment_success_count || 0}`, unit: t('笔') };
+      if (m.key === 'matched') return { ...m, value: `${stat.matched_count || 0}`, unit: t('笔') };
+      if (m.key === 'abnormal') return { ...m, value: `${stat.abnormal_count || 0}`, unit: t('笔') };
       if (m.key === 'abnormalAmount') return { ...m, value: `¥ ${abnormalAmount}` };
       return m;
     });
@@ -192,7 +192,7 @@ const PayReconciliationList = () => {
         dataIndex: 'user_id',
         key: 'user_id',
         width: 110,
-        render: (v) => `${v ?? '-'}`,
+        render: (v) => `${v === 0 ? '-' : v}`,
       },
       {
         title: <HeaderText>{t('系统订单号')}</HeaderText>,
@@ -206,8 +206,8 @@ const PayReconciliationList = () => {
       },
       {
         title: <HeaderText>{t('商户订单号')}</HeaderText>,
-        dataIndex: 'wechat_trade_no',
-        key: 'wechat_trade_no',
+        dataIndex: 'merchant_trade_no',
+        key: 'merchant_trade_no',
         width: 220,
         render: (v) => v || '-',
       },
@@ -351,8 +351,8 @@ const PayReconciliationList = () => {
           const Icon = card.icon;
           return (
             <div key={card.key} className={`min-h-[148px] rounded-2xl border p-5 ${cardClass[card.tone]}`} style={card.tone.includes('danger') ? { borderColor: '#FF4D4F', background: '#FDF2F2' } : undefined}>
-              <div className='flex items-start justify-between'>
-                <span className='text-[16px] font-semibold' style={{ color: card.tone.includes('danger') ? '#FF4D4F' : '#94A3B8' }}>
+              <div className='flex items-center justify-between'>
+                <span className='text-[14px] font-semibold' style={{ color: card.tone.includes('danger') ? '#FF4D4F' : '#94A3B8' }}>
                   {t(card.title)}
                 </span>
                 <span
@@ -365,14 +365,14 @@ const PayReconciliationList = () => {
                         : { background: '#DFF2E8', color: '#09CC73' }
                   }
                 >
-                  {card.tone.includes('danger') ? <span className='text-[16px] leading-none font-bold'>{card.dangerIconText}</span> : <Icon size={14} style={{ color: 'currentColor' }} />}
+                  {card.tone.includes('danger') ? <span className='text-[16px] leading-none font-bold'>{card.dangerIconText}</span> : <Icon size={20} style={{ color: 'currentColor' }} />}
                 </span>
               </div>
-              <div className='mt-5 text-[40px] leading-[38px] font-bold' style={{ color: card.tone.includes('danger') ? '#FF4D4F' : '#475569' }}>
-                {statLoading ? '--' : card.value}
+              <div className='mt-5 text-[24px] leading-[38px] font-[900]' style={{ color: card.tone.includes('danger') ? '#FF4D4F' : '#475569' }}>
+                {statLoading ? '--' : card.value} <span className='text-[12px] font-[700]' style={{ color: card.tone.includes('danger') ? '#FF4D4F' : '#64748B' }}>{t(card.unit)}</span>
               </div>
               {card.desc ? (
-                <div className={`mt-3 inline-flex items-center gap-1 text-[13px] ${card.tone === 'danger' ? 'text-[#FF4D4F]' : card.tone === 'success' ? 'text-[#09CC73]' : 'text-[#94A3B8]'}`}>
+                <div className={`mt-3 inline-flex items-center gap-1 text-[12px] ${card.tone === 'danger' ? 'text-[#FF4D4F]' : card.tone === 'success' ? 'text-[#09CC73]' : 'text-[#64748B]'}`}>
                   {card.key === 'matched' ? <CircleCheckBig size={12} /> : null}
                   {card.key === 'abnormal' ? <CircleAlert size={12} /> : null}
                   {t(card.desc)}
