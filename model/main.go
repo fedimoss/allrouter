@@ -280,6 +280,7 @@ func migrateDB() error {
 		&TwoFA{},
 		&TwoFABackupCode{},
 		&Checkin{},
+		&InviteRecord{},
 		&TopUpRebate{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
@@ -288,6 +289,8 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&CliUser{},
 		&CurrencyStripeConfig{},
+		&PaymentBillRecord{},
+		&PaymentBillReconcile{},
 	)
 	if err != nil {
 		return err
@@ -331,12 +334,15 @@ func migrateDBFast() error {
 		{&TwoFA{}, "TwoFA"},
 		{&TwoFABackupCode{}, "TwoFABackupCode"},
 		{&Checkin{}, "Checkin"},
+		{&InviteRecord{}, "InviteRecord"},
 		{&TopUpRebate{}, "TopUpRebate"},
 		{&SubscriptionOrder{}, "SubscriptionOrder"},
 		{&UserSubscription{}, "UserSubscription"},
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
+		{&PaymentBillRecord{}, "PaymentBillRecord"},
+		{&PaymentBillReconcile{}, "PaymentBillReconcile"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

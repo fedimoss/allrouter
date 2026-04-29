@@ -376,6 +376,133 @@ func GetAffCode(c *gin.Context) {
 	return
 }
 
+// 邀请记录列表(管理员)
+func GetUserAffRecords(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c) // 分页信息
+
+	// 获取展示币种信息，计算各项展示金额
+	displayInfo := getDisplayCurrencyForUser(c)
+
+	// 获取全部邀请记录
+	records, total, err := model.GetUserAffRecords(pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 因为convertQuotaToDisplay后是小数, 用原有model必须转为整数, 影响精度
+	displayRecords := make([]gin.H, 0, len(records))
+	for _, record := range records {
+		displayRecords = append(displayRecords, gin.H{
+			"id":            record.Id,
+			"inviter_id":    record.InviterId,
+			"invitee_id":    record.InviteeId,
+			"invitee_name":  record.InviteeName,
+			"register_time": record.RegisterTime,
+			"reward_quota":  convertQuotaToDisplay(record.RewardQuota, displayInfo),
+			"created_at":    record.CreatedAt,
+		})
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(displayRecords)
+	common.ApiSuccess(c, gin.H{
+		"page":           pageInfo.Page,
+		"page_size":      pageInfo.PageSize,
+		"total":          pageInfo.Total,
+		"items":          pageInfo.Items,
+		"display_symbol": displayInfo.Symbol, // 展示币种符号
+	})
+}
+
+// 邀请记录列表(用户)
+func GetSelfAffRecords(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c) // 分页信息
+	userId := c.GetInt("id")           // 用户ID
+
+	// 获取展示币种信息，计算各项展示金额
+	displayInfo := getDisplayCurrencyForUser(c)
+
+	// 获取用户邀请记录
+	records, total, err := model.GetSelfAffRecords(userId, pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 因为convertQuotaToDisplay后是小数, 用原有model必须转为整数, 影响精度
+	displayRecords := make([]gin.H, 0, len(records))
+	for _, record := range records {
+		displayRecords = append(displayRecords, gin.H{
+			"id":            record.Id,
+			"inviter_id":    record.InviterId,
+			"invitee_id":    record.InviteeId,
+			"invitee_name":  record.InviteeName,
+			"register_time": record.RegisterTime,
+			"reward_quota":  convertQuotaToDisplay(record.RewardQuota, displayInfo),
+			"created_at":    record.CreatedAt,
+		})
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(displayRecords)
+	common.ApiSuccess(c, gin.H{
+		"page":           pageInfo.Page,
+		"page_size":      pageInfo.PageSize,
+		"total":          pageInfo.Total,
+		"items":          pageInfo.Items,
+		"display_symbol": displayInfo.Symbol, // 展示币种符号
+	})
+}
+
+// 返利记录列表
+func GetTopUpRebateRecords(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c) // 分页信息
+	userId, err := strconv.Atoi(c.Query("user_id"))
+	if err != nil || userId <= 0 {
+		common.ApiError(c, errors.New("invalid user_id"))
+		return
+	}
+
+	// 获取展示币种信息，计算各项展示金额
+	displayInfo := getDisplayCurrencyForUser(c)
+
+	// 获取用户充值返利记录
+	records, total, err := model.GetTopUpRebateRecordsByInviteeId(userId, pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 计算用户充值返利额度总和
+	totalRebateQuota, err := model.SumTopUpRebateQuotaByInviteeId(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 因为convertQuotaToDisplay后是小数, 用原有model必须转为整数, 影响精度
+	displayRecords := make([]gin.H, 0, len(records))
+	for _, record := range records {
+		displayRecords = append(displayRecords, gin.H{
+			"rebate_quota": convertQuotaToDisplay(record.RebateQuota, displayInfo),
+			"created_at":   record.CreatedAt,
+		})
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(displayRecords)
+	common.ApiSuccess(c, gin.H{
+		"page":               pageInfo.Page,
+		"page_size":          pageInfo.PageSize,
+		"total":              pageInfo.Total,
+		"items":              pageInfo.Items,                                            // 返利记录列表
+		"total_rebate_quota": convertQuotaToDisplay(int(totalRebateQuota), displayInfo), // 充值返利额度总和
+		"invitee_id":         userId,                                                    // 被邀请人ID
+		"display_symbol":     displayInfo.Symbol,                                        // 展示币种符号
+	})
+}
+
 func GetSelf(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -510,40 +637,42 @@ func GetSelf(c *gin.Context) {
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
-		"id":                   user.Id,
-		"username":             user.Username,
-		"display_name":         user.DisplayName,
-		"avatar":               user.Avatar,
-		"role":                 user.Role,
-		"status":               user.Status,
-		"email":                user.Email,
-		"github_id":            user.GitHubId,
-		"discord_id":           user.DiscordId,
-		"oidc_id":              user.OidcId,
-		"wechat_id":            user.WeChatId,
-		"telegram_id":          user.TelegramId,
-		"group":                user.Group,
-		"quota":                convertQuotaToDisplay(user.Quota, displayInfo),     // 转换后的余额
-		"used_quota":           convertQuotaToDisplay(user.UsedQuota, displayInfo), // 转换后的消费
-		"display_symbol":       displayInfo.Symbol,                                 // 展示币种符号
-		"request_count":        periodRequestCount,                                 // 请求次数
-		"request_count_change": yesterdayChange,                                    // 和昨天相比的变化
-		"total_count":          totalRequestCount,                                  // 统计次数
-		"aff_code":             user.AffCode,
-		"aff_count":            user.AffCount,
-		"aff_quota":            user.AffQuota,
-		"aff_history_quota":    user.AffHistoryQuota,
-		"total_topup_quota":    totalTopupQuota,
-		"welfare_quota":        convertUsdToDisplay(welfareQuota, displayInfo), // 转换后的奖励
-		"inviter_id":           user.InviterId,
-		"linux_do_id":          user.LinuxDOId,
-		"setting":              user.Setting,
-		"stripe_customer":      user.StripeCustomer,
-		"phone_country_code":   user.PhoneCountryCode,
-		"phone_number":         user.PhoneNumber,
-		"timezone":             user.Timezone,
-		"sidebar_modules":      userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":          permissions,                // 新增权限字段
+		"id":                        user.Id,
+		"username":                  user.Username,
+		"display_name":              user.DisplayName,
+		"avatar":                    user.Avatar,
+		"role":                      user.Role,
+		"status":                    user.Status,
+		"email":                     user.Email,
+		"github_id":                 user.GitHubId,
+		"discord_id":                user.DiscordId,
+		"oidc_id":                   user.OidcId,
+		"wechat_id":                 user.WeChatId,
+		"telegram_id":               user.TelegramId,
+		"group":                     user.Group,
+		"quota":                     convertQuotaToDisplay(user.Quota, displayInfo),     // 转换后的余额
+		"used_quota":                convertQuotaToDisplay(user.UsedQuota, displayInfo), // 转换后的消费
+		"display_symbol":            displayInfo.Symbol,                                 // 展示币种符号
+		"request_count":             periodRequestCount,                                 // 请求次数
+		"request_count_change":      yesterdayChange,                                    // 和昨天相比的变化
+		"total_count":               totalRequestCount,                                  // 统计次数
+		"aff_code":                  user.AffCode,
+		"aff_count":                 user.AffCount,
+		"aff_quota":                 user.AffQuota,                                            // 原始邀请额度，前端划转接口使用
+		"aff_quota_display":         convertQuotaToDisplay(user.AffQuota, displayInfo),        // 转换后的邀请额度，前端展示使用
+		"aff_history_quota":         user.AffHistoryQuota,                                     // 原始历史邀请收益
+		"aff_history_quota_display": convertQuotaToDisplay(user.AffHistoryQuota, displayInfo), // 转换后的历史邀请收益，前端展示使用
+		"total_topup_quota":         totalTopupQuota,
+		"welfare_quota":             convertUsdToDisplay(welfareQuota, displayInfo), // 转换后的奖励
+		"inviter_id":                user.InviterId,
+		"linux_do_id":               user.LinuxDOId,
+		"setting":                   user.Setting,
+		"stripe_customer":           user.StripeCustomer,
+		"phone_country_code":        user.PhoneCountryCode,
+		"phone_number":              user.PhoneNumber,
+		"timezone":                  user.Timezone,
+		"sidebar_modules":           userSetting.SidebarModules, // 正确提取sidebar_modules字段
+		"permissions":               permissions,                // 新增权限字段
 	}
 
 	c.JSON(http.StatusOK, gin.H{

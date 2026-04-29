@@ -82,6 +82,9 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/passkey/verify/finish", controller.PasskeyVerifyFinish)
 				selfRoute.DELETE("/passkey", controller.PasskeyDelete)
 				selfRoute.GET("/aff", controller.GetAffCode)
+				selfRoute.GET("/aff/records", controller.GetUserAffRecords)              // 管理员邀请记录列表
+				selfRoute.GET("/self/aff/records", controller.GetSelfAffRecords)         // 用户邀请记录列表
+				selfRoute.GET("/topup/rebate/records", controller.GetTopUpRebateRecords) // 用户返利记录列表
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
@@ -410,6 +413,15 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.PUT("/:id/name", controller.UpdateDeploymentName)
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
+		}
+
+		wechatTradeBillRoute := apiRouter.Group("/wechat_trade_bill")
+		wechatTradeBillRoute.Use(middleware.AdminAuth())
+		{
+			wechatTradeBillRoute.GET("/stat", controller.GetWechatTradeBillStat)
+			wechatTradeBillRoute.GET("/list", controller.GetWechatTradeBillList)
+			wechatTradeBillRoute.GET("/:id", controller.GetWechatTradeBillDetail)
+			wechatTradeBillRoute.POST("/run", controller.RunWechatTradeBill)
 		}
 		//CLI Proxy API接口集成进allrouter中
 		voRoute := apiRouter.Group("/v0")
