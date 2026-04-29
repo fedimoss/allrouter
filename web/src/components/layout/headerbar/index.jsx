@@ -93,6 +93,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     '/console/deployment': t('模型部署'),
     '/console/billing': t('账单中心'),
     '/console/operational': t('运营数据'),
+    '/console/reconciliation': t('支付对账'),
     '/console/user': t('用户管理'),
     '/console/setting': t('系统设置'),
     '/console/redemption': t('兑换码管理'),

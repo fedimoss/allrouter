@@ -161,6 +161,8 @@ export function getLucideIcon(key, selected = false) {
       return <CreditCard {...commonProps} color={iconColor} />;
     case 'operational':
       return <BarChart3 {...commonProps} color={iconColor} />;
+    case 'reconciliation':
+      return <ShieldCheck {...commonProps} color={iconColor} />;
     case 'subscription':
       return <CalendarClock {...commonProps} color={iconColor} />;
     case 'setting':

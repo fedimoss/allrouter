@@ -92,6 +92,7 @@ const NotificationSettings = ({
       deployment: true,
       billing: true,
       operational: true,
+      reconciliation: true,
       subscription: true,
       redemption: true,
       user: true,
@@ -180,6 +181,7 @@ const NotificationSettings = ({
         deployment: true,
         billing: true,
         operational: true,
+        reconciliation: true,
         subscription: true,
         redemption: true,
         user: true,
@@ -332,6 +334,11 @@ const NotificationSettings = ({
           key: 'operational',
           title: t('运营数据'),
           description: t('系统运营数据统计'),
+        },
+        {
+          key: 'reconciliation',
+          title: t('支付对账'),
+          description: t('支付对账记录'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
         {

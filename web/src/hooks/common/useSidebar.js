@@ -64,6 +64,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     deployment: true,
     billing: true,
     operational: true,
+    reconciliation: true,
     redemption: true,
     user: true,
     subscription: true,

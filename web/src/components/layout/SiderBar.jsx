@@ -55,6 +55,7 @@ const routerMap = {
   certification: '/console/certification',
   billing: '/console/billing',
   operational: '/console/operational',
+  reconciliation: '/console/reconciliation',
   invitation: '/console/invitation',
   exchange: '/console/exchange'
 };
@@ -263,6 +264,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('运营数据'),
         itemKey: 'operational',
         to: '/operational',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('支付对账'),
+        itemKey: 'reconciliation',
+        to: '/reconciliation',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

@@ -1976,14 +1976,19 @@ html.dark .landing-home.landing-v2 .landing-v2-hero-badge {
 }
 
 .landing-home.landing-v2 .landing-v2-partner-logo {
-  width: 14px;
-  height: 14px;
+  width: 24px;
+  height: 24px;
   object-fit: contain;
   opacity: 0.72;
   filter: grayscale(100%);
 }
+.landing-v2-logo-item:hover .landing-v2-partner-logo {
+  filter: none;
+}
+
 
 .landing-home.landing-v2 .landing-v2-logo-name {
+  font-size: 14px;
   white-space: nowrap;
 }
 

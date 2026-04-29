@@ -53,14 +53,15 @@ import kimiLogo from '../../../public/logos/kimi.svg';
 import minimaxLogo from '../../../public/logos/minimax.svg';
 import chatglmLogo from '../../../public/logos/chatglm.svg';
 import doubaoLogo from '../../../public/logos/doubao.svg';
+import geminiLogo from '../../../public/logos/gemini.svg';
 
 const logo = getLogo();
 const systemName = getSystemName();
 
 const partnerLogos = [
-  { src: openaiLogo, alt: 'OpenAI' },
+  { src: openaiLogo, alt: 'ChatGPT' },
   { src: anthropicLogo, alt: 'Anthropic' },
-  { src: googleLogo, alt: 'Gemini' },
+  { src: geminiLogo, alt: 'Gemini' },
   { src: zhipuLogo, alt: 'Zhipu AI' },
   { src: metaLogo, alt: 'Meta' },
   { src: deepseekLogo, alt: 'DeepSeek' },

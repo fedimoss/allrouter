@@ -50,6 +50,7 @@ import Invitation from './pages/Invitation';
 import Exchange from './pages/Exchange';
 import Billing from './pages/Billing';
 import Operational from './pages/OperationalData';
+import Reconciliation from './pages/Reconciliation';
 import CertificationDocument from './pages/CertificationDocument';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
@@ -191,6 +192,14 @@ function App() {
           element={
             <PrivateRoute>
               <Operational />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/reconciliation'
+          element={
+            <PrivateRoute>
+              <Reconciliation />
             </PrivateRoute>
           }
         />

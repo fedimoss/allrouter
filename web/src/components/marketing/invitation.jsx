@@ -26,6 +26,7 @@ import {
   Empty,
   Tag,
   Collapsible,
+  Pagination,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -55,9 +56,12 @@ import {
   renderQuota,
   copy,
   getQuotaPerUnit,
+  timestamp2string,
 } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
+import { isAdmin } from '../../helpers/utils';
 import TransferModal from '../topup/modals/TransferModal';
+import InviteDetailModal from './modals/InviteDetailModal';
 import bannerImg from '../../../public/invite-banner.png';
 import hammerImg from '../../../public/hammer.svg';
 import walletImg from '../../../public/wallet-balance.png';
@@ -73,9 +77,24 @@ const Invitation = () => {
 
   const [affLink, setAffLink] = useState('');
   const [openTransfer, setOpenTransfer] = useState(false);
+  const [openInviteDetail, setOpenInviteDetail] = useState(false);
+  const [selectedInvite, setSelectedInvite] = useState(null);
   const [transferAmount, setTransferAmount] = useState(getQuotaPerUnit());
   const [expandedFaq, setExpandedFaq] = useState(null);
+  const [inviteList, setInviteList] = useState([
+    {
+      username: 'testuser',
+      reward: 1000,
+      register_time: '2024-01-01 12:00:00',
+      status: '查看',
+    }
+  ]);
 
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [invitePage, setInvitePage] = useState(1);
+  const [invitePageSize] = useState(10);
+  const [inviteTotal, setInviteTotal] = useState(0);
+  const [inviteDisplaySymbol, setInviteDisplaySymbol] = useState('');
   const affFetchedRef = useRef(false);
 
   const getAffLink = async () => {
@@ -99,6 +118,26 @@ const Invitation = () => {
       userDispatch({ type: 'login', payload: data });
     } else {
       showError(message);
+    }
+  };
+
+  const loadInviteRecords = async (page = 1, pageSize = invitePageSize) => {
+    setInviteLoading(true);
+    try {
+      const base = isAdmin() ? '/api/user/aff/records' : '/api/user/self/aff/records';
+      const res = await API.get(`${base}?p=${page}&page_size=${pageSize}`);
+      const { success, message, data } = res.data;
+      if (success) {
+        setInviteList(data?.items || []);
+        setInviteTotal(data?.total || 0);
+        setInviteDisplaySymbol(data?.display_symbol || '');
+      } else {
+        showError(message || t('加载失败'));
+      }
+    } catch {
+      showError(t('加载失败'));
+    } finally {
+      setInviteLoading(false);
     }
   };
 
@@ -140,6 +179,10 @@ const Invitation = () => {
     getAffLink().then();
   }, []);
 
+  useEffect(() => {
+    loadInviteRecords(invitePage, invitePageSize).then();
+  }, [invitePage, invitePageSize]);
+
   const affQuota = userState?.user?.aff_quota || 0;
   const affHistoryQuota = userState?.user?.aff_history_quota || 0;
   const affCount = userState?.user?.aff_count || 0;
@@ -147,7 +190,7 @@ const Invitation = () => {
   // 邀请明细表格列
   const inviteColumns = [
     {
-      title: t('用户'),
+      title: t('被邀请人'),
       dataIndex: 'username',
       key: 'username',
       render: (text) => <Text strong>{text}</Text>,
@@ -158,34 +201,31 @@ const Invitation = () => {
       key: 'register_time',
     },
     {
-      title: t('状态'),
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => {
-        if (status === 'active') {
-          return (
-            <Tag color='green' size='small'>
-              {t('已激活')}
-            </Tag>
-          );
-        }
-        return (
-          <Tag color='orange' size='small'>
-            {t('待激活')}
-          </Tag>
-        );
-      },
-    },
-    {
-      title: t('贡献奖励'),
+      title: t('注册奖励'),
       dataIndex: 'reward',
       key: 'reward',
       render: (reward) => (
-        <Text type={reward > 0 ? 'success' : 'tertiary'}>
-          {reward > 0 ? renderQuota(reward) : '-'}
-        </Text>
+        <div className='text-[#1CDFD5] text-[14px] font-bold'>+{reward}</div>
       ),
     },
+    {
+      title: t('充值返利'),
+      dataIndex: 'status',
+      key: 'status',
+      render: (row, record) => {
+        return (
+          <span
+            className='text-[#1CDFD5] bg-[#1CDFD533] border border-[#1CDFD5] rounded-md px-3 py-1 text-[14px] font-bold cursor-pointer'
+            onClick={() => {
+              setSelectedInvite(record);
+              setOpenInviteDetail(true);
+            }}
+          >
+            {t('查看')}
+          </span>
+        );
+      },
+    }
   ];
 
   // 奖励规则 (静态)
@@ -237,6 +277,62 @@ const Invitation = () => {
   const toggleFaq = (index) => {
     setExpandedFaq(expandedFaq === index ? null : index);
   };
+
+  const safeFormatTimestamp = (value) => {
+    if (value === null || value === undefined || value === '') {
+      return '-';
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return '-';
+    }
+    try {
+      return timestamp2string(numeric);
+    } catch {
+      return '-';
+    }
+  };
+
+  const inviteRecordsColumns = [
+    {
+      title: t('被邀请人'),
+      dataIndex: 'invitee_name',
+      key: 'invitee_name',
+      render: (text) => <Text strong>{text || '-'}</Text>,
+    },
+    {
+      title: t('注册时间'),
+      dataIndex: 'register_time',
+      key: 'register_time',
+      render: (_, record) => safeFormatTimestamp(record?.register_time),
+    },
+    {
+      title: t('注册奖励'),
+      dataIndex: 'reward_quota',
+      key: 'reward_quota',
+      render: (rewardQuota) => (
+        <div className='text-[#1CDFD5] text-[14px] font-bold'>
+          {inviteDisplaySymbol}{rewardQuota ?? 0}
+        </div>
+      ),
+    },
+    {
+      title: t('充值返利'),
+      dataIndex: 'status',
+      key: 'status',
+      render: (_, record) => (
+        <span
+          className='text-[#1CDFD5] bg-[#1CDFD533] border border-[#1CDFD5] rounded-md px-3 py-1 text-[14px] font-bold cursor-pointer'
+          onClick={() => {
+            setSelectedInvite(record);
+            setOpenInviteDetail(true);
+          }}
+        >
+          {t('查看')}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className='p-4 md:p-6'>
@@ -402,16 +498,13 @@ const Invitation = () => {
                   {t('邀请明细')}
                 </div>
               </div>
-              <Tag color='blue' size='small'>
-                {t('最近 30 天')}
-              </Tag>
             </div>
             <Table
-              columns={inviteColumns}
-              dataSource={[]}
+              columns={inviteRecordsColumns}
+              dataSource={inviteList}
               rowKey='id'
               pagination={false}
-              size='small'
+              loading={inviteLoading}
               empty={
                 <Empty
                   image={
@@ -429,6 +522,16 @@ const Invitation = () => {
                 />
               }
             />
+            <div className='mt-4 flex justify-end'>
+              <Pagination
+                total={inviteTotal}
+                pageSize={invitePageSize}
+                currentPage={invitePage}
+                onPageChange={setInvitePage}
+                showSizeChanger={false}
+                size='small'
+              />
+            </div>
           </div>
         </div>
 
@@ -513,6 +616,15 @@ const Invitation = () => {
         getQuotaPerUnit={getQuotaPerUnit}
         transferAmount={transferAmount}
         setTransferAmount={setTransferAmount}
+      />
+
+      {/* 邀请明细弹窗 */}
+      <InviteDetailModal
+        t={t}
+        visible={openInviteDetail}
+        onClose={() => setOpenInviteDetail(false)}
+        inviteeId={selectedInvite?.invitee_id}
+        inviteeName={selectedInvite?.invitee_name}
       />
     </div>
   );
