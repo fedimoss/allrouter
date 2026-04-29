@@ -53,6 +53,7 @@ import {
   showError,
   showSuccess,
   renderQuota,
+  formatDisplayMoney, // 用于将后端转换后的金额按用户币种格式化展示
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
@@ -140,8 +141,11 @@ const Invitation = () => {
     getAffLink().then();
   }, []);
 
-  const affQuota = userState?.user?.aff_quota || 0;
-  const affHistoryQuota = userState?.user?.aff_history_quota || 0;
+  const affQuota = userState?.user?.aff_quota || 0;               // 原始邀请额度，用于划转接口和按钮禁用判断
+  const affQuotaDisplay = userState?.user?.aff_quota_display || 0; // 后端转换后的展示金额
+  const affHistoryQuota = userState?.user?.aff_history_quota || 0;               // 原始历史邀请收益
+  const affHistoryQuotaDisplay = userState?.user?.aff_history_quota_display || 0; // 后端转换后的历史展示金额
+  const displaySymbol = userState?.user?.display_symbol; // 用户当前币种符号（如 $ 或 ¥）
   const affCount = userState?.user?.aff_count || 0;
 
   // 邀请明细表格列
@@ -263,7 +267,8 @@ const Invitation = () => {
             </span>
           </div>
           <div className='dark:text-cyan-300 mb-1 text-[#1CDFD5] font-[900] text-[30px] leading-[30px]'>
-            {renderQuota(affQuota)}
+            {/* 使用后端转换值 + 用户币种符号展示待提取收益 */}
+            {formatDisplayMoney(affQuotaDisplay, displaySymbol)}
           </div>
           {/* <Text type='tertiary' className='mt-2' size='small' style={{display:'block'}}>
             {t('可立即划转至余额')}
@@ -295,7 +300,8 @@ const Invitation = () => {
             </span>
           </div>
           <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px]'>
-            {renderQuota(affHistoryQuota)}
+            {/* 使用后端转换值 + 用户币种符号展示累计总收益 */}
+            {formatDisplayMoney(affHistoryQuotaDisplay, displaySymbol)}
           </div>
           {/* <Text type='tertiary' size='small'>
             {t('历史所有奖励总和')}

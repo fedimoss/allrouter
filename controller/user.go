@@ -637,40 +637,42 @@ func GetSelf(c *gin.Context) {
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
-		"id":                   user.Id,
-		"username":             user.Username,
-		"display_name":         user.DisplayName,
-		"avatar":               user.Avatar,
-		"role":                 user.Role,
-		"status":               user.Status,
-		"email":                user.Email,
-		"github_id":            user.GitHubId,
-		"discord_id":           user.DiscordId,
-		"oidc_id":              user.OidcId,
-		"wechat_id":            user.WeChatId,
-		"telegram_id":          user.TelegramId,
-		"group":                user.Group,
-		"quota":                convertQuotaToDisplay(user.Quota, displayInfo),     // 转换后的余额
-		"used_quota":           convertQuotaToDisplay(user.UsedQuota, displayInfo), // 转换后的消费
-		"display_symbol":       displayInfo.Symbol,                                 // 展示币种符号
-		"request_count":        periodRequestCount,                                 // 请求次数
-		"request_count_change": yesterdayChange,                                    // 和昨天相比的变化
-		"total_count":          totalRequestCount,                                  // 统计次数
-		"aff_code":             user.AffCode,
-		"aff_count":            user.AffCount,
-		"aff_quota":            user.AffQuota,
-		"aff_history_quota":    user.AffHistoryQuota,
-		"total_topup_quota":    totalTopupQuota,
-		"welfare_quota":        convertUsdToDisplay(welfareQuota, displayInfo), // 转换后的奖励
-		"inviter_id":           user.InviterId,
-		"linux_do_id":          user.LinuxDOId,
-		"setting":              user.Setting,
-		"stripe_customer":      user.StripeCustomer,
-		"phone_country_code":   user.PhoneCountryCode,
-		"phone_number":         user.PhoneNumber,
-		"timezone":             user.Timezone,
-		"sidebar_modules":      userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":          permissions,                // 新增权限字段
+		"id":                        user.Id,
+		"username":                  user.Username,
+		"display_name":              user.DisplayName,
+		"avatar":                    user.Avatar,
+		"role":                      user.Role,
+		"status":                    user.Status,
+		"email":                     user.Email,
+		"github_id":                 user.GitHubId,
+		"discord_id":                user.DiscordId,
+		"oidc_id":                   user.OidcId,
+		"wechat_id":                 user.WeChatId,
+		"telegram_id":               user.TelegramId,
+		"group":                     user.Group,
+		"quota":                     convertQuotaToDisplay(user.Quota, displayInfo),     // 转换后的余额
+		"used_quota":                convertQuotaToDisplay(user.UsedQuota, displayInfo), // 转换后的消费
+		"display_symbol":            displayInfo.Symbol,                                 // 展示币种符号
+		"request_count":             periodRequestCount,                                 // 请求次数
+		"request_count_change":      yesterdayChange,                                    // 和昨天相比的变化
+		"total_count":               totalRequestCount,                                  // 统计次数
+		"aff_code":                  user.AffCode,
+		"aff_count":                 user.AffCount,
+		"aff_quota":                 user.AffQuota,                                            // 原始邀请额度，前端划转接口使用
+		"aff_quota_display":         convertQuotaToDisplay(user.AffQuota, displayInfo),        // 转换后的邀请额度，前端展示使用
+		"aff_history_quota":         user.AffHistoryQuota,                                     // 原始历史邀请收益
+		"aff_history_quota_display": convertQuotaToDisplay(user.AffHistoryQuota, displayInfo), // 转换后的历史邀请收益，前端展示使用
+		"total_topup_quota":         totalTopupQuota,
+		"welfare_quota":             convertUsdToDisplay(welfareQuota, displayInfo), // 转换后的奖励
+		"inviter_id":                user.InviterId,
+		"linux_do_id":               user.LinuxDOId,
+		"setting":                   user.Setting,
+		"stripe_customer":           user.StripeCustomer,
+		"phone_country_code":        user.PhoneCountryCode,
+		"phone_number":              user.PhoneNumber,
+		"timezone":                  user.Timezone,
+		"sidebar_modules":           userSetting.SidebarModules, // 正确提取sidebar_modules字段
+		"permissions":               permissions,                // 新增权限字段
 	}
 
 	c.JSON(http.StatusOK, gin.H{
