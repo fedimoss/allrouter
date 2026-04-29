@@ -27,6 +27,33 @@ export const supportedLanguages = [
   'vi',
 ];
 
+// 根据常见时区推断默认语言，供个人设置里自动同步语言时使用。
+const timezoneLanguageMap = Object.freeze({
+  'Asia/Chongqing': 'zh-CN',
+  'Asia/Harbin': 'zh-CN',
+  'Asia/Shanghai': 'zh-CN',
+  'Asia/Urumqi': 'zh-CN',
+  'Asia/Hong_Kong': 'zh-TW',
+  'Asia/Macau': 'zh-TW',
+  'Asia/Taipei': 'zh-TW',
+  'America/Anchorage': 'en',
+  'America/Chicago': 'en',
+  'America/Denver': 'en',
+  'America/Los_Angeles': 'en',
+  'America/New_York': 'en',
+  'America/Phoenix': 'en',
+  'Australia/Melbourne': 'en',
+  'Australia/Perth': 'en',
+  'Australia/Sydney': 'en',
+  'Europe/London': 'en',
+  'Pacific/Auckland': 'en',
+  'Pacific/Honolulu': 'en',
+  'Europe/Paris': 'fr',
+  'Europe/Moscow': 'ru',
+  'Asia/Tokyo': 'ja',
+  'Asia/Ho_Chi_Minh': 'vi',
+});
+
 export const normalizeLanguage = (language) => {
   if (!language) {
     return language;
@@ -58,4 +85,18 @@ export const normalizeLanguage = (language) => {
   );
 
   return matchedLanguage || normalized;
+};
+
+// 将时区映射结果统一走语言标准化，避免出现格式不一致的问题。
+export const getLanguageByTimezone = (timezone) => {
+  if (!timezone) {
+    return '';
+  }
+
+  const matchedLanguage = timezoneLanguageMap[timezone.trim()];
+  if (!matchedLanguage) {
+    return '';
+  }
+
+  return normalizeLanguage(matchedLanguage);
 };
