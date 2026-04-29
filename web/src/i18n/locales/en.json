@@ -4039,7 +4039,7 @@
         "支付成功":"Payment Successful",
         "请求金额":"Requested Amount",
         "核对结果":"Reconciliation Result",
-        "交易单号":"Transaction Number",
+        "渠道单号":"Channel Transaction Number",
         "交易状态":"Transaction Status",
         "付款用户":"Paying User",
         "实际支付":"Actual Payment",

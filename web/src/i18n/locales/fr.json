@@ -3970,7 +3970,7 @@
         "支付成功":"Paiement réussi",
         "请求金额":"Montant demandé",
         "核对结果":"Résultat de la conciliation",
-        "交易单号":"Numéro de transaction",
+        "渠道单号":"Numéro de canal",
         "交易状态":"État de la transaction",
         "付款用户":"Utilisateur payant",
         "实际支付":"Paiement réel",

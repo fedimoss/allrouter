@@ -3,6 +3,7 @@ import { SideSheet, Table, Tag } from '@douyinfe/semi-ui';
 import { IconClose } from '@douyinfe/semi-icons';
 import { CircleAlert, CircleCheckBig } from 'lucide-react';
 import { API, showError } from '../../helpers';
+import { useTranslation } from 'react-i18next';
 import wechatPayImg from '../../../public/wechat_pay.png';
 
 const StatusChip = ({ text, danger = false }) => (
@@ -22,6 +23,7 @@ const PairValue = ({ label, value, status }) => (
 );
 
 const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null);
   const billId = row?.id;
@@ -58,55 +60,55 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
     () => [
       {
         id: 'r1',
-        leftLabel: '系统单号',
+        leftLabel: t('系统单号'),
         leftValue: localRecord.local_id ?? '-',
-        rightLabel: '交易单号',
+        rightLabel: t('渠道单号'),
         rightValue: channelRecord.wechat_trade_no,
       },
       {
         id: 'r2',
-        leftLabel: '订单状态',
-        leftValue: localRecord.status_text,
+        leftLabel: t('订单状态'),
+        leftValue: t(localRecord.status_text),
         leftStatus: localRecord.status === 'success' ? 'success' : '',
-        rightLabel: '交易状态',
-        rightValue: channelRecord.trade_status_text,
+        rightLabel: t('交易状态'),
+        rightValue: t(channelRecord.trade_status_text),
         rightStatus: channelRecord.trade_status === 'SUCCESS' ? 'success' : '',
       },
       {
         id: 'r3',
-        leftLabel: '用户ID',
+        leftLabel: t('用户ID'),
         leftValue: localRecord.user_id ? `${localRecord.user_id}` : '-',
-        rightLabel: '付款用户',
+        rightLabel: t('付款用户'),
         rightValue: channelRecord.user_identifier,
       },
       {
         id: 'r4',
-        leftLabel: '请求金额',
+        leftLabel: t('请求金额'),
         leftValue: localRecord.requested_amount_text ? `¥${localRecord.requested_amount_text}` : '-',
-        rightLabel: '实际支付',
+        rightLabel: t('实际支付'),
         rightValue: channelRecord.actual_amount_text ? `¥${channelRecord.actual_amount_text}` : '-',
       },
       {
         id: 'r5',
-        leftLabel: '创建时间',
+        leftLabel: t('创建时间'),
         leftValue: localRecord.create_time_text,
-        rightLabel: '支付完成',
+        rightLabel: t('支付完成'),
         rightValue: channelRecord.trade_complete_time || channelRecord.trade_time,
       },
       {
         id: 'remark',
         isMerged: true,
-        mergedLabel: '备注',
-        mergedValue: markTxt,
+        mergedLabel: t('备注'),
+        mergedValue: t(markTxt),
       },
     ],
-    [localRecord, channelRecord, markTxt],
+    [localRecord, channelRecord, markTxt, t],
   );
 
   const columns = useMemo(
     () => [
       {
-        title: <span className='text-[16px] text-[#475569]'>Allrouter 系统记录</span>,
+        title: <span className='text-[16px] text-[#475569]'>{t('Allrouter 系统记录')}</span>,
         key: 'left',
         width: '50%',
         render: (_, record) => {
@@ -125,7 +127,7 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
         },
       },
       {
-        title: <span className='text-[16px] text-[#475569]'>支付渠道（{channelRecord.payment_method_text || '微信支付'}）</span>,
+        title: <span className='text-[16px] text-[#475569]'>{t('支付渠道')}（{t(channelRecord.payment_method_text) || t('微信支付')}）</span>,
         key: 'right',
         width: '50%',
         render: (_, record) => {
@@ -136,7 +138,7 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
         },
       },
     ],
-    [channelRecord.payment_method_text],
+    [channelRecord.payment_method_text, t],
   );
 
   return (
@@ -149,12 +151,12 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
                 <img src={wechatPayImg} alt='微信支付' className='h-12 w-12 rounded-md' />
                 <div>
                   <div className='flex items-center gap-2'>
-                    <span className='text-[20px] leading-[22px] font-semibold text-slate-800'>{header.title || '微信支付'}</span>
+                    <span className='text-[20px] leading-[22px] font-semibold text-slate-800'>{t(header.title) || t('微信支付')}</span>
                     <Tag size='small' color='blue'>
-                      {header.tag || '-'}
+                      {t(header.tag) || '-'}
                     </Tag>
                   </div>
-                  <div className='mt-1 text-[13px] leading-[18px] text-slate-500'>Allrouter系统对账单明细</div>
+                  <div className='mt-1 text-[13px] leading-[18px] text-slate-500'>{t('Allrouter系统对账单明细')}</div>
                 </div>
               </div>
               <button onClick={onClose} className='mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100'>
@@ -164,12 +166,12 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
           </div>
 
           <div className='py-4'>
-            <div className='mb-4 text-[16px] text-[#475569]'>对账详情</div>
+            <div className='mb-4 text-[16px] text-[#475569]'>{t('对账详情')}</div>
             <div className='overflow-hidden rounded-xl border border-slate-200'>
               <Table columns={columns} dataSource={detailRows} rowKey='id' pagination={false} bordered loading={loading} />
               <div className='border-t border-slate-200 px-5 py-4'>
-                <span className='mr-4 text-[13px] text-slate-400'>核对结果：</span>
-                {isMatched ? <StatusChip text={reconcileText} /> : <StatusChip text={reconcileText} danger />}
+                <span className='mr-4 text-[13px] text-slate-400'>{t('核对结果')}：</span>
+                {isMatched ? <StatusChip text={t(reconcileText)} /> : <StatusChip text={t(reconcileText)} danger />}
               </div>
             </div>
           </div>
