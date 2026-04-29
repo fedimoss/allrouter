@@ -111,10 +111,16 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		c.JSON(200, gin.H{"message": "error", "data": "未找到对应币种的支付配置"})
 		return
 	}
+	// 解析币种符号
+	stripeCurrency := "$"
+	if config := resolveStripeCurrencyConfig(user); config != nil && config.Symbol != "" {
+		stripeCurrency = config.Symbol
+	}
 
 	// Stripe 订单的 Money 字段存储"应发放的充值额度（已乘分组倍率）"，
 	// 不是实际支付金额；实际支付金额由 Stripe Checkout/回调金额决定。
 	chargedMoney := calcStripeChargedMoney(req.Amount, user)
+	stripeOriginalMoney := getPayMoney(req.Amount, user.Group)
 
 	// 生成唯一的订单参考号，格式：new-api-ref-{用户ID}-{毫秒时间戳}-{4位随机字符串}
 	reference := fmt.Sprintf("new-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
@@ -137,6 +143,8 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		BizType:       model.TopUpBizTypePayment,
 		CreateTime:    time.Now().Unix(),
 		Status:        common.TopUpStatusPending,
+		Currency:      stripeCurrency,
+		OriginalMoney: stripeOriginalMoney,
 	}
 	err = topUp.Insert()
 	if err != nil {

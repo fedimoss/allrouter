@@ -32,6 +32,8 @@ type TopUp struct {
 	CreateTime      int64   `json:"create_time"`                                            // 创建时间（Unix时间戳）
 	CompleteTime    int64   `json:"complete_time"`                                          // 完成时间（Unix时间戳）
 	Status          string  `json:"status"`                                                 // 状态（pending/success/failed等）
+	Currency        string  `json:"currency" gorm:"type:varchar(10);default:''"`            // 币种符号（￥/$）
+	OriginalMoney   float64 `json:"original_money" gorm:"type:decimal(18,6);default:0"`     // 用户选择的原始金额（用户币种）
 	DisplayName     string  `json:"display_name" gorm:"->;-:migration;column:display_name"` // 用户昵称（从users表关联）
 	DisplayCurrency string  `json:"display_currency,omitempty" gorm:"-"`                    // 展示用币种代码（非数据库字段，由 controller 层填充）
 	DisplaySymbol   string  `json:"display_symbol,omitempty" gorm:"-"`                      // 展示用币种符号（非数据库字段，由 controller 层填充）
