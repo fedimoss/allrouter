@@ -414,6 +414,15 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
+
+		wechatTradeBillRoute := apiRouter.Group("/wechat_trade_bill")
+		wechatTradeBillRoute.Use(middleware.AdminAuth())
+		{
+			wechatTradeBillRoute.GET("/stat", controller.GetWechatTradeBillStat)
+			wechatTradeBillRoute.GET("/list", controller.GetWechatTradeBillList)
+			wechatTradeBillRoute.GET("/:id", controller.GetWechatTradeBillDetail)
+			wechatTradeBillRoute.POST("/run", controller.RunWechatTradeBill)
+		}
 		//CLI Proxy API接口集成进allrouter中
 		voRoute := apiRouter.Group("/v0")
 		voRoute.Use(middleware.UserAuth())
