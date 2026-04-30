@@ -56,6 +56,7 @@ type User struct {
 	PhoneNumber      string         `json:"phone_number" gorm:"type:varchar(20);column:phone_number" validate:"max=20"`           // 手机号本地号码，不含国家区号，如 13800000000
 	Timezone         string         `json:"timezone" gorm:"type:varchar(64);column:timezone" validate:"max=64"`                   // 时区标识（IANA），如 Asia/Shanghai
 	Avatar           string         `json:"avatar" gorm:"type:varchar(255);column:avatar" validate:"max=255"`                     // 头像                   // 头像 URL
+	SignupSource     string         `json:"signup_source" gorm:"type:varchar(64);column:signup_source" validate:"max=64"`         // 注册来源
 }
 
 func (user *User) ToBaseUser() *UserBase {
