@@ -296,6 +296,8 @@ func RequestEpay(c *gin.Context) {
 		BizType:       model.TopUpBizTypePayment,
 		CreateTime:    time.Now().Unix(),
 		Status:        common.TopUpStatusPending,
+		Currency:      "￥", // 默认为人民币(微信)
+		OriginalMoney: epayChargeMoney,
 	}
 	err = topUp.Insert()
 	if err != nil {

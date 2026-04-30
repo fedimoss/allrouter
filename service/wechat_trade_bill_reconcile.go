@@ -154,7 +154,7 @@ func (s *WechatTradeBillReconcileService) findTopUp(row *model.PaymentBillRecord
 			LocalPaymentMethod: topup.PaymentMethod,
 			LocalStatus:        topup.Status,
 			// 充值对账按 top_ups.amount 比对，不再按 top_ups.money 比对。
-			LocalAmount:       float64(topup.Amount),
+			LocalAmount:       topup.OriginalMoney,
 			LocalCreateTime:   topup.CreateTime,
 			LocalCompleteTime: topup.CompleteTime,
 		})
