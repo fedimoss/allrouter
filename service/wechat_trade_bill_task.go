@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,6 +22,8 @@ import (
 const (
 	wechatTradeBillTaskTickInterval = 1 * time.Minute
 	wechatTradeBillTaskEnabled      = true
+	wechatTradeBillTaskRedisLockTTL = 2 * time.Hour
+	wechatTradeBillTaskTimeEnv      = "WECHAT_TRADE_BILL_TASK_TIME_UTC"
 )
 
 var (
@@ -27,6 +31,52 @@ var (
 	wechatTradeBillTaskRunning     atomic.Bool
 	wechatTradeBillTaskLastRunDate atomic.Value
 )
+
+// buildWechatTradeBillTaskRedisLockKey 构建微信账单定时任务的 Redis 锁 key。
+// 按执行日期加锁，避免多实例在同一天重复拉取同一批账单。
+func buildWechatTradeBillTaskRedisLockKey(runDate string) string {
+	return fmt.Sprintf("new-api:wechat_trade_bill_task:%s", runDate)
+}
+
+// tryAcquireWechatTradeBillTaskRedisLock 尝试获取 Redis 分布式锁。
+// 如果当前未启用 Redis，则直接放行，继续使用进程内原子锁兜底。
+func tryAcquireWechatTradeBillTaskRedisLock(runDate string) (bool, error) {
+	if !common.RedisEnabled || common.RDB == nil {
+		return true, nil
+	}
+
+	locked, err := common.RDB.SetNX(
+		context.Background(),
+		buildWechatTradeBillTaskRedisLockKey(runDate),
+		runDate,
+		wechatTradeBillTaskRedisLockTTL,
+	).Result()
+	if err != nil {
+		return false, err
+	}
+	return locked, nil
+}
+
+// getWechatTradeBillTaskTriggerTimeUTC 读取定时任务触发时间。
+// 环境变量格式固定为 HH:MM，按 UTC 时间解释；未配置或格式错误时返回 false。
+func getWechatTradeBillTaskTriggerTimeUTC() (int, int, bool) {
+	timeText := strings.TrimSpace(os.Getenv(wechatTradeBillTaskTimeEnv))
+	if timeText == "" {
+		return 0, 0, false
+	}
+
+	parts := strings.Split(timeText, ":")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+
+	hour, errHour := strconv.Atoi(strings.TrimSpace(parts[0]))
+	minute, errMinute := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if errHour != nil || errMinute != nil || hour < 0 || hour > 23 || minute < 0 || minute > 59 {
+		return 0, 0, false
+	}
+	return hour, minute, true
+}
 
 type WechatTradeBillRunResult struct {
 	BillDate        string                           `json:"bill_date"`
@@ -173,7 +223,27 @@ func StartWechatTradeBillTask() {
 		}
 
 		gopool.Go(func() {
-			logger.LogInfo(context.Background(), fmt.Sprintf("wechat trade bill task started: tick=%s", wechatTradeBillTaskTickInterval))
+			hour, minute, ok := getWechatTradeBillTaskTriggerTimeUTC()
+			if ok {
+				logger.LogInfo(
+					context.Background(),
+					fmt.Sprintf(
+						"wechat trade bill task started: tick=%s trigger_utc=%02d:%02d env=%s",
+						wechatTradeBillTaskTickInterval,
+						hour,
+						minute,
+						wechatTradeBillTaskTimeEnv,
+					),
+				)
+			} else {
+				logger.LogWarn(
+					context.Background(),
+					fmt.Sprintf(
+						"wechat trade bill task started without valid trigger time, please set env %s in HH:MM format",
+						wechatTradeBillTaskTimeEnv,
+					),
+				)
+			}
 			ticker := time.NewTicker(wechatTradeBillTaskTickInterval)
 			defer ticker.Stop()
 			runWechatTradeBillTaskOnce()
@@ -190,11 +260,15 @@ func StartWechatTradeBillTask() {
 // 2. 同一天只执行一次；
 // 3. 使用原子锁避免并发重复执行。
 func runWechatTradeBillTaskOnce() {
-	now := time.Now()
-	if now.Hour() != 10 || now.Minute() != 0 {
+	nowUTC := time.Now().UTC()
+	triggerHour, triggerMinute, ok := getWechatTradeBillTaskTriggerTimeUTC()
+	if !ok {
 		return
 	}
-	runDate := now.Format("2006-01-02")
+	if nowUTC.Hour() != triggerHour || nowUTC.Minute() != triggerMinute {
+		return
+	}
+	runDate := nowUTC.Format("2006-01-02")
 	if last, ok := wechatTradeBillTaskLastRunDate.Load().(string); ok && last == runDate {
 		return
 	}
@@ -203,7 +277,17 @@ func runWechatTradeBillTaskOnce() {
 	}
 	defer wechatTradeBillTaskRunning.Store(false)
 
-	billDate := now.AddDate(0, 0, -1).Format("2006-01-02")
+	// 进程内锁通过后，再尝试获取 Redis 分布式锁，避免多实例重复执行。
+	//locked, err := tryAcquireWechatTradeBillTaskRedisLock(runDate)
+	//if err != nil {
+	//	logger.LogWarn(context.Background(), fmt.Sprintf("wechat trade bill task acquire redis lock failed: run_date=%s err=%v", runDate, err))
+	//	return
+	//}
+	//if !locked {
+	//	return
+	//}
+
+	billDate := nowUTC.AddDate(0, 0, -1).Format("2006-01-02")
 	result, err := RunWechatTradeBillWorkflowWithDBConfig(billDate)
 	if err != nil {
 		logger.LogWarn(context.Background(), fmt.Sprintf("wechat trade bill task failed: bill_date=%s err=%v", billDate, err))
