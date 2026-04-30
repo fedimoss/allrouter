@@ -37,6 +37,7 @@ import {
   showInfo,
   showSuccess,
 } from '../../helpers';
+import { SIGNUP_SOURCE } from '../../constants';
 import './auth-v2.css';
 
 const brandFeatureItems = [
@@ -310,6 +311,7 @@ export default function RegisterPage() {
       const affCode = localStorage.getItem('aff') || '';
       const payload = {
         ...registerInputs,
+        signup_source: SIGNUP_SOURCE,
         aff_code: affCode || undefined,
       };
       const res = await API.post(

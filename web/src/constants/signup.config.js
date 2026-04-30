@@ -17,12 +17,4 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-export * from './channel.constants';
-export * from './user.constants';
-export * from './toast.constants';
-export * from './common.constant';
-export * from './dashboard.constants';
-export * from './playground.constants';
-export * from './redemption.constants';
-export * from './channel-affinity-template.constants';
-export * from './signup.config';
+export const SIGNUP_SOURCE = import.meta.env.VITE_SIGNUP_SOURCE || '0';

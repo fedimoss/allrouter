@@ -64,6 +64,7 @@ import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
+import { SIGNUP_SOURCE } from '../../constants';
 
 const RegisterForm = () => {
   let navigate = useNavigate();
@@ -235,6 +236,7 @@ const RegisterForm = () => {
           affCode = localStorage.getItem('aff');
         }
         inputs.aff_code = affCode;
+        inputs.signup_source = SIGNUP_SOURCE;
         const res = await API.post(
           `/api/user/register?turnstile=${turnstileToken}`,
           inputs,
