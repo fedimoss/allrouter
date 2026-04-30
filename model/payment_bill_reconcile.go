@@ -15,6 +15,7 @@ const (
 	PaymentReconcileStatusAbnormal = "abnormal"
 
 	PaymentReconcileReasonMatched            = "matched"
+	PaymentReconcileReasonChannelNotFound    = "channel_not_found"
 	PaymentReconcileReasonLocalNotFound      = "local_not_found"
 	PaymentReconcileReasonDuplicateLocal     = "duplicate_local"
 	PaymentReconcileReasonAmountMismatch     = "amount_mismatch"
@@ -26,8 +27,10 @@ const (
 type PaymentBillReconcile struct {
 	Id int `json:"id"`
 
-	ChannelType  string `json:"channel_type" gorm:"type:varchar(32);uniqueIndex:idx_payment_bill_reconcile_channel_record;index"`
-	BillRecordId int    `json:"bill_record_id" gorm:"uniqueIndex:idx_payment_bill_reconcile_channel_record"`
+	ChannelType  string `json:"channel_type" gorm:"type:varchar(32);uniqueIndex:idx_payment_bill_reconcile_channel_key;index"`
+	ReconcileKey string `json:"reconcile_key" gorm:"type:varchar(128);uniqueIndex:idx_payment_bill_reconcile_channel_key"`
+	RecordSource string `json:"record_source" gorm:"type:varchar(32);index"`
+	BillRecordId int    `json:"bill_record_id" gorm:"index"`
 	BillDate     string `json:"bill_date" gorm:"type:varchar(16);index"`
 	TradeTime    string `json:"trade_time" gorm:"type:varchar(64);index"`
 
@@ -69,6 +72,8 @@ func (r *PaymentBillReconcile) BeforeCreate(tx *gorm.DB) error {
 		r.UpdatedAt = now
 	}
 	r.ChannelType = strings.TrimSpace(r.ChannelType)
+	r.ReconcileKey = strings.TrimSpace(r.ReconcileKey)
+	r.RecordSource = strings.TrimSpace(r.RecordSource)
 	r.BillDate = strings.TrimSpace(r.BillDate)
 	r.TradeTime = strings.TrimSpace(r.TradeTime)
 	r.ChannelTradeNo = strings.TrimSpace(r.ChannelTradeNo)
@@ -118,7 +123,7 @@ func UpsertPaymentBillReconciles(rows []*PaymentBillReconcile) (int64, error) {
 	batch := make([]PaymentBillReconcile, 0, len(rows))
 	now := common.GetTimestamp()
 	for _, row := range rows {
-		if row == nil || row.BillRecordId <= 0 || strings.TrimSpace(row.ChannelType) == "" {
+		if row == nil || strings.TrimSpace(row.ChannelType) == "" || strings.TrimSpace(row.ReconcileKey) == "" {
 			continue
 		}
 		if row.CreatedAt == 0 {
@@ -134,9 +139,11 @@ func UpsertPaymentBillReconciles(rows []*PaymentBillReconcile) (int64, error) {
 	tx := DB.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
 			{Name: "channel_type"},
-			{Name: "bill_record_id"},
+			{Name: "reconcile_key"},
 		},
 		DoUpdates: clause.AssignmentColumns([]string{
+			"record_source",
+			"bill_record_id",
 			"bill_date",
 			"trade_time",
 			"channel_trade_no",
@@ -238,6 +245,8 @@ func GetPaymentBillReconcileOverview(channelType string, filter *PaymentBillReco
 		"id",
 		"channel_status",
 		"channel_amount",
+		"local_status",
+		"local_amount",
 		"reconcile_status",
 		"updated_at",
 	).Find(&rows).Error; err != nil {
@@ -248,8 +257,11 @@ func GetPaymentBillReconcileOverview(channelType string, filter *PaymentBillReco
 	for _, row := range rows {
 		overview.TotalCount++
 		amount := parsePaymentBillAmount(row.ChannelAmount)
+		if amount <= 0 {
+			amount = row.LocalAmount
+		}
 		overview.TotalAmount += amount
-		if strings.EqualFold(strings.TrimSpace(row.ChannelStatus), "SUCCESS") {
+		if strings.EqualFold(strings.TrimSpace(row.ChannelStatus), "SUCCESS") || strings.EqualFold(strings.TrimSpace(row.LocalStatus), "success") {
 			overview.SuccessCount++
 		}
 		switch strings.TrimSpace(row.ReconcileStatus) {

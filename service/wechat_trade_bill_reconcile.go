@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -15,27 +17,17 @@ type WechatTradeBillReconcileSummary struct {
 	AbnormalCount int64 `json:"abnormal_count"`
 }
 
-// localTradeMatch 表示从本地订单表中匹配到的一条候选记录。
-type localTradeMatch struct {
-	LocalType          string
-	LocalID            int
-	LocalTradeNo       string
-	LocalPaymentMethod string
-	LocalStatus        string
-	LocalAmount        float64
-	LocalCreateTime    int64
-	LocalCompleteTime  int64
-}
-
 // WechatTradeBillReconcileService 负责微信账单与本地订单的核对逻辑。
+// 当前策略：
+// 1. 先把当天所有 wxpay 成功本地订单写入 payment_bill_reconcile；
+// 2. 再用微信账单逐条匹配本地记录并更新结果；
+// 3. 微信账单里找不到本地订单的，补充一条渠道单边异常记录。
 type WechatTradeBillReconcileService struct{}
 
 func NewWechatTradeBillReconcileService() *WechatTradeBillReconcileService {
 	return &WechatTradeBillReconcileService{}
 }
 
-// parseWechatAmount 从微信账单行中提取一个可用于对账比较的金额。
-// 优先顺序依次为：订单金额、总金额、申请退款金额、退款金额。
 func parseWechatAmount(row *model.PaymentBillRecord) (string, float64) {
 	candidates := []string{
 		strings.TrimSpace(row.OrderAmount),
@@ -55,7 +47,6 @@ func parseWechatAmount(row *model.PaymentBillRecord) (string, float64) {
 	return "", 0
 }
 
-// amountsEqual 判断两个金额是否近似相等，避免浮点精度误差导致误判。
 func amountsEqual(a float64, b float64) bool {
 	diff := a - b
 	if diff < 0 {
@@ -64,7 +55,6 @@ func amountsEqual(a float64, b float64) bool {
 	return diff <= 0.000001
 }
 
-// normalizeWechatTradeStatus 将微信账单中的交易/退款状态归一化为本地对账状态。
 func normalizeWechatTradeStatus(row *model.PaymentBillRecord) string {
 	if strings.TrimSpace(row.RefundStatus) != "" {
 		return strings.ToLower(strings.TrimSpace(row.RefundStatus))
@@ -75,110 +65,152 @@ func normalizeWechatTradeStatus(row *model.PaymentBillRecord) string {
 		return "success"
 	case "REFUND":
 		return "refund"
-	case "CLOSED":
+	case "CLOSED", "REVOKED", "PAYERROR":
 		return "failed"
-	case "REVOKED":
-		return "failed"
-	case "PAYERROR":
-		return "failed"
-	case "USERPAYING":
-		return "pending"
-	case "NOTPAY":
+	case "USERPAYING", "NOTPAY":
 		return "pending"
 	default:
 		return strings.ToLower(strings.TrimSpace(row.TradeStatus))
 	}
 }
 
-// normalizeLocalStatus 将本地订单状态规整为小写，便于和微信状态比较。
 func normalizeLocalStatus(status string) string {
 	return strings.ToLower(strings.TrimSpace(status))
 }
 
-// findSubscriptionOrder 先按商户订单号、再按微信订单号去订阅订单表中匹配。
-func (s *WechatTradeBillReconcileService) findSubscriptionOrder(row *model.PaymentBillRecord) ([]localTradeMatch, error) {
-	candidates := []string{}
-	if strings.TrimSpace(row.MerchantTradeNo) != "" {
-		candidates = append(candidates, strings.TrimSpace(row.MerchantTradeNo))
-	}
-	if strings.TrimSpace(row.ChannelTradeNo) != "" && strings.TrimSpace(row.ChannelTradeNo) != strings.TrimSpace(row.MerchantTradeNo) {
-		candidates = append(candidates, strings.TrimSpace(row.ChannelTradeNo))
-	}
-	if len(candidates) == 0 {
-		return nil, nil
-	}
-
-	var orders []model.SubscriptionOrder
-	if err := model.DB.Where("trade_no IN ?", candidates).Find(&orders).Error; err != nil {
-		return nil, err
-	}
-	results := make([]localTradeMatch, 0, len(orders))
-	for _, order := range orders {
-		results = append(results, localTradeMatch{
-			LocalType:          "subscription",
-			LocalID:            order.Id,
-			LocalTradeNo:       order.TradeNo,
-			LocalPaymentMethod: order.PaymentMethod,
-			LocalStatus:        order.Status,
-			LocalAmount:        order.Money,
-			LocalCreateTime:    order.CreateTime,
-			LocalCompleteTime:  order.CompleteTime,
-		})
-	}
-	return results, nil
+func reconcileKeyForLocalRecord(billDate string, localType string, localID int) string {
+	return fmt.Sprintf("local:%s:%s:%d", strings.TrimSpace(billDate), strings.TrimSpace(localType), localID)
 }
 
-// findTopUp 再按商户订单号、微信订单号去充值订单表中匹配。
-func (s *WechatTradeBillReconcileService) findTopUp(row *model.PaymentBillRecord) ([]localTradeMatch, error) {
-	candidates := []string{}
-	if strings.TrimSpace(row.MerchantTradeNo) != "" {
-		candidates = append(candidates, strings.TrimSpace(row.MerchantTradeNo))
-	}
-	if strings.TrimSpace(row.ChannelTradeNo) != "" && strings.TrimSpace(row.ChannelTradeNo) != strings.TrimSpace(row.MerchantTradeNo) {
-		candidates = append(candidates, strings.TrimSpace(row.ChannelTradeNo))
-	}
-	if len(candidates) == 0 {
-		return nil, nil
-	}
-
-	var topups []model.TopUp
-	if err := model.DB.Where("trade_no IN ?", candidates).Find(&topups).Error; err != nil {
-		return nil, err
-	}
-	results := make([]localTradeMatch, 0, len(topups))
-	for _, topup := range topups {
-		results = append(results, localTradeMatch{
-			LocalType:          "topup",
-			LocalID:            topup.Id,
-			LocalTradeNo:       topup.TradeNo,
-			LocalPaymentMethod: topup.PaymentMethod,
-			LocalStatus:        topup.Status,
-			// 充值对账按 top_ups.amount 比对，不再按 top_ups.money 比对。
-			LocalAmount:       topup.OriginalMoney,
-			LocalCreateTime:   topup.CreateTime,
-			LocalCompleteTime: topup.CompleteTime,
-		})
-	}
-	return results, nil
+func reconcileKeyForChannelRecord(billDate string, billRecordID int) string {
+	return fmt.Sprintf("channel:%s:%d", strings.TrimSpace(billDate), billRecordID)
 }
 
-// findLocalTrade 先匹配订阅订单，未命中时再匹配充值订单。
-func (s *WechatTradeBillReconcileService) findLocalTrade(row *model.PaymentBillRecord) ([]localTradeMatch, error) {
-	subscriptionMatches, err := s.findSubscriptionOrder(row)
+func getDayTimeRange(billDate string) (int64, int64, error) {
+	location := time.Local
+	startTime, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(billDate), location)
+	if err != nil {
+		return 0, 0, err
+	}
+	endTime := startTime.AddDate(0, 0, 1)
+	return startTime.Unix(), endTime.Unix(), nil
+}
+
+func (s *WechatTradeBillReconcileService) loadLocalSuccessRecords(billDate string) ([]*model.PaymentBillReconcile, error) {
+	startTS, endTS, err := getDayTimeRange(billDate)
 	if err != nil {
 		return nil, err
 	}
-	if len(subscriptionMatches) > 0 {
-		return subscriptionMatches, nil
+
+	records := make([]*model.PaymentBillReconcile, 0)
+
+	var topups []model.TopUp
+	if err := model.DB.
+		Where("payment_method = ? AND status = ? AND biz_type = ? AND complete_time >= ? AND complete_time < ?",
+			model.PaymentChannelTypeWechat, common.TopUpStatusSuccess, model.TopUpBizTypePayment, startTS, endTS).
+		Find(&topups).Error; err != nil {
+		return nil, err
 	}
-	return s.findTopUp(row)
+	for _, topup := range topups {
+		records = append(records, &model.PaymentBillReconcile{
+			ChannelType:        model.PaymentChannelTypeWechat,
+			ReconcileKey:       reconcileKeyForLocalRecord(billDate, "topup", topup.Id),
+			RecordSource:       "local",
+			BillDate:           billDate,
+			MerchantTradeNo:    topup.TradeNo,
+			LocalType:          "topup",
+			LocalId:            topup.Id,
+			LocalTradeNo:       topup.TradeNo,
+			LocalPaymentMethod: topup.PaymentMethod,
+			LocalStatus:        topup.Status,
+			LocalAmount:        topup.OriginalMoney,
+			LocalCreateTime:    topup.CreateTime,
+			LocalCompleteTime:  topup.CompleteTime,
+			ReconcileStatus:    model.PaymentReconcileStatusAbnormal,
+			ReconcileReason:    model.PaymentReconcileReasonChannelNotFound,
+			Remark:             "local successful wxpay topup not matched in wechat bill",
+		})
+	}
+
+	var orders []model.SubscriptionOrder
+	if err := model.DB.
+		Where("payment_method = ? AND status = ? AND complete_time >= ? AND complete_time < ?",
+			model.PaymentChannelTypeWechat, common.TopUpStatusSuccess, startTS, endTS).
+		Find(&orders).Error; err != nil {
+		return nil, err
+	}
+	for _, order := range orders {
+		records = append(records, &model.PaymentBillReconcile{
+			ChannelType:        model.PaymentChannelTypeWechat,
+			ReconcileKey:       reconcileKeyForLocalRecord(billDate, "subscription", order.Id),
+			RecordSource:       "local",
+			BillDate:           billDate,
+			MerchantTradeNo:    order.TradeNo,
+			LocalType:          "subscription",
+			LocalId:            order.Id,
+			LocalTradeNo:       order.TradeNo,
+			LocalPaymentMethod: order.PaymentMethod,
+			LocalStatus:        order.Status,
+			LocalAmount:        order.OriginalMoney,
+			LocalCreateTime:    order.CreateTime,
+			LocalCompleteTime:  order.CompleteTime,
+			ReconcileStatus:    model.PaymentReconcileStatusAbnormal,
+			ReconcileReason:    model.PaymentReconcileReasonChannelNotFound,
+			Remark:             "local successful wxpay subscription not matched in wechat bill",
+		})
+	}
+
+	return records, nil
 }
 
-// buildReconcileRecord 根据单条微信账单构造一条对账结果。
-// 这里会完成本地订单匹配、金额比对、状态比对，并给出异常原因。
-func (s *WechatTradeBillReconcileService) buildReconcileRecord(row *model.PaymentBillRecord) (*model.PaymentBillReconcile, error) {
+func (s *WechatTradeBillReconcileService) applyChannelMatch(record *model.PaymentBillReconcile, row *model.PaymentBillRecord) {
+	record.RecordSource = "local"
+	record.BillRecordId = row.Id
+	record.BillDate = row.BillDate
+	record.TradeTime = row.TradeTime
+	record.ChannelTradeNo = row.ChannelTradeNo
+	record.MerchantTradeNo = row.MerchantTradeNo
+	record.TradeType = row.TradeType
+	record.ChannelStatus = row.TradeStatus
+	record.ChannelRefundStatus = row.RefundStatus
+	record.ChannelRefundAmount = row.RefundAmount
+
+	amountText, wechatAmount := parseWechatAmount(row)
+	record.ChannelAmount = amountText
+
+	if strings.TrimSpace(row.TradeStatus) == "" && strings.TrimSpace(row.RefundStatus) == "" {
+		record.ReconcileStatus = model.PaymentReconcileStatusAbnormal
+		record.ReconcileReason = model.PaymentReconcileReasonUnsupportedBillRow
+		record.Remark = "wechat bill row has empty trade status"
+		return
+	}
+
+	if !amountsEqual(wechatAmount, record.LocalAmount) {
+		record.ReconcileStatus = model.PaymentReconcileStatusAbnormal
+		record.ReconcileReason = model.PaymentReconcileReasonAmountMismatch
+		record.Remark = fmt.Sprintf("wechat_amount=%s local_amount=%.6f", amountText, record.LocalAmount)
+		return
+	}
+
+	wechatStatus := normalizeWechatTradeStatus(row)
+	localStatus := normalizeLocalStatus(record.LocalStatus)
+	if wechatStatus != localStatus {
+		record.ReconcileStatus = model.PaymentReconcileStatusAbnormal
+		record.ReconcileReason = model.PaymentReconcileReasonStatusMismatch
+		record.Remark = fmt.Sprintf("wechat_status=%s local_status=%s", wechatStatus, localStatus)
+		return
+	}
+
+	record.ReconcileStatus = model.PaymentReconcileStatusMatched
+	record.ReconcileReason = model.PaymentReconcileReasonMatched
+	record.Remark = "matched by trade number and amount"
+}
+
+func (s *WechatTradeBillReconcileService) buildChannelOnlyRecord(row *model.PaymentBillRecord) *model.PaymentBillReconcile {
 	record := &model.PaymentBillReconcile{
 		ChannelType:         model.PaymentChannelTypeWechat,
+		ReconcileKey:        reconcileKeyForChannelRecord(row.BillDate, row.Id),
+		RecordSource:        "channel",
 		BillRecordId:        row.Id,
 		BillDate:            row.BillDate,
 		TradeTime:           row.TradeTime,
@@ -188,90 +220,134 @@ func (s *WechatTradeBillReconcileService) buildReconcileRecord(row *model.Paymen
 		ChannelStatus:       row.TradeStatus,
 		ChannelRefundStatus: row.RefundStatus,
 		ChannelRefundAmount: row.RefundAmount,
+		LocalPaymentMethod:  model.PaymentChannelTypeWechat,
+		ReconcileStatus:     model.PaymentReconcileStatusAbnormal,
+		ReconcileReason:     model.PaymentReconcileReasonLocalNotFound,
+		Remark:              "wechat bill exists but local wxpay order not found",
 	}
-	amountText, wechatAmount := parseWechatAmount(row)
+	amountText, _ := parseWechatAmount(row)
 	record.ChannelAmount = amountText
-
 	if strings.TrimSpace(row.TradeStatus) == "" && strings.TrimSpace(row.RefundStatus) == "" {
-		record.ReconcileStatus = model.PaymentReconcileStatusAbnormal
 		record.ReconcileReason = model.PaymentReconcileReasonUnsupportedBillRow
 		record.Remark = "wechat bill row has empty trade status"
-		return record, nil
 	}
-
-	matches, err := s.findLocalTrade(row)
-	if err != nil {
-		return nil, err
-	}
-	if len(matches) == 0 {
-		record.ReconcileStatus = model.PaymentReconcileStatusAbnormal
-		record.ReconcileReason = model.PaymentReconcileReasonLocalNotFound
-		record.Remark = "no local topup or subscription order matched by wechat_trade_no / merchant_trade_no"
-		return record, nil
-	}
-	if len(matches) > 1 {
-		record.ReconcileStatus = model.PaymentReconcileStatusAbnormal
-		record.ReconcileReason = model.PaymentReconcileReasonDuplicateLocal
-		record.Remark = fmt.Sprintf("matched %d local records", len(matches))
-		return record, nil
-	}
-
-	match := matches[0]
-	record.LocalType = match.LocalType
-	record.LocalId = match.LocalID
-	record.LocalTradeNo = match.LocalTradeNo
-	record.LocalPaymentMethod = match.LocalPaymentMethod
-	record.LocalStatus = match.LocalStatus
-	record.LocalAmount = match.LocalAmount
-	record.LocalCreateTime = match.LocalCreateTime
-	record.LocalCompleteTime = match.LocalCompleteTime
-
-	if !amountsEqual(wechatAmount, match.LocalAmount) {
-		record.ReconcileStatus = model.PaymentReconcileStatusAbnormal
-		record.ReconcileReason = model.PaymentReconcileReasonAmountMismatch
-		record.Remark = fmt.Sprintf("wechat_amount=%s local_amount=%.6f", amountText, match.LocalAmount)
-		return record, nil
-	}
-
-	wechatStatus := normalizeWechatTradeStatus(row)
-	localStatus := normalizeLocalStatus(match.LocalStatus)
-	if wechatStatus != localStatus {
-		record.ReconcileStatus = model.PaymentReconcileStatusAbnormal
-		record.ReconcileReason = model.PaymentReconcileReasonStatusMismatch
-		record.Remark = fmt.Sprintf("wechat_status=%s local_status=%s", wechatStatus, localStatus)
-		return record, nil
-	}
-
-	record.ReconcileStatus = model.PaymentReconcileStatusMatched
-	record.ReconcileReason = model.PaymentReconcileReasonMatched
-	record.Remark = "matched by trade number and amount"
-	return record, nil
+	return record
 }
 
-// ReconcileByBillDateRange 对指定账单日期范围内的微信账单逐条执行对账，并批量写入结果表。
+func indexLocalRecordsByTradeNo(records []*model.PaymentBillReconcile) map[string][]*model.PaymentBillReconcile {
+	result := make(map[string][]*model.PaymentBillReconcile)
+	for _, record := range records {
+		if record == nil || strings.TrimSpace(record.LocalTradeNo) == "" {
+			continue
+		}
+		tradeNo := strings.TrimSpace(record.LocalTradeNo)
+		result[tradeNo] = append(result[tradeNo], record)
+	}
+	return result
+}
+
+// ReconcileByBillDateRange 对指定日期范围执行微信对账。
+// 当前按日使用，因此会逐天处理，便于和本地成功订单的日期归属保持一致。
 func (s *WechatTradeBillReconcileService) ReconcileByBillDateRange(billDateFrom string, billDateTo string) (*WechatTradeBillReconcileSummary, error) {
-	rows, err := model.GetPaymentBillRecordsByChannelAndBillDateRange(model.PaymentChannelTypeWechat, billDateFrom, billDateTo)
+	fromTime, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(billDateFrom), time.Local)
 	if err != nil {
 		return nil, err
 	}
-	results := make([]*model.PaymentBillReconcile, 0, len(rows))
+	toTime, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(billDateTo), time.Local)
+	if err != nil {
+		return nil, err
+	}
+	if toTime.Before(fromTime) {
+		return nil, fmt.Errorf("bill date range is invalid")
+	}
+
 	summary := &WechatTradeBillReconcileSummary{}
-	for _, row := range rows {
-		record, err := s.buildReconcileRecord(row)
+	for current := fromTime; !current.After(toTime); current = current.AddDate(0, 0, 1) {
+		billDate := current.Format("2006-01-02")
+
+		localRecords, err := s.loadLocalSuccessRecords(billDate)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, record)
-		summary.TotalCount++
-		if record.ReconcileStatus == model.PaymentReconcileStatusMatched {
-			summary.MatchedCount++
-		} else {
-			summary.AbnormalCount++
+
+		rows, err := model.GetPaymentBillRecordsByChannelAndBillDateRange(model.PaymentChannelTypeWechat, billDate, billDate)
+		if err != nil {
+			return nil, err
+		}
+
+		localByTradeNo := indexLocalRecordsByTradeNo(localRecords)
+		channelOnlyRecords := make([]*model.PaymentBillReconcile, 0)
+
+		for _, row := range rows {
+			if row == nil {
+				continue
+			}
+
+			candidates := make([]*model.PaymentBillReconcile, 0)
+			if tradeNo := strings.TrimSpace(row.MerchantTradeNo); tradeNo != "" {
+				candidates = append(candidates, localByTradeNo[tradeNo]...)
+			}
+			if tradeNo := strings.TrimSpace(row.ChannelTradeNo); tradeNo != "" && tradeNo != strings.TrimSpace(row.MerchantTradeNo) {
+				candidates = append(candidates, localByTradeNo[tradeNo]...)
+			}
+
+			uniqueCandidates := make([]*model.PaymentBillReconcile, 0, len(candidates))
+			seen := make(map[string]struct{})
+			for _, candidate := range candidates {
+				if candidate == nil {
+					continue
+				}
+				if _, ok := seen[candidate.ReconcileKey]; ok {
+					continue
+				}
+				seen[candidate.ReconcileKey] = struct{}{}
+				uniqueCandidates = append(uniqueCandidates, candidate)
+			}
+
+			switch len(uniqueCandidates) {
+			case 0:
+				channelOnlyRecords = append(channelOnlyRecords, s.buildChannelOnlyRecord(row))
+			case 1:
+				s.applyChannelMatch(uniqueCandidates[0], row)
+			default:
+				for _, candidate := range uniqueCandidates {
+					candidate.BillRecordId = row.Id
+					candidate.TradeTime = row.TradeTime
+					candidate.ChannelTradeNo = row.ChannelTradeNo
+					candidate.MerchantTradeNo = row.MerchantTradeNo
+					candidate.TradeType = row.TradeType
+					candidate.ChannelStatus = row.TradeStatus
+					candidate.ChannelRefundStatus = row.RefundStatus
+					amountText, _ := parseWechatAmount(row)
+					candidate.ChannelAmount = amountText
+					candidate.ChannelRefundAmount = row.RefundAmount
+					candidate.ReconcileStatus = model.PaymentReconcileStatusAbnormal
+					candidate.ReconcileReason = model.PaymentReconcileReasonDuplicateLocal
+					candidate.Remark = fmt.Sprintf("matched %d local records by trade number", len(uniqueCandidates))
+				}
+			}
+		}
+
+		results := make([]*model.PaymentBillReconcile, 0, len(localRecords)+len(channelOnlyRecords))
+		results = append(results, localRecords...)
+		results = append(results, channelOnlyRecords...)
+		if _, err := model.UpsertPaymentBillReconciles(results); err != nil {
+			return nil, err
+		}
+
+		for _, record := range results {
+			if record == nil {
+				continue
+			}
+			summary.TotalCount++
+			if record.ReconcileStatus == model.PaymentReconcileStatusMatched {
+				summary.MatchedCount++
+			} else {
+				summary.AbnormalCount++
+			}
 		}
 	}
-	if _, err := model.UpsertPaymentBillReconciles(results); err != nil {
-		return nil, err
-	}
+
 	return summary, nil
 }
 

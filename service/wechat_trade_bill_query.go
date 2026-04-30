@@ -57,13 +57,11 @@ type WechatTradeBillListItem struct {
 	Remark             string  `json:"remark"`
 }
 
-// WechatTradeBillDetailParty 对应详情弹窗头部信息。
 type WechatTradeBillDetailParty struct {
 	Title string `json:"title"`
 	Tag   string `json:"tag"`
 }
 
-// WechatTradeBillLocalRecord 表示系统内部订单侧的信息。
 type WechatTradeBillLocalRecord struct {
 	LocalType           string  `json:"local_type"`
 	LocalTypeText       string  `json:"local_type_text"`
@@ -83,7 +81,6 @@ type WechatTradeBillLocalRecord struct {
 	Remark              string  `json:"remark"`
 }
 
-// WechatTradeBillChannelRecord 表示微信账单侧的信息。
 type WechatTradeBillChannelRecord struct {
 	PaymentMethod     string  `json:"payment_method"`
 	PaymentMethodText string  `json:"payment_method_text"`
@@ -103,7 +100,6 @@ type WechatTradeBillChannelRecord struct {
 	MchID             string  `json:"mch_id"`
 }
 
-// WechatTradeBillDetailResponse 对应“查看详情”弹窗完整数据。
 type WechatTradeBillDetailResponse struct {
 	Id                  int                           `json:"id"`
 	BillRowId           int                           `json:"bill_row_id"`
@@ -124,7 +120,6 @@ func NewWechatTradeBillQueryService() *WechatTradeBillQueryService {
 	return &WechatTradeBillQueryService{}
 }
 
-// normalizeWechatTradeBillListFilter 将控制层传入的筛选参数规整为 model 层查询条件。
 func normalizeWechatTradeBillListFilter(filter *WechatTradeBillListFilter) *model.PaymentBillReconcileFilter {
 	if filter == nil {
 		return &model.PaymentBillReconcileFilter{}
@@ -149,7 +144,6 @@ func formatMoneyText(amount float64) string {
 	return fmt.Sprintf("%.2f", amount)
 }
 
-// getLocalTradeStatusText 将本地订单状态转换为中文展示文案。
 func getLocalTradeStatusText(status string) string {
 	switch strings.TrimSpace(strings.ToLower(status)) {
 	case "success":
@@ -167,7 +161,6 @@ func getLocalTradeStatusText(status string) string {
 	}
 }
 
-// getWechatTradeStatusText 将微信账单状态转换为中文展示文案。
 func getWechatTradeStatusText(status string) string {
 	switch strings.TrimSpace(strings.ToUpper(status)) {
 	case "SUCCESS":
@@ -189,7 +182,6 @@ func getWechatTradeStatusText(status string) string {
 	}
 }
 
-// getWechatTradeBillStatusText 将对账状态码转换为中文展示文案。
 func getWechatTradeBillStatusText(status string) string {
 	switch strings.TrimSpace(status) {
 	case model.PaymentReconcileStatusMatched:
@@ -201,11 +193,12 @@ func getWechatTradeBillStatusText(status string) string {
 	}
 }
 
-// getWechatTradeBillReasonText 将对账异常原因码转换为中文说明。
 func getWechatTradeBillReasonText(reason string) string {
 	switch strings.TrimSpace(reason) {
 	case model.PaymentReconcileReasonMatched:
 		return "对账一致"
+	case model.PaymentReconcileReasonChannelNotFound:
+		return "本地成功单未在微信账单中找到"
 	case model.PaymentReconcileReasonLocalNotFound:
 		return "本地订单不存在"
 	case model.PaymentReconcileReasonDuplicateLocal:
@@ -249,7 +242,6 @@ func getWechatTradeBillPaymentMethodText(method string) string {
 	}
 }
 
-// collectWechatTradeBillLocalIDs 收集当前结果集涉及的本地订单 ID，便于批量查询。
 func collectWechatTradeBillLocalIDs(rows []*model.PaymentBillReconcile) ([]int, []int) {
 	topupIDs := make([]int, 0)
 	subscriptionIDs := make([]int, 0)
@@ -275,7 +267,6 @@ func collectWechatTradeBillLocalIDs(rows []*model.PaymentBillReconcile) ([]int, 
 	return topupIDs, subscriptionIDs
 }
 
-// loadWechatTradeBillUserMap 批量加载用户、充值单、订阅单，避免列表查询产生 N+1 问题。
 func loadWechatTradeBillUserMap(rows []*model.PaymentBillReconcile) (map[int]*model.User, map[int]*model.TopUp, map[int]*model.SubscriptionOrder, error) {
 	topupIDs, subscriptionIDs := collectWechatTradeBillLocalIDs(rows)
 	topupMap := make(map[int]*model.TopUp)
@@ -328,7 +319,6 @@ func loadWechatTradeBillUserMap(rows []*model.PaymentBillReconcile) (map[int]*mo
 	return userMap, topupMap, subscriptionMap, nil
 }
 
-// GetDashboard 查询支付对账页顶部统计卡片所需数据。
 func (s *WechatTradeBillQueryService) GetDashboard(filter *WechatTradeBillListFilter) (*WechatTradeBillDashboardResponse, error) {
 	overview, err := model.GetPaymentBillReconcileOverview(model.PaymentChannelTypeWechat, normalizeWechatTradeBillListFilter(filter))
 	if err != nil {
@@ -352,7 +342,6 @@ func (s *WechatTradeBillQueryService) GetDashboard(filter *WechatTradeBillListFi
 	return resp, nil
 }
 
-// GetList 查询支付对账分页列表，并补齐用户信息与展示字段。
 func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter *WechatTradeBillListFilter) (*common.PageInfo, error) {
 	rows, total, err := model.GetPaymentBillReconciles(model.PaymentChannelTypeWechat, pageInfo, normalizeWechatTradeBillListFilter(filter))
 	if err != nil {
@@ -375,13 +364,13 @@ func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter 
 			MerchantTradeNo:    row.MerchantTradeNo,
 			WechatTradeNo:      row.ChannelTradeNo,
 			LocalTradeNo:       row.LocalTradeNo,
+			LocalId:            row.LocalId,
 			Amount:             row.LocalAmount,
 			AmountText:         formatMoneyText(row.LocalAmount),
 			PaymentMethod:      row.LocalPaymentMethod,
 			PaymentMethodText:  getWechatTradeBillPaymentMethodText(row.LocalPaymentMethod),
 			TradeTime:          row.TradeTime,
 			LocalType:          row.LocalType,
-			LocalId:            row.LocalId,
 			LocalTypeText:      getWechatTradeBillLocalTypeText(row.LocalType),
 			WechatTradeStatus:  row.ChannelStatus,
 			LocalStatus:        row.LocalStatus,
@@ -393,7 +382,6 @@ func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter 
 			item.PaymentMethod = "wxpay"
 			item.PaymentMethodText = getWechatTradeBillPaymentMethodText(item.PaymentMethod)
 		}
-
 		if item.Amount <= 0 {
 			item.Amount = modelAmountOrFallback(row)
 			item.AmountText = formatMoneyText(item.Amount)
@@ -409,7 +397,6 @@ func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter 
 				item.UserId = order.UserId
 			}
 		}
-
 		if user, ok := userMap[item.UserId]; ok && user != nil {
 			item.Username = user.Username
 			item.DisplayName = user.DisplayName
@@ -427,10 +414,12 @@ func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter 
 	return result, nil
 }
 
-// modelAmountOrFallback 当本地金额为空时，回退使用微信账单金额。
 func modelAmountOrFallback(row *model.PaymentBillReconcile) float64 {
 	if row == nil {
 		return 0
+	}
+	if row.LocalAmount > 0 {
+		return row.LocalAmount
 	}
 	return parseAmountText(row.ChannelAmount)
 }
@@ -445,7 +434,6 @@ func parseAmountText(text string) float64 {
 	return amount
 }
 
-// parseRawBillFields 解析导入时保存的原始账单字段 JSON。
 func parseRawBillFields(text string) map[string]string {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -467,7 +455,6 @@ func getRawBillField(fields map[string]string, keys ...string) string {
 	return ""
 }
 
-// GetDetail 查询单条对账记录详情，并拆分为本地系统记录和微信账单记录。
 func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailResponse, error) {
 	if id <= 0 {
 		return nil, fmt.Errorf("invalid reconcile id")
@@ -479,8 +466,10 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 	}
 
 	var billRow model.PaymentBillRecord
-	if err := model.DB.Where("channel_type = ? AND id = ?", model.PaymentChannelTypeWechat, reconcile.BillRecordId).First(&billRow).Error; err != nil {
-		return nil, err
+	if reconcile.BillRecordId > 0 {
+		if err := model.DB.Where("channel_type = ? AND id = ?", model.PaymentChannelTypeWechat, reconcile.BillRecordId).First(&billRow).Error; err != nil {
+			return nil, err
+		}
 	}
 
 	userMap, topupMap, subscriptionMap, err := loadWechatTradeBillUserMap([]*model.PaymentBillReconcile{&reconcile})
@@ -512,7 +501,6 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 		CreateTimeText:      formatTimestampText(reconcile.LocalCreateTime),
 		CompleteTime:        reconcile.LocalCompleteTime,
 		CompleteTimeText:    formatTimestampText(reconcile.LocalCompleteTime),
-		Remark:              "",
 	}
 
 	switch strings.TrimSpace(reconcile.LocalType) {
@@ -522,8 +510,8 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 			localRecord.SystemTradeNo = topup.TradeNo
 			localRecord.Status = topup.Status
 			localRecord.StatusText = getLocalTradeStatusText(topup.Status)
-			localRecord.RequestedAmount = topup.Money
-			localRecord.RequestedAmountText = formatMoneyText(topup.Money)
+			localRecord.RequestedAmount = topup.OriginalMoney
+			localRecord.RequestedAmountText = formatMoneyText(topup.OriginalMoney)
 			localRecord.CreateTime = topup.CreateTime
 			localRecord.CreateTimeText = formatTimestampText(topup.CreateTime)
 			localRecord.CompleteTime = topup.CompleteTime
@@ -535,15 +523,14 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 			localRecord.SystemTradeNo = order.TradeNo
 			localRecord.Status = order.Status
 			localRecord.StatusText = getLocalTradeStatusText(order.Status)
-			localRecord.RequestedAmount = order.Money
-			localRecord.RequestedAmountText = formatMoneyText(order.Money)
+			localRecord.RequestedAmount = order.OriginalMoney
+			localRecord.RequestedAmountText = formatMoneyText(order.OriginalMoney)
 			localRecord.CreateTime = order.CreateTime
 			localRecord.CreateTimeText = formatTimestampText(order.CreateTime)
 			localRecord.CompleteTime = order.CompleteTime
 			localRecord.CompleteTimeText = formatTimestampText(order.CompleteTime)
 		}
 	}
-
 	if user, ok := userMap[localRecord.UserId]; ok && user != nil {
 		localRecord.Username = user.Username
 		localRecord.DisplayName = user.DisplayName
@@ -567,6 +554,9 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 	if actualAmount <= 0 {
 		actualAmount = parseAmountText(billRow.TotalAmount)
 	}
+	if actualAmount <= 0 {
+		actualAmount = reconcile.LocalAmount
+	}
 	channelRemark := strings.TrimSpace(billRow.PackageData)
 	if channelRemark == "" {
 		channelRemark = strings.TrimSpace(billRow.RateRemark)
@@ -574,6 +564,7 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 	if channelRemark == "" {
 		channelRemark = strings.TrimSpace(reconcile.Remark)
 	}
+
 	resp.ChannelRecord = &WechatTradeBillChannelRecord{
 		PaymentMethod:     reconcile.LocalPaymentMethod,
 		PaymentMethodText: getWechatTradeBillPaymentMethodText(reconcile.LocalPaymentMethod),
@@ -599,23 +590,24 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 	if resp.ChannelRecord.WechatTradeNo == "" {
 		resp.ChannelRecord.WechatTradeNo = reconcile.ChannelTradeNo
 	}
+	if strings.TrimSpace(resp.ChannelRecord.TradeStatus) == "" {
+		resp.ChannelRecord.TradeStatus = reconcile.ChannelStatus
+		resp.ChannelRecord.TradeStatusText = getWechatTradeStatusText(reconcile.ChannelStatus)
+	}
 	if resp.ChannelRecord.UserIdentifier == "" {
 		resp.ChannelRecord.UserIdentifier = getRawBillField(resp.RawBill, "用户标识")
 	}
 	return resp, nil
 }
 
-// GetWechatTradeBillDashboard 提供无状态的报表查询入口。
 func GetWechatTradeBillDashboard(filter *WechatTradeBillListFilter) (*WechatTradeBillDashboardResponse, error) {
 	return NewWechatTradeBillQueryService().GetDashboard(filter)
 }
 
-// GetWechatTradeBillList 提供无状态的列表查询入口。
 func GetWechatTradeBillList(pageInfo *common.PageInfo, filter *WechatTradeBillListFilter) (*common.PageInfo, error) {
 	return NewWechatTradeBillQueryService().GetList(pageInfo, filter)
 }
 
-// GetWechatTradeBillDetail 提供无状态的详情查询入口。
 func GetWechatTradeBillDetail(id int) (*WechatTradeBillDetailResponse, error) {
 	return NewWechatTradeBillQueryService().GetDetail(id)
 }
