@@ -263,8 +263,8 @@ const PricingSidebar = ({
         ))}
       </Section>
     </div>
-    <div className='mt4 rounded-2xl px-4 py-4 mt-4' style={{backgroundImage:'linear-gradient(to right, #006D35, #21262D)',maxWidth:'256px'}}>
-      <span className='text-[12px] text-[#1CDFD5]'>{t('开发者优惠')}</span>
+    <div className='mt4 rounded-2xl px-4 py-4 mt-4' style={{backgroundImage:'linear-gradient(to right, #006D35, #21262D)',maxWidth:'100%'}}>
+      <span className='text-[12px] text-[#1CDFD5] font-[500]' style={{letterSpacing:'3px'}}>{t('开发者优惠')}</span>
       <p className='text-[18px] text-[#ffffff] font-black'>{t('DeepSeek V3')}</p>
       <p className='text-[18px] text-[#ffffff] font-black'>{t('全线特惠开启')}</p>
         <div className='bg-white inline-block p-2 px-4 rounded-lg text-[12px] cursor-pointer mt-4 font-medium'>{t('立即查看')}</div>

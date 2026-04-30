@@ -53,7 +53,7 @@ import {
   CheckCircle,
   Gift,
   Lightbulb,
-  Clipboard
+  Copy
 } from 'lucide-react';
 import { IconGift, IconSearch } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
@@ -441,7 +441,8 @@ const RechargeCard = ({
           <Tooltip content={t('复制')}>
             <Button
               type='tertiary'
-              icon={<Clipboard size={14} style={{color:'#999'}} />}
+              theme='borderless'
+              icon={<Copy size={14} style={{color:'#999'}} />}
               size='small'
               onClick={() => {
                 navigator.clipboard.writeText(record?.trade_no || '');
@@ -541,7 +542,7 @@ const RechargeCard = ({
                     >
                       <Text type='secondary' className='text-slate-600 dark:text-slate-300'>
                         {t('实付金额')}：
-                        <span className='text-cyan-600 dark:text-cyan-400 font-semibold'>{renderAmount()}</span>
+                        <span className='text-[#1CDFD5] font-semibold'>{renderAmount()}</span>
                       </Text>
                     </Skeleton>
                   }
@@ -582,7 +583,7 @@ const RechargeCard = ({
                             }
                           }}
                         >
-                          {preset.value} {symbol}
+                          {symbol} {preset.value} 
                           {hasDiscount && (
                             <Tag style={{ marginLeft: 6 }} color='green' size='small'>
                               {t('折')}
@@ -843,7 +844,7 @@ const RechargeCard = ({
       {/* 主体内容 */}
       <div className='grid grid-cols-1 xl:grid-cols-3 gap-5'>
         <div className='xl:col-span-2 space-y-5'>
-          <div className='bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 md:p-6'>
+          <div className='bg-white dark:bg-slate-900 rounded-2xl p-4 md:p-6'>
             <h2 className='text-lg font-bold text-slate-800 dark:text-white flex items-center mb-4'>
               {t('账户充值')}
             </h2>
@@ -898,7 +899,7 @@ const RechargeCard = ({
 
         {/* 右侧：充值小贴士（已移除额度预警） */}
         <div className='space-y-4'>
-          <div className='rounded-2xl border from-cyan-50 bg-white dark:bg-slate-800 to-emerald-50 dark:border-cyan-900/40 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5 shadow-sm'>
+          <div className='rounded-2xl from-cyan-50 bg-white dark:bg-slate-800 to-emerald-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'>
             <h3 className='font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2'>
               <Lightbulb style={{color:'#FDB878'}} /> {t('充值小贴士')}
             </h3>
@@ -921,7 +922,7 @@ const RechargeCard = ({
       </div>
 
       {/* 充值记录 */}
-      <div className='bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 md:p-6'>
+      <div className='bg-white dark:bg-slate-900 rounded-2xl p-4 md:p-6'>
         <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4'>
           <h2 className='text-lg font-bold text-slate-800 dark:text-white flex items-center'>
             {t('充值记录')}

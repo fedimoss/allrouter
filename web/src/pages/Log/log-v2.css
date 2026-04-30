@@ -1144,9 +1144,8 @@ html.dark .usage-logs-v2-stat-icon-tpm {
 
 .usage-logs-v2-button-primary {
   border: 0 !important;
-  background: linear-gradient(97.63deg, #09fef7 0%, #baff29 100%) !important;
+  background: #F8FAFC;
   color: #082f49 !important;
-  box-shadow: 0 14px 28px rgba(9, 254, 247, 0.18) !important;
 }
 .usage-logs-v2-button-secondary{
   border: 1px solid var(--lg-border) !important;
@@ -1169,10 +1168,14 @@ html.dark .usage-logs-v2-stat-icon-tpm {
 .usage-logs-v2-control.semi-select,
 .usage-logs-v2-control .semi-select-selection,
 .usage-logs-v2-control .semi-datepicker-range-input {
-  border-radius: 16px !important;
+  border-radius: 8px !important;
+  overflow: hidden;
 }
 .usage-logs-v2-control .semi-datepicker-range-input {
   border: 1px solid var(--lg-border) !important;
+}
+.semi-datepicker-range-input-wrapper{
+  background-color: #fff !important;
 }
 .semi-datepicker-range-input-wrapper:hover{
   background-color: transparent;
@@ -1186,9 +1189,14 @@ html.dark .usage-logs-v2-stat-icon-tpm {
 .usage-logs-v2-control .semi-select-focus .semi-select-selection,
 .usage-logs-v2-control.semi-datepicker:focus-within
   .semi-datepicker-range-input {
-  background: var(--lg-surface-soft) !important;
+  background: #fff !important;
   border-color: var(--lg-border) !important;
   box-shadow: none !important;
+}
+.dark .usage-logs-v2-control.semi-input-wrapper,
+.dark .semi-datepicker-range-input-wrapper,
+.dark .usage-logs-v2-control.semi-select{
+  background: var(--lg-surface) !important;
 }
 
 .usage-logs-v2-control.semi-input-wrapper:hover,

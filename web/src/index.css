@@ -55,6 +55,12 @@ p {
 .semi-datepicker-range-input-wrapper-active{
   border-color: transparent;
 }
+.semi-checkbox-indeterminate .semi-checkbox-inner-display:hover, .semi-checkbox-checked .semi-checkbox-inner-display:hover{
+  background: #1CDFD5 !important;
+}
+.semi-checkbox-inner-display{
+  box-shadow: inset 0 0 0 1px #1CDFD5 !important;
+}
 
 /* 桌面端禁止 body 纵向滚动 - 防止 VChart tooltip 触发页面滚动条 */
 @media (min-width: 768px) {

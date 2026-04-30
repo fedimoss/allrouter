@@ -383,10 +383,10 @@ const OauthList = () => {
                     }
                   </div>
                   <div>
-                    <div className='text-[16px] font-semibold' style={{ color: 'var(--semi-color-text-0)' }}>
+                    <div className='text-[20px] text-[#475569] font-[900]'>
                       {item.title}
                     </div>
-                    <div className='mt-1 text-[12px]' style={{ color: 'var(--semi-color-text-1)' }}>
+                    <div className='mt-1 text-[#94A3B8] text-[14px] font-[500]'>
                       {item.description}
                     </div>
                   </div>
@@ -444,6 +444,11 @@ const OauthList = () => {
                     <Button
                       type='primary'
                       theme='solid'
+                      style={{
+                        backgroundImage:
+                          'linear-gradient(135deg, #09FEF7 0%, #F8FF15 100%)',
+                        color: '#005C59',
+                      }}
                       onClick={() => submitCallback(item)}
                     >
                       {isCompleteLoading ? (
@@ -571,7 +576,7 @@ const OauthList = () => {
                      
                       backgroundImage:
                           'linear-gradient(135deg, #09FEF7 0%, #F8FF15 100%)',
-                      color: '#fff',
+                        color: '#005C59',
                     }}
                     >
                       {isCompleteLoading ? (

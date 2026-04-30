@@ -312,11 +312,11 @@ const CertificationList = () => {
                 height: '100%',
                 width: '100%',
                 borderRadius: 999,
-                backgroundColor: healthy ? 'var(--semi-color-success)' : 'var(--semi-color-danger)',
+                backgroundColor: healthy ? '#1CDFD5' : 'var(--semi-color-danger)',
               }}
             />
           </div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: healthy ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: healthy ? '#1CDFD5' : 'var(--semi-color-danger)' }}>
             100% {t('成功')}
           </div>
         </div>
@@ -334,11 +334,11 @@ const CertificationList = () => {
           <div className='flex flex-col gap-4 md:flex-row md:items-start md:justify-between'>
             <div>
               <div className='flex items-center gap-3'>
-                <h2 className='text-[26px] font-semibold leading-none' style={{ color: 'var(--semi-color-text-0)' }}>
+                <h2 className='text-[30px] text-[#475569] font-[500]'>
                   {t('认证文件管理')}
                 </h2>
               </div>
-              <p className='mt-3 text-[16px]' style={{ color: 'var(--semi-color-text-1)' }}>
+              <p className='mt-2 text-[#94A3B8] text-[16px] font-[500]'>
                 {t(
                   '集中管理 OAuth 生成的认证文件，监控健康状态，配置模型别名与过滤规则。',
                 )}
@@ -348,11 +348,11 @@ const CertificationList = () => {
 
           <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mt-6'>
             <div className='border rounded-2xl px-6 py-6 backdrop-blur dark:border-cyan-900/50 bg-white/50 dark:bg-cyan-900/30'>
-              <div className='flex items-center justify-between mb-4 text-[16px] dark:text-slate-400'>
+              <div className='flex items-center text-[#64748B] justify-between mb-4 font-[500] text-[14px] dark:text-slate-400'>
                 {t('总文件数')}
                 <Database size={20} />
               </div>
-              <div className='text-[48px]' style={{fontWeight:'900',lineHeight:'48px'}}>
+              <div className='text-[48px] text-[#475569] font-[900]' style={{lineHeight:'48px'}}>
                 {totalCount}
               </div>
               <div className='mt-6'>
@@ -360,11 +360,11 @@ const CertificationList = () => {
               </div>
             </div>
             <div className='border rounded-2xl px-6 py-6 backdrop-blur dark:border-cyan-900/50 bg-white/50 dark:bg-cyan-900/30'>
-              <div className='flex items-center justify-between mb-4 text-[16px] dark:text-slate-400'>
+              <div className='flex items-center text-[#64748B] justify-between mb-4 font-[500] text-[14px] dark:text-slate-400'>
                 {t('健康节点')}
                 <CircleCheck size={20} style={{color:'#1CDFD5'}} />
               </div>
-              <div className='text-[48px]' style={{fontWeight:'900',lineHeight:'48px'}}>
+              <div className='text-[48px] text-[#475569] font-[900]' style={{lineHeight:'48px'}}>
                 {healthyCount}
               </div>
               <div className='mt-6'>
@@ -372,11 +372,11 @@ const CertificationList = () => {
               </div>
             </div>
             <div className='border rounded-2xl px-6 py-6 backdrop-blur dark:border-cyan-900/50 bg-white/50 dark:bg-cyan-900/30'>
-              <div className='flex items-center justify-between mb-4 text-[16px] dark:text-slate-400'>
+              <div className='flex items-center text-[#64748B] justify-between mb-4 font-[500] text-[14px] dark:text-slate-400'>
                 {t('异常告警')}
                 <TriangleAlert size={20} style={{color:'#F85149'}} />
               </div>
-              <div className='text-[48px]' style={{fontWeight:'900',lineHeight:'48px'}}>
+              <div className='text-[48px] text-[#F85149]' style={{fontWeight:'900',lineHeight:'48px'}}>
                 {abnormalCount}
               </div>
               <div className='mt-6'>
@@ -385,7 +385,7 @@ const CertificationList = () => {
             </div>
           </div>
 
-          <div className='mt-4 flex flex-col gap-3'>
+          <div className='mt-8 flex flex-col gap-3 bg-white rounded-2xl p-4'>
             <div className='flex flex-1 flex-col gap-3 md:flex-row'>
               <Input
                 prefix={<Search size={20} className='ml-2 mr-2' style={{ color: 'var(--semi-color-text-2)' }} />}
@@ -415,18 +415,16 @@ const CertificationList = () => {
 
           <div
             style={{
-              marginTop: 16,
+              marginTop: 32,
               overflow: 'hidden',
               borderRadius: 12,
-              border: '1px solid var(--semi-color-border)',
               background: 'var(--semi-color-bg-0)',
-              boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
             }}
           >
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ height: 48, borderBottom: '1px solid var(--semi-color-border)', background: 'var(--semi-color-fill-0)', textAlign: 'left', color: 'var(--semi-color-text-1)', fontSize: 12, fontWeight: 600 }}>
+                  <tr style={{ height: 48, borderBottom: '1px solid var(--semi-color-border)', textAlign: 'left', color: 'var(--semi-color-text-1)', fontSize: 12, fontWeight: 600 }}>
                     <th style={{ padding: '0 12px' }}>{t('文件信息')}</th>
                     <th style={{ width: 220, padding: '0 12px' }}>{t('服务商')}</th>
                     <th style={{ width: 220, padding: '0 12px' }}>{t('健康状态')}</th>
@@ -444,16 +442,16 @@ const CertificationList = () => {
                     <tr key={row.id} style={{ height: 70, borderTop: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-0)' }}>
                       <td style={{ padding: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                          <div style={{ marginTop: 2, height: 32, width: 32, borderRadius: 6, background: row.providerShort === 'G' ? 'var(--semi-color-primary-light-default)' : row.providerShort === 'A' ? 'var(--semi-color-warning-light-default)' : 'var(--semi-color-fill-0)', color: row.providerShort === 'G' ? 'var(--semi-color-primary)' : row.providerShort === 'A' ? 'var(--semi-color-warning)' : 'var(--semi-color-text-1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <FileText size={15} />
+                          <div style={{ marginTop: 2, height: 32, width: 32, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <FileText size={15} style={{color:'#1CDFD5'}} />
                           </div>
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 600, lineHeight: 1.2, color: 'var(--semi-color-text-0)' }}>
-                              <span>{row.fileName}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8}}>
+                                <span className='text-[#475569] text-[16px] font-[700]'>{row.fileName}</span>
                               {/* <Copy size={14} className='text-[#8ca0b8]' /> */}
                             </div>
-                            <div style={{ marginTop: 4, fontSize: 13, color: 'var(--semi-color-text-1)' }}>
-                              <span>{t('OAuth 凭据')}</span>
+                            <div>
+                              <span className='text-[#64748B] text-[12px] font-[400]'>{t('OAuth 凭据')}</span>
                             </div>
                           </div>
                         </div>
@@ -523,7 +521,7 @@ const CertificationList = () => {
                   size='small'
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  style={{ fontSize: 12 }}
+                  style={{ fontSize: 12,color:'#1CDFD5' }}
                 >
                   {t('上一页')}
                 </Button>
@@ -531,7 +529,7 @@ const CertificationList = () => {
                   size='small'
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  style={{ fontSize: 12 }}
+                  style={{ fontSize: 12,color:'#1CDFD5' }}
                 >
                   {t('下一页')}
                 </Button>

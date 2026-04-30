@@ -441,6 +441,7 @@ const Invitation = () => {
                 readonly
                 className='flex-1 !rounded-lg'
                 placeholder={t('加载中...')}
+                style={{ fontSize: '16px', background:'#F8FAFC', borderColor:'#fff'}}
               />
               <Button
                 theme='solid'
@@ -449,9 +450,9 @@ const Invitation = () => {
                 icon={<Copy size={14} />}
                 className='!rounded-lg'
                 style={{
-                  background: 'linear-gradient(135deg, #34d399, #a3e635)',
+                  background: 'linear-gradient(135deg, #09FEF7, #BAFF29)',
                   borderColor: 'transparent',
-                  color: '#fff',
+                  color: '#00210B',
                 }}
               >
                 {t('复制链接')}
