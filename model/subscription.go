@@ -195,10 +195,12 @@ func (p *SubscriptionPlan) BeforeUpdate(tx *gorm.DB) error {
 
 // Subscription order (payment -> webhook -> create UserSubscription)
 type SubscriptionOrder struct {
-	Id     int     `json:"id"`
-	UserId int     `json:"user_id" gorm:"index"`
-	PlanId int     `json:"plan_id" gorm:"index"`
-	Money  float64 `json:"money"`
+	Id            int     `json:"id"`
+	UserId        int     `json:"user_id" gorm:"index"`
+	PlanId        int     `json:"plan_id" gorm:"index"`
+	Money         float64 `json:"money"`
+	Currency      string  `json:"currency" gorm:"type:varchar(10);default:''"`        // 币种符号（￥/$）
+	OriginalMoney float64 `json:"original_money" gorm:"type:decimal(18,6);default:0"` // 用户实际支付的原始金额（用户币种）
 
 	TradeNo       string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod string `json:"payment_method" gorm:"type:varchar(50)"`
@@ -604,12 +606,22 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 				CreateTime:    order.CreateTime,
 				CompleteTime:  now,
 				Status:        common.TopUpStatusSuccess,
+				Currency:      order.Currency,      // 传递币种符号
+				OriginalMoney: order.OriginalMoney, // 传递实际支付金额
 			}
 			return tx.Create(&topup).Error
 		}
 		return err
 	}
 	topup.Money = order.Money
+	// 补充币种信息（仅在 TopUp 尚未设置时）
+	if topup.Currency == "" {
+		topup.Currency = order.Currency
+	}
+	// 补充实际支付金额（仅在 TopUp 尚未设置时）
+	if topup.OriginalMoney == 0 {
+		topup.OriginalMoney = order.OriginalMoney
+	}
 	if topup.PaymentMethod == "" {
 		topup.PaymentMethod = order.PaymentMethod
 	}

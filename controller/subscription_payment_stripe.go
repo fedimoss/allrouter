@@ -104,10 +104,18 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		return
 	}
 
+	// 根据展示币种确定币种符号
+	currencySymbol := "$"
+	if strings.EqualFold(displayCurrency, "CNY") {
+		currencySymbol = "￥"
+	}
+
 	order := &model.SubscriptionOrder{
 		UserId:        userId,
 		PlanId:        plan.Id,
 		Money:         plan.PriceAmount,
+		Currency:      currencySymbol, // 币种符号
+		OriginalMoney: chargeMoney,    // 实际支付金额（用户币种）
 		TradeNo:       referenceId,
 		PaymentMethod: PaymentMethodStripe,
 		CreateTime:    time.Now().Unix(),

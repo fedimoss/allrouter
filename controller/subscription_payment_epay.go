@@ -56,6 +56,11 @@ func subscriptionEpayOrderMoneyMatches(order *model.SubscriptionOrder, callbackM
 	if order == nil {
 		return false
 	}
+	// 优先用 OriginalMoney 直接比较人民币金额，兼容历史订单回退到 USD 换算比较
+	if order.OriginalMoney > 0 {
+		return amountStringMatchesMoney(callbackMoney, order.OriginalMoney)
+	}
+
 	// 使用容差匹配，处理浮点精度问题
 	return epayCallbackMoneyMatches(callbackMoney, order.Money)
 }
@@ -135,6 +140,8 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		UserId:        userId,
 		PlanId:        plan.Id,
 		Money:         plan.PriceAmount,
+		Currency:      "￥",         // 易支付固定人民币
+		OriginalMoney: chargeMoney, // 实际支付的人民币金额
 		TradeNo:       tradeNo,
 		PaymentMethod: req.PaymentMethod,
 		CreateTime:    time.Now().Unix(),
