@@ -226,6 +226,7 @@ export default function SettingsPaymentGateway(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='PayAddress'
+                disabled={true}
                 label={t('支付地址')}
                 placeholder={t('例如：https://yourdomain.com')}
               />
@@ -233,6 +234,7 @@ export default function SettingsPaymentGateway(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='EpayId'
+                disabled={true}
                 label={t('易支付商户ID')}
                 placeholder={t('例如：0001')}
               />
@@ -240,6 +242,7 @@ export default function SettingsPaymentGateway(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='EpayKey'
+                disabled={true}
                 label={t('易支付商户密钥')}
                 placeholder={t('敏感信息不会发送到前端显示')}
                 type='password'
@@ -260,6 +263,7 @@ export default function SettingsPaymentGateway(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.InputNumber
                 field='Price'
+                disabled={true}
                 precision={2}
                 label={t('充值价格（x元/美金）')}
                 placeholder={t('例如：7，就是7元/美金')}
@@ -268,6 +272,7 @@ export default function SettingsPaymentGateway(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.InputNumber
                 field='MinTopUp'
+                disabled={true}
                 label={t('最低充值美元数量')}
                 placeholder={t('例如：2，就是最低充值2$')}
               />
@@ -275,12 +280,14 @@ export default function SettingsPaymentGateway(props) {
           </Row>
           <Form.TextArea
             field='TopupGroupRatio'
+            disabled={true}
             label={t('充值分组倍率')}
             placeholder={t('为一个 JSON 文本，键为组名称，值为倍率')}
             autosize
           />
           <Form.TextArea
             field='PayMethods'
+            disabled={true}
             label={t('充值方式设置')}
             placeholder={t('为一个 JSON 文本')}
             autosize
@@ -293,6 +300,7 @@ export default function SettingsPaymentGateway(props) {
             <Col span={24}>
               <Form.TextArea
                 field='AmountOptions'
+                disabled={true}
                 label={t('自定义充值数量选项')}
                 placeholder={t(
                   '为一个 JSON 数组，例如：[10, 20, 50, 100, 200, 500]',
@@ -312,6 +320,7 @@ export default function SettingsPaymentGateway(props) {
             <Col span={24}>
               <Form.TextArea
                 field='AmountDiscount'
+                disabled={true}
                 label={t('充值金额折扣配置')}
                 placeholder={t(
                   '为一个 JSON 对象，例如：{"100": 0.95, "200": 0.9, "500": 0.85}',

@@ -258,6 +258,7 @@ export default function SettingsPaymentGateway(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='StripeApiSecret'
+                disabled={true}
                 label={t('API 密钥')}
                 placeholder={t(
                   'sk_xxx 或 rk_xxx 的 Stripe 密钥，敏感信息不显示',
@@ -268,6 +269,7 @@ export default function SettingsPaymentGateway(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='StripeWebhookSecret'
+                disabled={true}
                 label={t('Webhook 签名密钥')}
                 placeholder={t('whsec_xxx 的 Webhook 签名密钥，敏感信息不显示')}
                 type='password'
@@ -286,6 +288,7 @@ export default function SettingsPaymentGateway(props) {
                 </div>
                 <Input
                   value={currencyPriceIds[currency]}
+                  disabled={true}
                   onChange={(value) =>
                     setCurrencyPriceIds((prev) => ({
                       ...prev,
@@ -313,6 +316,7 @@ export default function SettingsPaymentGateway(props) {
                 step={0.01}
                 onChange={(value) => setCnyUnitPrice(value)}
                 placeholder={t('例如：7.25')}
+                disabled={true}
               />
             </Col>
           </Row>
@@ -324,6 +328,7 @@ export default function SettingsPaymentGateway(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.InputNumber
                 field='StripeUnitPrice'
+                disabled={true}
                 precision={2}
                 label={t('充值价格（x元/美金）')}
                 placeholder={t('例如：7，就是7元/美金')}
@@ -332,6 +337,7 @@ export default function SettingsPaymentGateway(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.InputNumber
                 field='StripeMinTopUp'
+                disabled={true}
                 label={t('最低充值美元数量')}
                 placeholder={t('例如：2，就是最低充值2$')}
               />
@@ -339,6 +345,7 @@ export default function SettingsPaymentGateway(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Switch
                 field='StripePromotionCodesEnabled'
+                disabled={true}
                 size='default'
                 checkedText='｜'
                 uncheckedText='〇'
@@ -346,7 +353,7 @@ export default function SettingsPaymentGateway(props) {
               />
             </Col>
           </Row>
-          <Button onClick={submitStripeSetting}>{t('更新 Stripe 设置')}</Button>
+          <Button disabled={true} onClick={submitStripeSetting}>{t('更新 Stripe 设置')}</Button>
         </Form.Section>
       </Form>
     </Spin>
