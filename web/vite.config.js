@@ -91,15 +91,15 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://localhost:3002',
+        target: 'http://192.168.0.228:3000', // http://192.168.0.228:3000
         changeOrigin: true,
       },
       '/mj': {
-        target: 'http://localhost:3002',
+        target: 'http://192.168.0.228:3000',
         changeOrigin: true,
       },
       '/pg': {
-        target: 'http://localhost:3002',
+        target: 'http://192.168.0.228:3000',
         changeOrigin: true,
       },
     },
