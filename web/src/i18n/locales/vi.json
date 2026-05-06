@@ -4502,6 +4502,8 @@
         "付款用户":"Người dùng thanh toán",
         "实际支付":"Thanh toán thực tế",
         "支付完成":"Thanh toán hoàn thành",
-        "笔": "Bút"
+        "笔": "Bút",
+        "消费返利比例":"Tỷ lệ trả về doanh thu",
+        "消费返利":"Trả về doanh thu"
     }
 }

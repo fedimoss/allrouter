@@ -321,7 +321,7 @@ const Invitation = () => {
       ),
     },
     {
-      title: t('充值返利'),
+      title: t('消费返利'),
       dataIndex: 'status',
       key: 'status',
       render: (_, record) => (

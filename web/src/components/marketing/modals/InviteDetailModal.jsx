@@ -110,7 +110,7 @@ const InviteDetailModal = ({ t, visible, onClose, inviteeId, inviteeName }) => {
         width: '33%',
         render: () => (
           <Tag className='!bg-[#DFFFF9] !text-[#22D3C5] !border !border-[#8BECE4] !rounded-[6px] !px-[10px] !py-[2px] !text-[12px] !leading-none'>
-            {t('充值')}
+            {t('消费')}
           </Tag>
         ),
       },
