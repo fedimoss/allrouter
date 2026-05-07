@@ -128,6 +128,7 @@ const PARAM_OVERRIDE_OPERATIONS_TEMPLATE = {
 };
 
 const DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
+const LOCKED_API_BASE_URL = 'https://allrouter.ai';
 
 // 支持并且已适配通过接口获取模型列表的渠道类型
 const MODEL_FETCHABLE_TYPES = new Set([
@@ -175,7 +176,7 @@ const EditChannelModal = (props) => {
     key: '',
     openai_organization: '',
     max_input_tokens: 0,
-    base_url: '',
+    base_url: LOCKED_API_BASE_URL,
     other: '',
     model_mapping: '',
     param_override: '',
@@ -368,6 +369,12 @@ const EditChannelModal = (props) => {
     useState(false);
   const [paramOverrideEditorVisible, setParamOverrideEditorVisible] =
     useState(false);
+  const shouldLockBaseUrl =
+    inputs.type !== 3 &&
+    inputs.type !== 8 &&
+    inputs.type !== 22 &&
+    inputs.type !== 36 &&
+    (inputs.type !== 45 || doubaoApiEditUnlocked);
 
   // 密钥显示状态
   const [keyDisplayState, setKeyDisplayState] = useState({
@@ -385,6 +392,16 @@ const EditChannelModal = (props) => {
       setIonetMetadata(null);
     }
   }, [isEdit]);
+
+  useEffect(() => {
+    if (!shouldLockBaseUrl || inputs.base_url === LOCKED_API_BASE_URL) {
+      return;
+    }
+    setInputs((prev) => ({ ...prev, base_url: LOCKED_API_BASE_URL }));
+    if (formApiRef.current) {
+      formApiRef.current.setValue('base_url', LOCKED_API_BASE_URL);
+    }
+  }, [inputs.base_url, shouldLockBaseUrl]);
 
   const handleOpenIonetDeployment = () => {
     if (!ionetMetadata?.deployment_id) {
@@ -3346,14 +3363,11 @@ const EditChannelModal = (props) => {
                             <Form.Input
                               field='base_url'
                               label={t('API地址')}
-                              placeholder={t(
-                                '此项可选，用于通过自定义API地址来进行 API 调用，末尾不要带/v1和/',
-                              )}
+                              placeholder={LOCKED_API_BASE_URL}
                               onChange={(value) =>
                                 handleInputChange('base_url', value)
                               }
-                              showClear
-                              disabled={isIonetLocked}
+                              disabled
                               extraText={t(
                                 '对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写',
                               )}

@@ -38,6 +38,7 @@ type User struct {
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
 	AccessToken      *string        `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
+	RewardQuota      int            `json:"reward_quota" gorm:"type:int;default:0;column:reward_quota"`
 	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
 	Group            string         `json:"group" gorm:"type:varchar(64);default:'default'"`
@@ -529,6 +530,7 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	// 更新用户额度
 	user.AffQuota -= quota
 	user.Quota += quota
+	user.RewardQuota += quota
 
 	// 保存用户状态
 	if err := tx.Save(user).Error; err != nil {
@@ -548,6 +550,7 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	user.RewardQuota = common.QuotaForNewUser
 	user.InviterId = inviterId
 	//user.SetAccessToken(common.GetUUID())
 	user.AffCode = common.GetRandomString(4)
@@ -615,7 +618,7 @@ func (user *User) Insert(inviterId int) error {
 	}
 	if inviterId != 0 {
 		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
+			_ = IncreaseUserRewardQuota(user.Id, common.QuotaForInvitee, true)
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
 		if common.QuotaForInviter > 0 {
@@ -639,6 +642,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	user.RewardQuota = common.QuotaForNewUser
 	user.InviterId = inviterId
 	user.AffCode = common.GetRandomString(4)
 
@@ -681,7 +685,7 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 	}
 	if inviterId != 0 {
 		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
+			_ = IncreaseUserRewardQuota(user.Id, common.QuotaForInvitee, true)
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
 		if common.QuotaForInviter > 0 {
@@ -1119,6 +1123,32 @@ func increaseUserQuota(id int, quota int) (err error) {
 	return err
 }
 
+// 奖励入账时同时增加 quota 和 reward_quota
+func IncreaseUserRewardQuota(id int, quota int, db bool) (err error) {
+	if quota < 0 {
+		return errors.New("quota 不能为负数！")
+	}
+	gopool.Go(func() {
+		err := cacheIncrUserQuota(id, int64(quota))
+		if err != nil {
+			common.SysLog("failed to increase user quota: " + err.Error())
+		}
+	})
+	if !db && common.BatchUpdateEnabled {
+		// reward_quota must stay in sync with quota, so do not use the legacy
+		// quota-only batch path for reward income.
+		db = true
+	}
+	return increaseUserRewardQuota(id, quota)
+}
+
+func increaseUserRewardQuota(id int, quota int) error {
+	return DB.Model(&User{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"quota":        gorm.Expr("quota + ?", quota),
+		"reward_quota": gorm.Expr("reward_quota + ?", quota),
+	}).Error
+}
+
 func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
@@ -1142,6 +1172,87 @@ func decreaseUserQuota(id int, quota int) (err error) {
 		return err
 	}
 	return err
+}
+
+type UserQuotaBreakdown struct {
+	Total      int
+	RewardUsed int
+	PaidUsed   int
+}
+
+// 钱包消费时先扣 reward_quota，不够再扣充值余额。
+func DecreaseUserQuotaPreferReward(id int, quota int) (UserQuotaBreakdown, error) {
+	breakdown := UserQuotaBreakdown{Total: quota}
+	if quota < 0 {
+		return breakdown, errors.New("quota 不能为负数！")
+	}
+	if quota == 0 {
+		return breakdown, nil
+	}
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Select("id", "quota", "reward_quota").
+			Where("id = ?", id).
+			First(&user).Error; err != nil {
+			return err
+		}
+		if user.Quota < quota {
+			return fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", logger.FormatQuota(user.Quota), logger.FormatQuota(quota))
+		}
+		rewardAvailable := user.RewardQuota
+		if rewardAvailable > user.Quota {
+			rewardAvailable = user.Quota
+		}
+		if rewardAvailable < 0 {
+			rewardAvailable = 0
+		}
+		breakdown.RewardUsed = rewardAvailable
+		if breakdown.RewardUsed > quota {
+			breakdown.RewardUsed = quota
+		}
+		breakdown.PaidUsed = quota - breakdown.RewardUsed
+
+		return tx.Model(&User{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"quota":        gorm.Expr("quota - ?", quota),
+			"reward_quota": gorm.Expr("reward_quota - ?", breakdown.RewardUsed),
+		}).Error
+	})
+	if err != nil {
+		return breakdown, err
+	}
+	gopool.Go(func() {
+		if err := cacheDecrUserQuota(id, int64(quota)); err != nil {
+			common.SysLog("failed to decrease user quota: " + err.Error())
+		}
+	})
+	return breakdown, nil
+}
+
+// 退款时按原本扣费来源退回，奖励部分退回 reward_quota
+func IncreaseUserQuotaByBreakdown(id int, total int, reward int) error {
+	if total < 0 || reward < 0 {
+		return errors.New("quota 不能为负数！")
+	}
+	if reward > total {
+		return errors.New("reward quota cannot exceed total quota")
+	}
+	if total == 0 {
+		return nil
+	}
+	if err := DB.Model(&User{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"quota":        gorm.Expr("quota + ?", total),
+		"reward_quota": gorm.Expr("reward_quota + ?", reward),
+	}).Error; err != nil {
+		return err
+	}
+	gopool.Go(func() {
+		if err := cacheIncrUserQuota(id, int64(total)); err != nil {
+			common.SysLog("failed to increase user quota: " + err.Error())
+		}
+	})
+	return nil
 }
 
 func DeltaUpdateUserQuota(id int, delta int) (err error) {

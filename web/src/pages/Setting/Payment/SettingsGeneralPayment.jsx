@@ -142,17 +142,17 @@ export default function SettingsGeneralPayment(props) {
             )}
           />
 
-          {/* 邀请充值返利比例配置 */}
+          {/* 消费返利比例配置 */}
           <Form.InputNumber
             field='InviteTopupRebateRatio'
-            label={t('邀请充值返利比例')}
+            label={t('消费返利比例')}
             min={0}
             max={100}
             step={0.1}
             suffix='%'
             style={{ width: '100%' }}
             extraText={t(
-              '被邀请人充值成功后，按充值到账额度的百分比返利给邀请人，0 表示关闭',
+              '被邀请人充值成功后，使用充值额度消费，按消费额度的百分比返利给邀请人，0 表示关闭',
             )}
           />
 

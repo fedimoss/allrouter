@@ -4044,6 +4044,8 @@
         "付款用户":"Paying User",
         "实际支付":"Actual Payment",
         "支付完成":"Payment Completed",
-        "笔": "Transaction"
+        "笔": "Transaction",
+        "消费返利比例":"Consumption Rebate Ratio",
+        "消费返利":"Consumption Rebate"
     }
 }

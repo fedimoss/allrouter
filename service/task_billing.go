@@ -94,7 +94,19 @@ func taskAdjustFunding(task *model.Task, delta int) error {
 		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(task.UserId, delta, false)
+		//异步任务的差额补扣也改成奖励优先。
+		//如果补扣里使用了充值额度，也会触发消费返利。
+		breakdown, err := model.DecreaseUserQuotaPreferReward(task.UserId, delta)
+		if err != nil {
+			return err
+		}
+		if breakdown.PaidUsed > 0 {
+			rebateRequestId := fmt.Sprintf("%s:adjust:%s", task.TaskID, common.GetRandomString(8))
+			if _, _, rebateErr := model.ApplyInviteConsumeRebate(task.UserId, rebateRequestId, breakdown.PaidUsed); rebateErr != nil {
+				logger.LogWarn(context.Background(), fmt.Sprintf("消费返利失败 task %s: %s", task.TaskID, rebateErr.Error()))
+			}
+		}
+		return nil
 	}
 	return model.IncreaseUserQuota(task.UserId, -delta, false)
 }

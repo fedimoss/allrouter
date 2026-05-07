@@ -27,8 +27,10 @@ type FundingSource interface {
 // ---------------------------------------------------------------------------
 
 type WalletFunding struct {
-	userId   int
-	consumed int // 实际预扣的用户额度
+	userId         int
+	consumed       int // 实际预扣的用户额度
+	rewardConsumed int
+	paidConsumed   int
 }
 
 func (w *WalletFunding) Source() string { return BillingSourceWallet }
@@ -37,21 +39,52 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	if amount <= 0 {
 		return nil
 	}
-	if err := model.DecreaseUserQuota(w.userId, amount, false); err != nil {
+	breakdown, err := model.DecreaseUserQuotaPreferReward(w.userId, amount)
+	if err != nil {
 		return err
 	}
 	w.consumed = amount
+	w.rewardConsumed += breakdown.RewardUsed
+	w.paidConsumed += breakdown.PaidUsed
 	return nil
 }
 
+// 预扣和补扣都会先扣奖励额度，再扣充值额度；退款会按已扣来源退回。最终 PaidConsumed() 用于计算消费返利。
 func (w *WalletFunding) Settle(delta int) error {
 	if delta == 0 {
 		return nil
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(w.userId, delta, false)
+		breakdown, err := model.DecreaseUserQuotaPreferReward(w.userId, delta)
+		if err != nil {
+			return err
+		}
+		w.consumed += delta
+		w.rewardConsumed += breakdown.RewardUsed
+		w.paidConsumed += breakdown.PaidUsed
+		return nil
 	}
-	return model.IncreaseUserQuota(w.userId, -delta, false)
+
+	refundTotal := -delta
+	rewardRefund := 0
+	paidRefund := refundTotal
+	if paidRefund > w.paidConsumed {
+		paidRefund = w.paidConsumed
+	}
+	remainingRefund := refundTotal - paidRefund
+	if remainingRefund > 0 {
+		rewardRefund = remainingRefund
+		if rewardRefund > w.rewardConsumed {
+			rewardRefund = w.rewardConsumed
+		}
+	}
+	if err := model.IncreaseUserQuotaByBreakdown(w.userId, paidRefund+rewardRefund, rewardRefund); err != nil {
+		return err
+	}
+	w.consumed -= paidRefund + rewardRefund
+	w.paidConsumed -= paidRefund
+	w.rewardConsumed -= rewardRefund
+	return nil
 }
 
 func (w *WalletFunding) Refund() error {
@@ -60,7 +93,11 @@ func (w *WalletFunding) Refund() error {
 	}
 	// IncreaseUserQuota 是 quota += N 的非幂等操作，不能重试，否则会多退额度。
 	// 订阅的 RefundSubscriptionPreConsume 有 requestId 幂等保护所以可以重试。
-	return model.IncreaseUserQuota(w.userId, w.consumed, false)
+	return model.IncreaseUserQuotaByBreakdown(w.userId, w.consumed, w.rewardConsumed)
+}
+
+func (w *WalletFunding) PaidConsumed() int {
+	return w.paidConsumed
 }
 
 // ---------------------------------------------------------------------------

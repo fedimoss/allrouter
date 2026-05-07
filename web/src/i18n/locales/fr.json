@@ -3975,6 +3975,8 @@
         "付款用户":"Utilisateur payant",
         "实际支付":"Paiement réel",
         "支付完成":"Paiement terminé",
-        "笔": "Transaction"
+        "笔": "Transaction",
+        "消费返利比例":"Taux de remboursement de la consumption",
+        "消费返利":"Remboursement de la consumption"
     }
 }
