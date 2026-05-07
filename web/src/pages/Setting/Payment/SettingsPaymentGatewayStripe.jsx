@@ -27,7 +27,6 @@ import {
   Typography,
   Spin,
   Input,
-  InputNumber,
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import {
@@ -282,26 +281,6 @@ export default function SettingsPaymentGateway(props) {
                 />
               </Col>
             ))}
-          </Row>
-
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-            style={{ marginTop: 16 }}
-          >
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <div style={{ marginBottom: 4 }}>
-                <Text strong>{t('美元人民币汇率')}</Text>
-              </div>
-              <InputNumber
-                value={cnyUnitPrice}
-                min={0.000001}
-                precision={6}
-                step={0.01}
-                onChange={(value) => setCnyUnitPrice(value)}
-                placeholder={t('例如：7.25')}
-                disabled={true}
-              />
-            </Col>
           </Row>
 
           <Row
