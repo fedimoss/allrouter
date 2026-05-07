@@ -52,6 +52,7 @@ export default function SettingsGeneralPayment(props) {
   const [inputs, setInputs] = useState({
     ServerAddress: '',          // 服务器地址（影响支付回调）
     InviteTopupRebateRatio: 0, // 邀请充值返利比例（0-100之间的数字）
+    StripeCnyUnitPrice: 7.25,  // 美元人民币汇率
   });
   const formApiRef = useRef(null);
 
@@ -65,6 +66,10 @@ export default function SettingsGeneralPayment(props) {
           props.options.InviteTopupRebateRatio !== undefined
             ? parseFloat(props.options.InviteTopupRebateRatio) || 0
             : 0,
+        StripeCnyUnitPrice:
+          props.options.StripeCnyUnitPrice !== undefined
+            ? parseFloat(props.options.StripeCnyUnitPrice) || 7.25
+            : 7.25,
       };
       setInputs(currentInputs);
       formApiRef.current.setValues(currentInputs);
@@ -84,11 +89,15 @@ export default function SettingsGeneralPayment(props) {
       const updates = [
         {
           key: 'ServerAddress',
-          value: removeTrailingSlash(inputs.ServerAddress), // 移除末尾斜杠
+          value: removeTrailingSlash(inputs.ServerAddress),
         },
         {
           key: 'InviteTopupRebateRatio',
-          value: inputs.InviteTopupRebateRatio || 0, // 确保数值有效
+          value: inputs.InviteTopupRebateRatio || 0,
+        },
+        {
+          key: 'StripeCnyUnitPrice',
+          value: inputs.StripeCnyUnitPrice || 7.25,
         },
       ];
 
@@ -144,6 +153,19 @@ export default function SettingsGeneralPayment(props) {
             style={{ width: '100%' }}
             extraText={t(
               '被邀请人充值成功后，按充值到账额度的百分比返利给邀请人，0 表示关闭',
+            )}
+          />
+
+          {/* 美元人民币汇率 */}
+          <Form.InputNumber
+            field='StripeCnyUnitPrice'
+            label={t('美元人民币汇率')}
+            min={0.000001}
+            precision={6}
+            step={0.01}
+            style={{ width: '100%' }}
+            extraText={t(
+              '用于支付中美元与人民币的换算，例如 7.25',
             )}
           />
 
