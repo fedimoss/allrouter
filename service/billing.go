@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -56,6 +57,13 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 
 		if err := relayInfo.Billing.Settle(actualQuota); err != nil {
 			return err
+		}
+		//请求成功结算后，如果本次钱包消费中有充值额度部分，就调用 ApplyInviteConsumeRebate 给邀请人发消费返利。
+		//订阅计费不会触发消费返利。
+		if paidQuota := relayInfo.Billing.ClaimPaidConsumedForRebate(); paidQuota > 0 {
+			if _, _, err := model.ApplyInviteConsumeRebate(relayInfo.UserId, relayInfo.RequestId, paidQuota); err != nil {
+				logger.LogError(ctx, "error applying consume rebate: "+err.Error())
+			}
 		}
 
 		// 发送额度通知（订阅计费使用订阅剩余额度）

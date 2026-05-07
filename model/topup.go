@@ -269,6 +269,10 @@ func asyncIncrUserQuotaCache(userId int, quota int) {
 // - rebateQuota: 返利额度
 // - error: 错误信息
 func applyInviteTopupRebateTx(tx *gorm.DB, topUp *TopUp, quotaToAdd int) (int, int, error) {
+	// 充值返利已停用。邀请返利现在在实际消费付费额度时生成，
+	// 见 ApplyInviteConsumeRebate。
+	return 0, 0, nil
+
 	if tx == nil || topUp == nil {
 		return 0, 0, nil
 	}
