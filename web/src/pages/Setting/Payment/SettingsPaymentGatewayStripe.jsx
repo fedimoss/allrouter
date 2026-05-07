@@ -27,6 +27,7 @@ import {
   Typography,
   Spin,
   Input,
+  InputNumber,
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import {
