@@ -17,6 +17,37 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// updateStripeCnyUnitPrice 将美元人民币汇率保存到 currency_stripe_config 表
+func updateStripeCnyUnitPrice(c *gin.Context, value string) {
+	price, err := strconv.ParseFloat(value, 64)
+	if err != nil || price <= 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "美元人民币汇率必须大于 0",
+		})
+		return
+	}
+	existing, err := model.GetCurrencyConfig("CNY")
+	if err != nil {
+		existing = &model.CurrencyStripeConfig{
+			Currency: "CNY",
+			Symbol:   "¥",
+		}
+	}
+	existing.UnitPrice = price
+	if err := model.UpdateCurrencyConfig(existing); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.OptionMapRWMutex.Lock()
+	common.OptionMap["StripeCnyUnitPrice"] = value
+	common.OptionMapRWMutex.Unlock()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
 var completionRatioMetaOptionKeys = []string{
 	"ModelPrice",
 	"ModelRatio",
@@ -273,6 +304,9 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "StripeCnyUnitPrice":
+		updateStripeCnyUnitPrice(c, option.Value.(string))
+		return
 	case "console_setting.api_info":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "ApiInfo")
 		if err != nil {

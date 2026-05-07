@@ -44,12 +44,11 @@ func UpdateAdminCurrencyStripeConfig(c *gin.Context) {
 		if !allowedCurrencies[cfg.Currency] {
 			continue
 		}
-		// CNY 必须传入单价，且大于 0
-		if cfg.Currency == "CNY" && (cfg.UnitPrice == nil || *cfg.UnitPrice <= 0) {
+		// CNY 的单价仅在传入时校验，未传入则保留原值
+		if cfg.Currency == "CNY" && cfg.UnitPrice != nil && *cfg.UnitPrice <= 0 {
 			c.JSON(200, gin.H{"success": false, "message": "人民币价格比例必须大于 0"})
 			return
 		}
-		// 先查已有记录，保留原有的 unit_price 和 symbol
 		existing, err := model.GetCurrencyConfig(cfg.Currency)
 		if err != nil {
 			// 记录不存在，使用默认值创建新记录
