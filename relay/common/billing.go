@@ -18,4 +18,7 @@ type BillingSettler interface {
 
 	// GetPreConsumedQuota 返回实际预扣的额度值（信任用户可能为 0）。
 	GetPreConsumedQuota() int
+
+	// “ClaimPaidConsumedForRebate” 方法用于返回应触发邀请消费返利的已支付钱包部分。该方法对于每个计费会话都是幂等的。
+	ClaimPaidConsumedForRebate() int
 }

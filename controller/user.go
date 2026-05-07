@@ -469,14 +469,14 @@ func GetTopUpRebateRecords(c *gin.Context) {
 	displayInfo := getDisplayCurrencyForUser(c)
 
 	// 获取用户充值返利记录
-	records, total, err := model.GetTopUpRebateRecordsByInviteeId(userId, pageInfo)
+	records, total, err := model.GetConsumeRebateRecordsByInviteeId(userId, pageInfo)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
 	// 计算用户充值返利额度总和
-	totalRebateQuota, err := model.SumTopUpRebateQuotaByInviteeId(userId)
+	totalRebateQuota, err := model.SumConsumeRebateQuotaByInviteeId(userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -558,18 +558,18 @@ func GetSelf(c *gin.Context) {
 		inviteTransferQuota = int64(user.AffHistoryQuota - user.AffQuota)
 	}
 
-	// 5 充值返利(被邀请人充值,邀请人会被返利)
-	var topuprebatesQuota int64
-	topuprebatesResult := model.DB.Model(&model.TopUpRebate{}).
+	// 5 消费返利(被邀请人使用充值额度消费,邀请人会被返利)
+	var consumeRebatesQuota int64
+	consumeRebatesResult := model.DB.Model(&model.ConsumeRebate{}).
 		Select("COALESCE(SUM(rebate_quota), 0)").
 		Where("inviter_id = ? ", id).
-		Scan(&topuprebatesQuota)
-	if topuprebatesResult.Error != nil {
-		common.SysError("failed to get user topup rebates quota: " + redemptionResult.Error.Error())
+		Scan(&consumeRebatesQuota)
+	if consumeRebatesResult.Error != nil {
+		common.SysError("failed to get user consume rebates quota: " + consumeRebatesResult.Error.Error())
 	}
 
-	// 福利奖励总额 = 兑换码 + 签到 + 邀请转移 + 充值返利(单位是token数,要转化为金额)
-	welfareQuota_token := redemptionQuota + checkinQuota + inviteTransferQuota + topuprebatesQuota
+	// 福利奖励总额 = 兑换码 + 签到 + 邀请转移 + 消费返利(单位是token数,要转化为金额)
+	welfareQuota_token := redemptionQuota + checkinQuota + inviteTransferQuota + consumeRebatesQuota
 	welfareQuota_amount := float64(welfareQuota_token) / common.QuotaPerUnit
 	// 4. 新用户注册赠送奖励
 	newuserQuota, err := model.GetUserNewUserRewardQuota(id)
@@ -651,12 +651,14 @@ func GetSelf(c *gin.Context) {
 		"wechat_id":                 user.WeChatId,
 		"telegram_id":               user.TelegramId,
 		"group":                     user.Group,
-		"quota":                     convertQuotaToDisplay(user.Quota, displayInfo),     // 转换后的余额
-		"used_quota":                convertQuotaToDisplay(user.UsedQuota, displayInfo), // 转换后的消费
-		"display_symbol":            displayInfo.Symbol,                                 // 展示币种符号
-		"request_count":             periodRequestCount,                                 // 请求次数
-		"request_count_change":      yesterdayChange,                                    // 和昨天相比的变化
-		"total_count":               totalRequestCount,                                  // 统计次数
+		"quota":                     convertQuotaToDisplay(user.Quota, displayInfo),       // 转换后的余额
+		"reward_quota":              user.RewardQuota,                                     // 原始奖励剩余额度
+		"reward_quota_display":      convertQuotaToDisplay(user.RewardQuota, displayInfo), // 转换后的奖励剩余额度
+		"used_quota":                convertQuotaToDisplay(user.UsedQuota, displayInfo),   // 转换后的消费
+		"display_symbol":            displayInfo.Symbol,                                   // 展示币种符号
+		"request_count":             periodRequestCount,                                   // 请求次数
+		"request_count_change":      yesterdayChange,                                      // 和昨天相比的变化
+		"total_count":               totalRequestCount,                                    // 统计次数
 		"aff_code":                  user.AffCode,
 		"aff_count":                 user.AffCount,
 		"aff_quota":                 user.AffQuota,                                            // 原始邀请额度，前端划转接口使用

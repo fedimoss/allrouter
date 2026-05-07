@@ -86,6 +86,7 @@ func InitOptionMap() {
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
 	common.OptionMap["StripePromotionCodesEnabled"] = strconv.FormatBool(setting.StripePromotionCodesEnabled)
+	common.OptionMap["StripeCnyUnitPrice"] = "7.25"
 	common.OptionMap["CreemApiKey"] = setting.CreemApiKey
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
@@ -184,6 +185,18 @@ func loadOptionsFromDatabase() {
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
+	}
+	// 从 currency_stripe_config 表加载美元人民币汇率到 OptionMap
+	loadStripeCnyUnitPriceFromDB()
+}
+
+// loadStripeCnyUnitPriceFromDB 从 currency_stripe_config 表读取 CNY 汇率并同步到 OptionMap
+func loadStripeCnyUnitPriceFromDB() {
+	config, err := GetCurrencyConfig("CNY")
+	if err == nil && config != nil && config.UnitPrice > 0 {
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap["StripeCnyUnitPrice"] = strconv.FormatFloat(config.UnitPrice, 'f', -1, 64)
+		common.OptionMapRWMutex.Unlock()
 	}
 }
 

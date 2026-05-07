@@ -140,7 +140,10 @@ func Redeem(key string, userId int) (quota int, err error) {
 			return errors.New("该兑换码已过期")
 		}
 		tradeNo := fmt.Sprintf("RDM-%d-%d-%s", redemption.Id, userId, common.GetRandomString(8))
-		err = tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
+		err = tx.Model(&User{}).Where("id = ?", userId).Updates(map[string]interface{}{
+			"quota":        gorm.Expr("quota + ?", redemption.Quota),
+			"reward_quota": gorm.Expr("reward_quota + ?", redemption.Quota),
+		}).Error
 		if err != nil {
 			return err
 		}

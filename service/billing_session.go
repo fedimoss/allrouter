@@ -30,6 +30,7 @@ type BillingSession struct {
 	fundingSettled   bool // funding.Settle 已成功，资金来源已提交
 	settled          bool // Settle 全部完成（资金 + 令牌）
 	refunded         bool // Refund 已调用
+	rebateApplied    bool
 	mu               sync.Mutex
 }
 
@@ -138,6 +139,21 @@ func (s *BillingSession) needsRefundLocked() bool {
 // GetPreConsumedQuota 返回实际预扣的额度。
 func (s *BillingSession) GetPreConsumedQuota() int {
 	return s.preConsumedQuota
+}
+
+// 确保一次请求结算后只会取一次“充值额度消费部分”，避免重复返利
+func (s *BillingSession) ClaimPaidConsumedForRebate() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.rebateApplied || !s.settled {
+		return 0
+	}
+	wallet, ok := s.funding.(*WalletFunding)
+	if !ok {
+		return 0
+	}
+	s.rebateApplied = true
+	return wallet.PaidConsumed()
 }
 
 // ---------------------------------------------------------------------------
