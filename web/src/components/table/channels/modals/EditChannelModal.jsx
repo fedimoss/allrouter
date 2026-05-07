@@ -127,7 +127,6 @@ const PARAM_OVERRIDE_OPERATIONS_TEMPLATE = {
   ],
 };
 
-const DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
 const LOCKED_API_BASE_URL = 'https://allrouter.ai';
 
 // 支持并且已适配通过接口获取模型列表的渠道类型
@@ -369,12 +368,7 @@ const EditChannelModal = (props) => {
     useState(false);
   const [paramOverrideEditorVisible, setParamOverrideEditorVisible] =
     useState(false);
-  const shouldLockBaseUrl =
-    inputs.type !== 3 &&
-    inputs.type !== 8 &&
-    inputs.type !== 22 &&
-    inputs.type !== 36 &&
-    (inputs.type !== 45 || doubaoApiEditUnlocked);
+  const shouldLockBaseUrl = inputs.type !== 8;
 
   // 密钥显示状态
   const [keyDisplayState, setKeyDisplayState] = useState({
@@ -433,18 +427,6 @@ const EditChannelModal = (props) => {
   const initialModelsRef = useRef([]);
   const initialModelMappingRef = useRef('');
   const initialStatusCodeMappingRef = useRef('');
-  const doubaoCodingPlanDeprecationMessage =
-    'Doubao Coding Plan 不再允许新增。根据火山方舟文档，Coding 套餐额度仅适用于 AI Coding 产品内调用，不适用于单独 API 调用；在非 AI Coding 产品中使用对应的 Base URL 和 API Key 可能被视为违规，并可能导致订阅停用或账号封禁。';
-  const canKeepDeprecatedDoubaoCodingPlan =
-    initialBaseUrlRef.current === DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL;
-  const doubaoCodingPlanOptionLabel = (
-    <Tooltip content={doubaoCodingPlanDeprecationMessage} position='left'>
-      <span className='inline-flex items-center gap-2'>
-        <span>Doubao Coding Plan</span>
-      </span>
-    </Tooltip>
-  );
-
   // 2FA状态更新辅助函数
   const updateTwoFAState = (updates) => {
     setTwoFAState((prev) => ({ ...prev, ...updates }));
@@ -3274,20 +3256,6 @@ const EditChannelModal = (props) => {
                           />
                           <div>
                             <Form.Input
-                              field='base_url'
-                              label='AZURE_OPENAI_ENDPOINT'
-                              placeholder={t(
-                                '请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com',
-                              )}
-                              onChange={(value) =>
-                                handleInputChange('base_url', value)
-                              }
-                              showClear
-                              disabled={isIonetLocked}
-                            />
-                          </div>
-                          <div>
-                            <Form.Input
                               field='other'
                               label={t('默认 API 版本')}
                               placeholder={t(
@@ -3354,11 +3322,7 @@ const EditChannelModal = (props) => {
                         />
                       )}
 
-                      {inputs.type !== 3 &&
-                        inputs.type !== 8 &&
-                        inputs.type !== 22 &&
-                        inputs.type !== 36 &&
-                        (inputs.type !== 45 || doubaoApiEditUnlocked) && (
+                      {inputs.type !== 8 && (
                           <div>
                             <Form.Input
                               field='base_url'
@@ -3375,73 +3339,7 @@ const EditChannelModal = (props) => {
                           </div>
                         )}
 
-                      {inputs.type === 22 && (
-                        <div>
-                          <Form.Input
-                            field='base_url'
-                            label={t('私有部署地址')}
-                            placeholder={t(
-                              '请输入私有部署地址，格式为：https://fastgpt.run/api/openapi',
-                            )}
-                            onChange={(value) =>
-                              handleInputChange('base_url', value)
-                            }
-                            showClear
-                            disabled={isIonetLocked}
-                          />
-                        </div>
-                      )}
 
-                      {inputs.type === 36 && (
-                        <div>
-                          <Form.Input
-                            field='base_url'
-                            label={t(
-                              '注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用',
-                            )}
-                            placeholder={t(
-                              '请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com',
-                            )}
-                            onChange={(value) =>
-                              handleInputChange('base_url', value)
-                            }
-                            showClear
-                            disabled={isIonetLocked}
-                          />
-                        </div>
-                      )}
-
-                      {inputs.type === 45 && !doubaoApiEditUnlocked && (
-                        <div>
-                          <Form.Select
-                            field='base_url'
-                            label={t('API地址')}
-                            placeholder={t('请选择API地址')}
-                            onChange={(value) =>
-                              handleInputChange('base_url', value)
-                            }
-                            optionList={[
-                              {
-                                value: 'https://ark.cn-beijing.volces.com',
-                                label: 'https://ark.cn-beijing.volces.com',
-                              },
-                              {
-                                value:
-                                  'https://ark.ap-southeast.bytepluses.com',
-                                label:
-                                  'https://ark.ap-southeast.bytepluses.com',
-                              },
-                              {
-                                value: DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL,
-                                label: doubaoCodingPlanOptionLabel,
-                                disabled: !canKeepDeprecatedDoubaoCodingPlan,
-                              },
-                            ]}
-                            defaultValue='https://ark.cn-beijing.volces.com'
-                            disabled={isIonetLocked}
-                          />
-                        </div>
-                      )}
                     </div>
                   )}
 
