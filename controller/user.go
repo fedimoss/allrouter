@@ -468,15 +468,23 @@ func GetTopUpRebateRecords(c *gin.Context) {
 	// 获取展示币种信息，计算各项展示金额
 	displayInfo := getDisplayCurrencyForUser(c)
 
+	currentUserId := c.GetInt("id")
+
 	// 获取用户充值返利记录
-	records, total, err := model.GetConsumeRebateRecordsByInviteeId(userId, pageInfo)
+	records, total, err := model.GetConsumeRebateRecordsByInviterAndInviteeId(currentUserId, userId, 1, pageInfo)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
 	// 计算用户充值返利额度总和
-	totalRebateQuota, err := model.SumConsumeRebateQuotaByInviteeId(userId)
+	totalRebateQuota, err := model.SumConsumeRebateQuotaByInviterAndInviteeId(currentUserId, userId, 1)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	level2TotalRebateQuota, err := model.SumLevel2ConsumeRebateQuotaByInviterAndParentInviteeId(currentUserId, userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -486,7 +494,7 @@ func GetTopUpRebateRecords(c *gin.Context) {
 	displayRecords := make([]gin.H, 0, len(records))
 	for _, record := range records {
 		displayRecords = append(displayRecords, gin.H{
-			"rebate_quota": convertQuotaToDisplay(record.RebateQuota, displayInfo),
+			"rebate_quota": convertQuotaToDisplay8Decimal(record.RebateQuota, displayInfo),
 			"created_at":   record.CreatedAt,
 		})
 	}
@@ -497,10 +505,14 @@ func GetTopUpRebateRecords(c *gin.Context) {
 		"page":               pageInfo.Page,
 		"page_size":          pageInfo.PageSize,
 		"total":              pageInfo.Total,
-		"items":              pageInfo.Items,                                            // 返利记录列表
-		"total_rebate_quota": convertQuotaToDisplay(int(totalRebateQuota), displayInfo), // 充值返利额度总和
-		"invitee_id":         userId,                                                    // 被邀请人ID
-		"display_symbol":     displayInfo.Symbol,                                        // 展示币种符号
+		"items":              pageInfo.Items,                                                    // 返利记录列表
+		"total_rebate_quota": convertQuotaToDisplay8Decimal(int(totalRebateQuota), displayInfo), // 充值返利额度总和
+		"level2_total_rebate_quota": convertQuotaToDisplay8Decimal(
+			int(level2TotalRebateQuota),
+			displayInfo,
+		),
+		"invitee_id":     userId,             // 被邀请人ID
+		"display_symbol": displayInfo.Symbol, // 展示币种符号
 	})
 }
 

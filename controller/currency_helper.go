@@ -71,6 +71,19 @@ func convertUsdToDisplay(usdAmount float64, info model.DisplayCurrencyInfo) floa
 		InexactFloat64()
 }
 
+func convertQuotaToDisplay8Decimal(quota int, info model.DisplayCurrencyInfo) float64 {
+	if common.QuotaPerUnit <= 0 {
+		return 0
+	}
+	amount := decimal.NewFromInt(int64(quota)).
+		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
+		Round(12)
+	if info.Currency == "CNY" {
+		amount = amount.Mul(normalizeDisplayMoneyDecimal(info.Rate)).Round(12)
+	}
+	return amount.Round(8).InexactFloat64()
+}
+
 // applyDisplayCurrencyInfo 将展示币种信息注入到 API 响应数据中
 // 在返回给前端的数据中附带 display_currency（币种代码）、display_symbol（货币符号）、display_rate（汇率）
 // 前端根据这些信息进行金额的展示格式化

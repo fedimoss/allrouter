@@ -46,12 +46,52 @@ func GetConsumeRebateRecordsByInviteeId(userId int, pageInfo *common.PageInfo) (
 	return records, total, nil
 }
 
+// GetConsumeRebateRecordsByInviterAndInviteeId gets rebate records earned by inviter from a specific invitee at a level.
+func GetConsumeRebateRecordsByInviterAndInviteeId(inviterId int, inviteeId int, level int, pageInfo *common.PageInfo) (records []*ConsumeRebate, total int64, err error) {
+	query := DB.Model(&ConsumeRebate{}).
+		Select("rebate_quota, created_at").
+		Where("inviter_id = ? AND invitee_id = ? AND level = ?", inviterId, inviteeId, level)
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err = query.
+		Order("created_at desc").
+		Order("id desc").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&records).Error; err != nil {
+		return nil, 0, err
+	}
+	return records, total, nil
+}
+
 // 计算邀请消费返利总和
 func SumConsumeRebateQuotaByInviteeId(userId int) (int64, error) {
 	var totalQuota int64
 	err := DB.Model(&ConsumeRebate{}).
 		Select("COALESCE(SUM(rebate_quota), 0)").
 		Where("invitee_id = ?", userId).
+		Scan(&totalQuota).Error
+	return totalQuota, err
+}
+
+// SumConsumeRebateQuotaByInviterAndInviteeId sums rebates earned by inviter from a specific invitee at a level.
+func SumConsumeRebateQuotaByInviterAndInviteeId(inviterId int, inviteeId int, level int) (int64, error) {
+	var totalQuota int64
+	err := DB.Model(&ConsumeRebate{}).
+		Select("COALESCE(SUM(rebate_quota), 0)").
+		Where("inviter_id = ? AND invitee_id = ? AND level = ?", inviterId, inviteeId, level).
+		Scan(&totalQuota).Error
+	return totalQuota, err
+}
+
+// SumLevel2ConsumeRebateQuotaByInviterAndParentInviteeId sums level-2 rebates earned by inviter from users invited by parentInviteeId.
+func SumLevel2ConsumeRebateQuotaByInviterAndParentInviteeId(inviterId int, parentInviteeId int) (int64, error) {
+	var totalQuota int64
+	err := DB.Model(&ConsumeRebate{}).
+		Select("COALESCE(SUM(consume_rebates.rebate_quota), 0)").
+		Joins("JOIN users ON users.id = consume_rebates.invitee_id").
+		Where("consume_rebates.inviter_id = ? AND consume_rebates.level = ? AND users.inviter_id = ?", inviterId, 2, parentInviteeId).
 		Scan(&totalQuota).Error
 	return totalQuota, err
 }
