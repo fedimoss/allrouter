@@ -11,6 +11,7 @@ import (
 
 const (
 	PaymentChannelTypeWechat = "wxpay"
+	PaymentChannelTypeStripe = "stripe"
 )
 
 // PaymentBillRecord 通用支付渠道账单明细表。
@@ -117,7 +118,10 @@ func BatchInsertPaymentBillRecords(rows []*PaymentBillRecord) (int64, error) {
 	return tx.RowsAffected, tx.Error
 }
 
-// GetPaymentBillRecordsByChannelAndBillDateRange 按渠道和账单日期范围查询账单明细。
+// GetPaymentBillRecordsByChannelAndBillDateRange 按渠道和账单日期范围查询已入库的渠道账单明细。
+// channelType: 渠道标识，如 "wxpay"、"stripe"
+// billDateFrom/billDateTo: 账单日期范围（含两端），格式 "2006-01-02"，为空时不作为筛选条件
+// 结果按日期、行号排序，用于对账时逐条与本地订单匹配
 func GetPaymentBillRecordsByChannelAndBillDateRange(channelType string, billDateFrom string, billDateTo string) ([]*PaymentBillRecord, error) {
 	var rows []*PaymentBillRecord
 	query := DB.Model(&PaymentBillRecord{}).Where("channel_type = ?", strings.TrimSpace(channelType))
@@ -127,6 +131,12 @@ func GetPaymentBillRecordsByChannelAndBillDateRange(channelType string, billDate
 	if strings.TrimSpace(billDateTo) != "" {
 		query = query.Where("bill_date <= ?", strings.TrimSpace(billDateTo))
 	}
+	// 按日期 + 行号排序，保证对账时遍历顺序与入库顺序一致
 	err := query.Order("bill_date asc").Order("row_index asc").Find(&rows).Error
 	return rows, err
+}
+
+// DeletePaymentBillRecordsByChannelAndBillDate 按渠道和账单日期删除已入库的渠道账单明细。
+func DeletePaymentBillRecordsByChannelAndBillDate(channelType string, billDate string) error {
+	return DB.Where("channel_type = ? AND bill_date = ?", channelType, billDate).Delete(&PaymentBillRecord{}).Error
 }

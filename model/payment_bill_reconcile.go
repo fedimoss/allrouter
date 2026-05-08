@@ -19,6 +19,7 @@ const (
 	PaymentReconcileReasonLocalNotFound      = "local_not_found"
 	PaymentReconcileReasonDuplicateLocal     = "duplicate_local"
 	PaymentReconcileReasonAmountMismatch     = "amount_mismatch"
+	PaymentReconcileReasonCurrencyMismatch   = "currency_mismatch"
 	PaymentReconcileReasonStatusMismatch     = "status_mismatch"
 	PaymentReconcileReasonUnsupportedBillRow = "unsupported_bill_row"
 )
@@ -41,6 +42,7 @@ type PaymentBillReconcile struct {
 	ChannelRefundStatus string `json:"channel_refund_status" gorm:"type:varchar(64)"`
 	ChannelAmount       string `json:"channel_amount" gorm:"type:varchar(64)"`
 	ChannelRefundAmount string `json:"channel_refund_amount" gorm:"type:varchar(64)"`
+	ChannelCurrency     string `json:"channel_currency" gorm:"type:varchar(16)"`
 
 	LocalType          string  `json:"local_type" gorm:"type:varchar(32);index"`
 	LocalId            int     `json:"local_id" gorm:"index"`
@@ -50,6 +52,7 @@ type PaymentBillReconcile struct {
 	LocalAmount        float64 `json:"local_amount" gorm:"type:decimal(12,6);default:0"`
 	LocalCreateTime    int64   `json:"local_create_time" gorm:"bigint;index"`
 	LocalCompleteTime  int64   `json:"local_complete_time" gorm:"bigint;index"`
+	LocalCurrency      string  `json:"local_currency" gorm:"type:varchar(16)"`
 
 	ReconcileStatus string `json:"reconcile_status" gorm:"type:varchar(32);index"`
 	ReconcileReason string `json:"reconcile_reason" gorm:"type:varchar(64);index"`
@@ -276,6 +279,30 @@ func GetPaymentBillReconcileOverview(channelType string, filter *PaymentBillReco
 		}
 	}
 	return overview, nil
+}
+
+// GetAllPaymentBillReconciles 查询所有对账记录（不分页），用于 Stripe Dashboard 的币种换算聚合。
+// 与 GetPaymentBillReconcileOverview 的区别是多查了 local_currency / channel_currency 字段。
+func GetAllPaymentBillReconciles(channelType string, filter *PaymentBillReconcileFilter) ([]PaymentBillReconcile, error) {
+	rows := make([]PaymentBillReconcile, 0)
+	query := buildPaymentBillReconcileQuery(channelType, filter)
+	if err := query.Select(
+		"id",
+		"local_status",
+		"local_amount",
+		"local_currency",
+		"channel_currency",
+		"reconcile_status",
+		"updated_at",
+	).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// DeletePaymentBillReconcilesByChannelAndBillDate 按渠道和账单日期删除对账结果。
+func DeletePaymentBillReconcilesByChannelAndBillDate(channelType string, billDate string) error {
+	return DB.Where("channel_type = ? AND bill_date = ?", channelType, billDate).Delete(&PaymentBillReconcile{}).Error
 }
 
 func (f *PaymentBillReconcileFilter) DebugString() string {
