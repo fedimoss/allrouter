@@ -3976,7 +3976,11 @@
         "实际支付":"Paiement réel",
         "支付完成":"Paiement terminé",
         "笔": "Transaction",
-        "消费返利比例":"Taux de remboursement de la consumption",
-        "消费返利":"Remboursement de la consumption"
+        "消费返利比例":"Taux de remboursement de la consommation",
+        "一级消费返利比例":"Taux de remboursement de consommation niveau 1",
+        "二级消费返利比例":"Taux de remboursement de consommation niveau 2",
+        "被邀请人充值成功后，使用充值额度消费，按消费额度的百分比返利给邀请人，0 表示关闭":"Après la recharge réussie du filleul, lorsqu'il consomme son crédit rechargé, remboursez l'invitant selon ce pourcentage du crédit consommé. 0 désactive la fonction.",
+        "被邀请人使用充值额度消费后，按消费额度的百分比返利给二级邀请人，0 表示关闭":"Lorsque le filleul consomme son crédit rechargé, remboursez l'invitant de niveau 2 selon ce pourcentage du crédit consommé. 0 désactive la fonction.",
+        "消费返利":"Remboursement de consommation"
     }
 }

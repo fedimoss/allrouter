@@ -32,12 +32,12 @@ import { useTranslation } from 'react-i18next';
  *
  * 功能：
  * 1. 服务器地址配置 - 影响支付回调地址和默认首页显示
- * 2. 邀请充值返利比例配置 - 设置邀请返利的百分比
+ * 2. 邀请消费返利比例配置 - 设置一级、二级消费返利的百分比
  *
  * 返利功能说明：
- * - 当被邀请人充值成功后，邀请人会获得返利额度
- * - 返利额度 = 被邀请人充值额度 × 返利比例 ÷ 100
- * - 例如：返利比例设置为 10%，被邀请人充值 100 美元，邀请人获得 10 美元价值的额度
+ * - 当被邀请人使用充值额度消费后，邀请链上的邀请人会按配置获得返利额度
+ * - 返利额度 = 被邀请人实际消耗的充值额度 × 返利比例 ÷ 100
+ * - 例如：一级返利比例设置为 10%，被邀请人消费 100 美元价值的充值额度，一级邀请人获得 10 美元价值的额度
  * - 设置为 0 表示关闭返利功能
  *
  * @param {Object} props - 组件属性
@@ -48,10 +48,11 @@ export default function SettingsGeneralPayment(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
 
-  // 状态管理：服务器地址和返利比例
+  // 状态管理：服务器地址和消费返利比例
   const [inputs, setInputs] = useState({
     ServerAddress: '',          // 服务器地址（影响支付回调）
-    InviteTopupRebateRatio: 0, // 邀请充值返利比例（0-100之间的数字）
+    InviteTopupRebateRatio: 0, // 一级消费返利比例（0-100之间的数字）
+    InviteConsumeRebateRatioLevel2: 0, // 二级消费返利比例（0-100之间的数字）
     StripeCnyUnitPrice: 7.25,  // 美元人民币汇率
   });
   const formApiRef = useRef(null);
@@ -65,6 +66,10 @@ export default function SettingsGeneralPayment(props) {
         InviteTopupRebateRatio:
           props.options.InviteTopupRebateRatio !== undefined
             ? parseFloat(props.options.InviteTopupRebateRatio) || 0
+            : 0,
+        InviteConsumeRebateRatioLevel2:
+          props.options.InviteConsumeRebateRatioLevel2 !== undefined
+            ? parseFloat(props.options.InviteConsumeRebateRatioLevel2) || 0
             : 0,
         StripeCnyUnitPrice:
           props.options.StripeCnyUnitPrice !== undefined
@@ -94,6 +99,10 @@ export default function SettingsGeneralPayment(props) {
         {
           key: 'InviteTopupRebateRatio',
           value: inputs.InviteTopupRebateRatio || 0,
+        },
+        {
+          key: 'InviteConsumeRebateRatioLevel2',
+          value: inputs.InviteConsumeRebateRatioLevel2 || 0,
         },
         {
           key: 'StripeCnyUnitPrice',
@@ -145,7 +154,7 @@ export default function SettingsGeneralPayment(props) {
           {/* 消费返利比例配置 */}
           <Form.InputNumber
             field='InviteTopupRebateRatio'
-            label={t('消费返利比例')}
+            label={t('一级消费返利比例')}
             min={0}
             max={100}
             step={0.1}
@@ -153,6 +162,20 @@ export default function SettingsGeneralPayment(props) {
             style={{ width: '100%' }}
             extraText={t(
               '被邀请人充值成功后，使用充值额度消费，按消费额度的百分比返利给邀请人，0 表示关闭',
+            )}
+          />
+
+          {/* 二级消费返利比例配置 */}
+          <Form.InputNumber
+            field='InviteConsumeRebateRatioLevel2'
+            label={t('二级消费返利比例')}
+            min={0}
+            max={100}
+            step={0.1}
+            suffix='%'
+            style={{ width: '100%' }}
+            extraText={t(
+              '被邀请人使用充值额度消费后，按消费额度的百分比返利给二级邀请人，0 表示关闭',
             )}
           />
 
