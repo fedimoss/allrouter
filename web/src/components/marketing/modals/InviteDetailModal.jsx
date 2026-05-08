@@ -155,13 +155,13 @@ const InviteDetailModal = ({ t, visible, onClose, inviteeId, inviteeName }) => {
             <span className='text-[14px] leading-[20px] text-[#475467] font-semibold'>{inviteeName || '-'}</span>
           </div>
           <div className='flex items-center'>
-            <span className='w-[130px] text-[14px] leading-[20px] text-[#98A2B3]'>{t('一级累计贡献返利：')}</span>
+            <span className='text-[14px] leading-[20px] text-[#98A2B3]'>{t('一级累计贡献返利：')}</span>
             <span className='text-[14px] leading-[20px] text-[#475467] font-semibold'>
               {displaySymbol} {totalRebateQuota}
             </span>
           </div>
           <div className='flex items-center'>
-            <span className='w-[130px] text-[14px] leading-[20px] text-[#98A2B3]'>{t('二级累计贡献返利：')}</span>
+            <span className='text-[14px] leading-[20px] text-[#98A2B3]'>{t('二级累计贡献返利：')}</span>
             <span className='text-[14px] leading-[20px] text-[#475467] font-semibold'>
               {displaySymbol} {secondLevelRebateQuota}
             </span>
@@ -189,7 +189,7 @@ const InviteDetailModal = ({ t, visible, onClose, inviteeId, inviteeName }) => {
 
         <div className='mt-6 flex items-center justify-between'>
           <div className='text-[#475467] text-[14px] leading-[20px] font-semibold'>
-            {t('显示 {{start}} - {{end}} 共 {{total}} 条记录', { start, end, total })}
+            {t('显示')} {start} - {end} {t('共')} {total} {t('条记录')}
           </div>
           <Pagination
             total={total}

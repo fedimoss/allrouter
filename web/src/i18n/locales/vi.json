@@ -4508,6 +4508,15 @@
         "二级消费返利比例":"Tỷ lệ hoàn trả tiêu dùng cấp 2",
         "被邀请人充值成功后，使用充值额度消费，按消费额度的百分比返利给邀请人，0 表示关闭":"Sau khi người được mời nạp tiền thành công và dùng hạn mức đã nạp để tiêu dùng, hoàn trả cho người mời theo phần trăm hạn mức đã tiêu dùng. 0 nghĩa là tắt.",
         "被邀请人使用充值额度消费后，按消费额度的百分比返利给二级邀请人，0 表示关闭":"Sau khi người được mời dùng hạn mức đã nạp để tiêu dùng, hoàn trả cho người mời cấp 2 theo phần trăm hạn mức đã tiêu dùng. 0 nghĩa là tắt.",
-        "消费返利":"Hoàn trả tiêu dùng"
+        "消费返利":"Hoàn trả tiêu dùng",
+
+        "被邀请人":"Người được mời",
+        "注册奖励":"Hoàn trả tiêu dùng",
+        "被邀请人ID：":" người được mời ID：",
+        "一级累计贡献返利：":"Hoàn trả tiêu dùng cấp 1：",
+        "二级累计贡献返利：":"Hoàn trả tiêu dùng cấp 2：",
+        "返利明细":"Chi tiết hoàn trả tiêu dùng",
+        "暂无返利记录": "Không có hoàn trả tiêu dùng nào",
+        "显示":"Hiển thị"
     }
 }
