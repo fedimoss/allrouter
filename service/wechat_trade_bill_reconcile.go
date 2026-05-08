@@ -80,8 +80,6 @@ func normalizeLocalStatus(status string) string {
 
 // reconcileKeyForLocalRecord 生成本地记录的唯一对账键。
 // 格式 "local:{billDate}:{localType}:{localID}"，如 "local:2026-05-06:topup:123"。
-// 用于 payment_bill_reconcile 表的 (channel_type, reconcile_key) 唯一索引，
-// 保证同一笔本地记录在同一天的同一渠道对账中只出现一次。
 func reconcileKeyForLocalRecord(billDate string, localType string, localID int) string {
 	return fmt.Sprintf("local:%s:%s:%d", strings.TrimSpace(billDate), strings.TrimSpace(localType), localID)
 }
@@ -130,7 +128,7 @@ func (s *WechatTradeBillReconcileService) loadLocalSuccessRecords(billDate strin
 			LocalPaymentMethod: topup.PaymentMethod,
 			LocalStatus:        topup.Status,
 			LocalAmount:        topup.OriginalMoney,
-			LocalCurrency:      topup.Currency,
+			LocalCurrency:      "¥", // 微信支付固定人民币
 			LocalCreateTime:    topup.CreateTime,
 			LocalCompleteTime:  topup.CompleteTime,
 			ReconcileStatus:    model.PaymentReconcileStatusAbnormal,
@@ -159,7 +157,7 @@ func (s *WechatTradeBillReconcileService) loadLocalSuccessRecords(billDate strin
 			LocalPaymentMethod: order.PaymentMethod,
 			LocalStatus:        order.Status,
 			LocalAmount:        order.OriginalMoney,
-			LocalCurrency:      order.Currency,
+			LocalCurrency:      "¥", // 微信支付固定人民币
 			LocalCreateTime:    order.CreateTime,
 			LocalCompleteTime:  order.CompleteTime,
 			ReconcileStatus:    model.PaymentReconcileStatusAbnormal,
@@ -182,7 +180,7 @@ func (s *WechatTradeBillReconcileService) applyChannelMatch(record *model.Paymen
 	record.ChannelStatus = row.TradeStatus
 	record.ChannelRefundStatus = row.RefundStatus
 	record.ChannelRefundAmount = row.RefundAmount
-	record.ChannelCurrency = row.Currency
+	record.ChannelCurrency = "CNY" // 微信支付固定人民币
 
 	amountText, wechatAmount := parseWechatAmount(row)
 	record.ChannelAmount = amountText
@@ -229,7 +227,7 @@ func (s *WechatTradeBillReconcileService) buildChannelOnlyRecord(row *model.Paym
 		ChannelStatus:       row.TradeStatus,
 		ChannelRefundStatus: row.RefundStatus,
 		ChannelRefundAmount: row.RefundAmount,
-		ChannelCurrency:     row.Currency,
+		ChannelCurrency:     "CNY", // 微信支付固定人民币
 		LocalPaymentMethod:  model.PaymentChannelTypeWechat,
 		ReconcileStatus:     model.PaymentReconcileStatusAbnormal,
 		ReconcileReason:     model.PaymentReconcileReasonLocalNotFound,
@@ -245,8 +243,6 @@ func (s *WechatTradeBillReconcileService) buildChannelOnlyRecord(row *model.Paym
 }
 
 // indexLocalRecordsByTradeNo 将本地对账记录按 LocalTradeNo 建立多值索引。
-// 返回 map[交易号][]记录，值是切片因为同一交易号可能对应多条记录（如 topup 和 subscription 共用）。
-// 用于对账时通过渠道账单的 MerchantTradeNo/ChannelTradeNo 做 O(1) 查找。
 func indexLocalRecordsByTradeNo(records []*model.PaymentBillReconcile) map[string][]*model.PaymentBillReconcile {
 	result := make(map[string][]*model.PaymentBillReconcile)
 	for _, record := range records {
@@ -260,7 +256,6 @@ func indexLocalRecordsByTradeNo(records []*model.PaymentBillReconcile) map[strin
 }
 
 // ReconcileByBillDateRange 对指定日期范围执行微信对账。
-// 当前按日使用，因此会逐天处理，便于和本地成功订单的日期归属保持一致。
 func (s *WechatTradeBillReconcileService) ReconcileByBillDateRange(billDateFrom string, billDateTo string) (*WechatTradeBillReconcileSummary, error) {
 	fromTime, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(billDateFrom), time.Local)
 	if err != nil {
@@ -331,7 +326,7 @@ func (s *WechatTradeBillReconcileService) ReconcileByBillDateRange(billDateFrom 
 					candidate.TradeType = row.TradeType
 					candidate.ChannelStatus = row.TradeStatus
 					candidate.ChannelRefundStatus = row.RefundStatus
-					candidate.ChannelCurrency = row.Currency
+					candidate.ChannelCurrency = "CNY" // 微信支付固定人民币
 					amountText, _ := parseWechatAmount(row)
 					candidate.ChannelAmount = amountText
 					candidate.ChannelRefundAmount = row.RefundAmount

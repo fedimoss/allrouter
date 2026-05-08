@@ -84,6 +84,8 @@ type WechatTradeBillLocalRecord struct {
 	CompleteTime        int64   `json:"complete_time"`
 	CompleteTimeText    string  `json:"complete_time_text"`
 	Remark              string  `json:"remark"`
+	Currency            string  `json:"currency"`        // 币种
+	CurrencySymbol      string  `json:"currency_symbol"` // 币种符号
 }
 
 type WechatTradeBillChannelRecord struct {
@@ -100,7 +102,8 @@ type WechatTradeBillChannelRecord struct {
 	Remark            string  `json:"remark"`
 	GoodsName         string  `json:"goods_name"`
 	Bank              string  `json:"bank"`
-	Currency          string  `json:"currency"`
+	Currency          string  `json:"currency"`        // 币种
+	CurrencySymbol    string  `json:"currency_symbol"` // 币种符号
 	AppID             string  `json:"app_id"`
 	MchID             string  `json:"mch_id"`
 }
@@ -394,6 +397,17 @@ func (s *WechatTradeBillQueryService) getStripeDashboard(filter *WechatTradeBill
 	return buildDashboardResponse(overview, currencySymbolForCode(targetCurrency)), nil // 构造响应并返回
 }
 
+// coalesceCurrency 优先取第一个非空币种，stripe 的 billRow.Currency 是代码（usd/cny），
+// wxpay 的 Currency 可能为空，此时根据 payment_method 兜底（wxpay→CNY，其他→USD）。
+func coalesceCurrency(values ...string) string {
+	for _, v := range values {
+		if s := strings.TrimSpace(v); s != "" {
+			return normalizeStripeCurrency(s)
+		}
+	}
+	return "USD"
+}
+
 // currencySymbolForCode 将币种代码转为显示符号。
 func currencySymbolForCode(code string) string {
 	switch strings.ToUpper(strings.TrimSpace(code)) {
@@ -519,6 +533,11 @@ func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter 
 			item.PaymentMethod = "wxpay"
 			item.PaymentMethodText = getWechatTradeBillPaymentMethodText(item.PaymentMethod)
 		}
+		// wxpay 老数据兜底：币种字段为空时默认为人民币
+		if strings.TrimSpace(item.ChannelCurrency) == "" && item.PaymentMethod == "wxpay" {
+			item.ChannelCurrency = "CNY"
+			item.LocalCurrency = "¥"
+		}
 		if item.Amount <= 0 {
 			item.Amount = modelAmountOrFallback(row)
 			item.AmountText = formatMoneyText(item.Amount)
@@ -640,6 +659,8 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 		CreateTimeText:      formatTimestampText(reconcile.LocalCreateTime),
 		CompleteTime:        reconcile.LocalCompleteTime,
 		CompleteTimeText:    formatTimestampText(reconcile.LocalCompleteTime),
+		Currency:            coalesceCurrency(reconcile.LocalCurrency, reconcile.ChannelCurrency, reconcile.LocalPaymentMethod),
+		CurrencySymbol:      currencySymbolForCode(coalesceCurrency(reconcile.LocalCurrency, reconcile.ChannelCurrency, reconcile.LocalPaymentMethod)),
 	}
 
 	switch strings.TrimSpace(reconcile.LocalType) {
@@ -718,7 +739,8 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 		Remark:            channelRemark,
 		GoodsName:         billRow.GoodsName,
 		Bank:              billRow.Bank,
-		Currency:          billRow.Currency,
+		Currency:          coalesceCurrency(reconcile.ChannelCurrency, billRow.Currency, reconcile.LocalPaymentMethod),
+		CurrencySymbol:    currencySymbolForCode(coalesceCurrency(reconcile.ChannelCurrency, billRow.Currency, reconcile.LocalPaymentMethod)),
 		AppID:             billRow.AppID,
 		MchID:             billRow.MchID,
 	}
