@@ -144,7 +144,7 @@ const InviteDetailModal = ({ t, visible, onClose, inviteeId, inviteeName }) => {
       closable
       width={600}
       title={<div className='text-[16px] leading-[24px] font-semibold text-[#344054]'>{t('消费返利')}</div>}
-      bodyStyle={{ padding: '0 30px 24px' }}
+      bodyStyle={{ padding: '0 0 10px 0' }}
       className='invite-detail-modal'
     >
       <div className='border-t border-[#E5E7EB] pt-5'>
