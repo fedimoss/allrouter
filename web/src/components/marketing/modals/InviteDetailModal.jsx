@@ -45,6 +45,7 @@ const InviteDetailModal = ({ t, visible, onClose, inviteeId, inviteeName }) => {
   const [rows, setRows] = useState([]);
   const [displaySymbol, setDisplaySymbol] = useState('¥');
   const [totalRebateQuota, setTotalRebateQuota] = useState(0);
+  const [secondLevelRebateQuota, setSecondLevelRebateQuota] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const [total, setTotal] = useState(0);
@@ -62,6 +63,7 @@ const InviteDetailModal = ({ t, visible, onClose, inviteeId, inviteeName }) => {
         setTotal(data?.total || 0);
         setDisplaySymbol(data?.display_symbol || '¥');
         setTotalRebateQuota(data?.total_rebate_quota || 0);
+        setSecondLevelRebateQuota(data?.level2_total_rebate_quota || 0);
       } else {
         showError(message || t('加载失败'));
       }
@@ -141,7 +143,7 @@ const InviteDetailModal = ({ t, visible, onClose, inviteeId, inviteeName }) => {
       maskClosable
       closable
       width={600}
-      title={<div className='text-[16px] leading-[24px] font-semibold text-[#344054]'>{t('充值返利')}</div>}
+      title={<div className='text-[16px] leading-[24px] font-semibold text-[#344054]'>{t('消费返利')}</div>}
       bodyStyle={{ padding: '0 30px 24px' }}
       className='invite-detail-modal'
     >
@@ -153,9 +155,15 @@ const InviteDetailModal = ({ t, visible, onClose, inviteeId, inviteeName }) => {
             <span className='text-[14px] leading-[20px] text-[#475467] font-semibold'>{inviteeName || '-'}</span>
           </div>
           <div className='flex items-center'>
-            <span className='w-[110px] text-[14px] leading-[20px] text-[#98A2B3]'>{t('累计贡献返利：')}</span>
+            <span className='w-[130px] text-[14px] leading-[20px] text-[#98A2B3]'>{t('一级累计贡献返利：')}</span>
             <span className='text-[14px] leading-[20px] text-[#475467] font-semibold'>
               {displaySymbol} {totalRebateQuota}
+            </span>
+          </div>
+          <div className='flex items-center'>
+            <span className='w-[130px] text-[14px] leading-[20px] text-[#98A2B3]'>{t('二级累计贡献返利：')}</span>
+            <span className='text-[14px] leading-[20px] text-[#475467] font-semibold'>
+              {displaySymbol} {secondLevelRebateQuota}
             </span>
           </div>
         </div>
