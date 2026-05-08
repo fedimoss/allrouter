@@ -294,13 +294,13 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
-	case "InviteTopupRebateRatio":
+	case "InviteTopupRebateRatio", "InviteConsumeRebateRatioLevel2":
 		var ratio float64
 		ratio, err = strconv.ParseFloat(option.Value.(string), 64)
 		if err != nil || ratio < 0 || ratio > 100 {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "邀请充值返利比例必须在 0 到 100 之间",
+				"message": "消费返利比例必须在 0 到 100 之间",
 			})
 			return
 		}

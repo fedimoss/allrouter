@@ -110,6 +110,7 @@ var QuotaForInvitee = 0
 // 示例：设置为 10.0 表示返利 10%（充值 100 美元，邀请人获得 10 美元价值的额度）
 // 设置为 0.0 表示关闭返利功能
 var InviteTopupRebateRatio = 10.0
+var InviteConsumeRebateRatioLevel2 = 1.0
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
