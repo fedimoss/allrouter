@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -110,12 +111,21 @@ func setupLogin(user *model.User, c *gin.Context, rememberMe bool) {
 	if rememberMe {
 		maxAge = common.SessionMaxAgeExtended
 	}
-	session.Options(sessions.Options{MaxAge: maxAge})
+	// session.Options 会整体替换 cookie 配置，因此必须保留全局默认属性，只动态调整 MaxAge。
+	session.Options(sessions.Options{
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteStrictMode,
+	})
 	err := session.Save()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}
+	// 清理旧版本曾因缺少 Path=/ 写出的同名 session cookie
+	clearLegacySessionCookies(c)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
@@ -141,10 +151,34 @@ func Logout(c *gin.Context) {
 		})
 		return
 	}
+	// 清理旧版本曾因缺少 Path=/ 写出的同名 session cookie
+	clearLegacySessionCookies(c)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
 	})
+}
+
+// clearLegacySessionCookies 清理旧版本曾因缺少 Path=/ 写出的同名 session cookie。
+func clearLegacySessionCookies(c *gin.Context) {
+	legacyPaths := []string{
+		"/api/user",
+		"/api/user/login",
+		"/api/user/passkey/login",
+		"/api/oauth",
+		"/api/oauth/telegram",
+	}
+	for _, path := range legacyPaths {
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     "session",
+			Value:    "",
+			Path:     path,
+			MaxAge:   -1,
+			Expires:  time.Unix(1, 0),
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+		})
+	}
 }
 
 func Register(c *gin.Context) {
