@@ -1044,19 +1044,32 @@ func UpdateSelf(c *gin.Context) {
 			// 检测用户名是否已存在
 			if v, ok := requestData["username"].(string); ok {
 				userId := c.GetInt("id")
-				exist, err := model.CheckUserExistOrDeleted(v, "")
+				currentUser, err := model.GetUserById(userId, false)
 				if err != nil {
 					common.ApiError(c, err)
 					return
 				}
-				if exist {
-					var existingUser model.User
-					if err := model.DB.Unscoped().Where("username = ?", v).First(&existingUser).Error; err == nil && existingUser.Id != userId {
+				username := strings.TrimSpace(v)
+				if username == "" {
+					common.ApiErrorI18n(c, i18n.MsgInvalidInput)
+					return
+				}
+				if username != currentUser.Username {
+					var count int64
+					err = model.DB.Unscoped().
+						Model(&model.User{}).
+						Where("provider_id = ? AND username = ? AND id <> ?", currentUser.ProviderId, username, userId).
+						Count(&count).Error
+					if err != nil {
+						common.ApiError(c, err)
+						return
+					}
+					if count > 0 {
 						common.ApiErrorI18n(c, i18n.MsgUserExists)
 						return
 					}
 				}
-				updates["username"] = v
+				updates["username"] = username
 			}
 		}
 		if hasAvatar {

@@ -729,10 +729,17 @@ func UpdateUserProfile(userId int, updates map[string]interface{}) error {
 	if len(updates) == 0 {
 		return nil
 	}
-	if err := DB.Model(&User{}).Where("id = ?", userId).Updates(updates).Error; err != nil {
+	var user User
+	if err := DB.First(&user, userId).Error; err != nil {
 		return err
 	}
-	return nil
+	if err := DB.Model(&user).Updates(updates).Error; err != nil {
+		return err
+	}
+	if err := DB.First(&user, userId).Error; err != nil {
+		return err
+	}
+	return updateUserCache(user)
 }
 
 func (user *User) Edit(updatePassword bool) error {
