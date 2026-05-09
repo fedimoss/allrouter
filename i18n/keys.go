@@ -250,6 +250,11 @@ const (
 	MsgSettingGotifyUrlInvalid = "setting.gotify_url_invalid"
 	MsgSettingUrlMustHttp      = "setting.url_must_http"
 	MsgSettingSaved            = "setting.saved"
+
+	// Web logo upload
+	MsgWebLogoNotSelected       = "setting.web_logo_not_selected"       // 未选择logo文件
+	MsgWebLogoSizeExceeded      = "setting.web_logo_size_exceeded"      // logo文件大小超过 5MB
+	MsgWebLogoFormatUnsupported = "setting.web_logo_format_unsupported" // 仅支持 JPG/PNG/GIF/SVG 格式
 )
 
 // Deployment related messages (io.net)

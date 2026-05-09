@@ -185,6 +185,7 @@ func loadOptionsFromDatabase() {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
 	}
+	// 从 currency_stripe_config 表加载美元人民币汇率到 OptionMap
 }
 
 func SyncOptions(frequency int) {

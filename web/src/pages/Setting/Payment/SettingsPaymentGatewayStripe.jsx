@@ -27,7 +27,6 @@ import {
   Typography,
   Spin,
   Input,
-  InputNumber,
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import {
@@ -62,9 +61,6 @@ export default function SettingsPaymentGateway(props) {
     USD: '', // 美元对应的 Stripe 商品价格 ID
     CNY: '', // 人民币对应的 Stripe 商品价格 ID
   });
-  // 人民币对美元的汇率，初始值从后端加载，未配置时默认 7.25
-  const [cnyUnitPrice, setCnyUnitPrice] = useState(7.25);
-
   // 加载币种 Stripe 配置（从后端 currency_stripe_config 表获取）
   useEffect(() => {
     const fetchCurrencyConfigs = async () => {
@@ -76,10 +72,6 @@ export default function SettingsPaymentGateway(props) {
             // 只处理白名单中的币种
             if (cfg.currency in mapping) {
               mapping[cfg.currency] = cfg.stripe_price_id || '';
-            }
-            // 更新人民币汇率
-            if (cfg.currency === 'CNY' && Number(cfg.unit_price) > 0) {
-              setCnyUnitPrice(Number(cfg.unit_price));
             }
           });
           setCurrencyPriceIds(mapping);
@@ -125,12 +117,6 @@ export default function SettingsPaymentGateway(props) {
       showError(t('请先填写服务器地址'));
       return;
     }
-    // 校验人民币汇率必须为有效正数
-    if (!Number.isFinite(Number(cnyUnitPrice)) || Number(cnyUnitPrice) <= 0) {
-      showError(t('请输入有效的人民币价格比例'));
-      return;
-    }
-
     setLoading(true);
     try {
       const options = [];
@@ -184,15 +170,10 @@ export default function SettingsPaymentGateway(props) {
       // 同时发送币种价格 ID 配置请求（写 currency_stripe_config 表）
       requestQueue.push(
         API.put('/api/currency-stripe-config/', {
-          // 遍历所有币种，CNY 时附带汇率
           configs: Object.entries(currencyPriceIds).map(
             ([currency, stripe_price_id]) => ({
               currency,
               stripe_price_id,
-              // 人民币额外提交汇率
-              ...(currency === 'CNY'
-                ? { unit_price: Number(cnyUnitPrice) }
-                : {}),
             }),
           ),
         }),
@@ -296,25 +277,6 @@ export default function SettingsPaymentGateway(props) {
                 />
               </Col>
             ))}
-          </Row>
-
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-            style={{ marginTop: 16 }}
-          >
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <div style={{ marginBottom: 4 }}>
-                <Text strong>{t('美元人民币汇率')}</Text>
-              </div>
-              <InputNumber
-                value={cnyUnitPrice}
-                min={0.000001}
-                precision={6}
-                step={0.01}
-                onChange={(value) => setCnyUnitPrice(value)}
-                placeholder={t('例如：7.25')}
-              />
-            </Col>
           </Row>
 
           <Row
