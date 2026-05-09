@@ -151,7 +151,7 @@ const InviteDetailModal = ({ t, visible, onClose, inviteeId, inviteeName }) => {
         <div className='text-[16px] leading-[24px] font-semibold text-[#344054]'>{t('被邀请人')}</div>
         <div className='mt-4 space-y-3'>
           <div className='flex items-center'>
-            <span className='w-[110px] text-[14px] leading-[20px] text-[#98A2B3]'>{t('被邀请人ID：')}</span>
+            <span className='text-[14px] leading-[20px] text-[#98A2B3]'>{t('被邀请人ID：')}</span>
             <span className='text-[14px] leading-[20px] text-[#475467] font-semibold'>{inviteeName || '-'}</span>
           </div>
           <div className='flex items-center'>

@@ -4511,12 +4511,16 @@
         "消费返利":"Hoàn trả tiêu dùng",
 
         "被邀请人":"Người được mời",
-        "注册奖励":"Hoàn trả tiêu dùng",
-        "被邀请人ID：":" người được mời ID：",
+        "注册奖励":"Giải thưởng đăng ký",
+        "充值返利":"Hoàn tiền nạp tiền",
+        "被邀请人ID：":"ID người được mời：",
+        "累计贡献返利：":"Tổng hoàn tiền đóng góp：",
         "一级累计贡献返利：":"Hoàn trả tiêu dùng cấp 1：",
         "二级累计贡献返利：":"Hoàn trả tiêu dùng cấp 2：",
-        "返利明细":"Chi tiết hoàn trả tiêu dùng",
-        "暂无返利记录": "Không có hoàn trả tiêu dùng nào",
-        "显示":"Hiển thị"
+        "返利明细":"Chi tiết hoàn tiền",
+        "暂无返利记录":"Không có hoàn tiền nào",
+        "奖励":"Giải thưởng",
+        "显示":"Hiển thị",
+        "上传图片":"Tải lên hình ảnh"
     }
 }

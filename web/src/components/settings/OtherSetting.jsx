@@ -27,7 +27,9 @@ import {
   Modal,
   Space,
   Card,
+  Upload,
 } from '@douyinfe/semi-ui';
+import { IconUpload } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess, timestamp2string } from '../../helpers';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
@@ -82,10 +84,75 @@ const OtherSetting = () => {
     About: false,
     Footer: false,
     CheckUpdate: false,
+    LogoUpload: false,
   });
   const handleInputChange = async (value, e) => {
     const name = e.target.id;
     setInputs((inputs) => ({ ...inputs, [name]: value }));
+  };
+
+  const getLogoUploadPath = (data) => {
+    let path = '';
+    if (typeof data === 'string') {
+      path = data;
+    } else {
+      path =
+        data?.url ||
+        data?.path ||
+        data?.logo ||
+        data?.file_path ||
+        data?.filePath ||
+        '';
+    }
+    if (!path || /^https?:\/\//i.test(path)) {
+      return path;
+    }
+    return `${window.location.origin}${path.startsWith('/') ? path : `/${path}`}`;
+  };
+
+  const handleLogoUpload = async ({
+    file,
+    fileInstance,
+    onSuccess,
+    onError,
+  }) => {
+    try {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        LogoUpload: true,
+      }));
+      const uploadFile = fileInstance || file?.fileInstance;
+      if (!uploadFile) {
+        throw new Error(t('请选择图片'));
+      }
+      const formData = new FormData();
+      formData.append('logo', uploadFile);
+      const res = await API.post('/api/option/web_logo', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        throw new Error(message || t('Logo 上传失败'));
+      }
+      const logoPath = getLogoUploadPath(data);
+      if (!logoPath) {
+        throw new Error(t('Logo 上传返回地址无效'));
+      }
+      setInputs((inputs) => ({ ...inputs, Logo: logoPath }));
+      formAPIPersonalization.current?.setValue?.('Logo', logoPath);
+      showSuccess(t('Logo 上传成功'));
+      onSuccess?.(data || {});
+    } catch (error) {
+      showError(error?.message || t('Logo 上传失败'));
+      onError?.({ status: 500 }, error);
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        LogoUpload: false,
+      }));
+    }
   };
 
   // 通用设置
@@ -435,12 +502,31 @@ const OtherSetting = () => {
               >
                 {t('设置系统名称')}
               </Button>
-              <Form.Input
-                label={t('Logo 图片地址')}
-                placeholder={t('在此输入 Logo 图片地址')}
-                field={'Logo'}
-                onChange={handleInputChange}
-              />
+              <div className='flex items-end gap-2'>
+                <div className='flex-1'>
+                  <Form.Input
+                    label={t('Logo 图片地址')}
+                    placeholder={t('在此输入 Logo 图片地址')}
+                    field={'Logo'}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <Upload
+                  action='/'
+                  accept='image/*'
+                  showUploadList={false}
+                  uploadTrigger='auto'
+                  customRequest={handleLogoUpload}
+                >
+                  <Button
+                    icon={<IconUpload />}
+                    loading={loadingInput['LogoUpload']}
+                    style={{ marginBottom: 12 }}
+                  >
+                    {t('上传图片')}
+                  </Button>
+                </Upload>
+              </div>
               <Button onClick={submitLogo} loading={loadingInput['Logo']}>
                 {t('设置 Logo')}
               </Button>

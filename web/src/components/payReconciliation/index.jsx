@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Button, DatePicker, Input, Pagination, Table, Tag, Typography } from '@douyinfe/semi-ui';
 import { IconFilter, IconRefresh, IconSearch } from '@douyinfe/semi-icons';
 import { BadgeCheck, CircleAlert, CircleCheckBig, SquareKanban, ShieldCheck } from 'lucide-react';
+import { SiStripe } from 'react-icons/si';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -11,6 +12,11 @@ import ReconciliationDetailSheet from './ReconciliationDetailSheet';
 import weChatImg from '../../../public/WeChat.png';
 
 const { Text } = Typography;
+
+const PAYMENT_METHODS = {
+  wxpay: 'wxpay',
+  stripe: 'stripe',
+};
 
 const CARD_META = [
   { key: 'total', title: '充值订单总额', desc: '系统生成订单的总金额', tone: 'normal', icon: SquareKanban },
@@ -41,6 +47,8 @@ const buildDateQuery = (dateValue) => {
   return `&bill_date=${encodeURIComponent(formatDate(dateValue))}`;
 };
 
+const buildPaymentMethodQuery = (paymentMethod) => `payment_method=${encodeURIComponent(paymentMethod || PAYMENT_METHODS.wxpay)}`;
+
 const renderLocalType = (localType, t) => {
   if (localType === 'subscription') return t('订阅');
   if (localType === 'topup') return t('充值');
@@ -52,7 +60,7 @@ const PayReconciliationList = () => {
   const isMobile = useIsMobile();
   const yesterday = dayjs().subtract(1, 'day').toDate();
 
-  const [channelTab, setChannelTab] = useState('wechat');
+  const [channelTab, setChannelTab] = useState(PAYMENT_METHODS.wxpay);
   const [billDate, setBillDate] = useState(yesterday);
   const [keyword, setKeyword] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
@@ -81,7 +89,7 @@ const PayReconciliationList = () => {
     setStatLoading(true);
     try {
       const qs = buildDateQuery(billDate);
-      const url = `/api/wechat_trade_bill/stat${qs ? `?${qs.slice(1)}` : ''}`;
+      const url = `/api/wechat_trade_bill/stat?${buildPaymentMethodQuery(channelTab)}${qs}`;
       const res = await API.get(url);
       const { success, message, data } = res.data;
       if (success) {
@@ -100,7 +108,7 @@ const PayReconciliationList = () => {
     setListLoading(true);
     try {
       const qs =
-        `p=${targetPage}&page_size=${pageSize}` +
+        `p=${targetPage}&page_size=${pageSize}&${buildPaymentMethodQuery(channelTab)}` +
         buildDateQuery(billDate) +
         (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '');
       const res = await API.get(`/api/wechat_trade_bill/list?${qs}`);
@@ -127,6 +135,7 @@ const PayReconciliationList = () => {
     try {
       const res = await API.post('/api/wechat_trade_bill/run', {
         bill_date: formatDate(billDate),
+        payment_method: channelTab || PAYMENT_METHODS.wxpay,
       });
       const { success, message, data } = res.data;
       if (success) {
@@ -147,7 +156,7 @@ const PayReconciliationList = () => {
     setPage(1);
     loadStats().then();
     loadList(1).then();
-  }, [billDate, keyword]);
+  }, [billDate, keyword, channelTab]);
 
   useEffect(() => {
     loadList(page).then();
@@ -157,11 +166,11 @@ const PayReconciliationList = () => {
     const totalAmount = Number(stat.total_amount || 0).toFixed(2);
     const abnormalAmount = Number(stat.abnormal_amount || 0).toFixed(2);
     return CARD_META.map((m) => {
-      if (m.key === 'total') return { ...m, value: `¥ ${totalAmount}` };
+      if (m.key === 'total') return { ...m, value: `${stat.currency_symbol} ${totalAmount}` };
       if (m.key === 'success') return { ...m, value: `${stat.payment_success_count || 0}`, unit: t('笔') };
       if (m.key === 'matched') return { ...m, value: `${stat.matched_count || 0}`, unit: t('笔') };
       if (m.key === 'abnormal') return { ...m, value: `${stat.abnormal_count || 0}`, unit: t('笔') };
-      if (m.key === 'abnormalAmount') return { ...m, value: `¥ ${abnormalAmount}` };
+      if (m.key === 'abnormalAmount') return { ...m, value: `${stat.currency_symbol} ${abnormalAmount}` };
       return m;
     });
   }, [stat, t]);
@@ -216,19 +225,22 @@ const PayReconciliationList = () => {
         dataIndex: 'amount_text',
         key: 'amount_text',
         width: 110,
-        render: (v) => `¥ ${v ?? 0}`,
+        render: (v, record) => `${record.local_currency} ${v ?? 0}`,
       },
       {
         title: <HeaderText>{t('支付渠道')}</HeaderText>,
         dataIndex: 'payment_method_text',
         key: 'payment_method_text',
         width: 145,
-        render: (text) => (
-          <span className='inline-flex items-center gap-2 text-[16px] leading-[22px] text-[#475569] font-medium'>
-            <img src={weChatImg} alt='微信支付' className='w-4 h-4' />
-            {text || '微信支付'}
-          </span>
-        ),
+        render: (text, record) => {
+          const isStripe = record?.payment_method === PAYMENT_METHODS.stripe || text === 'Stripe';
+          return (
+            <span className='inline-flex items-center gap-2 text-[16px] leading-[22px] text-[#475569] font-medium'>
+              {isStripe ? <SiStripe size={16} color='#635BFF' /> : <img src={weChatImg} alt='微信支付' className='w-4 h-4' />}
+              {text || (isStripe ? 'Stripe' : '微信支付')}
+            </span>
+          );
+        },
       },
       { title: <HeaderText>{t('支付时间')}</HeaderText>, dataIndex: 'trade_time', key: 'trade_time', width: 170, render: (v) => v || '-' },
       {
@@ -273,32 +285,30 @@ const PayReconciliationList = () => {
             <div className='inline-flex items-center rounded-[16px] bg-[#fff] p-[5px] gap-[6px] dark:bg-slate-900'>
               <Button
                 theme='borderless'
-                onClick={() => setChannelTab('wechat')}
+                onClick={() => setChannelTab(PAYMENT_METHODS.wxpay)}
                 style={{
                   minWidth: 108,
                   height: 40,
                   borderRadius: 10,
-                  color: '#082E1A',
-                  background: channelTab === 'wechat' ? '#F8FAFC' : 'transparent',
+                  color: channelTab === PAYMENT_METHODS.wxpay ? '#082E1A' : '#64748B',
+                  background: channelTab === PAYMENT_METHODS.wxpay ? '#F8FAFC' : 'transparent',
                   fontSize: 14,
-                  fontWeight: 600,
+                  fontWeight: channelTab === PAYMENT_METHODS.wxpay ? 600 : 500,
                 }}
               >
                 {t('微信支付')}
               </Button>
               <Button
                 theme='borderless'
-                disabled
+                onClick={() => setChannelTab(PAYMENT_METHODS.stripe)}
                 style={{
                   minWidth: 108,
                   height: 40,
                   borderRadius: 10,
-                  color: '#9EABC0',
-                  background: 'transparent',
+                  color: channelTab === PAYMENT_METHODS.stripe ? '#082E1A' : '#64748B',
+                  background: channelTab === PAYMENT_METHODS.stripe ? '#F8FAFC' : 'transparent',
                   fontSize: 14,
-                  fontWeight: 500,
-                  opacity: 0.6,
-                  cursor: 'not-allowed',
+                  fontWeight: channelTab === PAYMENT_METHODS.stripe ? 600 : 500,
                 }}
               >
                 {t('Stripe')}
