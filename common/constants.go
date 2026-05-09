@@ -163,6 +163,12 @@ var (
 	ImageDownloadPermission = RoleGuestUser
 )
 
+// Session duration constants (seconds)
+const (
+	SessionMaxAgeDefault  = 604800  // 7 days
+	SessionMaxAgeExtended = 2592000 // 30 days
+)
+
 // All duration's unit is seconds
 // Shouldn't larger then RateLimitKeyExpirationDuration
 var (

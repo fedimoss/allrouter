@@ -217,6 +217,7 @@ export default function LoginPage() {
         {
           username,
           password,
+          remember: rememberPassword,
         },
       );
       const { success, message, data } = res.data;

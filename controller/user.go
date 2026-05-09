@@ -33,6 +33,7 @@ import (
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Remember bool   `json:"remember"`
 }
 
 func Login(c *gin.Context) {
@@ -76,6 +77,7 @@ func Login(c *gin.Context) {
 		session := sessions.Default(c)
 		session.Set("pending_username", user.Username)
 		session.Set("pending_user_id", user.Id)
+		session.Set("pending_remember", loginRequest.Remember)
 		err := session.Save()
 		if err != nil {
 			common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
@@ -92,17 +94,23 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	setupLogin(&user, c)
+	setupLogin(&user, c, loginRequest.Remember)
 }
 
 // setup session & cookies and then return user info
-func setupLogin(user *model.User, c *gin.Context) {
+func setupLogin(user *model.User, c *gin.Context, rememberMe bool) {
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)
 	session.Set("role", user.Role)
 	session.Set("status", user.Status)
 	session.Set("group", user.Group)
+	// 根据"保持登录状态"选项设置会话有效期：未勾选7天，勾选30天
+	maxAge := common.SessionMaxAgeDefault
+	if rememberMe {
+		maxAge = common.SessionMaxAgeExtended
+	}
+	session.Options(sessions.Options{MaxAge: maxAge})
 	err := session.Save()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
