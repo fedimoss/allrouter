@@ -49,7 +49,6 @@ func UpdateAdminCurrencyStripeConfig(c *gin.Context) {
 			c.JSON(200, gin.H{"success": false, "message": "人民币价格比例必须大于 0"})
 			return
 		}
-		// 先查已有记录，保留原有的 unit_price 和 symbol
 		existing, err := model.GetCurrencyConfig(cfg.Currency)
 		if err != nil {
 			// 记录不存在，使用默认值创建新记录

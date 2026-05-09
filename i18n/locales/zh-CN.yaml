@@ -106,6 +106,9 @@ user.quota_change_zero: "额度变更量不能为0"
 user.avatar_not_selected: "请选择头像文件"
 user.avatar_size_exceeded: "头像文件不能超过 2MB"
 user.avatar_format_unsupported: "仅支持 JPG/PNG 格式"
+setting.web_logo_not_selected: "请选择logo文件"
+setting.web_logo_size_exceeded: "logo文件不能超过 5MB"
+setting.web_logo_format_unsupported: "仅支持 JPG/PNG/GIF/SVG 格式"
 
 # Quota messages
 quota.negative: "额度不能为负数！"

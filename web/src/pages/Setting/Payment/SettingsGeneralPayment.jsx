@@ -71,9 +71,9 @@ export default function SettingsGeneralPayment(props) {
           props.options.InviteConsumeRebateRatioLevel2 !== undefined
             ? parseFloat(props.options.InviteConsumeRebateRatioLevel2) || 0
             : 0,
-        StripeCnyUnitPrice:
-          props.options.StripeCnyUnitPrice !== undefined
-            ? parseFloat(props.options.StripeCnyUnitPrice) || 7.25
+        USDExchangeRate:
+          props.options.USDExchangeRate !== undefined
+            ? parseFloat(props.options.USDExchangeRate) || 7.25
             : 7.25,
       };
       setInputs(currentInputs);
@@ -105,8 +105,8 @@ export default function SettingsGeneralPayment(props) {
           value: inputs.InviteConsumeRebateRatioLevel2 || 0,
         },
         {
-          key: 'StripeCnyUnitPrice',
-          value: inputs.StripeCnyUnitPrice || 7.25,
+          key: 'USDExchangeRate',
+          value: inputs.USDExchangeRate || 7.25,
         },
       ];
 
@@ -181,7 +181,7 @@ export default function SettingsGeneralPayment(props) {
 
           {/* 美元人民币汇率 */}
           <Form.InputNumber
-            field='StripeCnyUnitPrice'
+            field='USDExchangeRate'
             label={t('美元人民币汇率')}
             min={0.000001}
             precision={6}

@@ -117,7 +117,6 @@ export default function SettingsPaymentGateway(props) {
       showError(t('请先填写服务器地址'));
       return;
     }
-
     setLoading(true);
     try {
       const options = [];

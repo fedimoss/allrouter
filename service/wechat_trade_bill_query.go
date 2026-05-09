@@ -2,6 +2,8 @@ package service
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +31,7 @@ type WechatTradeBillDashboardResponse struct {
 	AbnormalAmount      float64 `json:"abnormal_amount"`
 	MatchedRate         float64 `json:"matched_rate"`
 	AbnormalRate        float64 `json:"abnormal_rate"`
+	CurrencySymbol      string  `json:"currency_symbol"` // 币种符号
 }
 
 // WechatTradeBillListItem 对应对账结果列表中的单行数据。
@@ -52,6 +55,8 @@ type WechatTradeBillListItem struct {
 	LocalTypeText      string  `json:"local_type_text"`
 	WechatTradeStatus  string  `json:"wechat_trade_status"`
 	LocalStatus        string  `json:"local_status"`
+	ChannelCurrency    string  `json:"channel_currency"` // 渠道币种
+	LocalCurrency      string  `json:"local_currency"`   // 本地币种
 	AbnormalReason     string  `json:"abnormal_reason"`
 	AbnormalReasonText string  `json:"abnormal_reason_text"`
 	Remark             string  `json:"remark"`
@@ -79,6 +84,8 @@ type WechatTradeBillLocalRecord struct {
 	CompleteTime        int64   `json:"complete_time"`
 	CompleteTimeText    string  `json:"complete_time_text"`
 	Remark              string  `json:"remark"`
+	Currency            string  `json:"currency"`        // 币种
+	CurrencySymbol      string  `json:"currency_symbol"` // 币种符号
 }
 
 type WechatTradeBillChannelRecord struct {
@@ -95,7 +102,8 @@ type WechatTradeBillChannelRecord struct {
 	Remark            string  `json:"remark"`
 	GoodsName         string  `json:"goods_name"`
 	Bank              string  `json:"bank"`
-	Currency          string  `json:"currency"`
+	Currency          string  `json:"currency"`        // 币种
+	CurrencySymbol    string  `json:"currency_symbol"` // 币种符号
 	AppID             string  `json:"app_id"`
 	MchID             string  `json:"mch_id"`
 }
@@ -205,6 +213,8 @@ func getWechatTradeBillReasonText(reason string) string {
 		return "匹配到多条本地订单"
 	case model.PaymentReconcileReasonAmountMismatch:
 		return "金额不一致"
+	case model.PaymentReconcileReasonCurrencyMismatch:
+		return "币种不一致"
 	case model.PaymentReconcileReasonStatusMismatch:
 		return "状态不一致"
 	case model.PaymentReconcileReasonUnsupportedBillRow:
@@ -319,12 +329,136 @@ func loadWechatTradeBillUserMap(rows []*model.PaymentBillReconcile) (map[int]*mo
 	return userMap, topupMap, subscriptionMap, nil
 }
 
-func (s *WechatTradeBillQueryService) GetDashboard(filter *WechatTradeBillListFilter) (*WechatTradeBillDashboardResponse, error) {
+func (s *WechatTradeBillQueryService) GetDashboard(filter *WechatTradeBillListFilter, userId int) (*WechatTradeBillDashboardResponse, error) {
+	switch strings.TrimSpace(filter.PaymentMethod) {
+	// stripe 分支
+	case "stripe":
+		return s.getStripeDashboard(filter, userId)
+	// wxpay 分支
+	default:
+		return s.getWechatDashboard(filter)
+	}
+}
+
+// getWechatDashboard 微信支付 dashboard（全部人民币，无需币种换算）。
+func (s *WechatTradeBillQueryService) getWechatDashboard(filter *WechatTradeBillListFilter) (*WechatTradeBillDashboardResponse, error) {
 	overview, err := model.GetPaymentBillReconcileOverview(model.PaymentChannelTypeWechat, normalizeWechatTradeBillListFilter(filter))
 	if err != nil {
 		return nil, err
 	}
+	return buildDashboardResponse(overview, "¥"), nil
+}
 
+// getStripeDashboard Stripe 支付 dashboard，按当前管理员的时区确定目标币种，统一换算后汇总。
+func (s *WechatTradeBillQueryService) getStripeDashboard(filter *WechatTradeBillListFilter, userId int) (*WechatTradeBillDashboardResponse, error) {
+	// 1. 获取当前管理员的时区（默认 America/New_York）
+	timezone := "America/New_York" // 默认纽约时区（美元）
+	if userId > 0 {                // 已登录的管理员
+		var user model.User                                                                            // 临时 user 对象，只读 timezone 字段
+		if err := model.DB.Select("timezone").Where("id = ?", userId).First(&user).Error; err == nil { // 查询 users 表
+			if tz := strings.TrimSpace(user.Timezone); tz != "" { // 用户时区非空
+				timezone = tz // 使用用户的时区
+			}
+		}
+	}
+
+	// 2. 根据时区确定目标币种（默认 USD）
+	targetCurrency := model.GetCurrencyByTimezoneWithFallback(timezone, "USD") // 通过 timezone_currency_map 查询币种
+
+	// 3. 从 options 表获取美元人民币汇率
+	usdExchangeRate := loadUSDExchangeRate() // 1 USD = X CNY 的汇率值
+
+	// 4. 查询 Stripe 对账记录（不分页，含币种字段）
+	rows, err := model.GetAllPaymentBillReconciles(model.PaymentChannelTypeStripe, normalizeWechatTradeBillListFilter(filter))
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. 逐条换算后汇总
+	overview := &model.PaymentBillReconcileOverview{} // 初始化汇总对象
+	for _, row := range rows {                        // 遍历每条对账记录
+		overview.TotalCount++                                                                                           // 总记录数 +1
+		convertedAmount := convertToTargetCurrency(row.LocalAmount, row.LocalCurrency, targetCurrency, usdExchangeRate) // 按币种换算到目标币种
+		overview.TotalAmount += convertedAmount                                                                         // 累加换算后的金额
+		if strings.EqualFold(strings.TrimSpace(row.LocalStatus), "success") {                                           // 本地支付成功
+			overview.SuccessCount++ // 支付成功数 +1
+		}
+		switch strings.TrimSpace(row.ReconcileStatus) { // 对账状态分拣
+		case model.PaymentReconcileStatusMatched: // 对账一致
+			overview.MatchedCount++ // 一致数 +1
+		case model.PaymentReconcileStatusAbnormal: // 对账异常
+			overview.AbnormalCount++                   // 异常数 +1
+			overview.AbnormalAmount += convertedAmount // 累加异常金额
+		}
+		if row.UpdatedAt > overview.LatestSyncAt { // 取最新的同步时间
+			overview.LatestSyncAt = row.UpdatedAt
+		}
+	}
+	return buildDashboardResponse(overview, currencySymbolForCode(targetCurrency)), nil // 构造响应并返回
+}
+
+// coalesceCurrency 优先取第一个非空币种，stripe 的 billRow.Currency 是代码（usd/cny），
+// wxpay 的 Currency 可能为空，此时根据 payment_method 兜底（wxpay→CNY，其他→USD）。
+func coalesceCurrency(values ...string) string {
+	for _, v := range values {
+		if s := strings.TrimSpace(v); s != "" {
+			return normalizeStripeCurrency(s)
+		}
+	}
+	return "USD"
+}
+
+// currencySymbolForCode 将币种代码转为显示符号。
+func currencySymbolForCode(code string) string {
+	switch strings.ToUpper(strings.TrimSpace(code)) {
+	case "CNY":
+		return "¥"
+	case "USD":
+		return "$"
+	default:
+		return code
+	}
+}
+
+// loadUSDExchangeRate 从 options 表读取美元人民币汇率，默认返回 7.25。
+func loadUSDExchangeRate() float64 {
+	var option model.Option
+	if err := model.DB.Where("key = ?", "USDExchangeRate").First(&option).Error; err == nil {
+		rate, err := strconv.ParseFloat(strings.TrimSpace(option.Value), 64)
+		if err == nil && rate > 0 {
+			return rate
+		}
+	}
+	return 7.25
+}
+
+// convertToTargetCurrency 将原始金额按币种换算为目标币种金额，保留 6 位小数。
+// fromCurrency 可能是符号（$、¥）或代码（USD、cny），目标币种为标准 3 位大写代码。
+func convertToTargetCurrency(amount float64, fromCurrency string, toCurrency string, usdExchangeRate float64) float64 {
+	if amount == 0 {
+		return 0
+	}
+	from := normalizeStripeCurrency(fromCurrency)
+	to := normalizeStripeCurrency(toCurrency)
+	if from == to {
+		return amount
+	}
+	if usdExchangeRate <= 0 {
+		return amount
+	}
+	// USD → CNY
+	if from == "USD" && to == "CNY" {
+		return math.Round(amount*usdExchangeRate*1e6) / 1e6
+	}
+	// CNY → USD
+	if from == "CNY" && to == "USD" {
+		return math.Round(amount/usdExchangeRate*1e6) / 1e6
+	}
+	return amount
+}
+
+// buildDashboardResponse 从 overview 构造 Dashboard 响应。
+func buildDashboardResponse(overview *model.PaymentBillReconcileOverview, currencySymbol string) *WechatTradeBillDashboardResponse {
 	resp := &WechatTradeBillDashboardResponse{
 		LatestSyncAt:        overview.LatestSyncAt,
 		LatestSyncAtText:    formatTimestampText(overview.LatestSyncAt),
@@ -334,16 +468,31 @@ func (s *WechatTradeBillQueryService) GetDashboard(filter *WechatTradeBillListFi
 		AbnormalCount:       overview.AbnormalCount,
 		TotalAmount:         overview.TotalAmount,
 		AbnormalAmount:      overview.AbnormalAmount,
+		CurrencySymbol:      currencySymbol, // 币种符号
 	}
 	if overview.TotalCount > 0 {
 		resp.MatchedRate = float64(overview.MatchedCount) / float64(overview.TotalCount)
 		resp.AbnormalRate = float64(overview.AbnormalCount) / float64(overview.TotalCount)
 	}
-	return resp, nil
+	return resp
 }
 
 func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter *WechatTradeBillListFilter) (*common.PageInfo, error) {
-	rows, total, err := model.GetPaymentBillReconciles(model.PaymentChannelTypeWechat, pageInfo, normalizeWechatTradeBillListFilter(filter))
+	// 定义变量，用于存储查询结果和总记录数
+	rows := []*model.PaymentBillReconcile{}
+	total := int64(0)
+	var err error
+
+	// 根据支付渠道查询账单
+	switch filter.PaymentMethod {
+	// Stripe 分支
+	case "stripe":
+		rows, total, err = model.GetPaymentBillReconciles(model.PaymentChannelTypeStripe, pageInfo, normalizeWechatTradeBillListFilter(filter))
+	// wxpay 分支
+	default:
+		rows, total, err = model.GetPaymentBillReconciles(model.PaymentChannelTypeWechat, pageInfo, normalizeWechatTradeBillListFilter(filter))
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -374,6 +523,8 @@ func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter 
 			LocalTypeText:      getWechatTradeBillLocalTypeText(row.LocalType),
 			WechatTradeStatus:  row.ChannelStatus,
 			LocalStatus:        row.LocalStatus,
+			ChannelCurrency:    row.ChannelCurrency, // 渠道币种
+			LocalCurrency:      row.LocalCurrency,   // 本地币种
 			AbnormalReason:     row.ReconcileReason,
 			AbnormalReasonText: getWechatTradeBillReasonText(row.ReconcileReason),
 			Remark:             row.Remark,
@@ -381,6 +532,11 @@ func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter 
 		if strings.TrimSpace(item.PaymentMethod) == "" {
 			item.PaymentMethod = "wxpay"
 			item.PaymentMethodText = getWechatTradeBillPaymentMethodText(item.PaymentMethod)
+		}
+		// wxpay 老数据兜底：币种字段为空时默认为人民币
+		if strings.TrimSpace(item.ChannelCurrency) == "" && item.PaymentMethod == "wxpay" {
+			item.ChannelCurrency = "CNY"
+			item.LocalCurrency = "¥"
 		}
 		if item.Amount <= 0 {
 			item.Amount = modelAmountOrFallback(row)
@@ -460,14 +616,16 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 		return nil, fmt.Errorf("invalid reconcile id")
 	}
 
+	// 先仅通过 id 查询对账记录，从中获取实际的 channel_type，再用于后续查询
 	var reconcile model.PaymentBillReconcile
-	if err := model.DB.Where("channel_type = ? AND id = ?", model.PaymentChannelTypeWechat, id).First(&reconcile).Error; err != nil {
+	if err := model.DB.Where("id = ?", id).First(&reconcile).Error; err != nil {
 		return nil, err
 	}
 
+	// 根据用户ID获取支付类型后，再查询账单记录
 	var billRow model.PaymentBillRecord
 	if reconcile.BillRecordId > 0 {
-		if err := model.DB.Where("channel_type = ? AND id = ?", model.PaymentChannelTypeWechat, reconcile.BillRecordId).First(&billRow).Error; err != nil {
+		if err := model.DB.Where("channel_type = ? AND id = ?", reconcile.ChannelType, reconcile.BillRecordId).First(&billRow).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -501,6 +659,8 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 		CreateTimeText:      formatTimestampText(reconcile.LocalCreateTime),
 		CompleteTime:        reconcile.LocalCompleteTime,
 		CompleteTimeText:    formatTimestampText(reconcile.LocalCompleteTime),
+		Currency:            coalesceCurrency(reconcile.LocalCurrency, reconcile.ChannelCurrency, reconcile.LocalPaymentMethod),
+		CurrencySymbol:      currencySymbolForCode(coalesceCurrency(reconcile.LocalCurrency, reconcile.ChannelCurrency, reconcile.LocalPaymentMethod)),
 	}
 
 	switch strings.TrimSpace(reconcile.LocalType) {
@@ -579,7 +739,8 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 		Remark:            channelRemark,
 		GoodsName:         billRow.GoodsName,
 		Bank:              billRow.Bank,
-		Currency:          billRow.Currency,
+		Currency:          coalesceCurrency(reconcile.ChannelCurrency, billRow.Currency, reconcile.LocalPaymentMethod),
+		CurrencySymbol:    currencySymbolForCode(coalesceCurrency(reconcile.ChannelCurrency, billRow.Currency, reconcile.LocalPaymentMethod)),
 		AppID:             billRow.AppID,
 		MchID:             billRow.MchID,
 	}
@@ -600,8 +761,8 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 	return resp, nil
 }
 
-func GetWechatTradeBillDashboard(filter *WechatTradeBillListFilter) (*WechatTradeBillDashboardResponse, error) {
-	return NewWechatTradeBillQueryService().GetDashboard(filter)
+func GetWechatTradeBillDashboard(filter *WechatTradeBillListFilter, userId int) (*WechatTradeBillDashboardResponse, error) {
+	return NewWechatTradeBillQueryService().GetDashboard(filter, userId)
 }
 
 func GetWechatTradeBillList(pageInfo *common.PageInfo, filter *WechatTradeBillListFilter) (*common.PageInfo, error) {

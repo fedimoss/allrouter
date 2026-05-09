@@ -1,31 +1,35 @@
 package controller
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/google/uuid"
 
 	"github.com/gin-gonic/gin"
 )
 
-// updateStripeCnyUnitPrice 将美元人民币汇率保存到 currency_stripe_config 表
-func updateStripeCnyUnitPrice(c *gin.Context, value string) {
+// syncUSDExchangeRateToCurrencyConfig 将美元人民币汇率同步到 currency_stripe_config 表（CNY 行）。
+// 仅做数据同步，不写 HTTP 响应，调用方负责返回结果。
+func syncUSDExchangeRateToCurrencyConfig(value string) error {
 	price, err := strconv.ParseFloat(value, 64)
 	if err != nil || price <= 0 {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "美元人民币汇率必须大于 0",
-		})
-		return
+		return fmt.Errorf("美元人民币汇率必须大于 0")
 	}
 	existing, err := model.GetCurrencyConfig("CNY")
 	if err != nil {
@@ -35,17 +39,7 @@ func updateStripeCnyUnitPrice(c *gin.Context, value string) {
 		}
 	}
 	existing.UnitPrice = price
-	if err := model.UpdateCurrencyConfig(existing); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	common.OptionMapRWMutex.Lock()
-	common.OptionMap["StripeCnyUnitPrice"] = value
-	common.OptionMapRWMutex.Unlock()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
+	return model.UpdateCurrencyConfig(existing)
 }
 
 var completionRatioMetaOptionKeys = []string{
@@ -304,9 +298,14 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
-	case "StripeCnyUnitPrice":
-		updateStripeCnyUnitPrice(c, option.Value.(string))
-		return
+	case "USDExchangeRate":
+		if err := syncUSDExchangeRateToCurrencyConfig(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "console_setting.api_info":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "ApiInfo")
 		if err != nil {
@@ -354,4 +353,95 @@ func UpdateOption(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+// UploadWebLogo 上传网站logo
+func UploadWebLogo(c *gin.Context) {
+	// 校验文件是否存在
+	file, err := c.FormFile("logo")
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgWebLogoNotSelected)
+		return
+	}
+
+	// 校验文件大小（比如限制 5MB）
+	if file.Size > 5<<20 {
+		common.ApiErrorI18n(c, i18n.MsgWebLogoSizeExceeded)
+		return
+	}
+
+	// 校验文件类型(JPG、PNG、GIF、SVG)
+	contentType := file.Header.Get("Content-Type")
+	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/gif" && contentType != "image/svg+xml" {
+		common.ApiErrorI18n(c, i18n.MsgWebLogoFormatUnsupported)
+		return
+	}
+
+	// 打开文件内容
+	src, err := file.Open()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	defer src.Close()
+
+	// 路径: static/logo
+	baseDir := filepath.Join("static", "logo")
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 创建SHA256哈希计算器，用于生成文件唯一标识
+	hasher := sha256.New()
+
+	// 创建临时目录，用于暂存文件
+	// 路径: static/logo/tmp
+	tmpDir := filepath.Join(baseDir, "tmp")
+	_ = os.MkdirAll(tmpDir, 0755) // 忽略创建错误，可能已存在
+
+	// 获取文件扩展名
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+
+	// 构建临时文件路径（使用随机文件名）,防止上传文件名重复
+	// 路径: static/logo/tmp/xxxxxx.jpg
+	tmpPath := filepath.Join(tmpDir, uuid.New().String()+ext)
+
+	// 创建临时文件
+	dst, err := os.Create(tmpPath)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 手动控制关闭时机：将文件内容同时复制到临时文件和哈希计算器
+	// 使用io.MultiWriter实现一次读取，同时写入两个目标
+	_, err = io.Copy(io.MultiWriter(dst, hasher), src)
+	if err != nil {
+		dst.Close() // 出错时立即关闭目标文件
+		common.ApiError(c, err)
+	}
+
+	// 先关闭目标文件，确保数据完全写入
+	if err := dst.Close(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 生成文件哈希值（十六进制字符串）
+	hash := hex.EncodeToString(hasher.Sum(nil))
+
+	// 构建最终文件路径（使用哈希值+原始扩展名）
+	// 路径: static/logo/xxxxxx.jpg
+	finalPath := filepath.Join(baseDir, hash+ext)
+
+	// 将临时文件移动到最终位置（原子操作，比复制更高效）
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 返回成功响应
+	logoURL := "/static/logo/" + hash + ext
+	common.ApiSuccess(c, gin.H{"url": logoURL})
 }
