@@ -4044,6 +4044,17 @@
         "付款用户":"Paying User",
         "实际支付":"Actual Payment",
         "支付完成":"Payment Completed",
-        "笔": "Transaction"
+        "笔": "Transaction",
+
+        "被邀请人":"The invited person",
+        "注册奖励":"Registration Reward",
+        "充值返利":"Recharge Rebate",
+        "被邀请人ID：":"Invited Person ID：",
+        "累计贡献返利：":"Total Contribution Rebate：",
+        "返利明细":"Rebate Details",
+        "暂无返利记录":"No rebate records",
+        "奖励":"Reward",
+        "显示":"Display",
+        "上传图片":"Upload Image"
     }
 }

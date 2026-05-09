@@ -84,9 +84,9 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
       {
         id: 'r4',
         leftLabel: t('请求金额'),
-        leftValue: localRecord.requested_amount_text ? `¥${localRecord.requested_amount_text}` : '-',
+        leftValue: localRecord.requested_amount_text ? `${localRecord.currency_symbol}${localRecord.requested_amount_text}` : '-',
         rightLabel: t('实际支付'),
-        rightValue: channelRecord.actual_amount_text ? `¥${channelRecord.actual_amount_text}` : '-',
+        rightValue: channelRecord.actual_amount_text ? `${localRecord.currency_symbol}${channelRecord.actual_amount_text}` : '-',
       },
       {
         id: 'r5',

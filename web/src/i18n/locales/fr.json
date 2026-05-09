@@ -3975,6 +3975,17 @@
         "付款用户":"Utilisateur payant",
         "实际支付":"Paiement réel",
         "支付完成":"Paiement terminé",
-        "笔": "Transaction"
+        "笔": "Transaction",
+
+        "被邀请人":"Invité",
+        "注册奖励":"Récompense d'inscription",
+        "充值返利":"Remboursement de recharge",
+        "被邀请人ID：":"ID de l'invité :",
+        "累计贡献返利：":"Remboursement cumulé :",
+        "返利明细":"Détails du remboursement",
+        "暂无返利记录":"Aucun remboursement disponible",
+        "奖励":"Récompense",
+        "显示":"Afficher",
+        "上传图片":"Uploader une image"
     }
 }
