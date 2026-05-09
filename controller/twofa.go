@@ -479,11 +479,13 @@ func Verify2FALogin(c *gin.Context) {
 	}
 
 	// 2FA验证成功，清理pending会话信息并完成登录
+	pendingRemember, _ := session.Get("pending_remember").(bool)
 	session.Delete("pending_username")
 	session.Delete("pending_user_id")
+	session.Delete("pending_remember")
 	session.Save()
 
-	setupLogin(user, c)
+	setupLogin(user, c, pendingRemember)
 }
 
 // Admin2FAStats 管理员获取2FA统计信息
