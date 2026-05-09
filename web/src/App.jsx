@@ -43,6 +43,7 @@ import Pricing from './pages/Pricing';
 import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
+import Provider from './pages/Provider';
 import Playground from './pages/Playground';
 import Subscription from './pages/Subscription';
 import Oauth from './pages/Oauth';
@@ -137,6 +138,14 @@ function App() {
             <AdminRoute>
               <ModelDeploymentPage />
             </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/provider'
+          element={
+            <PrivateRoute>
+              <Provider />
+            </PrivateRoute>
           }
         />
         <Route

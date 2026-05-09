@@ -288,6 +288,7 @@ func RequestEpay(c *gin.Context) {
 		amount = dAmount.Div(dQuotaPerUnit).IntPart()
 	}
 	topUp := &model.TopUp{
+		ProviderId:    c.GetInt("provider_id"),
 		UserId:        id,
 		Amount:        amount,
 		Money:         usdMoney,

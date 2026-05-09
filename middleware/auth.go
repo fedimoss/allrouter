@@ -35,6 +35,7 @@ func validUserInfo(username string, role int) bool {
 
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
+	currentProviderId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	username := session.Get("username")
 	role := session.Get("role")
 	id := session.Get("id")
@@ -51,7 +52,7 @@ func authHelper(c *gin.Context, minRole int) {
 			c.Abort()
 			return
 		}
-		user, authErr := model.ValidateAccessToken(accessToken)
+		user, authErr := model.ValidateAccessTokenInProvider(accessToken, currentProviderId)
 		if authErr != nil {
 			if errors.Is(authErr, model.ErrDatabase) {
 				common.SysLog("ValidateAccessToken database error: " + authErr.Error())
@@ -87,6 +88,22 @@ func authHelper(c *gin.Context, minRole int) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid),
+			})
+			c.Abort()
+			return
+		}
+	}
+	if username != nil && !useAccessToken {
+		sessionProviderId := 0
+		if v := session.Get("provider_id"); v != nil {
+			if pid, ok := v.(int); ok {
+				sessionProviderId = pid
+			}
+		}
+		if sessionProviderId != currentProviderId {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
 			})
 			c.Abort()
 			return
@@ -149,6 +166,7 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("username", username)
 	c.Set("role", role)
 	c.Set("id", id)
+	c.Set("provider_id", currentProviderId)
 	c.Set("group", session.Get("group"))
 	c.Set("user_group", session.Get("group"))
 	c.Set("use_access_token", useAccessToken)
@@ -246,6 +264,15 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 			c.Abort()
 			return
 		}
+		providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+		if token.ProviderId != providerId {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgTokenInvalid),
+			})
+			c.Abort()
+			return
+		}
 
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
@@ -329,7 +356,8 @@ func TokenAuth() func(c *gin.Context) {
 			parts = strings.Split(key, "-")
 			key = parts[0]
 		}
-		token, err := model.ValidateUserToken(key)
+		providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+		token, err := model.ValidateUserTokenInProvider(key, providerId)
 		if token != nil {
 			id := c.GetInt("id")
 			if id == 0 {
@@ -411,6 +439,7 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 		return fmt.Errorf("token is nil")
 	}
 	c.Set("id", token.UserId)
+	c.Set("provider_id", token.ProviderId)
 	c.Set("token_id", token.Id)
 	c.Set("token_key", token.Key)
 	c.Set("token_name", token.Name)

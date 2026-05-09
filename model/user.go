@@ -23,7 +23,8 @@ const UserNameMaxLength = 20
 // Otherwise, the sensitive information will be saved on local storage in plain text!
 type User struct {
 	Id               int            `json:"id"`
-	Username         string         `json:"username" gorm:"unique;index" validate:"max=20"`
+	ProviderId       int            `json:"provider_id" gorm:"type:int;default:0;index"`
+	Username         string         `json:"username" gorm:"index" validate:"max=20"`
 	Password         string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
 	OriginalPassword string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
 	DisplayName      string         `json:"display_name" gorm:"index" validate:"max=20"`
@@ -62,13 +63,14 @@ type User struct {
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:         user.Id,
+		ProviderId: user.ProviderId,
+		Group:      user.Group,
+		Quota:      user.Quota,
+		Status:     user.Status,
+		Username:   user.Username,
+		Setting:    user.Setting,
+		Email:      user.Email,
 	}
 	return cache
 }
@@ -145,6 +147,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"enabled":    true,
 			"channel":    true,
 			"models":     true,
+			"provider":   true,
 			"redemption": true,
 			"user":       true,
 			"setting":    false, // 管理员不能访问系统设置
@@ -155,6 +158,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"enabled":    true,
 			"channel":    true,
 			"models":     true,
+			"provider":   true,
 			"redemption": true,
 			"user":       true,
 			"setting":    true,
@@ -174,15 +178,19 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 
 // CheckUserExistOrDeleted check if user exist or deleted, if not exist, return false, nil, if deleted or exist, return true, nil
 func CheckUserExistOrDeleted(username string, email string) (bool, error) {
+	return CheckUserExistOrDeletedInProvider(0, username, email)
+}
+
+func CheckUserExistOrDeletedInProvider(providerId int, username string, email string) (bool, error) {
 	var user User
 
 	// err := DB.Unscoped().First(&user, "username = ? or email = ?", username, email).Error
 	// check email if empty
 	var err error
 	if email == "" {
-		err = DB.Unscoped().First(&user, "username = ?", username).Error
+		err = DB.Unscoped().First(&user, "provider_id = ? AND username = ?", providerId, username).Error
 	} else {
-		err = DB.Unscoped().First(&user, "username = ? or email = ?", username, email).Error
+		err = DB.Unscoped().First(&user, "provider_id = ? AND (username = ? or email = ?)", providerId, username, email).Error
 	}
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -581,7 +589,7 @@ func (user *User) Insert(inviterId int) error {
 	// 用户创建成功后，根据角色初始化边栏配置
 	// 需要重新获取用户以确保有正确的ID和Role
 	var createdUser User
-	if err := tx.Where("username = ?", user.Username).First(&createdUser).Error; err == nil {
+	if err := tx.Where("id = ?", user.Id).First(&createdUser).Error; err == nil {
 		//查询cli_user有没有id
 		clis, err := GetCliUserByCon(&CliUser{
 			UserId: strconv.Itoa(createdUser.Id),
@@ -809,6 +817,10 @@ func (user *User) HardDelete() error {
 
 // ValidateAndFill check password & user status
 func (user *User) ValidateAndFill() (err error) {
+	return user.ValidateAndFillInProvider(0)
+}
+
+func (user *User) ValidateAndFillInProvider(providerId int) (err error) {
 	// When querying with struct, GORM will only query with non-zero fields,
 	// that means if your field's value is 0, '', false or other zero values,
 	// it won't be used to build query conditions
@@ -818,7 +830,7 @@ func (user *User) ValidateAndFill() (err error) {
 		return ErrUserEmptyCredentials
 	}
 	// find by username or email
-	err = DB.Where("username = ? OR email = ?", username, username).First(user).Error
+	err = DB.Where("provider_id = ? AND (username = ? OR email = ?)", providerId, username, username).First(user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrInvalidCredentials
@@ -899,10 +911,6 @@ func (user *User) FillUserByTelegramId() error {
 	return nil
 }
 
-func IsEmailAlreadyTaken(email string) bool {
-	return DB.Unscoped().Where("email = ?", email).Find(&User{}).RowsAffected == 1
-}
-
 func IsWeChatIdAlreadyTaken(wechatId string) bool {
 	return DB.Unscoped().Where("wechat_id = ?", wechatId).Find(&User{}).RowsAffected == 1
 }
@@ -923,7 +931,19 @@ func IsTelegramIdAlreadyTaken(telegramId string) bool {
 	return DB.Unscoped().Where("telegram_id = ?", telegramId).Find(&User{}).RowsAffected == 1
 }
 
+func IsEmailAlreadyTaken(email string) bool {
+	return IsEmailAlreadyTakenInProvider(0, email)
+}
+
+func IsEmailAlreadyTakenInProvider(providerId int, email string) bool {
+	return DB.Unscoped().Where("provider_id = ? AND email = ?", providerId, email).Find(&User{}).RowsAffected == 1
+}
+
 func ResetUserPasswordByEmail(email string, password string) error {
+	return ResetUserPasswordByEmailInProvider(0, email, password)
+}
+
+func ResetUserPasswordByEmailInProvider(providerId int, email string, password string) error {
 	if email == "" || password == "" {
 		return errors.New("邮箱地址或密码为空！")
 	}
@@ -931,7 +951,7 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	if err != nil {
 		return err
 	}
-	err = DB.Model(&User{}).Where("email = ?", email).Update("password", hashedPassword).Error
+	err = DB.Model(&User{}).Where("provider_id = ? AND email = ?", providerId, email).Update("password", hashedPassword).Error
 	return err
 }
 
@@ -979,12 +999,16 @@ func IsAdmin(userId int) bool {
 //}
 
 func ValidateAccessToken(token string) (*User, error) {
+	return ValidateAccessTokenInProvider(token, 0)
+}
+
+func ValidateAccessTokenInProvider(token string, providerId int) (*User, error) {
 	if token == "" {
 		return nil, nil
 	}
 	token = strings.Replace(token, "Bearer ", "", 1)
 	user := &User{}
-	err := DB.Where("access_token = ?", token).First(user).Error
+	err := DB.Where("provider_id = ? AND access_token = ?", providerId, token).First(user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

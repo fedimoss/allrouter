@@ -46,6 +46,13 @@ export function isRoot() {
   return user.role >= 100;
 }
 
+export function isProviderOwner() {
+  let user = localStorage.getItem('user');
+  if (!user) return false;
+  user = JSON.parse(user);
+  return user.is_provider_owner === true;
+}
+
 export function getSystemName() {
   let system_name = localStorage.getItem('system_name');
   if (!system_name) return 'All Router';

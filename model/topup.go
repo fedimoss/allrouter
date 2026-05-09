@@ -21,6 +21,7 @@ import (
 // TopUp 充值记录数据模型
 // 记录用户所有的充值行为，包括在线支付、兑换码、订阅等
 type TopUp struct {
+	ProviderId      int     `json:"provider_id" gorm:"type:int;default:0;index"`
 	Id              int     `json:"id"`                                                     // 充值记录ID（主键）
 	UserId          int     `json:"user_id" gorm:"index"`                                   // 用户ID（索引）
 	Amount          int64   `json:"amount"`                                                 // 充值额度（基础额度，未计算分组倍率）
@@ -50,6 +51,8 @@ const (
 	TopUpBizTypeSubscription = "subscription" // 订阅账单（不支持返利）
 	TopUpBizTypeRedemption   = "redemption"   // 兑换码充值（不支持返利）
 )
+
+const TopUpPaymentMethodProviderProfit = "provider_profit"
 
 // normalizeTopUpBizType 规范化业务类型
 // 如果未指定业务类型，默认返回 payment 类型
@@ -210,6 +213,11 @@ func (topUp *TopUp) GetQuotaToAdd() (int, error) {
 	case TopUpBizTypePayment:
 		// 在线支付充值：根据不同支付方式计算额度
 		switch topUp.PaymentMethod {
+		case TopUpPaymentMethodProviderProfit:
+			if topUp.Amount <= 0 {
+				return 0, errors.New("无效的服务商分账额度")
+			}
+			return int(topUp.Amount), nil
 		case "stripe":
 			// Stripe 订单特殊处理：
 			// Stripe 的 Money 字段存储的是"应发放的充值额度（基础额度 × 分组倍率）"
@@ -282,6 +290,9 @@ func applyInviteTopupRebateTx(tx *gorm.DB, topUp *TopUp, quotaToAdd int) (int, i
 	// - 确保有实际到账额度
 	// - 返利比例必须大于0
 	if topUp.GetBizType() != TopUpBizTypePayment || quotaToAdd <= 0 || common.InviteTopupRebateRatio <= 0 {
+		return 0, 0, nil
+	}
+	if topUp.PaymentMethod == TopUpPaymentMethodProviderProfit {
 		return 0, 0, nil
 	}
 

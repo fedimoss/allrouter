@@ -135,6 +135,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	}
 
 	topUp := &model.TopUp{
+		ProviderId:    c.GetInt("provider_id"),
 		UserId:        id,
 		Amount:        req.Amount,
 		Money:         chargedMoney,

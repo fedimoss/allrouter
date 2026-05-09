@@ -90,6 +90,7 @@ const NotificationSettings = ({
       channel: true,
       models: true,
       deployment: true,
+      provider: true,
       billing: true,
       operational: true,
       reconciliation: true,
@@ -179,6 +180,7 @@ const NotificationSettings = ({
         channel: true,
         models: true,
         deployment: true,
+        provider: true,
         billing: true,
         operational: true,
         reconciliation: true,
@@ -314,6 +316,11 @@ const NotificationSettings = ({
           key: 'deployment',
           title: t('模型部署'),
           description: t('模型部署管理'),
+        },
+        {
+          key: 'provider',
+          title: t('服务商管理'),
+          description: t('服务商、域名、页面配置和模型定价管理'),
         },
         {
           key: 'subscription',

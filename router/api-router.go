@@ -30,6 +30,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/about", controller.GetAbout)
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
+		apiRouter.GET("/provider/public_config", controller.GetProviderPublicConfig)
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
@@ -321,6 +322,39 @@ func SetApiRouter(router *gin.Engine) {
 		billRoute.GET("/distributor", middleware.UserAuth(), controller.GetDistributorBill) // 账单中心数据概览(分销商)
 
 		// 运营中心接口
+		providerRoute := apiRouter.Group("/provider")
+		providerRoute.Use(middleware.UserAuth())
+		{
+			providerRoute.GET("/self", controller.GetProviderSelf)
+			providerRoute.PUT("/self", controller.UpdateProviderSelf)
+			providerRoute.POST("/domains", controller.CreateProviderSelfDomain)
+			providerRoute.PUT("/domains/:domain_id", controller.UpdateProviderSelfDomain)
+			providerRoute.DELETE("/domains/:domain_id", controller.DeleteProviderSelfDomain)
+			providerRoute.GET("/config", controller.GetProviderSelfConfig)
+			providerRoute.PUT("/config", controller.UpsertProviderSelfConfig)
+			providerRoute.GET("/model_pricing", controller.ListProviderModelPricing)
+			providerRoute.POST("/model_pricing", controller.UpsertProviderModelPricing)
+			providerRoute.PUT("/model_pricing", controller.UpsertProviderModelPricing)
+			providerRoute.DELETE("/model_pricing/:id", controller.DeleteProviderModelPricing)
+		}
+		providerAdminRoute := apiRouter.Group("/provider/admin")
+		providerAdminRoute.Use(middleware.AdminAuth())
+		{
+			providerAdminRoute.GET("/", controller.AdminListProviders)
+			providerAdminRoute.GET("/owner_candidates", controller.AdminListProviderOwnerCandidates)
+			providerAdminRoute.POST("/", controller.AdminCreateProvider)
+			providerAdminRoute.PUT("/:id", controller.AdminUpdateProvider)
+			providerAdminRoute.DELETE("/:id", controller.AdminDisableProvider)
+			providerAdminRoute.PUT("/:id/config", controller.AdminUpsertProviderConfig)
+			providerAdminRoute.POST("/:id/domains", controller.AdminCreateProviderDomain)
+			providerAdminRoute.PUT("/:id/domains/:domain_id", controller.AdminUpdateProviderDomain)
+			providerAdminRoute.DELETE("/:id/domains/:domain_id", controller.AdminDeleteProviderDomain)
+			providerAdminRoute.GET("/:id/model_pricing", controller.AdminListProviderModelPricing)
+			providerAdminRoute.POST("/:id/model_pricing", controller.AdminUpsertProviderModelPricing)
+			providerAdminRoute.PUT("/:id/model_pricing", controller.AdminUpsertProviderModelPricing)
+			providerAdminRoute.DELETE("/:id/model_pricing/:pricing_id", controller.AdminDeleteProviderModelPricing)
+		}
+
 		operationRoute := apiRouter.Group("/operation")
 		operationRoute.Use(middleware.AdminAuth())
 		{

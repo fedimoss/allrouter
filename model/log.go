@@ -21,12 +21,15 @@ import (
 type Log struct {
 	Id               int    `json:"id" gorm:"index:idx_created_at_id,priority:1;index:idx_user_id_id,priority:2"`
 	UserId           int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
+	ProviderId       int    `json:"provider_id" gorm:"type:int;default:0;index"`
 	CreatedAt        int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type"`
 	Type             int    `json:"type" gorm:"index:idx_created_at_type"`
 	Content          string `json:"content"`
 	Username         string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
 	TokenName        string `json:"token_name" gorm:"index;default:''"`
 	ModelName        string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
+	BaseModelName    string `json:"base_model_name" gorm:"index;default:''"`
+	BillingSide      string `json:"billing_side" gorm:"type:varchar(32);default:'';index"`
 	Quota            int    `json:"quota" gorm:"default:0"`
 	PromptTokens     int    `json:"prompt_tokens" gorm:"default:0"`
 	CompletionTokens int    `json:"completion_tokens" gorm:"default:0"`
@@ -96,6 +99,11 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	isStream bool, group string, other map[string]interface{}) {
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
 	username := c.GetString("username")
+	if contextUserId := c.GetInt("id"); contextUserId != userId {
+		if resolvedUsername, err := GetUsernameById(userId, false); err == nil {
+			username = resolvedUsername
+		}
+	}
 	requestId := c.GetString(common.RequestIdKey)
 	otherStr := common.MapToJsonStr(other)
 	// 判断是否需要记录 IP
@@ -159,6 +167,20 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	otherStr := common.MapToJsonStr(params.Other)
+	providerId := 0
+	billingSide := ""
+	baseModelName := ""
+	if params.Other != nil {
+		if v, ok := params.Other["provider_id"].(int); ok {
+			providerId = v
+		}
+		if v, ok := params.Other["billing_side"].(string); ok {
+			billingSide = v
+		}
+		if v, ok := params.Other["provider_base_model"].(string); ok {
+			baseModelName = v
+		}
+	}
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
@@ -168,6 +190,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 	log := &Log{
 		UserId:           userId,
+		ProviderId:       providerId,
 		Username:         username,
 		CreatedAt:        common.GetTimestamp(),
 		Type:             LogTypeConsume,
@@ -176,6 +199,8 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		CompletionTokens: params.CompletionTokens,
 		TokenName:        params.TokenName,
 		ModelName:        params.ModelName,
+		BaseModelName:    baseModelName,
+		BillingSide:      billingSide,
 		Quota:            params.Quota,
 		ChannelId:        params.ChannelId,
 		TokenId:          params.TokenId,

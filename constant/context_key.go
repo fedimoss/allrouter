@@ -52,6 +52,23 @@ const (
 	ContextKeyUsingGroup  ContextKey = "group"
 	ContextKeyUserName    ContextKey = "username"
 
+	ContextKeyProviderId           ContextKey = "provider_id"
+	ContextKeyProviderOwnerUserId  ContextKey = "provider_owner_user_id"
+	ContextKeyProviderDomain       ContextKey = "provider_domain"
+	ContextKeyProviderPublicModel  ContextKey = "provider_public_model"
+	ContextKeyProviderBaseModel    ContextKey = "provider_base_model"
+	ContextKeyProviderPricingId    ContextKey = "provider_pricing_id"
+	ContextKeyProviderPricingType  ContextKey = "provider_pricing_type"
+	ContextKeyProviderPricingRatio ContextKey = "provider_pricing_ratio"
+	ContextKeyProviderDeltaRatio   ContextKey = "provider_delta_model_ratio"
+	ContextKeyProviderDeltaPrice   ContextKey = "provider_delta_model_price"
+	ContextKeyProviderBaseQuota    ContextKey = "provider_base_quota"
+	ContextKeyProviderUserQuota    ContextKey = "provider_user_quota"
+	ContextKeyProviderPaidQuota    ContextKey = "provider_paid_quota"
+	ContextKeyProviderCoveredCost  ContextKey = "provider_covered_cost_quota"
+	ContextKeyProviderOwnerCost    ContextKey = "provider_owner_cost_quota"
+	ContextKeyProviderProfitQuota  ContextKey = "provider_profit_quota"
+
 	ContextKeyLocalCountTokens ContextKey = "local_count_tokens"
 
 	ContextKeySystemPromptOverride ContextKey = "system_prompt_override"

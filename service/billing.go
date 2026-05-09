@@ -3,11 +3,14 @@ package service
 import (
 	"fmt"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -60,11 +63,13 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 		}
 		//请求成功结算后，如果本次钱包消费中有充值额度部分，就调用 ApplyInviteConsumeRebate 给邀请人发消费返利。
 		//订阅计费不会触发消费返利。
-		if paidQuota := relayInfo.Billing.ClaimPaidConsumedForRebate(); paidQuota > 0 {
+		paidQuota := relayInfo.Billing.ClaimPaidConsumedForRebate()
+		if paidQuota > 0 {
 			if _, _, err := model.ApplyInviteConsumeRebate(relayInfo.UserId, relayInfo.RequestId, paidQuota); err != nil {
 				logger.LogError(ctx, "error applying consume rebate: "+err.Error())
 			}
 		}
+		applyProviderProfitForRelay(ctx, relayInfo, paidQuota)
 
 		// 发送额度通知（订阅计费使用订阅剩余额度）
 		if actualQuota != 0 {
@@ -83,4 +88,80 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 		return PostConsumeQuota(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota, true)
 	}
 	return nil
+}
+
+func applyProviderProfitForRelay(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, paidQuota int) {
+	if ctx == nil || relayInfo == nil {
+		return
+	}
+	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
+	ownerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
+	if providerId <= 0 || ownerUserId <= 0 || relayInfo.UserId <= 0 {
+		return
+	}
+	baseCost := common.GetContextKeyInt(ctx, constant.ContextKeyProviderBaseQuota)
+	providerCharge := common.GetContextKeyInt(ctx, constant.ContextKeyProviderUserQuota)
+	if baseCost <= 0 {
+		return
+	}
+	if providerCharge < 0 {
+		providerCharge = 0
+	}
+	if paidQuota < 0 {
+		paidQuota = 0
+	}
+	if providerCharge > 0 && paidQuota > providerCharge {
+		paidQuota = providerCharge
+	}
+
+	coveredCost := 0
+	profitQuota := 0
+	if providerCharge > 0 && paidQuota > 0 {
+		paidRatio := decimal.NewFromInt(int64(paidQuota)).Div(decimal.NewFromInt(int64(providerCharge)))
+		coverableCost := baseCost
+		if providerCharge < coverableCost {
+			coverableCost = providerCharge
+		}
+		coveredCost = int(decimal.NewFromInt(int64(coverableCost)).Mul(paidRatio).IntPart())
+		if grossProfit := providerCharge - baseCost; grossProfit > 0 {
+			profitQuota = int(decimal.NewFromInt(int64(grossProfit)).Mul(paidRatio).IntPart())
+		}
+	}
+	if coveredCost > baseCost {
+		coveredCost = baseCost
+	}
+	ownerCost := baseCost - coveredCost
+	if ownerCost < 0 {
+		ownerCost = 0
+	}
+
+	record := &model.ProviderProfit{
+		ProviderId:        providerId,
+		OwnerUserId:       ownerUserId,
+		ProviderUserId:    relayInfo.UserId,
+		RequestId:         relayInfo.RequestId,
+		PublicModelName:   common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel),
+		BaseModelName:     common.GetContextKeyString(ctx, constant.ContextKeyProviderBaseModel),
+		ProviderUserQuota: providerCharge,
+		BaseCostQuota:     baseCost,
+		PaidQuota:         paidQuota,
+		CoveredCostQuota:  coveredCost,
+		OwnerCostQuota:    ownerCost,
+		ProfitQuota:       profitQuota,
+	}
+	if record.BaseModelName == "" {
+		record.BaseModelName = relayInfo.OriginModelName
+	}
+	applied, err := model.ApplyProviderProfit(record)
+	if err != nil {
+		logger.LogError(ctx, "error applying provider profit: "+err.Error())
+		return
+	}
+	common.SetContextKey(ctx, constant.ContextKeyProviderPaidQuota, paidQuota)
+	common.SetContextKey(ctx, constant.ContextKeyProviderCoveredCost, coveredCost)
+	common.SetContextKey(ctx, constant.ContextKeyProviderOwnerCost, ownerCost)
+	common.SetContextKey(ctx, constant.ContextKeyProviderProfitQuota, profitQuota)
+	if applied {
+		model.LogProviderProfit(record)
+	}
 }

@@ -28,7 +28,7 @@ import { getLucideIcon } from '../../helpers/render';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { getLogo, getSystemName, isAdmin, isRoot, showError } from '../../helpers';
+import { getLogo, getSystemName, isAdmin, isProviderOwner, isRoot, showError } from '../../helpers';
 import SkeletonWrapper from './components/SkeletonWrapper';
 import SidebarUserPanel from './components/SidebarUserPanel';
 
@@ -49,6 +49,7 @@ const routerMap = {
   task: '/console/task',
   models: '/console/models',
   deployment: '/console/deployment',
+  provider: '/console/provider',
   playground: '/console/playground',
   personal: '/console/personal',
   oauth: '/console/oauth',
@@ -228,6 +229,17 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     return items.filter((item) => isModuleVisible('marketing', item.itemKey));
   }, [isAdmin(), t, isModuleVisible]);
 
+  const providerOwnerItems = useMemo(() => {
+    if (!isProviderOwner() || isAdmin()) return [];
+    return [
+      {
+        text: t('服务商设置'),
+        itemKey: 'provider',
+        to: '/provider',
+      },
+    ];
+  }, [isProviderOwner(), isAdmin(), t]);
+
   const adminItems = useMemo(() => {
     const items = [
       {
@@ -252,6 +264,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('模型部署'),
         itemKey: 'deployment',
         to: '/deployment',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('服务商管理'),
+        itemKey: 'provider',
+        to: '/provider',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
@@ -646,6 +664,18 @@ const SiderBar = ({ onNavigate = () => {} }) => {
                     iconKey: 'marketing',
                     items: revenueMarketingItems,
                   })}
+              </div>
+            </>
+          )}
+
+          {hasVisible(providerOwnerItems) && (
+            <>
+              <Divider className='sidebar-divider' />
+              <div className='sidebar-section'>
+                {!collapsed && (
+                  <div className='sidebar-group-label'>{t('Provider')}</div>
+                )}
+                {providerOwnerItems.map((item) => renderNavItem(item))}
               </div>
             </>
           )}

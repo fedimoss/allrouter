@@ -303,6 +303,37 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	adminRejectReason := common.GetContextKeyString(ctx, constant.ContextKeyAdminRejectReason)
 	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+	baseQuota := summary.Quota
+	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
+	providerOwnerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
+	providerPublicModel := common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel)
+	if providerId > 0 && providerPublicModel != "" {
+		pricingType := common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
+		if pricingType == model.ProviderPricingTypeDelta {
+			if relayInfo.PriceData.UsePrice {
+				summary.Quota += int(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaPrice)).
+					Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+					Mul(decimal.NewFromFloat(summary.GroupRatio)).
+					Round(0).IntPart())
+			} else {
+				summary.Quota += int(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaRatio)).
+					Mul(decimal.NewFromInt(int64(summary.TotalTokens))).
+					Mul(decimal.NewFromFloat(summary.GroupRatio)).
+					Round(0).IntPart())
+			}
+		} else {
+			ratio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderPricingRatio)
+			if ratio == 0 {
+				ratio = 1
+			}
+			summary.Quota = int(decimal.NewFromInt(int64(summary.Quota)).Mul(decimal.NewFromFloat(ratio)).Round(0).IntPart())
+		}
+		if summary.Quota < 0 {
+			summary.Quota = 0
+		}
+		common.SetContextKey(ctx, constant.ContextKeyProviderBaseQuota, baseQuota)
+		common.SetContextKey(ctx, constant.ContextKeyProviderUserQuota, summary.Quota)
+	}
 
 	if summary.WebSearchCallCount > 0 {
 		extraContent = append(extraContent, fmt.Sprintf("Web Search 调用 %d 次，调用花费 %s", summary.WebSearchCallCount, decimal.NewFromFloat(summary.WebSearchPrice).Mul(decimal.NewFromInt(int64(summary.WebSearchCallCount))).Div(decimal.NewFromInt(1000)).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String()))
@@ -329,11 +360,19 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		} else {
 			model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
 		}
-		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
+		channelQuota := summary.Quota
+		if providerId > 0 {
+			channelQuota = baseQuota
+		}
+		model.UpdateChannelUsedQuota(relayInfo.ChannelId, channelQuota)
 	}
 
 	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
 		logger.LogError(ctx, "error settling billing: "+err.Error())
+	}
+	providerOwnerCostQuota := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerCost)
+	if providerId > 0 && providerOwnerUserId > 0 && providerOwnerCostQuota > 0 && summary.TotalTokens > 0 {
+		model.UpdateUserUsedQuotaAndRequestCount(providerOwnerUserId, providerOwnerCostQuota)
 	}
 
 	logModel := summary.ModelName
@@ -362,6 +401,18 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason
+	}
+	if providerId > 0 {
+		other["provider_id"] = providerId
+		other["provider_public_model"] = providerPublicModel
+		other["provider_base_model"] = relayInfo.OriginModelName
+		other["provider_base_quota"] = baseQuota
+		other["provider_user_quota"] = summary.Quota
+		other["provider_paid_quota"] = common.GetContextKeyInt(ctx, constant.ContextKeyProviderPaidQuota)
+		other["provider_covered_cost_quota"] = common.GetContextKeyInt(ctx, constant.ContextKeyProviderCoveredCost)
+		other["provider_owner_cost_quota"] = providerOwnerCostQuota
+		other["provider_profit_quota"] = common.GetContextKeyInt(ctx, constant.ContextKeyProviderProfitQuota)
+		other["billing_side"] = "provider_user"
 	}
 	if summary.ImageTokens != 0 {
 		other["image"] = true
@@ -432,4 +483,32 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
 	})
+	if providerId > 0 && providerOwnerUserId > 0 && providerOwnerCostQuota > 0 {
+		costOther := map[string]interface{}{
+			"provider_id":                 providerId,
+			"billing_side":                "provider_cost",
+			"provider_public_model":       providerPublicModel,
+			"provider_user_id":            relayInfo.UserId,
+			"provider_user_quota":         summary.Quota,
+			"provider_base_quota":         baseQuota,
+			"provider_paid_quota":         common.GetContextKeyInt(ctx, constant.ContextKeyProviderPaidQuota),
+			"provider_covered_cost_quota": common.GetContextKeyInt(ctx, constant.ContextKeyProviderCoveredCost),
+			"provider_owner_cost_quota":   providerOwnerCostQuota,
+			"provider_profit_quota":       common.GetContextKeyInt(ctx, constant.ContextKeyProviderProfitQuota),
+		}
+		model.RecordConsumeLog(ctx, providerOwnerUserId, model.RecordConsumeLogParams{
+			ChannelId:        relayInfo.ChannelId,
+			PromptTokens:     summary.PromptTokens,
+			CompletionTokens: summary.CompletionTokens,
+			ModelName:        relayInfo.OriginModelName,
+			TokenName:        "provider-owner",
+			Quota:            providerOwnerCostQuota,
+			Content:          "provider upstream cost",
+			TokenId:          0,
+			UseTimeSeconds:   int(summary.UseTimeSeconds),
+			IsStream:         relayInfo.IsStream,
+			Group:            relayInfo.UsingGroup,
+			Other:            costOther,
+		})
+	}
 }

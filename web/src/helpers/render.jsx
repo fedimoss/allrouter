@@ -81,6 +81,7 @@ import {
   CircleUser,
   Package,
   Server,
+  Store,
   CalendarClock,
   ShieldCheck,
   BriefcaseBusiness,
@@ -157,6 +158,8 @@ export function getLucideIcon(key, selected = false) {
       return <Package {...commonProps} color={iconColor} />;
     case 'deployment':
       return <Server {...commonProps} color={iconColor} />;
+    case 'provider':
+      return <Store {...commonProps} color={iconColor} />;
     case 'billing':
       return <CreditCard {...commonProps} color={iconColor} />;
     case 'operational':

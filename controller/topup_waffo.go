@@ -179,6 +179,7 @@ func RequestWaffoPay(c *gin.Context) {
 
 	// 创建本地订单
 	topUp := &model.TopUp{
+		ProviderId:    c.GetInt("provider_id"),
 		UserId:        id,
 		Amount:        amount,
 		Money:         payMoney,

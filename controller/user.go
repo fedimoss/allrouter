@@ -58,7 +58,8 @@ func Login(c *gin.Context) {
 		Username: username,
 		Password: password,
 	}
-	err = user.ValidateAndFill()
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	err = user.ValidateAndFillInProvider(providerId)
 	if err != nil {
 		switch {
 		case errors.Is(err, model.ErrDatabase):
@@ -100,8 +101,10 @@ func Login(c *gin.Context) {
 
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context, rememberMe bool) {
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
+	session.Set("provider_id", providerId)
 	session.Set("username", user.Username)
 	session.Set("role", user.Role)
 	session.Set("status", user.Status)
@@ -130,12 +133,14 @@ func setupLogin(user *model.User, c *gin.Context, rememberMe bool) {
 		"message": "",
 		"success": true,
 		"data": map[string]any{
-			"id":           user.Id,
-			"username":     user.Username,
-			"display_name": user.DisplayName,
-			"role":         user.Role,
-			"status":       user.Status,
-			"group":        user.Group,
+			"id":                user.Id,
+			"provider_id":       providerId,
+			"username":          user.Username,
+			"display_name":      user.DisplayName,
+			"role":              user.Role,
+			"status":            user.Status,
+			"group":             user.Group,
+			"is_provider_owner": model.IsProviderOwner(user.Id),
 		},
 	})
 }
@@ -210,7 +215,8 @@ func Register(c *gin.Context) {
 			return
 		}
 	}
-	exist, err := model.CheckUserExistOrDeleted(user.Username, user.Email)
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	exist, err := model.CheckUserExistOrDeletedInProvider(providerId, user.Username, user.Email)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		common.SysLog(fmt.Sprintf("CheckUserExistOrDeleted error: %v", err))
@@ -223,6 +229,7 @@ func Register(c *gin.Context) {
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
+		ProviderId:  providerId,
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.Username,
@@ -240,7 +247,7 @@ func Register(c *gin.Context) {
 
 	// 获取插入后的用户ID
 	var insertedUser model.User
-	if err := model.DB.Where("username = ?", cleanUser.Username).First(&insertedUser).Error; err != nil {
+	if err := model.DB.Where("id = ?", cleanUser.Id).First(&insertedUser).Error; err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
 		return
 	}
@@ -254,6 +261,7 @@ func Register(c *gin.Context) {
 		}
 		// 生成默认令牌
 		token := model.Token{
+			ProviderId:         providerId,
 			UserId:             insertedUser.Id, // 使用插入后的用户ID
 			Name:               cleanUser.Username + "的初始令牌",
 			Key:                key,
@@ -693,6 +701,7 @@ func GetSelf(c *gin.Context) {
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
 		"id":                        user.Id,
+		"provider_id":               user.ProviderId,
 		"username":                  user.Username,
 		"display_name":              user.DisplayName,
 		"avatar":                    user.Avatar,
@@ -731,6 +740,8 @@ func GetSelf(c *gin.Context) {
 		"sidebar_modules":           userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":               permissions,                // 新增权限字段
 	}
+
+	responseData["is_provider_owner"] = model.IsProviderOwner(user.Id)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -809,6 +820,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 			"enabled":    true,
 			"channel":    true,
 			"models":     true,
+			"provider":   true,
 			"redemption": true,
 			"user":       true,
 			"setting":    false, // 管理员不能访问系统设置
@@ -819,6 +831,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 			"enabled":    true,
 			"channel":    true,
 			"models":     true,
+			"provider":   true,
 			"redemption": true,
 			"user":       true,
 			"setting":    true,

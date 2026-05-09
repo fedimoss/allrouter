@@ -64,6 +64,31 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 	return err
 }
 
+func applyProviderRelayModel(c *gin.Context, request dto.Request) *types.NewAPIError {
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	if providerId == 0 || request == nil {
+		return nil
+	}
+	publicModel := strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyOriginalModel))
+	if publicModel == "" {
+		return nil
+	}
+	rule, err := model.GetProviderModelPricing(providerId, publicModel)
+	if err != nil {
+		return types.NewError(fmt.Errorf("provider model %s not available", publicModel), types.ErrorCodeInvalidRequest, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+	}
+	common.SetContextKey(c, constant.ContextKeyProviderPublicModel, publicModel)
+	common.SetContextKey(c, constant.ContextKeyProviderBaseModel, rule.BaseModelName)
+	common.SetContextKey(c, constant.ContextKeyProviderPricingId, rule.Id)
+	common.SetContextKey(c, constant.ContextKeyProviderPricingType, rule.PricingType)
+	common.SetContextKey(c, constant.ContextKeyProviderPricingRatio, rule.Ratio)
+	common.SetContextKey(c, constant.ContextKeyProviderDeltaRatio, rule.DeltaModelRatio)
+	common.SetContextKey(c, constant.ContextKeyProviderDeltaPrice, rule.DeltaModelPrice)
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, rule.BaseModelName)
+	request.SetModelName(rule.BaseModelName)
+	return nil
+}
+
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	requestId := c.GetString(common.RequestIdKey)
@@ -115,6 +140,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		return
 	}
+	if apiErr := applyProviderRelayModel(c, request); apiErr != nil {
+		newAPIError = apiErr
+		return
+	}
 
 	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
@@ -160,6 +189,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	if priceData.FreeModel {
 		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
 	} else {
+		if ownerUserId := common.GetContextKeyInt(c, constant.ContextKeyProviderOwnerUserId); ownerUserId > 0 {
+			ownerQuota, quotaErr := model.GetUserQuota(ownerUserId, false)
+			if quotaErr != nil {
+				newAPIError = types.NewError(quotaErr, types.ErrorCodeQueryDataError, types.ErrOptionWithStatusCode(http.StatusInternalServerError))
+				return
+			}
+			if ownerQuota < priceData.QuotaToPreConsume {
+				newAPIError = types.NewError(fmt.Errorf("provider quota is not enough"), types.ErrorCodeInsufficientUserQuota, types.ErrOptionWithStatusCode(http.StatusForbidden))
+				return
+			}
+		}
 		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
 		if newAPIError != nil {
 			return

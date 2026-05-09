@@ -2,12 +2,51 @@ package controller
 
 import (
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 )
+
+func applyProviderPricingView(providerId int, pricing []model.Pricing) []model.Pricing {
+	if providerId == 0 || len(pricing) == 0 {
+		return pricing
+	}
+	base := make(map[string]model.Pricing, len(pricing))
+	for _, item := range pricing {
+		base[item.ModelName] = item
+	}
+	var rules []model.ProviderModelPricing
+	if err := model.DB.Where("provider_id = ? AND enabled = ?", providerId, true).Find(&rules).Error; err != nil {
+		common.SysLog("failed to get provider pricing: " + err.Error())
+		return []model.Pricing{}
+	}
+	result := make([]model.Pricing, 0, len(rules))
+	for _, rule := range rules {
+		item, ok := base[rule.BaseModelName]
+		if !ok {
+			continue
+		}
+		item.ModelName = rule.PublicModelName
+		if rule.PricingType == model.ProviderPricingTypeDelta {
+			item.ModelRatio += rule.DeltaModelRatio
+			item.ModelPrice += rule.DeltaModelPrice
+		} else {
+			item.ModelRatio *= rule.Ratio
+			item.ModelPrice *= rule.Ratio
+		}
+		if item.ModelRatio < 0 {
+			item.ModelRatio = 0
+		}
+		if item.ModelPrice < 0 {
+			item.ModelPrice = 0
+		}
+		result = append(result, item)
+	}
+	return result
+}
 
 func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string]string) []model.Pricing {
 	if len(pricing) == 0 {
@@ -35,6 +74,8 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 
 func GetPricing(c *gin.Context) {
 	pricing := model.GetPricing()
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	pricing = applyProviderPricingView(providerId, pricing)
 	userId, exists := c.Get("id")
 	usableGroup := map[string]string{}
 	groupRatio := map[string]float64{}

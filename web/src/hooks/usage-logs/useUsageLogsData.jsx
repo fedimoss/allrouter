@@ -472,7 +472,7 @@ export const useLogsData = () => {
           value: other.cache_creation_tokens,
         });
       }
-      if (logs[i].type === 2) {
+      if (logs[i].type === 2 && other) {
         expandDataLocal.push({
           key: t('日志详情'),
           value: other?.claude

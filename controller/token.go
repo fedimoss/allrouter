@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -33,13 +34,14 @@ func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
 
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	pageInfo := common.GetPageQuery(c)
-	tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	tokens, err := model.GetAllUserTokensInProvider(userId, providerId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	total, _ := model.CountUserTokens(userId)
+	total, _ := model.CountUserTokensInProvider(userId, providerId)
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
 	common.ApiSuccess(c, pageInfo)
@@ -47,12 +49,13 @@ func GetAllTokens(c *gin.Context) {
 
 func SearchTokens(c *gin.Context) {
 	userId := c.GetInt("id")
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	keyword := c.Query("keyword")
 	token := c.Query("token")
 
 	pageInfo := common.GetPageQuery(c)
 
-	tokens, total, err := model.SearchUserTokens(userId, keyword, token, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	tokens, total, err := model.SearchUserTokensInProvider(userId, providerId, keyword, token, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -65,11 +68,12 @@ func SearchTokens(c *gin.Context) {
 func GetToken(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	userId := c.GetInt("id")
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	token, err := model.GetTokenByIds(id, userId)
+	token, err := model.GetTokenByIdsInProvider(id, userId, providerId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -80,11 +84,12 @@ func GetToken(c *gin.Context) {
 func GetTokenKey(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	userId := c.GetInt("id")
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	token, err := model.GetTokenByIds(id, userId)
+	token, err := model.GetTokenByIdsInProvider(id, userId, providerId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -97,7 +102,8 @@ func GetTokenKey(c *gin.Context) {
 func GetTokenStatus(c *gin.Context) {
 	tokenId := c.GetInt("token_id")
 	userId := c.GetInt("id")
-	token, err := model.GetTokenByIds(tokenId, userId)
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	token, err := model.GetTokenByIdsInProvider(tokenId, userId, providerId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -135,10 +141,15 @@ func GetTokenUsage(c *gin.Context) {
 	}
 	tokenKey := parts[1]
 
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	token, err := model.GetTokenByKey(strings.TrimPrefix(tokenKey, "sk-"), false)
 	if err != nil {
 		common.SysError("failed to get token by key: " + err.Error())
 		common.ApiErrorI18n(c, i18n.MsgTokenGetInfoFailed)
+		return
+	}
+	if token.ProviderId != providerId {
+		common.ApiErrorI18n(c, i18n.MsgTokenInvalid)
 		return
 	}
 
@@ -189,7 +200,8 @@ func AddToken(c *gin.Context) {
 	}
 	// 检查用户令牌数量是否已达上限
 	maxTokens := operation_setting.GetMaxUserTokens()
-	count, err := model.CountUserTokens(c.GetInt("id"))
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	count, err := model.CountUserTokensInProvider(c.GetInt("id"), providerId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -208,6 +220,7 @@ func AddToken(c *gin.Context) {
 		return
 	}
 	cleanToken := model.Token{
+		ProviderId:         providerId,
 		UserId:             c.GetInt("id"),
 		Name:               token.Name,
 		Key:                key,
@@ -236,7 +249,8 @@ func AddToken(c *gin.Context) {
 func DeleteToken(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	userId := c.GetInt("id")
-	err := model.DeleteTokenById(id, userId)
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	err := model.DeleteTokenByIdInProvider(id, userId, providerId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -249,6 +263,7 @@ func DeleteToken(c *gin.Context) {
 
 func UpdateToken(c *gin.Context) {
 	userId := c.GetInt("id")
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	statusOnly := c.Query("status_only")
 	token := model.Token{}
 	err := c.ShouldBindJSON(&token)
@@ -271,7 +286,7 @@ func UpdateToken(c *gin.Context) {
 			return
 		}
 	}
-	cleanToken, err := model.GetTokenByIds(token.Id, userId)
+	cleanToken, err := model.GetTokenByIdsInProvider(token.Id, userId, providerId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -323,7 +338,8 @@ func DeleteTokenBatch(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
-	count, err := model.BatchDeleteTokens(tokenBatch.Ids, userId)
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	count, err := model.BatchDeleteTokensInProvider(tokenBatch.Ids, userId, providerId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -346,7 +362,8 @@ func GetTokenKeysBatch(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
-	tokens, err := model.GetTokenKeysByIds(tokenBatch.Ids, userId)
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	tokens, err := model.GetTokenKeysByIdsInProvider(tokenBatch.Ids, userId, providerId)
 	if err != nil {
 		common.ApiError(c, err)
 		return

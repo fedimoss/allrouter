@@ -62,6 +62,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     channel: true,
     models: true,
     deployment: true,
+    provider: true,
     billing: true,
     operational: true,
     reconciliation: true,

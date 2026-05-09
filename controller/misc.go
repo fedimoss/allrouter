@@ -120,6 +120,24 @@ func GetStatus(c *gin.Context) {
 	}
 
 	// 根据启用状态注入可选内容
+	if v, ok := c.Get("provider_config"); ok {
+		if cfg, ok := v.(model.ProviderConfig); ok {
+			if cfg.SiteName != "" {
+				data["system_name"] = cfg.SiteName
+			}
+			if cfg.Logo != "" {
+				data["logo"] = cfg.Logo
+			}
+			if cfg.FooterText != "" {
+				data["footer_html"] = cfg.FooterText
+			}
+			data["provider_config"] = providerConfigResponse(c, &cfg)
+		}
+	}
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	data["provider_id"] = providerId
+	data["provider_enabled"] = providerId > 0
+
 	if cs.ApiInfoEnabled {
 		data["api_info"] = console_setting.GetApiInfo()
 	}
@@ -274,7 +292,8 @@ func SendEmailVerification(c *gin.Context) {
 		}
 	}
 
-	if model.IsEmailAlreadyTaken(email) {
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	if model.IsEmailAlreadyTakenInProvider(providerId, email) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "邮箱地址已被占用",
@@ -308,7 +327,8 @@ func SendPasswordResetEmail(c *gin.Context) {
 		})
 		return
 	}
-	if model.IsEmailAlreadyTaken(email) {
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	if model.IsEmailAlreadyTakenInProvider(providerId, email) {
 		code := common.GenerateVerificationCode(0)
 		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
 		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
@@ -351,7 +371,8 @@ func ResetPassword(c *gin.Context) {
 		return
 	}
 	password := common.GenerateVerificationCode(12)
-	err = model.ResetUserPasswordByEmail(req.Email, password)
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	err = model.ResetUserPasswordByEmailInProvider(providerId, req.Email, password)
 	if err != nil {
 		common.ApiError(c, err)
 		return

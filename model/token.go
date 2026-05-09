@@ -13,6 +13,7 @@ import (
 
 type Token struct {
 	Id                 int            `json:"id"`
+	ProviderId         int            `json:"provider_id" gorm:"type:int;default:0;index"`
 	UserId             int            `json:"user_id" gorm:"index"`
 	Key                string         `json:"key" gorm:"type:char(48);uniqueIndex"`
 	Status             int            `json:"status" gorm:"default:1"`
@@ -79,9 +80,13 @@ func (token *Token) GetIpLimits() []string {
 }
 
 func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
+	return GetAllUserTokensInProvider(userId, 0, startIdx, num)
+}
+
+func GetAllUserTokensInProvider(userId int, providerId int, startIdx int, num int) ([]*Token, error) {
 	var tokens []*Token
 	var err error
-	err = DB.Where("user_id = ?", userId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
+	err = DB.Where("user_id = ? AND provider_id = ?", userId, providerId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
 	return tokens, err
 }
 
@@ -125,6 +130,10 @@ func sanitizeLikePattern(input string) (string, error) {
 const searchHardLimit = 100
 
 func SearchUserTokens(userId int, keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
+	return SearchUserTokensInProvider(userId, 0, keyword, token, offset, limit)
+}
+
+func SearchUserTokensInProvider(userId int, providerId int, keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
 	// model 层强制截断
 	if limit <= 0 || limit > searchHardLimit {
 		limit = searchHardLimit
@@ -141,7 +150,7 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 	maxTokens := operation_setting.GetMaxUserTokens()
 	hasFuzzy := strings.Contains(keyword, "%") || strings.Contains(token, "%")
 	if hasFuzzy {
-		count, err := CountUserTokens(userId)
+		count, err := CountUserTokensInProvider(userId, providerId)
 		if err != nil {
 			common.SysLog("failed to count user tokens: " + err.Error())
 			return nil, 0, errors.New("获取令牌数量失败")
@@ -151,7 +160,7 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 		}
 	}
 
-	baseQuery := DB.Model(&Token{}).Where("user_id = ?", userId)
+	baseQuery := DB.Model(&Token{}).Where("user_id = ? AND provider_id = ?", userId, providerId)
 
 	// 非空才加 LIKE 条件，空则跳过（不过滤该字段）
 	if keyword != "" {
@@ -186,11 +195,18 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 }
 
 func ValidateUserToken(key string) (token *Token, err error) {
+	return ValidateUserTokenInProvider(key, 0)
+}
+
+func ValidateUserTokenInProvider(key string, providerId int) (token *Token, err error) {
 	if key == "" {
 		return nil, ErrTokenNotProvided
 	}
 	token, err = GetTokenByKey(key, false)
 	if err == nil {
+		if token.ProviderId != providerId {
+			return token, ErrTokenInvalid
+		}
 		if token.Status == common.TokenStatusExhausted ||
 			token.Status == common.TokenStatusExpired ||
 			token.Status != common.TokenStatusEnabled {
@@ -232,6 +248,15 @@ func GetTokenByIds(id int, userId int) (*Token, error) {
 	token := Token{Id: id, UserId: userId}
 	var err error = nil
 	err = DB.First(&token, "id = ? and user_id = ?", id, userId).Error
+	return &token, err
+}
+
+func GetTokenByIdsInProvider(id int, userId int, providerId int) (*Token, error) {
+	if id == 0 || userId == 0 {
+		return nil, errors.New("id 或 userId 为空！")
+	}
+	token := Token{Id: id, UserId: userId, ProviderId: providerId}
+	err := DB.First(&token, "id = ? and user_id = ? and provider_id = ?", id, userId, providerId).Error
 	return &token, err
 }
 
@@ -360,11 +385,15 @@ func DisableModelLimits(tokenId int) error {
 }
 
 func DeleteTokenById(id int, userId int) (err error) {
+	return DeleteTokenByIdInProvider(id, userId, 0)
+}
+
+func DeleteTokenByIdInProvider(id int, userId int, providerId int) (err error) {
 	// Why we need userId here? In case user want to delete other's token.
 	if id == 0 || userId == 0 {
 		return errors.New("id 或 userId 为空！")
 	}
-	token := Token{Id: id, UserId: userId}
+	token := Token{Id: id, UserId: userId, ProviderId: providerId}
 	err = DB.Where(token).First(&token).Error
 	if err != nil {
 		return err
@@ -434,13 +463,21 @@ func decreaseTokenQuota(id int, quota int) (err error) {
 
 // CountUserTokens returns total number of tokens for the given user, used for pagination
 func CountUserTokens(userId int) (int64, error) {
+	return CountUserTokensInProvider(userId, 0)
+}
+
+func CountUserTokensInProvider(userId int, providerId int) (int64, error) {
 	var total int64
-	err := DB.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error
+	err := DB.Model(&Token{}).Where("user_id = ? AND provider_id = ?", userId, providerId).Count(&total).Error
 	return total, err
 }
 
 // BatchDeleteTokens 删除指定用户的一组令牌，返回成功删除数量
 func BatchDeleteTokens(ids []int, userId int) (int, error) {
+	return BatchDeleteTokensInProvider(ids, userId, 0)
+}
+
+func BatchDeleteTokensInProvider(ids []int, userId int, providerId int) (int, error) {
 	if len(ids) == 0 {
 		return 0, errors.New("ids 不能为空！")
 	}
@@ -448,12 +485,12 @@ func BatchDeleteTokens(ids []int, userId int) (int, error) {
 	tx := DB.Begin()
 
 	var tokens []Token
-	if err := tx.Where("user_id = ? AND id IN (?)", userId, ids).Find(&tokens).Error; err != nil {
+	if err := tx.Where("user_id = ? AND provider_id = ? AND id IN (?)", userId, providerId, ids).Find(&tokens).Error; err != nil {
 		tx.Rollback()
 		return 0, err
 	}
 
-	if err := tx.Where("user_id = ? AND id IN (?)", userId, ids).Delete(&Token{}).Error; err != nil {
+	if err := tx.Where("user_id = ? AND provider_id = ? AND id IN (?)", userId, providerId, ids).Delete(&Token{}).Error; err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -474,9 +511,13 @@ func BatchDeleteTokens(ids []int, userId int) (int, error) {
 }
 
 func GetTokenKeysByIds(ids []int, userId int) ([]Token, error) {
+	return GetTokenKeysByIdsInProvider(ids, userId, 0)
+}
+
+func GetTokenKeysByIdsInProvider(ids []int, userId int, providerId int) ([]Token, error) {
 	var tokens []Token
 	err := DB.Select("id", commonKeyCol).
-		Where("user_id = ? AND id IN (?)", userId, ids).
+		Where("user_id = ? AND provider_id = ? AND id IN (?)", userId, providerId, ids).
 		Find(&tokens).Error
 	return tokens, err
 }
