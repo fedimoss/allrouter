@@ -273,7 +273,7 @@ export default function SettingsPaymentGatewayCreem(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='CreemApiKey'
-                disabled={true}
+                
                 label={t('API 密钥')}
                 placeholder={t('Creem API 密钥，敏感信息不显示')}
                 type='password'
@@ -282,7 +282,7 @@ export default function SettingsPaymentGatewayCreem(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='CreemWebhookSecret'
-                disabled={true}
+                
                 label={t('Webhook 密钥')}
                 placeholder={t(
                   '用于验证回调 new-api 的 webhook 请求的密钥，敏感信息不显示',
@@ -293,7 +293,7 @@ export default function SettingsPaymentGatewayCreem(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Switch
                 field='CreemTestMode'
-                disabled={true}
+                
                 label={t('测试模式')}
                 extraText={t('启用后将使用 Creem Test Mode')}
               />
@@ -305,7 +305,7 @@ export default function SettingsPaymentGatewayCreem(props) {
               <Text strong>{t('产品配置')}</Text>
               <Button
                 type='primary'
-                disabled={true}
+                
                 icon={<Plus size={16} />}
                 onClick={() => openProductModal()}
               >
@@ -325,7 +325,7 @@ export default function SettingsPaymentGatewayCreem(props) {
             />
           </div>
 
-          <Button disabled={true} onClick={submitCreemSetting} style={{ marginTop: 16 }}>
+          <Button  onClick={submitCreemSetting} style={{ marginTop: 16 }}>
             {t('更新 Creem 设置')}
           </Button>
         </Form.Section>

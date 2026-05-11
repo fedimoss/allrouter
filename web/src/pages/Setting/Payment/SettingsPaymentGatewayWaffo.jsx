@@ -300,14 +300,14 @@ export default function SettingsPaymentGatewayWaffo(props) {
       render: (_, record, index) => (
         <Space>
           <Button
-            disabled={true}
+            
             size='small'
             onClick={() => openEditPayMethodModal(record, index)}
           >
             {t('编辑')}
           </Button>
           <Button
-            disabled={true}
+            
             size='small'
             type='danger'
             onClick={() => handleDeletePayMethod(index)}
@@ -345,7 +345,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Switch
                 field='WaffoEnabled'
-                disabled={true}
+                
                 label={t('启用 Waffo')}
                 size='default'
                 checkedText='｜'
@@ -355,7 +355,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Switch
                 field='WaffoSandbox'
-                disabled={true}
+                
                 label={t('沙盒模式')}
                 size='default'
                 checkedText='｜'
@@ -369,7 +369,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.Input
                 field='WaffoApiKey'
-                disabled={true}
+                
                 label={t('API 密钥 (生产)')}
                 placeholder={t('生产环境 Waffo API 密钥')}
                 type='password'
@@ -378,7 +378,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.Input
                 field='WaffoSandboxApiKey'
-                disabled={true}
+                
                 label={t('API 密钥 (沙盒)')}
                 placeholder={t('沙盒环境 Waffo API 密钥')}
                 type='password'
@@ -390,7 +390,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.Input
                 field='WaffoMerchantId'
-                disabled={true}
+                
                 label={t('商户 ID')}
                 placeholder={t('Waffo 商户 ID')}
               />
@@ -401,7 +401,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.TextArea
                 field='WaffoPrivateKey'
-                disabled={true}
+                
                 label={t('RSA 私钥 (生产)')}
                 placeholder={t('生产环境 RSA 私钥 Base64 (PKCS#8 DER)')}
                 type='password'
@@ -411,7 +411,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.TextArea
                 field='WaffoSandboxPrivateKey'
-                disabled={true}
+                
                 label={t('RSA 私钥 (沙盒)')}
                 placeholder={t('沙盒环境 RSA 私钥 Base64 (PKCS#8 DER)')}
                 type='password'
@@ -424,7 +424,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.TextArea
                 field='WaffoPublicCert'
-                disabled={true}
+                
                 label={t('Waffo 公钥 (生产)')}
                 placeholder={t('生产环境 Waffo 公钥 Base64 (X.509 DER)')}
                 type='password'
@@ -434,7 +434,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.TextArea
                 field='WaffoSandboxPublicCert'
-                disabled={true}
+                
                 label={t('Waffo 公钥 (沙盒)')}
                 placeholder={t('沙盒环境 Waffo 公钥 Base64 (X.509 DER)')}
                 type='password'
@@ -447,7 +447,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='WaffoCurrency'
-                disabled={true}
+                
                 label={t('货币')}
                 placeholder='USD'
                              />
@@ -455,7 +455,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.InputNumber
                 field='WaffoUnitPrice'
-                disabled={true}
+                
                 label={t('单价 (USD)')}
                 placeholder='1.0'
                 min={0}
@@ -466,7 +466,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.InputNumber
                 field='WaffoMinTopUp'
-                disabled={true}
+                
                 label={t('最低充值数量')}
                 placeholder='1'
                 min={1}
@@ -477,7 +477,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.Input
                 field='WaffoNotifyUrl'
-                disabled={true}
+                
                 label={t('回调通知地址')}
                 placeholder={t('例如 https://example.com/api/waffo/webhook')}
                 extraText={t('留空则自动使用 服务器地址 + /api/waffo/webhook')}
@@ -486,7 +486,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.Input
                 field='WaffoReturnUrl'
-                disabled={true}
+                
                 label={t('支付返回地址')}
                 placeholder={t('例如 https://example.com/console/topup')}
                 extraText={t('支付完成后用户跳转的页面，留空则自动使用 服务器地址 + /console/topup')}
@@ -494,7 +494,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             </Col>
           </Row>
 
-          <Button disabled={true} onClick={submitWaffoSetting} style={{ marginTop: 16 }}>
+          <Button  onClick={submitWaffoSetting} style={{ marginTop: 16 }}>
             {t('更新 Waffo 设置')}
           </Button>
         </Form.Section>
@@ -507,7 +507,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
           {t('配置 Waffo 充值时可用的支付方式，保存后在充值页面展示给用户。')}
         </Text>
         <div style={{ marginTop: 12, marginBottom: 12 }}>
-          <Button disabled={true} onClick={openAddPayMethodModal}>
+          <Button  onClick={openAddPayMethodModal}>
             {t('新增支付方式')}
           </Button>
         </div>
@@ -519,7 +519,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
           size='small'
           empty={<Text type='tertiary'>{t('暂无支付方式，点击上方按钮新增')}</Text>}
         />
-        <Button disabled={true} onClick={submitWaffoSetting} style={{ marginTop: 16 }}>
+        <Button  onClick={submitWaffoSetting} style={{ marginTop: 16 }}>
           {t('更新 Waffo 设置')}
         </Button>
       </div>
