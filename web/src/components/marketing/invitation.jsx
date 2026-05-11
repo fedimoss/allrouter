@@ -439,9 +439,9 @@ const Invitation = () => {
                 value={affLink}
                 size='large'
                 readonly
-                className='flex-1 !rounded-lg'
+                className='flex-1 !rounded-lg dark:bg-slate-900 dark:border-slate-700'
                 placeholder={t('加载中...')}
-                style={{ fontSize: '16px', background:'#F8FAFC', borderColor:'#fff'}}
+                style={{ fontSize: '16px'}}
               />
               <Button
                 theme='solid'
