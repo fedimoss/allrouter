@@ -114,6 +114,30 @@ func GetProviderContextByDomain(domain string) (*ProviderContext, error) {
 	return ctx, nil
 }
 
+func GetProviderVerifiedDomains(providerId int) ([]string, error) {
+	if providerId <= 0 {
+		return nil, nil
+	}
+	var domains []ProviderDomain
+	if err := DB.Where("provider_id = ? AND status = ?", providerId, ProviderDomainStatusVerified).Order("id asc").Find(&domains).Error; err != nil {
+		return nil, err
+	}
+	verifiedDomains := make([]string, 0, len(domains))
+	seen := make(map[string]struct{}, len(domains))
+	for _, domain := range domains {
+		normalized := normalizeProviderDomain(domain.Domain)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		verifiedDomains = append(verifiedDomains, normalized)
+	}
+	return verifiedDomains, nil
+}
+
 func GetProviderByOwnerUserId(ownerUserId int) (*Provider, error) {
 	if ownerUserId == 0 {
 		return nil, errors.New("owner user id is empty")
