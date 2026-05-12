@@ -115,6 +115,9 @@ func main() {
 	// WeChat trade bill download + reconcile task
 	service.StartWechatTradeBillTask()
 
+	// Stripe 对账定时任务
+	service.StartStripeTradeBillTask()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)

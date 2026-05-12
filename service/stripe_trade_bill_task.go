@@ -1,4 +1,4 @@
-package controller
+package service
 
 import (
 	"context"
@@ -14,10 +14,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/bytedance/gopkg/util/gopool"
-	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/checkout/session"
 )
@@ -27,8 +25,7 @@ const (
 	stripeBillTaskEnabled      = true
 	stripeBillTaskRedisLockTTL = 2 * time.Hour
 	stripeBillTaskTimeEnv      = "WECHAT_TRADE_BILL_TASK_TIME_UTC" // 与微信共用同一触发时间
-	stripeChannelType          = "stripe"
-	stripeBillBatchSize        = 100 // 每批入库条数
+	stripeBillBatchSize        = 100                               // 每批入库条数
 )
 
 var (
@@ -103,11 +100,12 @@ func stripeSessionToBillRecord(sess *stripe.CheckoutSession, billDate string, ro
 	}
 
 	record := &model.PaymentBillRecord{
-		ChannelType:     stripeChannelType,
-		BillDate:        billDate,
-		RowIndex:        rowIndex,
-		RowHash:         rowHash,
-		TradeTime:       time.Unix(sess.Created, 0).UTC().Format("2006-01-02 15:04:05"),
+		ChannelType: stripeChannelType,
+		BillDate:    billDate,
+		RowIndex:    rowIndex,
+		RowHash:     rowHash,
+		// 本地账单存储的时间为 CST，Stripe Created 时间为 UTC，需要转换为 CST
+		TradeTime:       time.Unix(sess.Created, 0).In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05"),
 		ChannelTradeNo:  channelTradeNo,         // pi_xxx（payment 模式下有值）
 		MerchantTradeNo: sess.ClientReferenceID, // 本地 trade_no（ref_xxx / sub_ref_xxx），对账的关键匹配字段
 		PayerID:         payerID,                // cus_xxx
@@ -133,14 +131,14 @@ func serializeSessionToJSON(sess *stripe.CheckoutSession) string {
 }
 
 type StripeBillRunResult struct {
-	BillDate        string                                   `json:"bill_date"`
-	InsertedRows    int                                      `json:"inserted_rows"`
-	ReconcileResult *service.StripeTradeBillReconcileSummary `json:"reconcile_result,omitempty"`
-	Message         string                                   `json:"message,omitempty"`
+	BillDate        string                           `json:"bill_date"`
+	InsertedRows    int                              `json:"inserted_rows"`
+	ReconcileResult *StripeTradeBillReconcileSummary `json:"reconcile_result,omitempty"`
+	Message         string                           `json:"message,omitempty"`
 }
 
-// runStripeBillWorkflow 拉取指定日期的 Stripe CheckoutSession → 入库 → 对账
-func runStripeBillWorkflow(billDate string) (*StripeBillRunResult, error) {
+// RunStripeBillWorkflow 拉取指定日期的 Stripe CheckoutSession → 入库 → 对账
+func RunStripeBillWorkflow(billDate string) (*StripeBillRunResult, error) {
 	// time.Parse 默认 UTC，与 Stripe CreatedRange 的时间戳语义一致
 	date, err := time.Parse("2006-01-02", billDate)
 	if err != nil {
@@ -202,7 +200,7 @@ func runStripeBillWorkflow(billDate string) (*StripeBillRunResult, error) {
 	}
 
 	// 对账使用与拉取相同的 UTC 时间戳，确保本地查询范围与 Stripe 数据对齐
-	reconcileSummary, err := service.ReconcileStripeTradeBillsByBillDateRange(billDate, billDate)
+	reconcileSummary, err := ReconcileStripeTradeBillsByBillDateRange(billDate, billDate)
 	if err != nil {
 		return nil, fmt.Errorf("Stripe 对账失败: %w", err)
 	}
@@ -270,6 +268,7 @@ func runStripeBillTaskOnce() {
 	if !ok {
 		return
 	}
+
 	if nowUTC.Hour() != triggerHour || nowUTC.Minute() != triggerMinute {
 		return
 	}
@@ -296,7 +295,7 @@ func runStripeBillTaskOnce() {
 
 	// 取 UTC 前一天的账单
 	billDate := nowUTC.AddDate(0, 0, -1).Format("2006-01-02")
-	result, err := runStripeBillWorkflow(billDate)
+	result, err := RunStripeBillWorkflow(billDate)
 	if err != nil {
 		logger.LogWarn(context.Background(), fmt.Sprintf("stripe trade bill task failed: bill_date=%s err=%v", billDate, err))
 		return
@@ -308,27 +307,4 @@ func runStripeBillTaskOnce() {
 			result.BillDate, result.InsertedRows,
 			result.ReconcileResult.MatchedCount, result.ReconcileResult.AbnormalCount),
 	)
-}
-
-// RunStripeTradeBill 手动触发指定日期的 Stripe 账单拉取与对账
-func RunStripeTradeBill(c *gin.Context) {
-	var req struct {
-		BillDate string `json:"bill_date"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorMsg(c, "参数错误")
-		return
-	}
-
-	billDate := strings.TrimSpace(req.BillDate)
-	if billDate == "" {
-		billDate = time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
-	}
-
-	result, err := runStripeBillWorkflow(billDate)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	common.ApiSuccess(c, result)
 }
