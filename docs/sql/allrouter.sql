@@ -4331,4 +4331,452 @@ VALUES ('InviteConsumeRebateRatioLevel2', '0')
 ON CONFLICT ("key") DO NOTHING;
 
 
+CREATE TABLE IF NOT EXISTS provider_profits (
+                                                id BIGSERIAL PRIMARY KEY,
+                                                provider_id INTEGER NOT NULL,
+                                                owner_user_id INTEGER NOT NULL,
+                                                provider_user_id INTEGER NOT NULL,
+                                                request_id VARCHAR(64) NOT NULL UNIQUE,
+    public_model_name VARCHAR(255),
+    base_model_name VARCHAR(255),
+    provider_user_quota INTEGER NOT NULL DEFAULT 0,
+    base_cost_quota INTEGER NOT NULL DEFAULT 0,
+    paid_quota INTEGER NOT NULL DEFAULT 0,
+    covered_cost_quota INTEGER NOT NULL DEFAULT 0,
+    owner_cost_quota INTEGER NOT NULL DEFAULT 0,
+    profit_quota INTEGER NOT NULL DEFAULT 0,
+    profit_settled BOOLEAN NOT NULL DEFAULT FALSE,
+    owner_cost_settled BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at BIGINT
+    );
+
+CREATE INDEX IF NOT EXISTS idx_provider_profits_provider_id ON provider_profits(provider_id);
+CREATE INDEX IF NOT EXISTS idx_provider_profits_owner_user_id ON provider_profits(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_provider_profits_provider_user_id ON provider_profits(provider_user_id);
+CREATE INDEX IF NOT EXISTS idx_provider_profits_created_at ON provider_profits(created_at);
+CREATE INDEX IF NOT EXISTS idx_provider_profits_profit_settled ON provider_profits(profit_settled);
+CREATE INDEX IF NOT EXISTS idx_provider_profits_owner_cost_settled ON provider_profits(owner_cost_settled);
+
+COMMENT ON TABLE provider_profits IS '服务商成功消费后的即时成本和利润入账记录';
+COMMENT ON COLUMN provider_profits.id IS '主键ID';
+COMMENT ON COLUMN provider_profits.provider_id IS '服务商ID';
+COMMENT ON COLUMN provider_profits.owner_user_id IS '服务商主账号用户ID';
+COMMENT ON COLUMN provider_profits.provider_user_id IS '服务商站点下发起调用的用户ID';
+COMMENT ON COLUMN provider_profits.request_id IS '请求ID，用于保证同一次调用只结算一次';
+COMMENT ON COLUMN provider_profits.public_model_name IS '服务商对外展示和售卖的模型名称';
+COMMENT ON COLUMN provider_profits.base_model_name IS '实际调用主站的基础模型名称';
+COMMENT ON COLUMN provider_profits.provider_user_quota IS '服务商用户本次应扣额度，按服务商定价计算';
+COMMENT ON COLUMN provider_profits.base_cost_quota IS '主站原价成本额度';
+COMMENT ON COLUMN provider_profits.paid_quota IS '服务商用户本次实际消耗的充值余额额度，不含奖励余额和订阅额度';
+COMMENT ON COLUMN provider_profits.covered_cost_quota IS '充值余额已覆盖的主站成本额度';
+COMMENT ON COLUMN provider_profits.owner_cost_quota IS '还需要服务商主账号承担的成本额度';
+COMMENT ON COLUMN provider_profits.profit_quota IS '本次即时入账给服务商主账号的利润额度';
+COMMENT ON COLUMN provider_profits.profit_settled IS '服务商利润是否已入账';
+COMMENT ON COLUMN provider_profits.owner_cost_settled IS '服务商主账号成本是否已扣除';
+COMMENT ON COLUMN provider_profits.created_at IS '创建时间戳';
+
+
+
+-- PostgreSQL 服务商租户隔离迁移脚本。
+-- 执行前请先检查脚本并备份数据库。
+
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS providers (
+                                         id BIGSERIAL PRIMARY KEY,
+                                         owner_user_id BIGINT NOT NULL,
+                                         name VARCHAR(128) NOT NULL,
+    status INTEGER NOT NULL DEFAULT 1,
+    created_at BIGINT,
+    updated_at BIGINT
+    );
+
+CREATE INDEX IF NOT EXISTS idx_providers_owner_user_id ON providers(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_providers_status ON providers(status);
+
+CREATE TABLE IF NOT EXISTS provider_domains (
+                                                id BIGSERIAL PRIMARY KEY,
+                                                provider_id BIGINT NOT NULL,
+                                                domain VARCHAR(255) NOT NULL,
+    status INTEGER NOT NULL DEFAULT 0,
+    verify_token VARCHAR(64),
+    created_at BIGINT,
+    updated_at BIGINT
+    );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_domains_domain ON provider_domains(domain);
+CREATE INDEX IF NOT EXISTS idx_provider_domains_provider_id ON provider_domains(provider_id);
+CREATE INDEX IF NOT EXISTS idx_provider_domains_status ON provider_domains(status);
+
+CREATE TABLE IF NOT EXISTS provider_configs (
+                                                id BIGSERIAL PRIMARY KEY,
+                                                provider_id BIGINT NOT NULL,
+                                                site_name VARCHAR(128),
+    logo TEXT,
+    theme_color VARCHAR(32),
+    login_background TEXT,
+    home_modules TEXT,
+    nav_modules TEXT,
+    pricing_display TEXT,
+    announcement TEXT,
+    footer_text TEXT,
+    support_url TEXT,
+    created_at BIGINT,
+    updated_at BIGINT
+    );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_configs_provider_id ON provider_configs(provider_id);
+
+CREATE TABLE IF NOT EXISTS provider_model_pricings (
+                                                       id BIGSERIAL PRIMARY KEY,
+                                                       provider_id BIGINT NOT NULL,
+                                                       public_model_name VARCHAR(255) NOT NULL,
+    base_model_name VARCHAR(255) NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    pricing_type VARCHAR(16) NOT NULL DEFAULT 'ratio',
+    ratio DECIMAL(18,8) NOT NULL DEFAULT 1,
+    delta_model_ratio DECIMAL(18,8) NOT NULL DEFAULT 0,
+    delta_model_price DECIMAL(18,8) NOT NULL DEFAULT 0,
+    created_at BIGINT,
+    updated_at BIGINT
+    );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_public_model
+    ON provider_model_pricings(provider_id, public_model_name);
+CREATE INDEX IF NOT EXISTS idx_provider_model_pricings_provider_id ON provider_model_pricings(provider_id);
+CREATE INDEX IF NOT EXISTS idx_provider_model_pricings_base_model_name ON provider_model_pricings(base_model_name);
+CREATE INDEX IF NOT EXISTS idx_provider_model_pricings_enabled ON provider_model_pricings(enabled);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_id INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS provider_id INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE top_ups ADD COLUMN IF NOT EXISTS provider_id INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE logs ADD COLUMN IF NOT EXISTS provider_id INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE logs ADD COLUMN IF NOT EXISTS base_model_name VARCHAR(255) NOT NULL DEFAULT '';
+ALTER TABLE logs ADD COLUMN IF NOT EXISTS billing_side VARCHAR(32) NOT NULL DEFAULT '';
+
+-- 旧版本通常存在全局用户名唯一索引。
+-- 服务商租户隔离后，用户名需要改为按服务商维度唯一。
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_key;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS uni_users_username;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS uni_users_email;
+DROP INDEX IF EXISTS uni_users_username;
+DROP INDEX IF EXISTS uni_users_email;
+DROP INDEX IF EXISTS idx_users_username;
+DROP INDEX IF EXISTS idx_users_email;
+
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_provider_id ON users(provider_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_provider_username
+    ON users(provider_id, username);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_provider_email
+    ON users(provider_id, email)
+    WHERE email IS NOT NULL AND email <> '';
+
+CREATE INDEX IF NOT EXISTS idx_tokens_provider_id ON tokens(provider_id);
+CREATE INDEX IF NOT EXISTS idx_tokens_user_provider ON tokens(user_id, provider_id);
+CREATE INDEX IF NOT EXISTS idx_top_ups_provider_id ON top_ups(provider_id);
+CREATE INDEX IF NOT EXISTS idx_top_ups_user_provider ON top_ups(user_id, provider_id);
+CREATE INDEX IF NOT EXISTS idx_logs_provider_id ON logs(provider_id);
+CREATE INDEX IF NOT EXISTS idx_logs_billing_side ON logs(billing_side);
+CREATE INDEX IF NOT EXISTS idx_logs_base_model_name ON logs(base_model_name);
+
+COMMENT ON TABLE providers IS '服务商主表：每一条记录代表一个独立服务商，不支持下级服务商';
+COMMENT ON COLUMN providers.id IS '服务商 ID，主键';
+COMMENT ON COLUMN providers.owner_user_id IS '服务商归属的主站用户 ID；服务商调用主站模型时从该用户余额扣除成本';
+COMMENT ON COLUMN providers.name IS '服务商名称，用于后台识别和默认展示';
+COMMENT ON COLUMN providers.status IS '服务商状态：1 启用，0 禁用';
+COMMENT ON COLUMN providers.created_at IS '创建时间，Unix 秒级时间戳';
+COMMENT ON COLUMN providers.updated_at IS '更新时间，Unix 秒级时间戳';
+
+COMMENT ON TABLE provider_domains IS '服务商域名绑定表：根据请求 Host 解析到对应服务商';
+COMMENT ON COLUMN provider_domains.id IS '域名绑定 ID，主键';
+COMMENT ON COLUMN provider_domains.provider_id IS '所属服务商 ID，关联 providers.id';
+COMMENT ON COLUMN provider_domains.domain IS '服务商绑定域名，例如 api.example.com；必须全局唯一';
+COMMENT ON COLUMN provider_domains.status IS '域名状态：1 已验证可用，0 待验证或禁用';
+COMMENT ON COLUMN provider_domains.verify_token IS '域名验证令牌，可用于 TXT 或 CNAME 校验';
+COMMENT ON COLUMN provider_domains.created_at IS '创建时间，Unix 秒级时间戳';
+COMMENT ON COLUMN provider_domains.updated_at IS '更新时间，Unix 秒级时间戳';
+
+COMMENT ON TABLE provider_configs IS '服务商页面配置表：控制服务商域名下的站点展示';
+COMMENT ON COLUMN provider_configs.id IS '配置 ID，主键';
+COMMENT ON COLUMN provider_configs.provider_id IS '所属服务商 ID，唯一关联 providers.id';
+COMMENT ON COLUMN provider_configs.site_name IS '服务商站点名称，会覆盖前端显示的系统名';
+COMMENT ON COLUMN provider_configs.logo IS '服务商 Logo 地址';
+COMMENT ON COLUMN provider_configs.theme_color IS '服务商主题色，例如 #1677ff';
+COMMENT ON COLUMN provider_configs.login_background IS '登录页背景图地址';
+COMMENT ON COLUMN provider_configs.home_modules IS '首页模块开关配置，JSON 字符串';
+COMMENT ON COLUMN provider_configs.nav_modules IS '导航菜单开关配置，JSON 字符串';
+COMMENT ON COLUMN provider_configs.pricing_display IS '模型价格页展示配置，JSON 字符串';
+COMMENT ON COLUMN provider_configs.announcement IS '服务商自定义公告文本';
+COMMENT ON COLUMN provider_configs.footer_text IS '页脚文案或 HTML 文本';
+COMMENT ON COLUMN provider_configs.support_url IS '客服链接';
+COMMENT ON COLUMN provider_configs.created_at IS '创建时间，Unix 秒级时间戳';
+COMMENT ON COLUMN provider_configs.updated_at IS '更新时间，Unix 秒级时间戳';
+
+COMMENT ON TABLE provider_model_pricings IS '服务商模型定价表：把服务商展示模型映射到主站真实模型，并配置服务商售价';
+COMMENT ON COLUMN provider_model_pricings.id IS '服务商模型定价 ID，主键';
+COMMENT ON COLUMN provider_model_pricings.provider_id IS '所属服务商 ID，关联 providers.id';
+COMMENT ON COLUMN provider_model_pricings.public_model_name IS '服务商对外展示和用户调用的模型名';
+COMMENT ON COLUMN provider_model_pricings.base_model_name IS '主站真实模型名，实际中继和上游调用使用该模型';
+COMMENT ON COLUMN provider_model_pricings.enabled IS '是否启用该服务商模型';
+COMMENT ON COLUMN provider_model_pricings.pricing_type IS '定价方式：ratio 表示按比例，delta 表示在主站价格基础上加减';
+COMMENT ON COLUMN provider_model_pricings.ratio IS '比例定价倍数；pricing_type 为 ratio 时使用，例如 1.2 表示主站价格的 1.2 倍';
+COMMENT ON COLUMN provider_model_pricings.delta_model_ratio IS '按倍率计费模型的加减值；pricing_type 为 delta 且模型按 ratio 计费时使用';
+COMMENT ON COLUMN provider_model_pricings.delta_model_price IS '按固定价格计费模型的加减金额；pricing_type 为 delta 且模型按 price 计费时使用';
+COMMENT ON COLUMN provider_model_pricings.created_at IS '创建时间，Unix 秒级时间戳';
+COMMENT ON COLUMN provider_model_pricings.updated_at IS '更新时间，Unix 秒级时间戳';
+
+COMMENT ON COLUMN users.provider_id IS '用户所属服务商 ID；0 表示主站用户，非 0 表示对应服务商下的隔离用户';
+COMMENT ON COLUMN tokens.provider_id IS '令牌所属服务商 ID；必须与当前访问域名解析出的 provider_id 一致';
+COMMENT ON COLUMN top_ups.provider_id IS '充值订单所属服务商 ID；用于把充值金额加到对应服务商用户余额';
+COMMENT ON COLUMN logs.provider_id IS '日志所属服务商 ID；0 表示主站日志，非 0 表示服务商域名下产生的日志';
+COMMENT ON COLUMN logs.base_model_name IS '服务商场景下的主站真实模型名；普通主站日志可为空';
+COMMENT ON COLUMN logs.billing_side IS '服务商账本方向：provider_user 表示服务商用户售价记录，provider_cost 表示服务商主站成本记录';
+
+COMMIT;
+
+-- 初始化示例，请按实际用户 ID 和域名修改后单独执行：
+-- INSERT INTO providers (owner_user_id, name, status, created_at, updated_at)
+-- VALUES (123, '服务商 A', 1, EXTRACT(EPOCH FROM now())::BIGINT, EXTRACT(EPOCH FROM now())::BIGINT);
+--
+-- INSERT INTO provider_domains (provider_id, domain, status, verify_token, created_at, updated_at)
+-- VALUES (1, 'api.provider-a.com', 1, 'manual', EXTRACT(EPOCH FROM now())::BIGINT, EXTRACT(EPOCH FROM now())::BIGINT);
+--
+-- INSERT INTO provider_configs (provider_id, site_name, logo, theme_color, login_background, home_modules, nav_modules, pricing_display, announcement, footer_text, support_url, created_at, updated_at)
+-- VALUES (1, '服务商 A', '', '#1677ff', '', '{}', '{}', '{}', '', '', '', EXTRACT(EPOCH FROM now())::BIGINT, EXTRACT(EPOCH FROM now())::BIGINT);
+--
+-- INSERT INTO provider_model_pricings (provider_id, public_model_name, base_model_name, enabled, pricing_type, ratio, created_at, updated_at)
+-- VALUES (1, 'gpt-4o-provider', 'gpt-4o', true, 'ratio', 1.2, EXTRACT(EPOCH FROM now())::BIGINT, EXTRACT(EPOCH FROM now())::BIGINT);
+
+
+
+-- PostgreSQL migration for provider-scoped redemption codes.
+-- Main site redemption codes use provider_id = 0.
+-- Each service provider owns an isolated redemption-code inventory by provider_id.
+
+ALTER TABLE redemptions
+    ADD COLUMN IF NOT EXISTS provider_id integer NOT NULL DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS idx_redemptions_provider_id
+    ON redemptions (provider_id);
+
+-- Drop old unique indexes that only constrain the key column globally.
+-- The new uniqueness boundary is provider_id + key.
+DO $$
+DECLARE
+idx record;
+BEGIN
+FOR idx IN
+SELECT i.relname AS index_name
+FROM pg_class t
+         JOIN pg_index ix ON t.oid = ix.indrelid
+         JOIN pg_class i ON i.oid = ix.indexrelid
+         JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+WHERE t.relname = 'redemptions'
+  AND ix.indisunique = true
+  AND array_length(ix.indkey, 1) = 1
+  AND a.attname = 'key'
+    LOOP
+        EXECUTE format('DROP INDEX IF EXISTS %I', idx.index_name);
+END LOOP;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_provider_redemption_key
+    ON redemptions (provider_id, "key");
+
+-- Optional backfill: if you already have redeemed records and want provider_id
+-- aligned from the used user, run this once after users.provider_id exists.
+UPDATE redemptions r
+SET provider_id = u.provider_id
+    FROM users u
+WHERE r.used_user_id = u.id
+  AND r.provider_id = 0
+  AND COALESCE(u.provider_id, 0) > 0;
+
+
+
+
+-- PostgreSQL 服务商奖励隔离迁移脚本。
+
+CREATE TABLE IF NOT EXISTS provider_reward_configs (
+                                                       id SERIAL PRIMARY KEY,
+                                                       provider_id integer NOT NULL,
+                                                       quota_for_new_user integer NOT NULL DEFAULT 0,
+                                                       quota_for_inviter integer NOT NULL DEFAULT 0,
+                                                       quota_for_invitee integer NOT NULL DEFAULT 0,
+                                                       checkin_enabled boolean NOT NULL DEFAULT false,
+                                                       checkin_min_quota integer NOT NULL DEFAULT 0,
+                                                       checkin_max_quota integer NOT NULL DEFAULT 0,
+                                                       invite_topup_rebate_ratio numeric(10,6) NOT NULL DEFAULT 0,
+    invite_consume_rebate_ratio_level2 numeric(10,6) NOT NULL DEFAULT 0,
+    created_at bigint,
+    updated_at bigint
+    );
+CREATE UNIQUE INDEX IF NOT EXISTS ux_provider_reward_configs_provider_id
+    ON provider_reward_configs(provider_id);
+
+CREATE TABLE IF NOT EXISTS reward_records (
+                                              id SERIAL PRIMARY KEY,
+                                              provider_id integer NOT NULL DEFAULT 0,
+                                              user_id integer NOT NULL,
+                                              source_type varchar(32) NOT NULL,
+    source_id integer NOT NULL DEFAULT 0,
+    quota integer NOT NULL,
+    description varchar(255) NOT NULL DEFAULT '',
+    created_at bigint
+    );
+CREATE INDEX IF NOT EXISTS idx_reward_records_provider_id ON reward_records(provider_id);
+CREATE INDEX IF NOT EXISTS idx_reward_records_user_id ON reward_records(user_id);
+CREATE INDEX IF NOT EXISTS idx_reward_records_created_at ON reward_records(created_at);
+CREATE INDEX IF NOT EXISTS idx_reward_records_source ON reward_records(source_type, source_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_reward_records_source_user
+    ON reward_records(provider_id, source_type, source_id, user_id);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_id integer NOT NULL DEFAULT 0;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS ux_user_provider_aff;
+DROP INDEX IF EXISTS ux_user_provider_aff;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_provider_aff ON users(provider_id, aff_code);
+
+ALTER TABLE invite_records ADD COLUMN IF NOT EXISTS provider_id integer NOT NULL DEFAULT 0;
+ALTER TABLE checkins ADD COLUMN IF NOT EXISTS provider_id integer NOT NULL DEFAULT 0;
+ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS provider_id integer NOT NULL DEFAULT 0;
+ALTER TABLE consume_rebates ADD COLUMN IF NOT EXISTS provider_id integer NOT NULL DEFAULT 0;
+ALTER TABLE topup_rebates ADD COLUMN IF NOT EXISTS provider_id integer NOT NULL DEFAULT 0;
+
+DROP INDEX IF EXISTS idx_user_checkin_date;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_user_checkin_date
+    ON checkins(provider_id, user_id, checkin_date);
+
+DROP INDEX IF EXISTS idx_redemptions_key;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_provider_redemption_key
+    ON redemptions(provider_id, "key");
+
+CREATE INDEX IF NOT EXISTS idx_invite_records_provider_id ON invite_records(provider_id);
+CREATE INDEX IF NOT EXISTS idx_checkins_provider_id ON checkins(provider_id);
+CREATE INDEX IF NOT EXISTS idx_redemptions_provider_id ON redemptions(provider_id);
+CREATE INDEX IF NOT EXISTS idx_consume_rebates_provider_id ON consume_rebates(provider_id);
+CREATE INDEX IF NOT EXISTS idx_topup_rebates_provider_id ON topup_rebates(provider_id);
+
+UPDATE invite_records ir
+SET provider_id = u.provider_id
+    FROM users u
+WHERE u.id = ir.inviter_id AND ir.provider_id = 0;
+
+UPDATE checkins c
+SET provider_id = u.provider_id
+    FROM users u
+WHERE u.id = c.user_id AND c.provider_id = 0;
+
+UPDATE redemptions r
+SET provider_id = u.provider_id
+    FROM users u
+WHERE u.id = r.used_user_id AND r.provider_id = 0;
+
+UPDATE consume_rebates cr
+SET provider_id = u.provider_id
+    FROM users u
+WHERE u.id = cr.inviter_id AND cr.provider_id = 0;
+
+UPDATE topup_rebates tr
+SET provider_id = u.provider_id
+    FROM users u
+WHERE u.id = tr.inviter_id AND tr.provider_id = 0;
+
+INSERT INTO reward_records (provider_id, user_id, source_type, source_id, quota, description, created_at)
+SELECT
+    ir.provider_id,
+    ir.inviter_id,
+    'inviter_reward',
+    ir.invitee_id,
+    ir.reward_quota,
+    'inviter reward',
+    COALESCE(ir.created_at, EXTRACT(EPOCH FROM NOW())::bigint)
+FROM invite_records ir
+WHERE ir.provider_id > 0 AND ir.reward_quota > 0
+    ON CONFLICT DO NOTHING;
+
+INSERT INTO reward_records (provider_id, user_id, source_type, source_id, quota, description, created_at)
+SELECT
+    c.provider_id,
+    c.user_id,
+    'checkin',
+    c.id,
+    c.quota_awarded,
+    'checkin reward',
+    COALESCE(c.created_at, EXTRACT(EPOCH FROM NOW())::bigint)
+FROM checkins c
+WHERE c.provider_id > 0 AND c.quota_awarded > 0
+    ON CONFLICT DO NOTHING;
+
+INSERT INTO reward_records (provider_id, user_id, source_type, source_id, quota, description, created_at)
+SELECT
+    r.provider_id,
+    r.used_user_id,
+    'redemption',
+    r.id,
+    r.quota,
+    'redemption reward',
+    COALESCE(r.redeemed_time, r.created_time, EXTRACT(EPOCH FROM NOW())::bigint)
+FROM redemptions r
+WHERE r.provider_id > 0 AND r.status = 3 AND r.quota > 0
+    ON CONFLICT DO NOTHING;
+
+INSERT INTO reward_records (provider_id, user_id, source_type, source_id, quota, description, created_at)
+SELECT
+    cr.provider_id,
+    cr.inviter_id,
+    'consume_rebate',
+    cr.id,
+    cr.rebate_quota,
+    'invite consume rebate',
+    COALESCE(cr.created_at, EXTRACT(EPOCH FROM NOW())::bigint)
+FROM consume_rebates cr
+WHERE cr.provider_id > 0 AND cr.rebate_quota > 0
+    ON CONFLICT DO NOTHING;
+
+INSERT INTO reward_records (provider_id, user_id, source_type, source_id, quota, description, created_at)
+SELECT
+    tr.provider_id,
+    tr.inviter_id,
+    'topup_rebate',
+    tr.id,
+    tr.rebate_quota,
+    'invite topup rebate',
+    COALESCE(tr.created_at, EXTRACT(EPOCH FROM NOW())::bigint)
+FROM topup_rebates tr
+WHERE tr.provider_id > 0 AND tr.rebate_quota > 0
+    ON CONFLICT DO NOTHING;
+
+COMMENT ON TABLE provider_reward_configs IS '服务商奖励策略配置表';
+COMMENT ON COLUMN provider_reward_configs.id IS '主键 ID';
+COMMENT ON COLUMN provider_reward_configs.provider_id IS '服务商 ID';
+COMMENT ON COLUMN provider_reward_configs.quota_for_new_user IS '新用户注册赠送额度';
+COMMENT ON COLUMN provider_reward_configs.quota_for_inviter IS '邀请人注册奖励额度';
+COMMENT ON COLUMN provider_reward_configs.quota_for_invitee IS '被邀请人注册奖励额度';
+COMMENT ON COLUMN provider_reward_configs.checkin_enabled IS '是否启用签到奖励';
+COMMENT ON COLUMN provider_reward_configs.checkin_min_quota IS '签到奖励最小额度';
+COMMENT ON COLUMN provider_reward_configs.checkin_max_quota IS '签到奖励最大额度';
+COMMENT ON COLUMN provider_reward_configs.invite_topup_rebate_ratio IS '邀请充值返利比例';
+COMMENT ON COLUMN provider_reward_configs.invite_consume_rebate_ratio_level2 IS '二级邀请消费返利比例';
+COMMENT ON COLUMN provider_reward_configs.created_at IS '创建时间戳';
+COMMENT ON COLUMN provider_reward_configs.updated_at IS '更新时间戳';
+
+COMMENT ON TABLE reward_records IS '服务商维度奖励流水表';
+COMMENT ON COLUMN reward_records.id IS '主键 ID';
+COMMENT ON COLUMN reward_records.provider_id IS '服务商 ID';
+COMMENT ON COLUMN reward_records.user_id IS '奖励接收用户 ID';
+COMMENT ON COLUMN reward_records.source_type IS '奖励来源类型：新用户、邀请人奖励、被邀请人奖励、签到、兑换码、消费返利、充值返利';
+COMMENT ON COLUMN reward_records.source_id IS '来源业务记录 ID';
+COMMENT ON COLUMN reward_records.quota IS '奖励额度';
+COMMENT ON COLUMN reward_records.description IS '奖励说明';
+COMMENT ON COLUMN reward_records.created_at IS '创建时间戳';
+
+COMMENT ON COLUMN users.provider_id IS '所属服务商 ID，0 表示主站用户';
+COMMENT ON COLUMN invite_records.provider_id IS '所属服务商 ID，0 表示主站邀请记录';
+COMMENT ON COLUMN checkins.provider_id IS '所属服务商 ID，0 表示主站签到记录';
+COMMENT ON COLUMN redemptions.provider_id IS '所属服务商 ID，0 表示主站兑换码';
+COMMENT ON COLUMN consume_rebates.provider_id IS '所属服务商 ID，0 表示主站消费返利记录';
+COMMENT ON COLUMN topup_rebates.provider_id IS '所属服务商 ID，0 表示主站充值返利记录';
 
