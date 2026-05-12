@@ -354,13 +354,13 @@ claude \-\-version
 
   "env": \{
 
-    "ANTHROPIC\_AUTH\_TOKEN": "your\_allrouter\_api\_key",
+    "ANTHROPIC_AUTH_TOKEN": "your_allrouter_api_key",
 
-    "ANTHROPIC\_BASE\_URL": "https://allrouter.ai/v1",
+    "ANTHROPIC_BASE_URL": "https://allrouter.ai/v1",
 
-    "API\_TIMEOUT\_MS": "3000000",
+    "API_TIMEOUT_MS": "3000000",
 
-    "CLAUDE\_CODE\_DISABLE\_NONESSENTIAL\_TRAFFIC": 1
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1
 
   \}
 
