@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -31,6 +32,67 @@ type ProviderProfit struct {
 
 func (ProviderProfit) TableName() string {
 	return "provider_profits"
+}
+
+type ProviderProfitSummary struct {
+	ProviderUserQuota int64 `json:"provider_user_quota"`
+	BaseCostQuota     int64 `json:"base_cost_quota"`
+	PaidQuota         int64 `json:"paid_quota"`
+	CoveredCostQuota  int64 `json:"covered_cost_quota"`
+	OwnerCostQuota    int64 `json:"owner_cost_quota"`
+	ProfitQuota       int64 `json:"profit_quota"`
+}
+
+func buildProviderProfitQuery(providerId int, startTimestamp int64, endTimestamp int64, providerUserId int, modelName string, requestId string) *gorm.DB {
+	tx := DB.Model(&ProviderProfit{}).Where("provider_id = ?", providerId)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+	if providerUserId > 0 {
+		tx = tx.Where("provider_user_id = ?", providerUserId)
+	}
+	modelName = strings.TrimSpace(modelName)
+	if modelName != "" {
+		tx = tx.Where("(public_model_name LIKE ? OR base_model_name LIKE ?)", "%"+modelName+"%", "%"+modelName+"%")
+	}
+	requestId = strings.TrimSpace(requestId)
+	if requestId != "" {
+		tx = tx.Where("request_id = ?", requestId)
+	}
+	return tx
+}
+
+func GetProviderProfits(providerId int, startTimestamp int64, endTimestamp int64, providerUserId int, modelName string, requestId string, startIdx int, num int) (records []*ProviderProfit, total int64, summary ProviderProfitSummary, err error) {
+	if providerId <= 0 {
+		return nil, 0, summary, nil
+	}
+	if err = buildProviderProfitQuery(providerId, startTimestamp, endTimestamp, providerUserId, modelName, requestId).Count(&total).Error; err != nil {
+		return nil, 0, summary, err
+	}
+	type summaryRow struct {
+		ProviderUserQuota int64
+		BaseCostQuota     int64
+		PaidQuota         int64
+		CoveredCostQuota  int64
+		OwnerCostQuota    int64
+		ProfitQuota       int64
+	}
+	var row summaryRow
+	if err = buildProviderProfitQuery(providerId, startTimestamp, endTimestamp, providerUserId, modelName, requestId).
+		Select("COALESCE(SUM(provider_user_quota), 0) AS provider_user_quota, COALESCE(SUM(base_cost_quota), 0) AS base_cost_quota, COALESCE(SUM(paid_quota), 0) AS paid_quota, COALESCE(SUM(covered_cost_quota), 0) AS covered_cost_quota, COALESCE(SUM(owner_cost_quota), 0) AS owner_cost_quota, COALESCE(SUM(profit_quota), 0) AS profit_quota").
+		Scan(&row).Error; err != nil {
+		return nil, 0, summary, err
+	}
+	summary = ProviderProfitSummary(row)
+	err = buildProviderProfitQuery(providerId, startTimestamp, endTimestamp, providerUserId, modelName, requestId).
+		Order("id desc").
+		Limit(num).
+		Offset(startIdx).
+		Find(&records).Error
+	return records, total, summary, err
 }
 
 func ApplyProviderProfit(record *ProviderProfit) (bool, error) {

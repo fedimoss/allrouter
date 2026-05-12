@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -106,6 +107,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	}
 	requestId := c.GetString(common.RequestIdKey)
 	otherStr := common.MapToJsonStr(other)
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
@@ -115,6 +117,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	}
 	log := &Log{
 		UserId:           userId,
+		ProviderId:       providerId,
 		Username:         username,
 		CreatedAt:        common.GetTimestamp(),
 		Type:             LogTypeError,
@@ -167,7 +170,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	otherStr := common.MapToJsonStr(params.Other)
-	providerId := 0
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	billingSide := ""
 	baseModelName := ""
 	if params.Other != nil {
@@ -401,6 +404,55 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	return logs, total, err
 }
 
+func GetProviderUserLogs(providerId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, group string, requestId string) (logs []*Log, total int64, err error) {
+	var tx *gorm.DB
+	if logType == LogTypeUnknown {
+		tx = LOG_DB.Where("logs.provider_id = ?", providerId)
+	} else {
+		tx = LOG_DB.Where("logs.provider_id = ? and logs.type = ?", providerId, logType)
+	}
+	tx = tx.Where("(logs.billing_side = ? OR logs.billing_side = ? OR logs.billing_side IS NULL)", "", "provider_user")
+
+	if modelName != "" {
+		modelNamePattern, err := sanitizeLikePattern(modelName)
+		if err != nil {
+			return nil, 0, err
+		}
+		tx = tx.Where("logs.model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	}
+	if username != "" {
+		tx = tx.Where("logs.username = ?", username)
+	}
+	if tokenName != "" {
+		tx = tx.Where("logs.token_name = ?", tokenName)
+	}
+	if requestId != "" {
+		tx = tx.Where("logs.request_id = ?", requestId)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", endTimestamp)
+	}
+	if group != "" {
+		tx = tx.Where("logs."+logGroupCol+" = ?", group)
+	}
+	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
+	if err != nil {
+		common.SysError("failed to count provider user logs: " + err.Error())
+		return nil, 0, errors.New("查询服务商使用日志失败")
+	}
+	err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	if err != nil {
+		common.SysError("failed to search provider user logs: " + err.Error())
+		return nil, 0, errors.New("查询服务商使用日志失败")
+	}
+
+	formatUserLogs(logs, startIdx)
+	return logs, total, err
+}
+
 type Stat struct {
 	Quota int `json:"quota"`
 	Rpm   int `json:"rpm"`
@@ -458,6 +510,59 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if err := rpmTpmQuery.Scan(&stat).Error; err != nil {
 		common.SysError("failed to query rpm/tpm stat: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
+	}
+
+	return stat, nil
+}
+
+func SumProviderUserUsedQuota(providerId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, group string) (stat Stat, err error) {
+	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
+	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
+
+	tx = tx.Where("provider_id = ?", providerId)
+	rpmTpmQuery = rpmTpmQuery.Where("provider_id = ?", providerId)
+	tx = tx.Where("(billing_side = ? OR billing_side = ? OR billing_side IS NULL)", "", "provider_user")
+	rpmTpmQuery = rpmTpmQuery.Where("(billing_side = ? OR billing_side = ? OR billing_side IS NULL)", "", "provider_user")
+	if username != "" {
+		tx = tx.Where("username = ?", username)
+		rpmTpmQuery = rpmTpmQuery.Where("username = ?", username)
+	}
+	if tokenName != "" {
+		tx = tx.Where("token_name = ?", tokenName)
+		rpmTpmQuery = rpmTpmQuery.Where("token_name = ?", tokenName)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+		rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+		rpmTpmQuery = rpmTpmQuery.Where("created_at <= ?", endTimestamp)
+	}
+	if modelName != "" {
+		modelNamePattern, err := sanitizeLikePattern(modelName)
+		if err != nil {
+			return stat, err
+		}
+		tx = tx.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+		rpmTpmQuery = rpmTpmQuery.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	}
+	if group != "" {
+		tx = tx.Where(logGroupCol+" = ?", group)
+		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
+	}
+
+	tx = tx.Where("type = ?", LogTypeConsume)
+	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
+	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
+
+	if err := tx.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query provider log stat: " + err.Error())
+		return stat, errors.New("查询服务商日志统计失败")
+	}
+	if err := rpmTpmQuery.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query provider rpm/tpm stat: " + err.Error())
+		return stat, errors.New("查询服务商日志统计失败")
 	}
 
 	return stat, nil
@@ -522,6 +627,11 @@ func CountInviteRewardsByUserId(userId int, startTimestamp, endTimestamp int64) 
 
 // GetUserNewUserRewardQuota 获取用户的新用户注册赠送额度（金额单位）
 func GetUserNewUserRewardQuota(userId int) (float64, error) {
+	if user, err := GetUserById(userId, false); err == nil && user != nil && user.ProviderId > 0 {
+		if has, err := HasRewardRecordsBySourceInProvider(user.ProviderId, userId, "new_user"); err == nil && has {
+			return GetUserRewardQuotaBySourceInProvider(user.ProviderId, userId, "new_user")
+		}
+	}
 	var logContent string
 
 	// 只查 content 字段
@@ -637,6 +747,11 @@ func SumUsedQuotaByUserId(userId int, startTimestamp, endTimestamp int64) (int, 
 }
 
 func GetUserInviteeRewardQuota(userId int) (float64, error) {
+	if user, err := GetUserById(userId, false); err == nil && user != nil && user.ProviderId > 0 {
+		if has, err := HasRewardRecordsBySourceInProvider(user.ProviderId, userId, "invitee_reward"); err == nil && has {
+			return GetUserRewardQuotaBySourceInProvider(user.ProviderId, userId, "invitee_reward")
+		}
+	}
 	var logContent string
 
 	err := LOG_DB.Model(&Log{}).

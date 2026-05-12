@@ -13,6 +13,7 @@ import (
 // ConsumeRebate records rebates generated from invitees consuming paid quota.
 type ConsumeRebate struct {
 	Id          int     `json:"id"`
+	ProviderId  int     `json:"provider_id" gorm:"index;default:0"`
 	InviterId   int     `json:"inviter_id" gorm:"index"`
 	InviteeId   int     `json:"invitee_id" gorm:"index"`
 	RequestId   string  `json:"request_id" gorm:"type:varchar(64);uniqueIndex:idx_consume_rebate_request_level"`
@@ -98,7 +99,7 @@ func SumLevel2ConsumeRebateQuotaByInviterAndParentInviteeId(inviterId int, paren
 
 // 当被邀请人实际使用充值额度消费时，按比例给邀请人返利。返利入账也算奖励，所以邀请人会同时增加 quota 和 reward_quota
 func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int) (int, int, error) {
-	if inviteeId <= 0 || paidQuota <= 0 || (common.InviteTopupRebateRatio <= 0 && common.InviteConsumeRebateRatioLevel2 <= 0) {
+	if inviteeId <= 0 || paidQuota <= 0 {
 		return 0, 0, nil
 	}
 	if requestId == "" {
@@ -116,12 +117,13 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int) (i
 	var rebateLogs []rebateLog
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		type inviteUserRef struct {
-			Id        int `gorm:"column:id"`
-			InviterId int `gorm:"column:inviter_id"`
+			Id         int `gorm:"column:id"`
+			InviterId  int `gorm:"column:inviter_id"`
+			ProviderId int `gorm:"column:provider_id"`
 		}
 
 		var invitee inviteUserRef
-		if err := tx.Model(&User{}).Select("id", "inviter_id").Where("id = ?", inviteeId).Take(&invitee).Error; err != nil {
+		if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id").Where("id = ?", inviteeId).Take(&invitee).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
 			}
@@ -130,9 +132,16 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int) (i
 		if invitee.InviterId <= 0 {
 			return nil
 		}
+		rewardCfg, err := GetProviderRewardConfig(invitee.ProviderId)
+		if err != nil {
+			return err
+		}
+		if rewardCfg.InviteTopupRebateRatio <= 0 && rewardCfg.InviteConsumeRebateRatioLevel2 <= 0 {
+			return nil
+		}
 
 		var level1Inviter inviteUserRef
-		if err := tx.Model(&User{}).Select("id", "inviter_id").Where("id = ?", invitee.InviterId).Take(&level1Inviter).Error; err != nil {
+		if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id").Where("id = ?", invitee.InviterId).Take(&level1Inviter).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
 			}
@@ -143,14 +152,16 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int) (i
 			if receiverId <= 0 || ratio <= 0 {
 				return nil
 			}
-			rebateQuota := int(decimal.NewFromInt(int64(paidQuota)).
-				Mul(decimal.NewFromFloat(ratio)).
-				Div(decimal.NewFromInt(100)).
-				IntPart())
+			rebateQuota := int(decimal.NewFromInt(int64(paidQuota)).Mul(decimal.NewFromFloat(ratio)).Div(decimal.NewFromInt(100)).IntPart())
 			if rebateQuota <= 0 {
 				return nil
 			}
+			var receiver inviteUserRef
+			if err := tx.Model(&User{}).Select("id", "provider_id").Where("id = ?", receiverId).Take(&receiver).Error; err != nil {
+				return err
+			}
 			rebate := &ConsumeRebate{
+				ProviderId:  receiver.ProviderId,
 				InviterId:   receiverId,
 				InviteeId:   inviteeId,
 				RequestId:   requestId,
@@ -169,32 +180,40 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int) (i
 			}).Error; err != nil {
 				return err
 			}
+			if receiver.ProviderId > 0 {
+				if err := CreateRewardRecordTx(tx, &RewardRecord{
+					ProviderId:  receiver.ProviderId,
+					UserId:      receiverId,
+					SourceType:  "consume_rebate",
+					SourceId:    rebate.Id,
+					Quota:       rebateQuota,
+					Description: "invite consume rebate",
+				}); err != nil {
+					return err
+				}
+			}
 			totalRebateQuota += rebateQuota
 			receiverRebates[receiverId] += rebateQuota
 			if level == 1 {
 				inviterId = receiverId
 			}
-			rebateLogs = append(rebateLogs, rebateLog{
-				ReceiverId:  receiverId,
-				Level:       level,
-				RebateQuota: rebateQuota,
-			})
+			rebateLogs = append(rebateLogs, rebateLog{ReceiverId: receiverId, Level: level, RebateQuota: rebateQuota})
 			return nil
 		}
 
-		if err := applyLevel(1, level1Inviter.Id, common.InviteTopupRebateRatio); err != nil {
+		if err := applyLevel(1, level1Inviter.Id, rewardCfg.InviteTopupRebateRatio); err != nil {
 			return err
 		}
 
-		if level1Inviter.InviterId > 0 && common.InviteConsumeRebateRatioLevel2 > 0 {
+		if level1Inviter.InviterId > 0 && rewardCfg.InviteConsumeRebateRatioLevel2 > 0 {
 			var level2Inviter inviteUserRef
-			if err := tx.Model(&User{}).Select("id", "inviter_id").Where("id = ?", level1Inviter.InviterId).Take(&level2Inviter).Error; err != nil {
+			if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id").Where("id = ?", level1Inviter.InviterId).Take(&level2Inviter).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return nil
 				}
 				return err
 			}
-			if err := applyLevel(2, level2Inviter.Id, common.InviteConsumeRebateRatioLevel2); err != nil {
+			if err := applyLevel(2, level2Inviter.Id, rewardCfg.InviteConsumeRebateRatioLevel2); err != nil {
 				return err
 			}
 		}

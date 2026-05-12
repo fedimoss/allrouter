@@ -32,6 +32,7 @@ const ColumnSelectorModal = ({
   setBillingDisplayMode,
   COLUMN_KEYS,
   isAdminUser,
+  isProviderScope,
   copyText,
   showUserInfoFunc,
   t,
@@ -51,6 +52,7 @@ const ColumnSelectorModal = ({
     copyText,
     showUserInfoFunc,
     isAdminUser,
+    isProviderScope,
     billingDisplayMode,
   });
 
@@ -106,6 +108,7 @@ const ColumnSelectorModal = ({
           // Skip admin-only columns for non-admin users
           if (
             !isAdminUser &&
+            !isProviderScope &&
             (column.key === COLUMN_KEYS.CHANNEL ||
               column.key === COLUMN_KEYS.USERNAME ||
               column.key === COLUMN_KEYS.RETRY)

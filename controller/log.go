@@ -53,6 +53,31 @@ func GetUserLogs(c *gin.Context) {
 	return
 }
 
+func GetProviderUserLogs(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	username := c.Query("username")
+	tokenName := c.Query("token_name")
+	modelName := c.Query("model_name")
+	group := c.Query("group")
+	requestId := c.Query("request_id")
+	logs, total, err := model.GetProviderUserLogs(provider.Id, logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(logs)
+	common.ApiSuccess(c, pageInfo)
+	return
+}
+
 // Deprecated: SearchAllLogs 已废弃，前端未使用该接口。
 func SearchAllLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
@@ -143,6 +168,35 @@ func GetLogsSelfStat(c *gin.Context) {
 			"rpm":   quotaNum.Rpm,
 			"tpm":   quotaNum.Tpm,
 			//"token": tokenNum,
+		},
+	})
+	return
+}
+
+func GetProviderUserLogsStat(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	tokenName := c.Query("token_name")
+	username := c.Query("username")
+	modelName := c.Query("model_name")
+	group := c.Query("group")
+	stat, err := model.SumProviderUserUsedQuota(provider.Id, logType, startTimestamp, endTimestamp, modelName, username, tokenName, group)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"quota": stat.Quota,
+			"rpm":   stat.Rpm,
+			"tpm":   stat.Tpm,
 		},
 	})
 	return

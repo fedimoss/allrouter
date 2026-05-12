@@ -59,6 +59,11 @@ const PageLayout = () => {
     '/console/task',
     '/console/models',
     '/console/provider',
+    '/console/provider/reward',
+    '/console/provider/reward-report',
+    '/console/provider/redemption',
+    '/console/provider/profits',
+    '/console/provider/logs',
     '/pricing',
     '/login',
     '/register'

@@ -34,6 +34,7 @@ const LogsFilters = ({
   setLogType,
   loading,
   isAdminUser,
+  isProviderScope,
   compactMode,
   setCompactMode,
   t,
@@ -194,20 +195,22 @@ const LogsFilters = ({
               </Form.Select>
             </div>
 
-            {isAdminUser && (
+            {(isAdminUser || isProviderScope) && (
               <>
-                <div className='usage-logs-v2-filter-item'>
-                  <div className='usage-logs-v2-filter-label'>{t('渠道 ID')}</div>
-                  <Form.Input
-                    field='channel'
-                    prefix={<IconSearch />}
-                    placeholder={t('渠道 ID')}
-                    showClear
-                    pure
-                    size='large'
-                    className='usage-logs-v2-control'
-                  />
-                </div>
+                {isAdminUser && (
+                  <div className='usage-logs-v2-filter-item'>
+                    <div className='usage-logs-v2-filter-label'>{t('渠道 ID')}</div>
+                    <Form.Input
+                      field='channel'
+                      prefix={<IconSearch />}
+                      placeholder={t('渠道 ID')}
+                      showClear
+                      pure
+                      size='large'
+                      className='usage-logs-v2-control'
+                    />
+                  </div>
+                )}
 
                 <div className='usage-logs-v2-filter-item'>
                   <div className='usage-logs-v2-filter-label'>{t('用户名称')}</div>

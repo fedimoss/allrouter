@@ -14,11 +14,12 @@ import (
 
 func GetAllRedemptions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	redemptions, _, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	pageInfo.SetTotal(int(total))
 	// 获取当前用户的展示币种信息
 	displayInfo := getDisplayCurrencyForUser(c)
 	// 序列化原始结构体为 map，再替换 quota 字段为币种转换后的值
@@ -57,6 +58,36 @@ func SearchRedemptions(c *gin.Context) {
 	pageInfo.SetItems(redemptions)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+func GetSelfRedemptionRecords(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	redemptions, total, err := model.GetUserRedeemedRedemptions(c.GetInt("id"), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	displayInfo := getDisplayCurrencyForUser(c)
+	var items []map[string]any
+	if raw, err := common.Marshal(redemptions); err == nil {
+		common.Unmarshal(raw, &items)
+	}
+	for i, r := range redemptions {
+		if i < len(items) {
+			items[i]["quota"] = convertQuotaToDisplay(r.Quota, displayInfo)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"page":           pageInfo.Page,
+			"page_size":      pageInfo.PageSize,
+			"total":          total,
+			"items":          items,
+			"display_symbol": displayInfo.Symbol,
+		},
+	})
 }
 
 func GetRedemption(c *gin.Context) {
@@ -105,6 +136,7 @@ func AddRedemption(c *gin.Context) {
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
+			ProviderId:  c.GetInt("provider_id"),
 			UserId:      c.GetInt("id"),
 			Name:        redemption.Name,
 			Key:         key,
@@ -197,6 +229,213 @@ func DeleteInvalidRedemption(c *gin.Context) {
 		"data":    rows,
 	})
 	return
+}
+
+func GetProviderRedemptions(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	redemptions, total, err := model.GetRedemptionsByProvider(provider.Id, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	displayInfo := getDisplayCurrencyForUser(c)
+	var items []map[string]any
+	if raw, err := common.Marshal(redemptions); err == nil {
+		common.Unmarshal(raw, &items)
+	}
+	for i, r := range redemptions {
+		if i < len(items) {
+			items[i]["quota"] = convertQuotaToDisplay(r.Quota, displayInfo)
+		}
+	}
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"page":           pageInfo.Page,
+			"page_size":      pageInfo.PageSize,
+			"total":          pageInfo.Total,
+			"items":          items,
+			"display_symbol": displayInfo.Symbol,
+		},
+	})
+}
+
+func SearchProviderRedemptions(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	keyword := c.Query("keyword")
+	pageInfo := common.GetPageQuery(c)
+	redemptions, total, err := model.SearchRedemptionsByProvider(provider.Id, keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(redemptions)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func GetProviderRedemption(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	redemption, err := model.GetRedemptionByIdInProvider(id, provider.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    redemption,
+	})
+}
+
+func AddProviderRedemption(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	redemption := model.Redemption{}
+	err := c.ShouldBindJSON(&redemption)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if utf8.RuneCountInString(redemption.Name) == 0 || utf8.RuneCountInString(redemption.Name) > 20 {
+		common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
+		return
+	}
+	if redemption.Count <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgRedemptionCountPositive)
+		return
+	}
+	if redemption.Count > 100 {
+		common.ApiErrorI18n(c, i18n.MsgRedemptionCountMax)
+		return
+	}
+	if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
+		return
+	}
+	var keys []string
+	for i := 0; i < redemption.Count; i++ {
+		key := common.GetUUID()
+		cleanRedemption := model.Redemption{
+			ProviderId:  provider.Id,
+			UserId:      c.GetInt("id"),
+			Name:        redemption.Name,
+			Key:         key,
+			CreatedTime: common.GetTimestamp(),
+			Quota:       redemption.Quota,
+			ExpiredTime: redemption.ExpiredTime,
+		}
+		err = cleanRedemption.Insert()
+		if err != nil {
+			common.SysError("failed to insert redemption: " + err.Error())
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": i18n.T(c, i18n.MsgRedemptionCreateFailed),
+				"data":    keys,
+			})
+			return
+		}
+		keys = append(keys, key)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    keys,
+	})
+}
+
+func UpdateProviderRedemption(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	statusOnly := c.Query("status_only")
+	redemption := model.Redemption{}
+	err := c.ShouldBindJSON(&redemption)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	cleanRedemption, err := model.GetRedemptionByIdInProvider(redemption.Id, provider.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if statusOnly == "" {
+		if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
+			return
+		}
+		cleanRedemption.Name = redemption.Name
+		cleanRedemption.Quota = redemption.Quota
+		cleanRedemption.ExpiredTime = redemption.ExpiredTime
+	}
+	if statusOnly != "" {
+		cleanRedemption.Status = redemption.Status
+	}
+	err = cleanRedemption.Update()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    cleanRedemption,
+	})
+}
+
+func DeleteProviderRedemption(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	id, _ := strconv.Atoi(c.Param("id"))
+	err := model.DeleteRedemptionByIdInProvider(id, provider.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
+func DeleteInvalidProviderRedemption(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	rows, err := model.DeleteInvalidRedemptionsByProvider(provider.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    rows,
+	})
 }
 
 func validateExpiredTime(c *gin.Context, expired int64) (bool, string) {

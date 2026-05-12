@@ -28,8 +28,8 @@ import { useRedemptionsData } from '../../../hooks/redemptions/useRedemptionsDat
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
 
-const RedemptionsPage = () => {
-  const redemptionsData = useRedemptionsData();
+const RedemptionsPage = ({ apiPrefix = '/api/redemption' }) => {
+  const redemptionsData = useRedemptionsData({ apiPrefix });
   const isMobile = useIsMobile();
 
   const {
@@ -68,6 +68,7 @@ const RedemptionsPage = () => {
         editingRedemption={editingRedemption}
         visiable={showEdit}
         handleClose={closeEdit}
+        apiPrefix={apiPrefix}
       />
 
       <CardPro

@@ -338,6 +338,14 @@ func AdminUpsertProviderConfig(c *gin.Context) {
 	upsertProviderConfig(c, id)
 }
 
+func AdminUploadProviderLogo(c *gin.Context) {
+	logoURL, ok := saveUploadedLogo(c)
+	if !ok {
+		return
+	}
+	common.ApiSuccess(c, gin.H{"url": logoURL})
+}
+
 func createProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 	var req model.ProviderDomain
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -644,6 +652,17 @@ func UpsertProviderSelfConfig(c *gin.Context) {
 		return
 	}
 	upsertProviderConfig(c, provider.Id)
+}
+
+func UploadProviderLogo(c *gin.Context) {
+	if _, ok := getOwnedProvider(c); !ok {
+		return
+	}
+	logoURL, ok := saveUploadedLogo(c)
+	if !ok {
+		return
+	}
+	common.ApiSuccess(c, gin.H{"url": logoURL})
 }
 
 func ListProviderModelPricing(c *gin.Context) {

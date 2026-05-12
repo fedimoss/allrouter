@@ -27,12 +27,15 @@ import {
   Table,
   Tag,
   Typography,
+  Upload,
 } from '@douyinfe/semi-ui';
 import {
   IconDelete,
   IconEdit,
+  IconGiftStroked,
   IconPlus,
   IconRefresh,
+  IconUpload,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import {
@@ -43,6 +46,8 @@ import {
   showSuccess,
   timestamp2string,
 } from '../../helpers';
+import ProviderRewardModal from './ProviderRewardModal';
+import { useNavigate } from 'react-router-dom';
 
 const { Text } = Typography;
 
@@ -98,6 +103,7 @@ const getOwnerLabel = (user) => {
 
 const ProviderPage = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const adminMode = isAdmin();
   const ownerMode = !adminMode && isProviderOwner();
   const pageTitle = adminMode ? t('服务商管理') : t('服务商设置');
@@ -110,11 +116,13 @@ const ProviderPage = () => {
   const [configModalVisible, setConfigModalVisible] = useState(false);
   const [pricingModalVisible, setPricingModalVisible] = useState(false);
   const [pricingListVisible, setPricingListVisible] = useState(false);
+  const [rewardModalVisible, setRewardModalVisible] = useState(false);
   const [editingProvider, setEditingProvider] = useState(null);
   const [editingDomain, setEditingDomain] = useState(null);
   const [editingPricing, setEditingPricing] = useState(null);
   const [pricingRows, setPricingRows] = useState([]);
   const [pricingLoading, setPricingLoading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [ownerOptions, setOwnerOptions] = useState([]);
 
   const providerFormRef = useRef(null);
@@ -198,6 +206,12 @@ const ProviderPage = () => {
   }, []);
 
   useEffect(() => {
+    if (providers.length === 0) return;
+    if (currentProvider && providers.some((provider) => provider.id === currentProvider.id)) return;
+    setCurrentProvider(providers[0]);
+  }, [providers, currentProvider]);
+
+  useEffect(() => {
     if (!providerModalVisible || !providerFormRef.current) return;
     providerFormRef.current.setValues(editingProvider || emptyProvider);
   }, [providerModalVisible, editingProvider]);
@@ -246,6 +260,15 @@ const ProviderPage = () => {
     fetchPricingRows(provider);
   };
 
+  const openRewardModal = (provider) => {
+    setCurrentProvider(provider);
+    if (adminMode) {
+      setRewardModalVisible(true);
+      return;
+    }
+    navigate('/console/provider/reward');
+  };
+
   const openPricingModal = (pricing = null) => {
     setEditingPricing(pricing);
     setPricingModalVisible(true);
@@ -253,6 +276,64 @@ const ProviderPage = () => {
 
   const refreshAfterMutation = async () => {
     await fetchProviders();
+  };
+
+  const getLogoUploadPath = (data) => {
+    let path = '';
+    if (typeof data === 'string') {
+      path = data;
+    } else {
+      path =
+        data?.url ||
+        data?.path ||
+        data?.logo ||
+        data?.file_path ||
+        data?.filePath ||
+        '';
+    }
+    if (!path || /^https?:\/\//i.test(path)) {
+      return path;
+    }
+    return `${window.location.origin}${path.startsWith('/') ? path : `/${path}`}`;
+  };
+
+  const handleLogoUpload = async ({
+    file,
+    fileInstance,
+    onSuccess,
+    onError,
+  }) => {
+    try {
+      setLogoUploading(true);
+      const uploadFile = fileInstance || file?.fileInstance;
+      if (!uploadFile) {
+        throw new Error(t('请选择图片'));
+      }
+      const formData = new FormData();
+      formData.append('logo', uploadFile);
+      const url = adminMode ? '/api/provider/admin/logo' : '/api/provider/logo';
+      const res = await API.post(url, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        throw new Error(message || t('Logo 上传失败'));
+      }
+      const logoPath = getLogoUploadPath(data);
+      if (!logoPath) {
+        throw new Error(t('Logo 上传返回地址无效'));
+      }
+      configFormRef.current?.setValue?.('logo', logoPath);
+      showSuccess(t('Logo 上传成功'));
+      onSuccess?.(data || {});
+    } catch (error) {
+      showError(error?.message || t('Logo 上传失败'));
+      onError?.({ status: 500 }, error);
+    } finally {
+      setLogoUploading(false);
+    }
   };
 
   const submitProvider = async () => {
@@ -480,6 +561,9 @@ const ProviderPage = () => {
             <Button size='small' onClick={() => openPricingList(record)}>
               {t('模型定价')}
             </Button>
+            <Button size='small' icon={<IconGiftStroked />} onClick={() => openRewardModal(record)}>
+              {t('奖励配置')}
+            </Button>
             {adminMode ? (
               <Popconfirm
                 title={t('确认禁用该服务商？')}
@@ -560,8 +644,8 @@ const ProviderPage = () => {
           </Typography.Title>
           <Text type='secondary'>
             {adminMode
-              ? t('管理员创建服务商、绑定域名、配置页面展示和模型售价。')
-              : t('管理当前服务商的域名、页面展示和模型售价。')}
+              ? t('管理服务商、域名、页面配置和模型售价。')
+              : t('管理当前服务商的域名、页面配置和模型售价。')}
           </Text>
         </div>
         <Space>
@@ -643,7 +727,30 @@ const ProviderPage = () => {
           getFormApi={(api) => (configFormRef.current = api)}
         >
           <Form.Input field='site_name' label={t('站点名')} />
-          <Form.Input field='logo' label={t('Logo 地址')} />
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <Form.Input
+                field='logo'
+                label={t('Logo 地址')}
+                placeholder={t('可以填写图片链接，也可以上传图片自动生成地址')}
+              />
+            </div>
+            <Upload
+              action='/'
+              accept='image/*'
+              showUploadList={false}
+              uploadTrigger='auto'
+              customRequest={handleLogoUpload}
+            >
+              <Button
+                icon={<IconUpload />}
+                loading={logoUploading}
+                style={{ marginBottom: 12 }}
+              >
+                {t('上传图片')}
+              </Button>
+            </Upload>
+          </div>
           <Form.TextArea field='footer_text' label={t('页脚文案')} autosize />
         </Form>
       </Modal>
@@ -692,6 +799,14 @@ const ProviderPage = () => {
           <Form.InputNumber field='delta_model_price' label={t('模型固定金额加减')} step={0.000001} />
         </Form>
       </Modal>
+
+      <ProviderRewardModal
+        visible={rewardModalVisible}
+        provider={currentProvider || providers[0]}
+        adminMode={adminMode}
+        onClose={() => setRewardModalVisible(false)}
+      />
+
     </div>
   );
 };

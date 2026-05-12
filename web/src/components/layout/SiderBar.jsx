@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -50,6 +50,11 @@ const routerMap = {
   models: '/console/models',
   deployment: '/console/deployment',
   provider: '/console/provider',
+  providerReward: '/console/provider/reward',
+  providerRewardReport: '/console/provider/reward-report',
+  providerRedemption: '/console/provider/redemption',
+  providerProfits: '/console/provider/profits',
+  providerLogs: '/console/provider/logs',
   playground: '/console/playground',
   personal: '/console/personal',
   oauth: '/console/oauth',
@@ -233,9 +238,34 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     if (!isProviderOwner() || isAdmin()) return [];
     return [
       {
-        text: t('服务商设置'),
+        text: t('服务商管理'),
         itemKey: 'provider',
         to: '/provider',
+      },
+      {
+        text: t('奖励设置'),
+        itemKey: 'providerReward',
+        to: '/provider/reward',
+      },
+      {
+        text: t('奖励报表'),
+        itemKey: 'providerRewardReport',
+        to: '/provider/reward-report',
+      },
+      {
+        text: t('兑换码管理'),
+        itemKey: 'providerRedemption',
+        to: '/provider/redemption',
+      },
+      {
+        text: t('服务商利润'),
+        itemKey: 'providerProfits',
+        to: '/provider/profits',
+      },
+      {
+        text: t('服务商使用日志'),
+        itemKey: 'providerLogs',
+        to: '/provider/logs',
       },
     ];
   }, [isProviderOwner(), isAdmin(), t]);
@@ -386,6 +416,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       setSelectedKeys([matchingKey]);
     }
   }, [location.pathname, routerMapState]);
+
+  useEffect(() => {
+    if (
+      providerOwnerItems.some((item) => selectedKeys.includes(item.itemKey))
+    ) {
+      setOpenedKeys((keys) =>
+        keys.includes('providerRoot') ? keys : [...keys, 'providerRoot'],
+      );
+    }
+  }, [providerOwnerItems, selectedKeys]);
 
   useEffect(() => {
     if (collapsed) {
@@ -598,7 +638,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           {false && hasSectionVisibleModules('chat') && chatMenuItems.length > 0 && (
             <div className='sidebar-section'>
               {!collapsed && (
-                <div className='sidebar-group-label'>{t('聊天')}</div>
+                  <div className='sidebar-group-label'>{t('聊天')}</div>
               )}
               {chatMenuItems.map((item) => renderSubItem(item))}
             </div>
@@ -675,7 +715,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
                 {!collapsed && (
                   <div className='sidebar-group-label'>{t('Provider')}</div>
                 )}
-                {providerOwnerItems.map((item) => renderNavItem(item))}
+                {renderSubItem({
+                  itemKey: 'providerRoot',
+                  text: t('服务商'),
+                  iconKey: 'provider',
+                  items: providerOwnerItems,
+                })}
               </div>
             </>
           )}

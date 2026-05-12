@@ -445,3 +445,65 @@ func UploadWebLogo(c *gin.Context) {
 	logoURL := "/static/logo/" + hash + ext
 	common.ApiSuccess(c, gin.H{"url": logoURL})
 }
+
+func saveUploadedLogo(c *gin.Context) (string, bool) {
+	file, err := c.FormFile("logo")
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgWebLogoNotSelected)
+		return "", false
+	}
+	if file.Size > 5<<20 {
+		common.ApiErrorI18n(c, i18n.MsgWebLogoSizeExceeded)
+		return "", false
+	}
+	contentType := file.Header.Get("Content-Type")
+	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/gif" && contentType != "image/svg+xml" {
+		common.ApiErrorI18n(c, i18n.MsgWebLogoFormatUnsupported)
+		return "", false
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		common.ApiError(c, err)
+		return "", false
+	}
+	defer src.Close()
+
+	baseDir := filepath.Join("static", "logo")
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		common.ApiError(c, err)
+		return "", false
+	}
+	tmpDir := filepath.Join(baseDir, "tmp")
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		common.ApiError(c, err)
+		return "", false
+	}
+
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	tmpPath := filepath.Join(tmpDir, uuid.New().String()+ext)
+	dst, err := os.Create(tmpPath)
+	if err != nil {
+		common.ApiError(c, err)
+		return "", false
+	}
+
+	hasher := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(dst, hasher), src); err != nil {
+		_ = dst.Close()
+		common.ApiError(c, err)
+		return "", false
+	}
+	if err := dst.Close(); err != nil {
+		common.ApiError(c, err)
+		return "", false
+	}
+
+	hash := hex.EncodeToString(hasher.Sum(nil))
+	finalPath := filepath.Join(baseDir, hash+ext)
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		common.ApiError(c, err)
+		return "", false
+	}
+	return "/static/logo/" + hash + ext, true
+}

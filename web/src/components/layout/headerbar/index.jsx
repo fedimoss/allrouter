@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -91,6 +91,12 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     '/console/subscription': t('订阅管理'),
     '/console/models': t('模型管理'),
     '/console/deployment': t('模型部署'),
+    '/console/provider': t('服务商设置'),
+    '/console/provider/reward': t('奖励设置'),
+    '/console/provider/reward-report': t('奖励报表'),
+    '/console/provider/redemption': t('兑换码管理'),
+    '/console/provider/profits': t('服务商利润'),
+    '/console/provider/logs': t('服务商使用日志'),
     '/console/billing': t('账单中心'),
     '/console/operational': t('运营数据'),
     '/console/reconciliation': t('支付对账'),

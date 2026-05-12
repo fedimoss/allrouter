@@ -8,6 +8,7 @@ import (
 // InviteRecord stores the fixed invitation registration reward at the time the invitee registers.
 type InviteRecord struct {
 	Id           int    `json:"id"`
+	ProviderId   int    `json:"provider_id" gorm:"index;not null"`
 	InviterId    int    `json:"inviter_id" gorm:"index"`
 	InviteeId    int    `json:"invitee_id" gorm:"column:invitee_id;uniqueIndex"`
 	InviteeName  string `json:"invitee_name" gorm:"->;-:migration;column:invitee_name"`
@@ -29,11 +30,19 @@ func createInviteRecordTx(tx *gorm.DB, inviterId int, invitee *User) error {
 		registerTime = common.GetTimestamp()
 	}
 	record := &InviteRecord{
+		ProviderId:   invitee.ProviderId,
 		InviterId:    inviterId,
 		InviteeId:    invitee.Id,
 		RegisterTime: registerTime,
-		RewardQuota:  common.QuotaForInviter,
+		RewardQuota:  0,
 		CreatedAt:    common.GetTimestamp(),
+	}
+	if inviterId > 0 {
+		if inviter, err := GetUserById(inviterId, true); err == nil {
+			if cfg, err := GetProviderRewardConfig(inviter.ProviderId); err == nil {
+				record.RewardQuota = cfg.QuotaForInviter
+			}
+		}
 	}
 	return tx.Create(record).Error
 }

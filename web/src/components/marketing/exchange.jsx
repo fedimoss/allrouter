@@ -17,77 +17,62 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useContext } from 'react';
-import {
-  Typography,
-  Button,
-  Input,
-  Table,
-  Modal,
-  Select,
-  DatePicker,
-} from '@douyinfe/semi-ui';
-import {
-  ArrowRight
-} from 'lucide-react';
+import React, { useContext, useEffect, useState } from 'react';
+import { Button, Input, Modal, Table, Typography } from '@douyinfe/semi-ui';
+import { ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import {
   API,
-  showError,
-  showSuccess,
-  showInfo,
   renderQuota,
+  showError,
+  showInfo,
+  showSuccess,
+  timestamp2string,
 } from '../../helpers';
-import { useIsMobile } from '../../hooks/common/useIsMobile';
 import imgOne from '../../../public/one.png';
 import imgTwo from '../../../public/two.png';
 import imgThree from '../../../public/three.png';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
-// 静态兑换记录
-const STATIC_RECORDS = [];
-
-const STATUS_MAP = {
-  redeemed: {
-    color: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-    dot: 'bg-green-500',
-    label: '已兑换',
-  },
-  expired: {
-    color: 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400',
-    dot: 'bg-slate-400',
-    label: '已过期',
-  },
-};
-
-const ACCOUNT_STATUS_MAP = {
-  arrived: {
-    color: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-    label: '已到账',
-  },
-  pending: {
-    color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
-    label: '处理中',
-  },
-  failed: {
-    color: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400',
-    label: '失败',
-  },
-};
+const statusBadgeClass =
+  'inline-flex items-center px-2.5 py-1 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium';
 
 const Exchange = () => {
   const { t } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
-  const isMobile = useIsMobile();
-
   const [redemptionCode, setRedemptionCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [records, setRecords] = useState([]);
+  const [recordsTotal, setRecordsTotal] = useState(0);
+  const [recordsLoading, setRecordsLoading] = useState(false);
 
   const topUpLink = statusState?.status?.top_up_link || '';
+
+  const loadRecords = async () => {
+    setRecordsLoading(true);
+    try {
+      const res = await API.get('/api/user/redemption/self?p=1&page_size=20');
+      const { success, message, data } = res.data;
+      if (success) {
+        setRecords(data.items || []);
+        setRecordsTotal(data.total || 0);
+      } else {
+        showError(message);
+      }
+    } catch {
+      showError(t('加载兑换记录失败'));
+    } finally {
+      setRecordsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRecords();
+  }, []);
 
   const openTopUpLink = () => {
     if (!topUpLink) {
@@ -116,13 +101,16 @@ const Exchange = () => {
           centered: true,
         });
         if (userState.user) {
-          const updatedUser = {
-            ...userState.user,
-            quota: userState.user.quota + data,
-          };
-          userDispatch({ type: 'login', payload: updatedUser });
+          userDispatch({
+            type: 'login',
+            payload: {
+              ...userState.user,
+              quota: userState.user.quota + data,
+            },
+          });
         }
         setRedemptionCode('');
+        loadRecords();
       } else {
         showError(message);
       }
@@ -133,22 +121,21 @@ const Exchange = () => {
     }
   };
 
-  // 表格列定义
   const columns = [
     {
       title: t('兑换时间'),
-      dataIndex: 'redeem_time',
-      key: 'redeem_time',
-      render: (text) => (
+      dataIndex: 'redeemed_time',
+      key: 'redeemed_time',
+      render: (time) => (
         <span className='text-slate-600 dark:text-slate-300 whitespace-nowrap'>
-          {text}
+          {time ? timestamp2string(time) : '-'}
         </span>
       ),
     },
     {
       title: t('兑换码'),
-      dataIndex: 'code',
-      key: 'code',
+      dataIndex: 'key',
+      key: 'key',
       render: (text) => (
         <code className='text-xs font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-1 rounded'>
           {text}
@@ -157,55 +144,39 @@ const Exchange = () => {
     },
     {
       title: t('类型'),
-      dataIndex: 'type',
-      key: 'type',
+      dataIndex: 'name',
+      key: 'name',
       render: (text) => (
-        <span className='text-slate-600 dark:text-slate-300'>{t(text)}</span>
+        <span className='text-slate-600 dark:text-slate-300'>
+          {text || t('兑换码')}
+        </span>
       ),
     },
     {
-      title: t('面值/权益'),
-      dataIndex: 'value',
-      key: 'value',
-      render: (text) => (
-        <Text strong>{text}</Text>
-      ),
+      title: t('面值 / 权益'),
+      dataIndex: 'quota',
+      key: 'quota',
+      render: (text) => <Text strong>{text}</Text>,
     },
     {
       title: t('状态'),
-      dataIndex: 'status',
       key: 'status',
-      render: (status) => {
-        const cfg = STATUS_MAP[status] || STATUS_MAP.redeemed;
-        return (
-          <span
-            className={`inline-flex items-center px-2.5 py-1 ${cfg.color} rounded-full text-xs font-medium`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} mr-1.5`} />
-            {t(cfg.label)}
-          </span>
-        );
-      },
+      render: () => (
+        <span className={statusBadgeClass}>
+          <span className='w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5' />
+          {t('已兑换')}
+        </span>
+      ),
     },
     {
       title: t('到账状态'),
-      dataIndex: 'account_status',
       key: 'account_status',
-      render: (status) => {
-        const cfg = ACCOUNT_STATUS_MAP[status] || ACCOUNT_STATUS_MAP.pending;
-        return (
-          <span
-            className={`inline-flex items-center px-2.5 py-1 ${cfg.color} rounded-full text-xs font-medium`}
-          >
-            {t(cfg.label)}
-          </span>
-        );
-      },
+      render: () => <span className={statusBadgeClass}>{t('已到账')}</span>,
     },
     {
       title: t('流水ID'),
-      dataIndex: 'txn_id',
-      key: 'txn_id',
+      dataIndex: 'id',
+      key: 'id',
       render: (text) => (
         <span className='text-xs font-mono text-slate-500 dark:text-slate-400'>
           {text}
@@ -214,7 +185,6 @@ const Exchange = () => {
     },
   ];
 
-  // 活动推荐卡片数据
   const promoCards = [
     {
       bgImgUrl: imgOne,
@@ -243,11 +213,10 @@ const Exchange = () => {
   ];
 
   return (
-    <div className=''>
+    <div>
       <div className='mx-full'>
-        {/* 页面标题 */}
         <div className='mb-6'>
-          <div className='flex items-center gap-3'> 
+          <div className='flex items-center gap-3'>
             <div className='text-[30px] font-medium text-[#475569] dark:text-white'>
               {t('兑换码')}
             </div>
@@ -257,9 +226,7 @@ const Exchange = () => {
           </div>
         </div>
 
-        {/* 兑换码输入区 */}
         <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl dark:border-slate-700 p-6 md:p-6 mb-6 relative overflow-hidden'>
-          {/* 装饰背景 */}
           <div className='absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-cyan-50 to-transparent dark:from-cyan-950/30 rounded-bl-full -mr-16 -mt-16 pointer-events-none' />
           <div className='relative z-10'>
             <div className='flex items-center gap-2 mb-1'>
@@ -298,10 +265,8 @@ const Exchange = () => {
               </Button>
             </div>
             <div className='mt-5 flex items-center justify-between'>
-              <div className='flex items-center gap-1.5'>
-                <div className='text-[14px] text-[#64748B] dark:text-slate-200'>
-                  {t('兑换成功后权益将实时发放至您的账户，请注意查看“到账状态”。')}
-                </div>
+              <div className='text-[14px] text-[#64748B] dark:text-slate-200'>
+                {t('兑换成功后权益将实时发放至您的账户，请注意查看到账状态。')}
               </div>
               {topUpLink && (
                 <Text type='tertiary' size='small'>
@@ -321,80 +286,24 @@ const Exchange = () => {
           </div>
         </div>
 
-        {/* 我的兑换记录 */}
         <div className='rounded-2xl border-slate-200 dark:border-slate-700 mb-6'>
-          {/* 标题栏 */}
           <div className='px-4 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center'>
-            <div className='flex items-center gap-2'>
-              <div className='text-[30px] text-[#475569] font-medium'>
-                {t('我的兑换记录')}
-              </div>
+            <div className='text-[30px] text-[#475569] font-medium'>
+              {t('我的兑换记录')}
             </div>
             <span className='text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md'>
-              {t('共')} {STATIC_RECORDS.length} {t('条记录')}
+              {t('共')} {recordsTotal} {t('条记录')}
             </span>
           </div>
 
-          {/* 筛选栏 */}
-          {/* <div className='px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/60'>
-            <div className='flex flex-col md:flex-row gap-3 items-center'>
-              <DatePicker
-                type='dateRange'
-                density='compact'
-                placeholder={[t('开始时间'), t('结束时间')]}
-                className='md:!min-w-[260px] [&_.semi-datepicker-range-input]:!rounded-lg [&_.semi-datepicker-range-input]:!bg-[var(--semi-color-bg-0)] [&_.semi-datepicker-range-input]:!border-[var(--semi-color-border)] [&_.semi-datepicker-range-input_input]:!text-[var(--semi-color-text-0)] [&_.semi-datepicker-range-input_input]:!cursor-pointer [&_.semi-datepicker-range-input-separator]:!text-[var(--semi-color-text-2)] [&_.semi-input-suffix]:!text-[var(--semi-color-text-2)]'
-              />
-              <Select
-                placeholder={t('全部状态')}
-                className='md:!min-w-[130px] !cursor-pointer [&_.semi-select]:!rounded-lg [&_.semi-select]:!bg-[var(--semi-color-bg-0)] [&_.semi-select]:!border-[var(--semi-color-border)] [&_.semi-select-selection-text]:!text-[var(--semi-color-text-0)] [&_.semi-select-placeholder]:!text-[var(--semi-color-text-2)] [&_.semi-select-arrow]:!text-[var(--semi-color-text-2)]'
-                optionList={[
-                  { value: '', label: t('全部状态') },
-                  { value: 'arrived', label: t('已到账') },
-                  { value: 'pending', label: t('处理中') },
-                  { value: 'failed', label: t('失败') },
-                ]}
-              />
-              <Select
-                placeholder={t('全部类型')}
-                className='md:!min-w-[130px] !cursor-pointer [&_.semi-select]:!rounded-lg [&_.semi-select]:!bg-[var(--semi-color-bg-0)] [&_.semi-select]:!border-[var(--semi-color-border)] [&_.semi-select-selection-text]:!text-[var(--semi-color-text-0)] [&_.semi-select-placeholder]:!text-[var(--semi-color-text-2)] [&_.semi-select-arrow]:!text-[var(--semi-color-text-2)]'
-                optionList={[
-                  { value: '', label: t('全部类型') },
-                  { value: 'quota', label: t('额度') },
-                  { value: 'benefit', label: t('权益') },
-                ]}
-              />
-              <Button
-                icon={<Search size={14} />}
-                className='!rounded-lg !font-semibold'
-                style={{
-                  background:
-                    'linear-gradient(135deg, #09fef7 0%, #f8ff15 100%)',
-                  borderColor: 'transparent',
-                  color: '#000',
-                }}
-              >
-                {t('查询')}
-              </Button>
-              <Button
-                type='tertiary'
-                theme='outline'
-                icon={<RotateCcw size={14} />}
-                className='!rounded-lg [&_.semi-button-content]:!text-[var(--semi-color-text-1)]' style={{ backgroundColor: 'var(--semi-color-bg-0)', borderColor: 'var(--semi-color-border)' }}
-              >
-                {t('重置')}
-              </Button>
-            </div>
-          </div> */}
-
-          {/* 表格 */}
           <Table
             columns={columns}
-            dataSource={STATIC_RECORDS}
+            dataSource={records}
+            loading={recordsLoading}
             rowKey='id'
           />
         </div>
 
-        {/* 获取更多兑换码 */}
         <div className='mb-6'>
           <div className='flex items-center gap-2 mb-4'>
             <div className='text-[30px] text-[#475569] font-medium'>
@@ -405,17 +314,31 @@ const Exchange = () => {
             {promoCards.map((card, index) => (
               <div
                 key={index}
-                className={`group bg-white dark:bg-[#FFFFFF08] dark:border-gray-800 rounded-2xl border p-6 cursor-pointer`}
-                style={{backgroundImage:`url(${card.bgImgUrl})`, backgroundPosition: 'bottom right', backgroundRepeat: 'no-repeat'}}
+                className='group bg-white dark:bg-[#FFFFFF08] dark:border-gray-800 rounded-2xl border p-6 cursor-pointer'
+                style={{
+                  backgroundImage: `url(${card.bgImgUrl})`,
+                  backgroundPosition: 'bottom right',
+                  backgroundRepeat: 'no-repeat',
+                }}
                 onClick={() => {
                   if (card.link) window.location.href = card.link;
                 }}
               >
-                <div className='text-[12px] text-[#1CDFD5] font-bold mb-2'>{card.subTitle}</div>
-                <div className='text-[20px] text-[#475569] font-bold mb-2'>{card.title}</div>
-                <div className='text-[14px] text-[#94A3B8] mb-4'>{card.desc}</div>
-                <span className="text-[12px] text-[#1CDFD5] font-bold flex items-center">
-                  {card.linkText} <ArrowRight size={14} className='inline-block ml-1 transition-transform group-hover:translate-x-1' />
+                <div className='text-[12px] text-[#1CDFD5] font-bold mb-2'>
+                  {card.subTitle}
+                </div>
+                <div className='text-[20px] text-[#475569] font-bold mb-2'>
+                  {card.title}
+                </div>
+                <div className='text-[14px] text-[#94A3B8] mb-4'>
+                  {card.desc}
+                </div>
+                <span className='text-[12px] text-[#1CDFD5] font-bold flex items-center'>
+                  {card.linkText}
+                  <ArrowRight
+                    size={14}
+                    className='inline-block ml-1 transition-transform group-hover:translate-x-1'
+                  />
                 </span>
               </div>
             ))}

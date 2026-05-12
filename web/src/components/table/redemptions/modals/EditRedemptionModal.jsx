@@ -71,6 +71,7 @@ const EditRedemptionModal = (props) => {
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
+  const apiPrefix = props.apiPrefix || '/api/redemption';
 
   const getInitValues = () => ({
     name: '',
@@ -86,7 +87,7 @@ const EditRedemptionModal = (props) => {
 
   const loadRedemption = async () => {
     setLoading(true);
-    let res = await API.get(`/api/redemption/${props.editingRedemption.id}`);
+    let res = await API.get(`${apiPrefix}/${props.editingRedemption.id}`);
     const { success, message, data } = res.data;
     if (success) {
       if (data.expired_time === 0) {
@@ -136,12 +137,12 @@ const EditRedemptionModal = (props) => {
     }
     let res;
     if (isEdit) {
-      res = await API.put(`/api/redemption/`, {
+      res = await API.put(`${apiPrefix}`, {
         ...localInputs,
         id: parseInt(props.editingRedemption.id),
       });
     } else {
-      res = await API.post(`/api/redemption/`, {
+      res = await API.post(`${apiPrefix}`, {
         ...localInputs,
       });
     }

@@ -68,9 +68,11 @@ import {
   FileBox,
   BarChart3,
   ClipboardList,
+  ScrollText,
   Image as ImageIcon,
   CheckSquare,
   CreditCard,
+  BadgeDollarSign,
   Dock,
   Layers,
   Gift,
@@ -160,6 +162,16 @@ export function getLucideIcon(key, selected = false) {
       return <Server {...commonProps} color={iconColor} />;
     case 'provider':
       return <Store {...commonProps} color={iconColor} />;
+    case 'providerReward':
+      return <Gift {...commonProps} color={iconColor} />;
+    case 'providerRewardReport':
+      return <BarChart3 {...commonProps} color={iconColor} />;
+    case 'providerRedemption':
+      return <Ticket {...commonProps} color={iconColor} />;
+    case 'providerProfits':
+      return <BadgeDollarSign {...commonProps} color={iconColor} />;
+    case 'providerLogs':
+      return <ScrollText {...commonProps} color={iconColor} />;
     case 'billing':
       return <CreditCard {...commonProps} color={iconColor} />;
     case 'operational':

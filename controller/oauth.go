@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
@@ -264,9 +265,10 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 	// Handle affiliate code
 	affCode := session.Get("aff")
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	inviterId := 0
 	if affCode != nil {
-		inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
+		inviterId, _ = model.GetUserIdByAffCodeInProvider(providerId, affCode.(string))
 	}
 
 	// Use transaction to ensure user creation and OAuth binding are atomic

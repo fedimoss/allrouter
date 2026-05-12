@@ -116,7 +116,7 @@ func GetStatus(c *gin.Context) {
 		"setup":                       constant.Setup,
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
-		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+		"checkin_enabled":             getStatusCheckinEnabled(c),
 	}
 
 	// 根据启用状态注入可选内容
@@ -384,4 +384,16 @@ func ResetPassword(c *gin.Context) {
 		"data":    password,
 	})
 	return
+}
+
+func getStatusCheckinEnabled(c *gin.Context) bool {
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	if providerId > 0 {
+		cfg, err := model.GetProviderRewardConfig(providerId)
+		if err == nil {
+			return cfg.CheckinEnabled
+		}
+		return false
+	}
+	return operation_setting.GetCheckinSetting().Enabled
 }

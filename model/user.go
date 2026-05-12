@@ -23,7 +23,7 @@ const UserNameMaxLength = 20
 // Otherwise, the sensitive information will be saved on local storage in plain text!
 type User struct {
 	Id               int            `json:"id"`
-	ProviderId       int            `json:"provider_id" gorm:"type:int;default:0;index"`
+	ProviderId       int            `json:"provider_id" gorm:"type:int;default:0;index;uniqueIndex:ux_user_provider_aff"`
 	Username         string         `json:"username" gorm:"index" validate:"max=20"`
 	Password         string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
 	OriginalPassword string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
@@ -43,7 +43,7 @@ type User struct {
 	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
 	Group            string         `json:"group" gorm:"type:varchar(64);default:'default'"`
-	AffCode          string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
+	AffCode          string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex:ux_user_provider_aff"`
 	AffCount         int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
 	AffQuota         int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
 	AffHistoryQuota  int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
@@ -484,6 +484,19 @@ func GetUserIdByAffCode(affCode string) (int, error) {
 	return user.Id, err
 }
 
+func GetUserIdByAffCodeInProvider(providerId int, affCode string) (int, error) {
+	if affCode == "" {
+		return 0, errors.New("affCode 涓虹┖锛?")
+	}
+	var user User
+	query := DB.Select("id").Where("aff_code = ?", affCode)
+	if providerId > 0 {
+		query = query.Where("provider_id = ?", providerId)
+	}
+	err := query.First(&user).Error
+	return user.Id, err
+}
+
 func DeleteUserById(id int) (err error) {
 	if id == 0 {
 		return errors.New("id 为空！")
@@ -509,6 +522,60 @@ func inviteUser(inviterId int) (err error) {
 	user.AffQuota += common.QuotaForInviter
 	user.AffHistoryQuota += common.QuotaForInviter
 	return DB.Save(user).Error
+}
+
+func recordRewardAndIncreaseQuotaTx(tx *gorm.DB, providerId int, userId int, quota int, sourceType string, sourceId int, description string) error {
+	if tx == nil || userId <= 0 || quota <= 0 || sourceType == "" {
+		return nil
+	}
+	if err := tx.Model(&User{}).Where("id = ?", userId).Updates(map[string]interface{}{
+		"quota":        gorm.Expr("quota + ?", quota),
+		"reward_quota": gorm.Expr("reward_quota + ?", quota),
+	}).Error; err != nil {
+		return err
+	}
+	if providerId <= 0 {
+		return nil
+	}
+	return CreateRewardRecordTx(tx, &RewardRecord{
+		ProviderId:  providerId,
+		UserId:      userId,
+		SourceType:  sourceType,
+		SourceId:    sourceId,
+		Quota:       quota,
+		Description: description,
+	})
+}
+
+func grantInviterRewardTx(tx *gorm.DB, inviterId int, inviteeId int, rewardQuota int) error {
+	if tx == nil || inviterId <= 0 || inviteeId <= 0 || rewardQuota <= 0 {
+		return nil
+	}
+	var inviter User
+	if err := tx.Select("id", "provider_id", "aff_count", "aff_quota", "aff_history").Where("id = ?", inviterId).Take(&inviter).Error; err != nil {
+		return err
+	}
+	inviter.AffCount++
+	inviter.AffQuota += rewardQuota
+	inviter.AffHistoryQuota += rewardQuota
+	if err := tx.Model(&User{}).Where("id = ?", inviterId).Updates(map[string]interface{}{
+		"aff_count":   inviter.AffCount,
+		"aff_quota":   inviter.AffQuota,
+		"aff_history": inviter.AffHistoryQuota,
+	}).Error; err != nil {
+		return err
+	}
+	if inviter.ProviderId <= 0 {
+		return nil
+	}
+	return CreateRewardRecordTx(tx, &RewardRecord{
+		ProviderId:  inviter.ProviderId,
+		UserId:      inviterId,
+		SourceType:  "inviter_reward",
+		SourceId:    inviteeId,
+		Quota:       rewardQuota,
+		Description: "inviter reward",
+	})
 }
 
 func (user *User) TransferAffQuotaToQuota(quota int) error {
@@ -557,8 +624,12 @@ func (user *User) Insert(inviterId int) error {
 			return err
 		}
 	}
-	user.Quota = common.QuotaForNewUser
-	user.RewardQuota = common.QuotaForNewUser
+	rewardCfg, err := GetProviderRewardConfig(user.ProviderId)
+	if err != nil {
+		return err
+	}
+	user.Quota = rewardCfg.QuotaForNewUser
+	user.RewardQuota = rewardCfg.QuotaForNewUser
 	user.InviterId = inviterId
 	//user.SetAccessToken(common.GetUUID())
 	user.AffCode = common.GetRandomString(4)
@@ -584,6 +655,41 @@ func (user *User) Insert(inviterId int) error {
 	if err := createInviteRecordTx(tx, inviterId, user); err != nil {
 		tx.Rollback()
 		return err
+	}
+	if rewardCfg.QuotaForNewUser > 0 && user.ProviderId > 0 {
+		if err := CreateRewardRecordTx(tx, &RewardRecord{
+			ProviderId:  user.ProviderId,
+			UserId:      user.Id,
+			SourceType:  "new_user",
+			SourceId:    user.Id,
+			Quota:       rewardCfg.QuotaForNewUser,
+			Description: "new user reward",
+		}); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	if inviterId != 0 {
+		if rewardCfg.QuotaForInvitee > 0 {
+			if err := recordRewardAndIncreaseQuotaTx(tx, user.ProviderId, user.Id, rewardCfg.QuotaForInvitee, "invitee_reward", inviterId, "invitee reward"); err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+		var inviter User
+		if err := tx.Select("id", "provider_id").Where("id = ?", inviterId).Take(&inviter).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+		inviterRewardCfg, err := GetProviderRewardConfig(inviter.ProviderId)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := grantInviterRewardTx(tx, inviterId, user.Id, inviterRewardCfg.QuotaForInviter); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	// 用户创建成功后，根据角色初始化边栏配置
@@ -621,18 +727,18 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 
-	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+	if rewardCfg.QuotaForNewUser > 0 {
+		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user reward %s", logger.LogQuota(rewardCfg.QuotaForNewUser)))
 	}
 	if inviterId != 0 {
-		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserRewardQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+		if rewardCfg.QuotaForInvitee > 0 {
+			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("invitee reward %s", logger.LogQuota(rewardCfg.QuotaForInvitee)))
 		}
-		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
+		var inviter User
+		if err := DB.Select("id", "provider_id").Where("id = ?", inviterId).Take(&inviter).Error; err == nil {
+			if inviterRewardCfg, err := GetProviderRewardConfig(inviter.ProviderId); err == nil && inviterRewardCfg.QuotaForInviter > 0 {
+				RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("inviter reward %s", logger.LogQuota(inviterRewardCfg.QuotaForInviter)))
+			}
 		}
 	}
 	return nil
@@ -649,8 +755,12 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			return err
 		}
 	}
-	user.Quota = common.QuotaForNewUser
-	user.RewardQuota = common.QuotaForNewUser
+	rewardCfg, err := GetProviderRewardConfig(user.ProviderId)
+	if err != nil {
+		return err
+	}
+	user.Quota = rewardCfg.QuotaForNewUser
+	user.RewardQuota = rewardCfg.QuotaForNewUser
 	user.InviterId = inviterId
 	user.AffCode = common.GetRandomString(4)
 
@@ -668,6 +778,36 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	if err := createInviteRecordTx(tx, inviterId, user); err != nil {
 		return err
 	}
+	if rewardCfg.QuotaForNewUser > 0 && user.ProviderId > 0 {
+		if err := CreateRewardRecordTx(tx, &RewardRecord{
+			ProviderId:  user.ProviderId,
+			UserId:      user.Id,
+			SourceType:  "new_user",
+			SourceId:    user.Id,
+			Quota:       rewardCfg.QuotaForNewUser,
+			Description: "new user reward",
+		}); err != nil {
+			return err
+		}
+	}
+	if inviterId != 0 {
+		if rewardCfg.QuotaForInvitee > 0 {
+			if err := recordRewardAndIncreaseQuotaTx(tx, user.ProviderId, user.Id, rewardCfg.QuotaForInvitee, "invitee_reward", inviterId, "invitee reward"); err != nil {
+				return err
+			}
+		}
+		var inviter User
+		if err := tx.Select("id", "provider_id").Where("id = ?", inviterId).Take(&inviter).Error; err != nil {
+			return err
+		}
+		inviterRewardCfg, err := GetProviderRewardConfig(inviter.ProviderId)
+		if err != nil {
+			return err
+		}
+		if err := grantInviterRewardTx(tx, inviterId, user.Id, inviterRewardCfg.QuotaForInviter); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -675,7 +815,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 // FinalizeOAuthUserCreation performs post-transaction tasks for OAuth user creation.
 // This should be called after the transaction commits successfully.
 func (user *User) FinalizeOAuthUserCreation(inviterId int) {
-	// 用户创建成功后，根据角色初始化边栏配置
+	// 鐢ㄦ埛鍒涘缓鎴愬姛鍚庯紝鏍规嵁瑙掕壊鍒濆鍖栬竟鏍忛厤缃�
 	var createdUser User
 	if err := DB.Where("id = ?", user.Id).First(&createdUser).Error; err == nil {
 		defaultSidebarConfig := generateDefaultSidebarConfigForRole(createdUser.Role)
@@ -684,21 +824,24 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 			currentSetting.SidebarModules = defaultSidebarConfig
 			createdUser.SetSetting(currentSetting)
 			createdUser.Update(false)
-			common.SysLog(fmt.Sprintf("为新用户 %s (角色: %d) 初始化边栏配置", createdUser.Username, createdUser.Role))
+			common.SysLog(fmt.Sprintf("created provider user %s (role: %d) sidebar initialized", createdUser.Username, createdUser.Role))
 		}
 	}
 
-	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
-	}
-	if inviterId != 0 {
-		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserRewardQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+	if rewardCfg, err := GetProviderRewardConfig(user.ProviderId); err == nil {
+		if rewardCfg.QuotaForNewUser > 0 {
+			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user reward %s", logger.LogQuota(rewardCfg.QuotaForNewUser)))
 		}
-		if common.QuotaForInviter > 0 {
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
+		if inviterId != 0 {
+			if rewardCfg.QuotaForInvitee > 0 {
+				RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("invitee reward %s", logger.LogQuota(rewardCfg.QuotaForInvitee)))
+			}
+			var inviter User
+			if err := DB.Select("id", "provider_id").Where("id = ?", inviterId).Take(&inviter).Error; err == nil {
+				if inviterRewardCfg, err := GetProviderRewardConfig(inviter.ProviderId); err == nil && inviterRewardCfg.QuotaForInviter > 0 {
+					RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("inviter reward %s", logger.LogQuota(inviterRewardCfg.QuotaForInviter)))
+				}
+			}
 		}
 	}
 }

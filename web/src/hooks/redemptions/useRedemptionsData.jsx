@@ -28,7 +28,7 @@ import { Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 
-export const useRedemptionsData = () => {
+export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
   const { t } = useTranslation();
 
   // Basic state
@@ -75,9 +75,7 @@ export const useRedemptionsData = () => {
   const loadRedemptions = async (page = 1, pageSize) => {
     setLoading(true);
     try {
-      const res = await API.get(
-        `/api/redemption/?p=${page}&page_size=${pageSize}`,
-      );
+      const res = await API.get(`${apiPrefix}?p=${page}&page_size=${pageSize}`);
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -105,7 +103,7 @@ export const useRedemptionsData = () => {
     setSearching(true);
     try {
       const res = await API.get(
-        `/api/redemption/search?keyword=${searchKeyword}&p=1&page_size=${pageSize}`,
+        `${apiPrefix}/search?keyword=${searchKeyword}&p=1&page_size=${pageSize}`,
       );
       const { success, message, data } = res.data;
       if (success) {
@@ -131,15 +129,15 @@ export const useRedemptionsData = () => {
     try {
       switch (action) {
         case REDEMPTION_ACTIONS.DELETE:
-          res = await API.delete(`/api/redemption/${id}/`);
+          res = await API.delete(`${apiPrefix}/${id}`);
           break;
         case REDEMPTION_ACTIONS.ENABLE:
           data.status = REDEMPTION_STATUS.UNUSED;
-          res = await API.put('/api/redemption/?status_only=true', data);
+          res = await API.put(`${apiPrefix}?status_only=true`, data);
           break;
         case REDEMPTION_ACTIONS.DISABLE:
           data.status = REDEMPTION_STATUS.DISABLED;
-          res = await API.put('/api/redemption/?status_only=true', data);
+          res = await API.put(`${apiPrefix}?status_only=true`, data);
           break;
         default:
           throw new Error('Unknown operation type');
@@ -261,7 +259,7 @@ export const useRedemptionsData = () => {
       content: t('将删除已使用、已禁用及过期的兑换码，此操作不可撤销。'),
       onOk: async () => {
         setLoading(true);
-        const res = await API.delete('/api/redemption/invalid');
+        const res = await API.delete(`${apiPrefix}/invalid`);
         const { success, message, data } = res.data;
         if (success) {
           showSuccess(t('已删除 {{count}} 条失效兑换码', { count: data }));
@@ -315,6 +313,7 @@ export const useRedemptionsData = () => {
     tokenCount,
     selectedKeys,
     displaySymbol,
+    apiPrefix,
 
     // Edit state
     editingRedemption,

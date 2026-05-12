@@ -53,6 +53,11 @@ import Billing from './pages/Billing';
 import Operational from './pages/OperationalData';
 import Reconciliation from './pages/Reconciliation';
 import CertificationDocument from './pages/CertificationDocument';
+import ProviderRewardPage from './pages/Provider/Reward';
+import ProviderRewardReportPage from './pages/Provider/RewardReport';
+import ProviderRedemptionPage from './pages/Provider/Redemption';
+import ProviderProfitsPage from './pages/Provider/Profits';
+import ProviderLogsPage from './pages/Provider/Logs';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
@@ -145,6 +150,46 @@ function App() {
           element={
             <PrivateRoute>
               <Provider />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/provider/reward'
+          element={
+            <PrivateRoute>
+              <ProviderRewardPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/provider/reward-report'
+          element={
+            <PrivateRoute>
+              <ProviderRewardReportPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/provider/redemption'
+          element={
+            <PrivateRoute>
+              <ProviderRedemptionPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/provider/logs'
+          element={
+            <PrivateRoute>
+              <ProviderLogsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/provider/profits'
+          element={
+            <PrivateRoute>
+              <ProviderProfitsPage />
             </PrivateRoute>
           }
         />

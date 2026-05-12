@@ -278,71 +278,76 @@ func asyncIncrUserQuotaCache(userId int, quota int) {
 // - error: 错误信息
 func applyInviteTopupRebateTx(tx *gorm.DB, topUp *TopUp, quotaToAdd int) (int, int, error) {
 	// 充值返利已停用。邀请返利现在在实际消费付费额度时生成，
-	// 见 ApplyInviteConsumeRebate。
+	// 见 ApplyInviteConsumeRebate。保留后续代码仅作为历史逻辑参考。
 	return 0, 0, nil
 
 	if tx == nil || topUp == nil {
 		return 0, 0, nil
 	}
-
-	// 检查返利条件：
-	// - 只处理 payment 类型的充值
-	// - 确保有实际到账额度
-	// - 返利比例必须大于0
-	if topUp.GetBizType() != TopUpBizTypePayment || quotaToAdd <= 0 || common.InviteTopupRebateRatio <= 0 {
+	if topUp.GetBizType() != TopUpBizTypePayment || quotaToAdd <= 0 {
 		return 0, 0, nil
 	}
 	if topUp.PaymentMethod == TopUpPaymentMethodProviderProfit {
 		return 0, 0, nil
 	}
 
-	// 查询用户的邀请人信息
 	var invitee struct {
-		InviterId int `gorm:"column:inviter_id"`
+		InviterId  int `gorm:"column:inviter_id"`
+		ProviderId int `gorm:"column:provider_id"`
 	}
-	if err := tx.Model(&User{}).Select("inviter_id").Where("id = ?", topUp.UserId).Take(&invitee).Error; err != nil {
+	if err := tx.Model(&User{}).Select("inviter_id", "provider_id").Where("id = ?", topUp.UserId).Take(&invitee).Error; err != nil {
 		return 0, 0, err
 	}
-
-	// 如果用户没有邀请人或邀请人ID无效，不执行返利
 	if invitee.InviterId <= 0 {
 		return 0, 0, nil
 	}
+	rewardCfg, err := GetProviderRewardConfig(invitee.ProviderId)
+	if err != nil {
+		return 0, 0, err
+	}
+	if rewardCfg.InviteTopupRebateRatio <= 0 {
+		return 0, 0, nil
+	}
 
-	// 计算返利额度：
-	// 公式：返利额度 = 充值额度 × 返利比例 ÷ 100
-	rebateQuota := int(decimal.NewFromInt(int64(quotaToAdd)).
-		Mul(decimal.NewFromFloat(common.InviteTopupRebateRatio)).
-		Div(decimal.NewFromInt(100)).
-		IntPart())
-
-	// 如果返利额度小于等于0，不执行返利
+	rebateQuota := int(decimal.NewFromInt(int64(quotaToAdd)).Mul(decimal.NewFromFloat(rewardCfg.InviteTopupRebateRatio)).Div(decimal.NewFromInt(100)).IntPart())
 	if rebateQuota <= 0 {
 		return 0, 0, nil
 	}
 
-	// 创建返利记录
-	rebate := &TopUpRebate{
-		InviterId:     invitee.InviterId,             // 邀请人ID
-		InviteeId:     topUp.UserId,                  // 被邀请人（充值人）ID
-		TopUpId:       topUp.Id,                      // 充值记录ID
-		TradeNo:       topUp.TradeNo,                 // 充值订单号
-		PaymentMethod: topUp.PaymentMethod,           // 支付方式
-		SourceMoney:   topUp.Money,                   // 原始支付金额
-		SourceQuota:   quotaToAdd,                    // 原始充值额度
-		RebateRatio:   common.InviteTopupRebateRatio, // 返利比例
-		RebateQuota:   rebateQuota,                   // 返利额度
-		CreatedAt:     common.GetTimestamp(),         // 创建时间
+	var inviter User
+	if err := tx.Select("id", "provider_id").Where("id = ?", invitee.InviterId).Take(&inviter).Error; err != nil {
+		return 0, 0, err
 	}
-
-	// 在事务中创建返利记录
+	rebate := &TopUpRebate{
+		ProviderId:    inviter.ProviderId,
+		InviterId:     invitee.InviterId,
+		InviteeId:     topUp.UserId,
+		TopUpId:       topUp.Id,
+		TradeNo:       topUp.TradeNo,
+		PaymentMethod: topUp.PaymentMethod,
+		SourceMoney:   topUp.Money,
+		SourceQuota:   quotaToAdd,
+		RebateRatio:   rewardCfg.InviteTopupRebateRatio,
+		RebateQuota:   rebateQuota,
+		CreatedAt:     common.GetTimestamp(),
+	}
 	if err := tx.Create(rebate).Error; err != nil {
 		return 0, 0, err
 	}
-
-	// 给邀请人增加返利额度
 	if err := tx.Model(&User{}).Where("id = ?", invitee.InviterId).Update("quota", gorm.Expr("quota + ?", rebateQuota)).Error; err != nil {
 		return 0, 0, err
+	}
+	if inviter.ProviderId > 0 {
+		if err := CreateRewardRecordTx(tx, &RewardRecord{
+			ProviderId:  inviter.ProviderId,
+			UserId:      invitee.InviterId,
+			SourceType:  "topup_rebate",
+			SourceId:    topUp.Id,
+			Quota:       rebateQuota,
+			Description: "invite topup rebate",
+		}); err != nil {
+			return 0, 0, err
+		}
 	}
 
 	return invitee.InviterId, rebateQuota, nil

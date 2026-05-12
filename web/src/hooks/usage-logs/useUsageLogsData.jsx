@@ -42,8 +42,9 @@ import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
 
-export const useLogsData = () => {
+export const useLogsData = ({ scope = 'default' } = {}) => {
   const { t } = useTranslation();
+  const isProviderScope = scope === 'provider';
 
   // Define column keys for selection
   const COLUMN_KEYS = {
@@ -77,10 +78,14 @@ export const useLogsData = () => {
   // User and admin
   const isAdminUser = isAdmin();
   // Role-specific storage key to prevent different roles from overwriting each other
-  const STORAGE_KEY = isAdminUser
+  const STORAGE_KEY = isProviderScope
+    ? 'logs-table-columns-provider'
+    : isAdminUser
     ? 'logs-table-columns-admin'
     : 'logs-table-columns-user';
-  const BILLING_DISPLAY_MODE_STORAGE_KEY = isAdminUser
+  const BILLING_DISPLAY_MODE_STORAGE_KEY = isProviderScope
+    ? 'logs-billing-display-mode-provider'
+    : isAdminUser
     ? 'logs-billing-display-mode-admin'
     : 'logs-billing-display-mode-user';
 
@@ -140,7 +145,7 @@ export const useLogsData = () => {
       const parsed = JSON.parse(savedColumns);
       const merged = { ...defaults, ...parsed };
 
-      if (!isAdminUser) {
+      if (!isAdminUser && !isProviderScope) {
         merged[COLUMN_KEYS.CHANNEL] = false;
         merged[COLUMN_KEYS.USERNAME] = false;
         merged[COLUMN_KEYS.RETRY] = false;
@@ -210,7 +215,8 @@ export const useLogsData = () => {
         (key === COLUMN_KEYS.CHANNEL ||
           key === COLUMN_KEYS.USERNAME ||
           key === COLUMN_KEYS.RETRY) &&
-        !isAdminUser
+        !isAdminUser &&
+        !isProviderScope
       ) {
         updatedColumns[key] = false;
       } else {
@@ -289,7 +295,9 @@ export const useLogsData = () => {
     const localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
     let url = '';
-    if (isAdminUser) {
+    if (isProviderScope) {
+      url = `/api/provider/logs?p=${page}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
+    } else if (isAdminUser) {
       url = `/api/log/?p=${page}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
     } else {
       url = `/api/log/self/?p=${page}&page_size=${size}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
@@ -312,6 +320,30 @@ export const useLogsData = () => {
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
     let url = `/api/log/self/stat?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
+    url = encodeURI(url);
+    let res = await API.get(url);
+    const { success, message, data } = res.data;
+    if (success) {
+      setStat(data);
+    } else {
+      showError(message);
+    }
+  };
+
+  const getProviderLogStat = async () => {
+    const {
+      username,
+      token_name,
+      model_name,
+      start_timestamp,
+      end_timestamp,
+      group,
+      logType: formLogType,
+    } = getFormValues();
+    const currentLogType = formLogType !== undefined ? formLogType : logType;
+    let localStartTimestamp = Date.parse(start_timestamp) / 1000;
+    let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+    let url = `/api/provider/logs/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
     url = encodeURI(url);
     let res = await API.get(url);
     const { success, message, data } = res.data;
@@ -353,7 +385,7 @@ export const useLogsData = () => {
     }
     setLoadingStat(true);
     await Promise.all([
-      isAdminUser ? getLogStat() : getLogSelfStat(),
+      isProviderScope ? getProviderLogStat() : isAdminUser ? getLogStat() : getLogSelfStat(),
       loadErrorCount(),
     ]);
     setShowStat(true);
@@ -863,6 +895,7 @@ export const useLogsData = () => {
     stat,
     errorCount,
     isAdminUser,
+    isProviderScope,
 
     // Form state
     formApi,

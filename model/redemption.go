@@ -13,8 +13,9 @@ import (
 
 type Redemption struct {
 	Id           int            `json:"id"`
+	ProviderId   int            `json:"provider_id" gorm:"type:int;default:0;index;uniqueIndex:ux_provider_redemption_key"`
 	UserId       int            `json:"user_id"`
-	Key          string         `json:"key" gorm:"type:char(32);uniqueIndex"`
+	Key          string         `json:"key" gorm:"type:char(32);uniqueIndex:ux_provider_redemption_key"`
 	Status       int            `json:"status" gorm:"default:1"`
 	Name         string         `json:"name" gorm:"index"`
 	Quota        int            `json:"quota" gorm:"default:100"`
@@ -23,88 +24,47 @@ type Redemption struct {
 	Count        int            `json:"count" gorm:"-:all"` // only for api request
 	UsedUserId   int            `json:"used_user_id"`
 	DeletedAt    gorm.DeletedAt `gorm:"index"`
-	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // expired time, 0 means never expires
 }
 
 func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
-	// 开始事务
-	tx := DB.Begin()
-	if tx.Error != nil {
-		return nil, 0, tx.Error
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
+	return getRedemptionsByProvider(DB, 0, startIdx, num)
+}
 
-	// 获取总数
-	err = tx.Model(&Redemption{}).Count(&total).Error
-	if err != nil {
-		tx.Rollback()
+func GetRedemptionsByProvider(providerId int, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+	return getRedemptionsByProvider(DB, providerId, startIdx, num)
+}
+
+func getRedemptionsByProvider(db *gorm.DB, providerId int, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+	query := db.Model(&Redemption{}).Where("provider_id = ?", providerId)
+	if err = query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-
-	// 获取分页数据
-	err = tx.Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
-	if err != nil {
-		tx.Rollback()
-		return nil, 0, err
-	}
-
-	// 提交事务
-	if err = tx.Commit().Error; err != nil {
-		return nil, 0, err
-	}
-
-	return redemptions, total, nil
+	err = query.Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
+	return redemptions, total, err
 }
 
 func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
-	tx := DB.Begin()
-	if tx.Error != nil {
-		return nil, 0, tx.Error
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
+	return SearchRedemptionsByProvider(0, keyword, startIdx, num)
+}
 
-	// Build query based on keyword type
-	query := tx.Model(&Redemption{})
-
-	// Only try to convert to ID if the string represents a valid integer
+func SearchRedemptionsByProvider(providerId int, keyword string, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+	query := DB.Model(&Redemption{}).Where("provider_id = ?", providerId)
 	if id, err := strconv.Atoi(keyword); err == nil {
 		query = query.Where("id = ? OR name LIKE ?", id, keyword+"%")
 	} else {
 		query = query.Where("name LIKE ?", keyword+"%")
 	}
-
-	// Get total count
-	err = query.Count(&total).Error
-	if err != nil {
-		tx.Rollback()
+	if err = query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-
-	// Get paginated data
 	err = query.Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
-	if err != nil {
-		tx.Rollback()
-		return nil, 0, err
-	}
-
-	if err = tx.Commit().Error; err != nil {
-		return nil, 0, err
-	}
-
-	return redemptions, total, nil
+	return redemptions, total, err
 }
 
 func GetRedemptionById(id int) (*Redemption, error) {
 	if id == 0 {
-		return nil, errors.New("id 为空！")
+		return nil, errors.New("id is empty")
 	}
 	redemption := Redemption{Id: id}
 	var err error = nil
@@ -112,12 +72,30 @@ func GetRedemptionById(id int) (*Redemption, error) {
 	return &redemption, err
 }
 
+func GetRedemptionByIdInProvider(id int, providerId int) (*Redemption, error) {
+	if id == 0 {
+		return nil, errors.New("id is empty")
+	}
+	redemption := Redemption{Id: id, ProviderId: providerId}
+	err := DB.Where("id = ? AND provider_id = ?", id, providerId).First(&redemption).Error
+	return &redemption, err
+}
+
+func GetUserRedeemedRedemptions(userId int, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+	query := DB.Model(&Redemption{}).Where("used_user_id = ? AND status = ?", userId, common.RedemptionCodeStatusUsed)
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err = query.Order("redeemed_time desc").Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
+	return redemptions, total, err
+}
+
 func Redeem(key string, userId int) (quota int, err error) {
 	if key == "" {
-		return 0, errors.New("未提供兑换码")
+		return 0, errors.New("missing redemption code")
 	}
 	if userId == 0 {
-		return 0, errors.New("无效的 user id")
+		return 0, errors.New("invalid user id")
 	}
 	redemption := &Redemption{}
 
@@ -129,15 +107,19 @@ func Redeem(key string, userId int) (quota int, err error) {
 	now := common.GetTimestamp()
 
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(keyCol+" = ?", key).First(redemption).Error
+		var user User
+		if err := tx.Select("id", "provider_id").Where("id = ?", userId).Take(&user).Error; err != nil {
+			return err
+		}
+		err := tx.Set("gorm:query_option", "FOR UPDATE").Where("provider_id = ? AND "+keyCol+" = ?", user.ProviderId, key).First(redemption).Error
 		if err != nil {
-			return errors.New("无效的兑换码")
+			return errors.New("invalid redemption code")
 		}
 		if redemption.Status != common.RedemptionCodeStatusEnabled {
-			return errors.New("该兑换码已被使用")
+			return errors.New("redemption code already used")
 		}
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
-			return errors.New("该兑换码已过期")
+			return errors.New("redemption code expired")
 		}
 		tradeNo := fmt.Sprintf("RDM-%d-%d-%s", redemption.Id, userId, common.GetRandomString(8))
 		err = tx.Model(&User{}).Where("id = ?", userId).Updates(map[string]interface{}{
@@ -147,14 +129,22 @@ func Redeem(key string, userId int) (quota int, err error) {
 		if err != nil {
 			return err
 		}
-		//将quota额度换算成账单中的moeny和amount（在使用兑换码时，amount且用美元 进行结算）
-
+		if user.ProviderId > 0 {
+			if err := CreateRewardRecordTx(tx, &RewardRecord{
+				ProviderId:  user.ProviderId,
+				UserId:      userId,
+				SourceType:  "redemption",
+				SourceId:    redemption.Id,
+				Quota:       redemption.Quota,
+				Description: "redemption reward",
+			}); err != nil {
+				return err
+			}
+		}
 		moneyDecimal := decimal.NewFromInt(int64(redemption.Quota)).Div(decimal.NewFromFloat(common.QuotaPerUnit))
-
-		part := moneyDecimal.Round(0).IntPart() //四舍五入
-
-		//新增账单表数据
+		part := moneyDecimal.Round(0).IntPart()
 		topUp := &TopUp{
+			ProviderId:    user.ProviderId,
 			Amount:        part,
 			UserId:        userId,
 			Money:         0,
@@ -181,11 +171,11 @@ func Redeem(key string, userId int) (quota int, err error) {
 		return 0, ErrRedeemFailed
 	}
 	asyncIncrUserQuotaCache(userId, redemption.Quota)
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
+	RecordLog(userId, LogTypeTopup, fmt.Sprintf("redeemed %s using code ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
 	return redemption.Quota, nil
 }
 
-// GetUsersRedemptionQuota 批量查询用户通过兑换码充值的总额
+// GetUsersRedemptionQuota 鎵归噺鏌ヨ鐢ㄦ埛閫氳繃鍏戞崲鐮佸厖鍊肩殑鎬婚
 func GetUsersRedemptionQuota(userIds []int) (map[int]int64, error) {
 	if len(userIds) == 0 {
 		return map[int]int64{}, nil
@@ -236,7 +226,7 @@ func (redemption *Redemption) Delete() error {
 
 func DeleteRedemptionById(id int) (err error) {
 	if id == 0 {
-		return errors.New("id 为空！")
+		return errors.New("id is empty")
 	}
 	redemption := Redemption{Id: id}
 	err = DB.Where(redemption).First(&redemption).Error
@@ -246,8 +236,24 @@ func DeleteRedemptionById(id int) (err error) {
 	return redemption.Delete()
 }
 
+func DeleteRedemptionByIdInProvider(id int, providerId int) (err error) {
+	if id == 0 {
+		return errors.New("id is empty")
+	}
+	redemption := Redemption{}
+	err = DB.Where("id = ? AND provider_id = ?", id, providerId).First(&redemption).Error
+	if err != nil {
+		return err
+	}
+	return redemption.Delete()
+}
+
 func DeleteInvalidRedemptions() (int64, error) {
+	return DeleteInvalidRedemptionsByProvider(0)
+}
+
+func DeleteInvalidRedemptionsByProvider(providerId int) (int64, error) {
 	now := common.GetTimestamp()
-	result := DB.Where("status IN ? OR (status = ? AND expired_time != 0 AND expired_time < ?)", []int{common.RedemptionCodeStatusUsed, common.RedemptionCodeStatusDisabled}, common.RedemptionCodeStatusEnabled, now).Delete(&Redemption{})
+	result := DB.Where("provider_id = ? AND (status IN ? OR (status = ? AND expired_time != 0 AND expired_time < ?))", providerId, []int{common.RedemptionCodeStatusUsed, common.RedemptionCodeStatusDisabled}, common.RedemptionCodeStatusEnabled, now).Delete(&Redemption{})
 	return result.RowsAffected, result.Error
 }

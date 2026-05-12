@@ -29,8 +29,8 @@ import { useLogsData } from '../../../hooks/usage-logs/useUsageLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
 
-const LogsPage = () => {
-  const logsData = useLogsData();
+const LogsPage = ({ scope = 'default', title, description }) => {
+  const logsData = useLogsData({ scope });
   const isMobile = useIsMobile();
 
   const paginationArea = createCardProPagination({
@@ -54,9 +54,9 @@ const LogsPage = () => {
         <div className='log-v2-shell'>
           <div className='log-v2-stack'>
             <section className='usage-logs-v2-header'>
-              <div className='usage-logs-v2-title'>{logsData.t('使用日志')}</div>
+              <div className='usage-logs-v2-title'>{title || logsData.t('使用日志')}</div>
               <p className='usage-logs-v2-description'>
-                {logsData.t('查看并分析您的 API 调用详细数据和实时状态。')}
+                {description || logsData.t('查看并分析您的 API 调用详细数据和实时状态。')}
               </p>
             </section>
 

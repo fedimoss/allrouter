@@ -512,6 +512,7 @@ export const getLogsColumns = ({
   showUserInfoFunc,
   openChannelAffinityUsageCacheModal,
   isAdminUser,
+  isProviderScope,
   billingDisplayMode = 'price',
 }) => {
   return [
@@ -619,16 +620,20 @@ export const getLogsColumns = ({
       title: t('用户'),
       dataIndex: 'username',
       render: (text, record, index) => {
-        return isAdminUser ? (
+        return isAdminUser || isProviderScope ? (
           <div>
             <Avatar
               size='extra-small'
               color={stringToColor(text)}
               style={{ marginRight: 4 }}
-              onClick={(event) => {
-                event.stopPropagation();
-                showUserInfoFunc(record.user_id);
-              }}
+              onClick={
+                isAdminUser
+                  ? (event) => {
+                      event.stopPropagation();
+                      showUserInfoFunc(record.user_id);
+                    }
+                  : undefined
+              }
             >
               {typeof text === 'string' && text.slice(0, 1)}
             </Avatar>

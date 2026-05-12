@@ -227,7 +227,7 @@ func Register(c *gin.Context) {
 		return
 	}
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
-	inviterId, _ := model.GetUserIdByAffCode(affCode)
+	inviterId, _ := model.GetUserIdByAffCodeInProvider(providerId, affCode)
 	cleanUser := model.User{
 		ProviderId:  providerId,
 		Username:    user.Username,
