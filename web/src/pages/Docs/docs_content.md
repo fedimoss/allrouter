@@ -350,21 +350,16 @@ claude \-\-version
 
 \# 注意替换里面的 \`your\_allrouter\_api\_key\` 为您上一步获取到的 API Key
 
-\{
-
-  "env": \{
-
+```json
+{
+  "env": {
     "ANTHROPIC_AUTH_TOKEN": "your_allrouter_api_key",
-
     "ANTHROPIC_BASE_URL": "https://allrouter.ai/v1",
-
     "API_TIMEOUT_MS": "3000000",
-
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1
-
-  \}
-
-\}
+  }
+}
+```
 
 \# 再编辑或新增 \`.claude.json\` 文件
 

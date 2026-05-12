@@ -398,21 +398,16 @@ Important Notes:
 
 \# Be sure to replace "your\_allrouter\_api\_key" in the env field with the actual API Key you obtained from the previous step on AllRouter.AI.
 
-\{
-
-  "env": \{
-
+```json
+{
+  "env": {
     "ANTHROPIC_AUTH_TOKEN": "your_allrouter_api_key",
-
     "ANTHROPIC_BASE_URL": "https://allrouter.ai/v1",
-
     "API_TIMEOUT_MS": "3000000",
-
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1
-
-  \}
-
-\}
+  }
+}
+```
 
 \# Edit or Create the .claude.json File Again
 
@@ -430,11 +425,11 @@ Important Notes:
 
 Configuration Result:
 
-ANTHROPIC\_AUTH\_TOKEN=Token / API Key
+ANTHROPIC_AUTH_TOKEN=Token / API Key
 
-ANTHROPIC\_BASE\_URL=https://allrouter.ai/v1
+ANTHROPIC_BASE_URL=https://allrouter.ai/v1
 
-ANTHROPIC\_MODEL=Token Name
+ANTHROPIC_MODEL=Token Name
 
 ![image 27](/docs_images/img_en_27.png)
 
