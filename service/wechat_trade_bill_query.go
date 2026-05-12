@@ -141,6 +141,7 @@ func normalizeWechatTradeBillListFilter(filter *WechatTradeBillListFilter) *mode
 	}
 }
 
+// formatTimestampText 格式化时间戳为 CST 格式
 func formatTimestampText(ts int64) string {
 	if ts <= 0 {
 		return ""
