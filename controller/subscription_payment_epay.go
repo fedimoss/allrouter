@@ -104,7 +104,8 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	}
 
 	callBackAddress := service.GetCallbackAddress()
-	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")
+	returnBaseURL := common.GetTrustedRequestBaseURLWithDomains(c, system_setting.ServerAddress, getPaymentTrustedDomains(c))
+	returnUrl, err := url.Parse(returnBaseURL + "/api/subscription/epay/return")
 	if err != nil {
 		common.ApiErrorMsg(c, "回调地址配置错误")
 		return
@@ -234,11 +235,12 @@ func SubscriptionEpayNotify(c *gin.Context) {
 // It verifies the payload and completes the order, then redirects to console.
 func SubscriptionEpayReturn(c *gin.Context) {
 	var params map[string]string
+	returnBaseURL := common.GetTrustedRequestBaseURLWithDomains(c, system_setting.ServerAddress, getPaymentTrustedDomains(c))
 
 	if c.Request.Method == "POST" {
 		// POST 请求：从 POST body 解析参数
 		if err := c.Request.ParseForm(); err != nil {
-			c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+			c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
 			return
 		}
 		params = lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
@@ -254,18 +256,18 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	}
 
 	if len(params) == 0 {
-		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+		c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
 		return
 	}
 
 	client := GetEpayClient()
 	if client == nil {
-		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+		c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
 		return
 	}
 	verifyInfo, err := client.Verify(params)
 	if err != nil || !verifyInfo.VerifyStatus {
-		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+		c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
 		return
 	}
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
@@ -275,16 +277,16 @@ func SubscriptionEpayReturn(c *gin.Context) {
 		order := model.GetSubscriptionOrderByTradeNo(verifyInfo.ServiceTradeNo)
 		// 校验回调金额与订单金额是否匹配（支持 CNY 容差匹配）
 		if !subscriptionEpayOrderMoneyMatches(order, verifyInfo.Money) {
-			c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+			c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
 			return
 		}
 		if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), verifyInfo.Type); err != nil {
-			c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+			c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
 			return
 		}
-		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=success")
+		c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=success")
 		return
 	}
 
-	c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=pending")
+	c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=pending")
 }

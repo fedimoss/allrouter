@@ -86,12 +86,14 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
-	if req.SuccessURL != "" && common.ValidateRedirectURL(req.SuccessURL) != nil {
+	trustedDomains := getStripeTrustedDomains(c)
+
+	if req.SuccessURL != "" && common.ValidateRedirectURLWithDomains(req.SuccessURL, trustedDomains) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "支付成功重定向URL不在可信任域名列表中", "data": ""})
 		return
 	}
 
-	if req.CancelURL != "" && common.ValidateRedirectURL(req.CancelURL) != nil {
+	if req.CancelURL != "" && common.ValidateRedirectURLWithDomains(req.CancelURL, trustedDomains) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "支付取消重定向URL不在可信任域名列表中", "data": ""})
 		return
 	}
@@ -127,7 +129,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	referenceId := "ref_" + common.Sha1([]byte(reference))
 
 	// 调用 Stripe API 创建 Checkout Session，传入时区对应的 priceId
-	payLink, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, req.Amount, priceId, req.SuccessURL, req.CancelURL)
+	payLink, err := genStripeLink(c, referenceId, user.StripeCustomer, user.Email, req.Amount, priceId, req.SuccessURL, req.CancelURL, trustedDomains)
 	if err != nil {
 		log.Println("获取Stripe Checkout支付链接失败", err)
 		c.JSON(200, gin.H{"message": "error", "data": "拉起支付失败"})
@@ -412,12 +414,13 @@ func sessionExpired(event stripe.Event) error {
 	return nil
 }
 
-func resolveStripeRedirectURLs(successURL string, cancelURL string) (string, string) {
+func resolveStripeRedirectURLs(c *gin.Context, successURL string, cancelURL string, trustedDomains []string) (string, string) {
+	baseURL := common.GetTrustedRequestBaseURLWithDomains(c, system_setting.ServerAddress, trustedDomains)
 	if successURL == "" {
-		successURL = system_setting.ServerAddress + "/console/topup"
+		successURL = baseURL + "/console/topup"
 	}
 	if cancelURL == "" {
-		cancelURL = system_setting.ServerAddress + "/console/topup"
+		cancelURL = baseURL + "/console/topup"
 	}
 	return successURL, cancelURL
 }
@@ -434,15 +437,15 @@ func resolveStripeRedirectURLs(successURL string, cancelURL string) (string, str
 //   - cancelURL: custom URL to redirect when payment is canceled (empty for default)
 //
 // Returns the checkout session URL or an error if the session creation fails.
-func genStripeLink(referenceId string, customerId string, email string, amount int64, priceId string, successURL string, cancelURL string) (string, error) {
+func genStripeLink(c *gin.Context, referenceId string, customerId string, email string, amount int64, priceId string, successURL string, cancelURL string, trustedDomains []string) (string, error) {
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
 		return "", fmt.Errorf("无效的Stripe API密钥")
 	}
 
 	stripe.Key = setting.StripeApiSecret
 
-	// Use custom URLs if provided, otherwise use defaults.
-	successURL, cancelURL = resolveStripeRedirectURLs(successURL, cancelURL)
+	// Use custom URLs if provided, otherwise derive from the incoming request.
+	successURL, cancelURL = resolveStripeRedirectURLs(c, successURL, cancelURL, trustedDomains)
 
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),

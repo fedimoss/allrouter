@@ -97,7 +97,8 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
 	// 调用 Stripe API 创建订阅 Checkout Session，传入币种对应的 priceId 和计算出的应付金额
-	payLink, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, priceId, chargeMoney)
+	trustedDomains := getStripeTrustedDomains(c)
+	payLink, err := genStripeSubscriptionLink(c, referenceId, user.StripeCustomer, user.Email, priceId, chargeMoney, trustedDomains)
 	if err != nil {
 		log.Println("获取Stripe Checkout支付链接失败", err)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
@@ -136,7 +137,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 
 // genStripeSubscriptionLink 生成 Stripe 订阅 Checkout Session 的支付链接
 // chargeMoney 为根据币种换算后的应付金额，需要通过查询 Stripe Price 的单价来计算 quantity
-func genStripeSubscriptionLink(referenceId string, customerId string, email string, priceId string, chargeMoney float64) (string, error) {
+func genStripeSubscriptionLink(c *gin.Context, referenceId string, customerId string, email string, priceId string, chargeMoney float64, trustedDomains []string) (string, error) {
 	// 设置 Stripe API 密钥
 	stripe.Key = setting.StripeApiSecret
 
@@ -147,7 +148,7 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 	}
 
 	// 构建 Checkout Session 参数并创建会话
-	params := buildStripeSubscriptionCheckoutParams(referenceId, customerId, email, priceId, quantity)
+	params := buildStripeSubscriptionCheckoutParams(c, referenceId, customerId, email, priceId, quantity, trustedDomains)
 	// 调用 Stripe SDK 创建 Checkout Session
 	result, err := session.New(params)
 	if err != nil {
@@ -158,11 +159,12 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 }
 
 // buildStripeSubscriptionCheckoutParams 构建 Stripe 订阅 Checkout Session 的请求参数
-func buildStripeSubscriptionCheckoutParams(referenceId string, customerId string, email string, priceId string, quantity int64) *stripe.CheckoutSessionParams {
+func buildStripeSubscriptionCheckoutParams(c *gin.Context, referenceId string, customerId string, email string, priceId string, quantity int64, trustedDomains []string) *stripe.CheckoutSessionParams {
+	baseURL := common.GetTrustedRequestBaseURLWithDomains(c, system_setting.ServerAddress, trustedDomains)
 	params := &stripe.CheckoutSessionParams{
-		ClientReferenceID: stripe.String(referenceId),                                     // 客户端引用 ID，用于 Webhook 回调时匹配订单
-		SuccessURL:        stripe.String(system_setting.ServerAddress + "/console/topup"), // 支付成功后的跳转地址
-		CancelURL:         stripe.String(system_setting.ServerAddress + "/console/topup"), // 支付取消后的跳转地址
+		ClientReferenceID: stripe.String(referenceId),                // 客户端引用 ID，用于 Webhook 回调时匹配订单
+		SuccessURL:        stripe.String(baseURL + "/console/topup"), // 支付成功后跳回发起请求的域名
+		CancelURL:         stripe.String(baseURL + "/console/topup"), // 支付取消后跳回发起请求的域名
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
 				Price:    stripe.String(priceId), // 使用币种对应的 Stripe Price ID
