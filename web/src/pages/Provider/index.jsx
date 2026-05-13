@@ -123,6 +123,9 @@ const ProviderPage = () => {
   const [pricingRows, setPricingRows] = useState([]);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [baseModels, setBaseModels] = useState([]);
+  const [baseModelsLoading, setBaseModelsLoading] = useState(false);
+  const [pricingType, setPricingType] = useState(emptyPricing.pricing_type);
   const [ownerOptions, setOwnerOptions] = useState([]);
 
   const providerFormRef = useRef(null);
@@ -201,6 +204,25 @@ const ProviderPage = () => {
     setPricingLoading(false);
   };
 
+  const fetchBaseModels = async () => {
+    if (baseModelsLoading || baseModels.length > 0) return;
+    setBaseModelsLoading(true);
+    try {
+      const url = adminMode
+        ? '/api/provider/admin/base_models'
+        : '/api/provider/base_models';
+      const res = await API.get(url);
+      if (res.data.success) {
+        setBaseModels(res.data.data || []);
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(error);
+    }
+    setBaseModelsLoading(false);
+  };
+
   useEffect(() => {
     fetchProviders();
   }, []);
@@ -232,6 +254,8 @@ const ProviderPage = () => {
   useEffect(() => {
     if (!pricingModalVisible || !pricingFormRef.current) return;
     pricingFormRef.current.setValues(editingPricing || emptyPricing);
+    setPricingType(editingPricing?.pricing_type || emptyPricing.pricing_type);
+    fetchBaseModels();
   }, [pricingModalVisible, editingPricing]);
 
   const openProviderModal = (provider = null) => {
@@ -271,11 +295,39 @@ const ProviderPage = () => {
 
   const openPricingModal = (pricing = null) => {
     setEditingPricing(pricing);
+    setPricingType(pricing?.pricing_type || emptyPricing.pricing_type);
     setPricingModalVisible(true);
+    fetchBaseModels();
   };
 
   const refreshAfterMutation = async () => {
     await fetchProviders();
+  };
+
+  const baseModelOptions = useMemo(() => {
+    const names = new Set(baseModels || []);
+    if (editingPricing?.base_model_name) {
+      names.add(editingPricing.base_model_name);
+    }
+    return Array.from(names)
+      .sort((a, b) => String(a).localeCompare(String(b)))
+      .map((name) => ({ label: name, value: name }));
+  }, [baseModels, editingPricing]);
+
+  const handleBaseModelChange = (value) => {
+    const values = pricingFormRef.current?.getValues?.() || {};
+    if (!values.public_model_name) {
+      pricingFormRef.current?.setValue?.('public_model_name', value);
+    }
+  };
+
+  const useBaseModelAsPublicName = () => {
+    const values = pricingFormRef.current?.getValues?.() || {};
+    if (!values.base_model_name) {
+      showError(t('请先选择实际调用主站模型'));
+      return;
+    }
+    pricingFormRef.current?.setValue?.('public_model_name', values.base_model_name);
   };
 
   const getLogoUploadPath = (data) => {
@@ -431,13 +483,15 @@ const ProviderPage = () => {
       showError(t('模型名称不能为空'));
       return;
     }
+    const nextPricingType = values.pricing_type || pricingType || emptyPricing.pricing_type;
     const payload = {
       ...values,
       id: editingPricing?.id || 0,
       enabled: values.enabled !== false,
-      ratio: Number(values.ratio || 0),
-      delta_model_ratio: Number(values.delta_model_ratio || 0),
-      delta_model_price: Number(values.delta_model_price || 0),
+      pricing_type: nextPricingType,
+      ratio: nextPricingType === 'ratio' ? Number(values.ratio || 1) : 1,
+      delta_model_ratio: nextPricingType === 'delta' ? Number(values.delta_model_ratio || 0) : 0,
+      delta_model_price: nextPricingType === 'delta' ? Number(values.delta_model_price || 0) : 0,
     };
     const url = adminMode
       ? `/api/provider/admin/${currentProvider.id}/model_pricing`
@@ -791,12 +845,54 @@ const ProviderPage = () => {
           getFormApi={(api) => (pricingFormRef.current = api)}
         >
           <Form.Input field='public_model_name' label={t('展示给服务商用户的模型名')} />
-          <Form.Input field='base_model_name' label={t('实际调用主站模型名')} />
+          <Button size='small' type='tertiary' onClick={useBaseModelAsPublicName} style={{ marginBottom: 12 }}>
+            {t('使用实际模型名')}
+          </Button>
+          <Form.Select
+            field='base_model_name'
+            label={t('实际调用主站模型')}
+            placeholder={t('请选择已启用渠道支持的主站模型')}
+            optionList={baseModelOptions}
+            loading={baseModelsLoading}
+            filter
+            remote={false}
+            onChange={handleBaseModelChange}
+          />
+          <Text type='tertiary' size='small'>
+            {t('这里只能选择主站当前已启用渠道支持的模型，避免手动填写错误导致服务商用户调用失败。')}
+          </Text>
           <Form.Switch field='enabled' label={t('启用')} />
-          <Form.Select field='pricing_type' label={t('计价方式')} optionList={PRICING_TYPE_OPTIONS} />
-          <Form.InputNumber field='ratio' label={t('比例')} min={0} step={0.01} />
-          <Form.InputNumber field='delta_model_ratio' label={t('模型倍率加减')} step={0.01} />
-          <Form.InputNumber field='delta_model_price' label={t('模型固定金额加减')} step={0.000001} />
+          <Form.Select
+            field='pricing_type'
+            label={t('计价方式')}
+            optionList={PRICING_TYPE_OPTIONS}
+            onChange={(value) => {
+              const nextType = value || emptyPricing.pricing_type;
+              setPricingType(nextType);
+              if (nextType === 'ratio') {
+                pricingFormRef.current?.setValue?.('delta_model_ratio', 0);
+                pricingFormRef.current?.setValue?.('delta_model_price', 0);
+              } else {
+                pricingFormRef.current?.setValue?.('ratio', 1);
+              }
+            }}
+          />
+          {pricingType === 'ratio' ? (
+            <>
+              <Form.InputNumber field='ratio' label={t('比例')} min={0} step={0.01} />
+              <Text type='tertiary' size='small'>
+                {t('服务商用户价格 = 主站真实模型价格 × 比例。例如填 1.2，表示按主站价格的 1.2 倍收费。')}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Form.InputNumber field='delta_model_ratio' label={t('模型倍率加减')} step={0.01} />
+              <Form.InputNumber field='delta_model_price' label={t('模型固定金额加减')} step={0.000001} />
+              <Text type='tertiary' size='small'>
+                {t('服务商用户价格 = 主站真实模型价格 + 差价。倍率计费模型使用“模型倍率加减”，固定价格模型使用“模型固定金额加减”。')}
+              </Text>
+            </>
+          )}
         </Form>
       </Modal>
 

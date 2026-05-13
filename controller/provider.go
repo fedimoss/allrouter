@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -457,6 +458,12 @@ func listProviderModelPricing(c *gin.Context, providerId int) {
 	common.ApiSuccess(c, rows)
 }
 
+func listProviderBaseModels(c *gin.Context) {
+	models := model.GetEnabledModels()
+	sort.Strings(models)
+	common.ApiSuccess(c, models)
+}
+
 func upsertProviderModelPricing(c *gin.Context, providerId int) {
 	var req model.ProviderModelPricing
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -521,6 +528,10 @@ func AdminListProviderModelPricing(c *gin.Context) {
 		return
 	}
 	listProviderModelPricing(c, id)
+}
+
+func AdminListProviderBaseModels(c *gin.Context) {
+	listProviderBaseModels(c)
 }
 
 func AdminUpsertProviderModelPricing(c *gin.Context) {
@@ -671,6 +682,13 @@ func ListProviderModelPricing(c *gin.Context) {
 		return
 	}
 	listProviderModelPricing(c, provider.Id)
+}
+
+func ListProviderBaseModels(c *gin.Context) {
+	if _, ok := getOwnedProvider(c); !ok {
+		return
+	}
+	listProviderBaseModels(c)
 }
 
 func UpsertProviderModelPricing(c *gin.Context) {
