@@ -62,8 +62,8 @@ const DOMAIN_STATUS_OPTIONS = [
 ];
 
 const PRICING_TYPE_OPTIONS = [
-  { label: '按比例', value: 'ratio' },
-  { label: '按差价', value: 'delta' },
+  { label: '按百分比加价', value: 'ratio' },
+  { label: '按固定差价', value: 'delta' },
 ];
 
 const emptyProvider = {
@@ -90,8 +90,27 @@ const emptyPricing = {
   enabled: true,
   pricing_type: 'ratio',
   ratio: 1,
+  markup_percent: 0,
   delta_model_ratio: 0,
   delta_model_price: 0,
+};
+
+const ratioToMarkupPercent = (ratio) => {
+  const value = Number(ratio || 1);
+  return Number(((value - 1) * 100).toFixed(6));
+};
+
+const markupPercentToRatio = (percent) => {
+  const value = Number(percent || 0);
+  return Number((1 + value / 100).toFixed(6));
+};
+
+const getPricingFormValues = (pricing) => {
+  const values = pricing || emptyPricing;
+  return {
+    ...values,
+    markup_percent: ratioToMarkupPercent(values.ratio),
+  };
 };
 
 const getOwnerLabel = (user) => {
@@ -253,7 +272,7 @@ const ProviderPage = () => {
 
   useEffect(() => {
     if (!pricingModalVisible || !pricingFormRef.current) return;
-    pricingFormRef.current.setValues(editingPricing || emptyPricing);
+    pricingFormRef.current.setValues(getPricingFormValues(editingPricing));
     setPricingType(editingPricing?.pricing_type || emptyPricing.pricing_type);
     fetchBaseModels();
   }, [pricingModalVisible, editingPricing]);
@@ -484,12 +503,13 @@ const ProviderPage = () => {
       return;
     }
     const nextPricingType = values.pricing_type || pricingType || emptyPricing.pricing_type;
+    const { markup_percent, ...submitValues } = values;
     const payload = {
-      ...values,
+      ...submitValues,
       id: editingPricing?.id || 0,
       enabled: values.enabled !== false,
       pricing_type: nextPricingType,
-      ratio: nextPricingType === 'ratio' ? Number(values.ratio || 1) : 1,
+      ratio: nextPricingType === 'ratio' ? markupPercentToRatio(markup_percent) : 1,
       delta_model_ratio: nextPricingType === 'delta' ? Number(values.delta_model_ratio || 0) : 0,
       delta_model_price: nextPricingType === 'delta' ? Number(values.delta_model_price || 0) : 0,
     };
@@ -643,11 +663,23 @@ const ProviderPage = () => {
     {
       title: t('计价方式'),
       dataIndex: 'pricing_type',
-      render: (type) => (type === 'delta' ? t('按差价') : t('按比例')),
+      render: (type) => (type === 'delta' ? t('按固定差价') : t('按百分比加价')),
     },
-    { title: t('比例'), dataIndex: 'ratio' },
-    { title: t('模型倍率加减'), dataIndex: 'delta_model_ratio' },
-    { title: t('模型固定金额加减'), dataIndex: 'delta_model_price' },
+    {
+      title: t('加价比例'),
+      dataIndex: 'ratio',
+      render: (ratio, record) => (record.pricing_type === 'ratio' ? `${ratioToMarkupPercent(ratio)}%` : '-'),
+    },
+    {
+      title: t('Token 模型加价倍率'),
+      dataIndex: 'delta_model_ratio',
+      render: (value, record) => (record.pricing_type === 'delta' ? value : '-'),
+    },
+    {
+      title: t('按次模型加价金额'),
+      dataIndex: 'delta_model_price',
+      render: (value, record) => (record.pricing_type === 'delta' ? value : '-'),
+    },
     {
       title: t('状态'),
       dataIndex: 'enabled',
@@ -841,7 +873,7 @@ const ProviderPage = () => {
       >
         <Form
           key={editingPricing?.id || `${currentProvider?.id || 0}-new-pricing`}
-          initValues={editingPricing || emptyPricing}
+          initValues={getPricingFormValues(editingPricing)}
           getFormApi={(api) => (pricingFormRef.current = api)}
         >
           <Form.Input field='public_model_name' label={t('展示给服务商用户的模型名')} />
@@ -874,22 +906,23 @@ const ProviderPage = () => {
                 pricingFormRef.current?.setValue?.('delta_model_price', 0);
               } else {
                 pricingFormRef.current?.setValue?.('ratio', 1);
+                pricingFormRef.current?.setValue?.('markup_percent', 0);
               }
             }}
           />
           {pricingType === 'ratio' ? (
             <>
-              <Form.InputNumber field='ratio' label={t('比例')} min={0} step={0.01} />
+              <Form.InputNumber field='markup_percent' label={t('加价比例')} min={0} step={1} suffix='%' />
               <Text type='tertiary' size='small'>
-                {t('服务商用户价格 = 主站真实模型价格 × 比例。例如填 1.2，表示按主站价格的 1.2 倍收费。')}
+                {t('填 20 表示在主站成本价基础上加价 20%，系统保存时会自动换算为 1.2 倍；填 0 表示不加价。')}
               </Text>
             </>
           ) : (
             <>
-              <Form.InputNumber field='delta_model_ratio' label={t('模型倍率加减')} step={0.01} />
-              <Form.InputNumber field='delta_model_price' label={t('模型固定金额加减')} step={0.000001} />
+              <Form.InputNumber field='delta_model_ratio' label={t('Token 模型加价倍率')} step={0.01} />
+              <Form.InputNumber field='delta_model_price' label={t('按次模型加价金额')} step={0.000001} />
               <Text type='tertiary' size='small'>
-                {t('服务商用户价格 = 主站真实模型价格 + 差价。倍率计费模型使用“模型倍率加减”，固定价格模型使用“模型固定金额加减”。')}
+                {t('按 token 计费的模型看“Token 模型加价倍率”；按次、按张、按任务计费的模型看“按次模型加价金额”。填 0 表示不额外加价。')}
               </Text>
             </>
           )}
