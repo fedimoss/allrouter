@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,9 +35,42 @@ type providerOwnerCandidate struct {
 	Email       string `json:"email"`
 }
 
+const (
+	defaultProviderPrimaryColor   = "#09FEF7"
+	defaultProviderSecondaryColor = "#BAFF29"
+)
+
+var providerHexColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$`)
+
+func normalizeProviderHexColor(color string) (string, bool) {
+	color = strings.TrimSpace(color)
+	if color == "" {
+		return "", true
+	}
+	return color, providerHexColorPattern.MatchString(color)
+}
+
+func providerThemeColors(cfg *model.ProviderConfig) (string, string) {
+	primary := defaultProviderPrimaryColor
+	secondary := defaultProviderSecondaryColor
+	if cfg == nil {
+		return primary, secondary
+	}
+	if color, ok := normalizeProviderHexColor(cfg.ThemeColor); ok && color != "" {
+		primary = color
+	}
+	if color, ok := normalizeProviderHexColor(cfg.SecondaryColor); ok && color != "" {
+		secondary = color
+	}
+	return primary, secondary
+}
+
 func providerConfigResponse(c *gin.Context, cfg *model.ProviderConfig) gin.H {
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	resp := gin.H{"provider_id": providerId, "enabled": providerId > 0}
+	primaryColor, secondaryColor := providerThemeColors(cfg)
+	resp["primary_color"] = primaryColor
+	resp["secondary_color"] = secondaryColor
 	if cfg == nil {
 		if providerName := c.GetString("provider_name"); providerName != "" {
 			resp["site_name"] = providerName
@@ -294,10 +328,23 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 		return
 	}
 	req.ProviderId = providerId
+	themeColor, ok := normalizeProviderHexColor(req.ThemeColor)
+	if !ok {
+		common.ApiErrorMsg(c, "invalid theme color")
+		return
+	}
+	secondaryColor, ok := normalizeProviderHexColor(req.SecondaryColor)
+	if !ok {
+		common.ApiErrorMsg(c, "invalid secondary color")
+		return
+	}
+	req.ThemeColor = themeColor
+	req.SecondaryColor = secondaryColor
 	updates := map[string]interface{}{
 		"site_name":        strings.TrimSpace(req.SiteName),
 		"logo":             strings.TrimSpace(req.Logo),
-		"theme_color":      strings.TrimSpace(req.ThemeColor),
+		"theme_color":      req.ThemeColor,
+		"secondary_color":  req.SecondaryColor,
 		"login_background": strings.TrimSpace(req.LoginBackground),
 		"home_modules":     req.HomeModules,
 		"nav_modules":      req.NavModules,

@@ -366,8 +366,10 @@ func SetApiRouter(router *gin.Engine) {
 		providerAdminRoute := apiRouter.Group("/provider/admin")
 		providerAdminRoute.Use(middleware.AdminAuth())
 		{
+			providerAdminRoute.GET("", controller.AdminListProviders)
 			providerAdminRoute.GET("/", controller.AdminListProviders)
 			providerAdminRoute.GET("/owner_candidates", controller.AdminListProviderOwnerCandidates)
+			providerAdminRoute.POST("", controller.AdminCreateProvider)
 			providerAdminRoute.POST("/", controller.AdminCreateProvider)
 			providerAdminRoute.PUT("/:id", controller.AdminUpdateProvider)
 			providerAdminRoute.DELETE("/:id", controller.AdminDisableProvider)

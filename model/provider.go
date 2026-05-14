@@ -44,7 +44,8 @@ type ProviderConfig struct {
 	ProviderId      int    `json:"provider_id" gorm:"uniqueIndex;not null"`
 	SiteName        string `json:"site_name" gorm:"type:varchar(128)"`
 	Logo            string `json:"logo" gorm:"type:text"`
-	ThemeColor      string `json:"theme_color" gorm:"type:varchar(32)"`
+	ThemeColor      string `json:"theme_color" gorm:"type:varchar(32);default:''"`
+	SecondaryColor  string `json:"secondary_color" gorm:"type:varchar(32);default:''"`
 	LoginBackground string `json:"login_background" gorm:"type:text"`
 	HomeModules     string `json:"home_modules" gorm:"type:text"`
 	NavModules      string `json:"nav_modules" gorm:"type:text"`

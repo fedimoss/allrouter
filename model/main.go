@@ -259,6 +259,9 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	if err := migrateProviderScopedRewardColumns(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -318,6 +321,9 @@ func migrateDB() error {
 }
 
 func migrateDBFast() error {
+	if err := migrateProviderScopedRewardColumns(); err != nil {
+		return err
+	}
 
 	var wg sync.WaitGroup
 
@@ -481,6 +487,63 @@ PRIMARY KEY (` + "`id`" + `)
 		}
 		if err := DB.Exec("ALTER TABLE `" + tableName + "` ADD COLUMN " + col.DDL).Error; err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func migrateProviderScopedRewardColumns() error {
+	tables := []string{"checkins", "invite_records"}
+	for _, tableName := range tables {
+		if !DB.Migrator().HasTable(tableName) {
+			continue
+		}
+		if err := ensureProviderIdColumnWithDefault(tableName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureProviderIdColumnWithDefault(tableName string) error {
+	const columnName = "provider_id"
+	hasColumn := DB.Migrator().HasColumn(tableName, columnName)
+	if common.UsingPostgreSQL {
+		if !hasColumn {
+			if err := DB.Exec(fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s integer NOT NULL DEFAULT 0`, tableName, columnName)).Error; err != nil {
+				return fmt.Errorf("failed to add %s.%s: %w", tableName, columnName, err)
+			}
+			return nil
+		}
+		if err := DB.Exec(fmt.Sprintf(`UPDATE %s SET %s = 0 WHERE %s IS NULL`, tableName, columnName, columnName)).Error; err != nil {
+			return fmt.Errorf("failed to backfill %s.%s: %w", tableName, columnName, err)
+		}
+		if err := DB.Exec(fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s SET DEFAULT 0`, tableName, columnName)).Error; err != nil {
+			return fmt.Errorf("failed to set default for %s.%s: %w", tableName, columnName, err)
+		}
+		if err := DB.Exec(fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s SET NOT NULL`, tableName, columnName)).Error; err != nil {
+			return fmt.Errorf("failed to set not null for %s.%s: %w", tableName, columnName, err)
+		}
+		return nil
+	}
+	if common.UsingMySQL {
+		if !hasColumn {
+			if err := DB.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` integer NOT NULL DEFAULT 0", tableName, columnName)).Error; err != nil {
+				return fmt.Errorf("failed to add %s.%s: %w", tableName, columnName, err)
+			}
+			return nil
+		}
+		if err := DB.Exec(fmt.Sprintf("UPDATE `%s` SET `%s` = 0 WHERE `%s` IS NULL", tableName, columnName, columnName)).Error; err != nil {
+			return fmt.Errorf("failed to backfill %s.%s: %w", tableName, columnName, err)
+		}
+		if err := DB.Exec(fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` integer NOT NULL DEFAULT 0", tableName, columnName)).Error; err != nil {
+			return fmt.Errorf("failed to normalize %s.%s: %w", tableName, columnName, err)
+		}
+		return nil
+	}
+	if common.UsingSQLite && !hasColumn {
+		if err := DB.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` integer NOT NULL DEFAULT 0", tableName, columnName)).Error; err != nil {
+			return fmt.Errorf("failed to add %s.%s: %w", tableName, columnName, err)
 		}
 	}
 	return nil

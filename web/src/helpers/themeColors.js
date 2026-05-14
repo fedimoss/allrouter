@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-export const DEFAULT_THEME_PRIMARY_COLOR = '#1CDFD5';
+export const DEFAULT_THEME_PRIMARY_COLOR = '#09FEF7';
 export const DEFAULT_THEME_SECONDARY_COLOR = '#BAFF29';
 
 const WEB_PRIMARY_COLOR_KEY = 'web_primary_color';
@@ -176,7 +176,8 @@ export const extractThemeColors = (payload) => {
       primaryColor:
         colorMap.primary_color ||
         colorMap.WebPrimaryColor ||
-        colorMap.web_primary_color,
+        colorMap.web_primary_color ||
+        colorMap.theme_color,
       secondaryColor:
         colorMap.secondary_color ||
         colorMap.WebSecondaryColor ||
@@ -185,7 +186,10 @@ export const extractThemeColors = (payload) => {
   }
   return {
     primaryColor:
-      data.primary_color || data.WebPrimaryColor || data.web_primary_color,
+      data.primary_color ||
+      data.WebPrimaryColor ||
+      data.web_primary_color ||
+      data.theme_color,
     secondaryColor:
       data.secondary_color ||
       data.WebSecondaryColor ||

@@ -8,7 +8,7 @@ import (
 // InviteRecord stores the fixed invitation registration reward at the time the invitee registers.
 type InviteRecord struct {
 	Id           int    `json:"id"`
-	ProviderId   int    `json:"provider_id" gorm:"index;not null"`
+	ProviderId   int    `json:"provider_id" gorm:"index;not null;default:0"`
 	InviterId    int    `json:"inviter_id" gorm:"index"`
 	InviteeId    int    `json:"invitee_id" gorm:"column:invitee_id;uniqueIndex"`
 	InviteeName  string `json:"invitee_name" gorm:"->;-:migration;column:invitee_name"`

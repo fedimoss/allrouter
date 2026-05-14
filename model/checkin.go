@@ -12,7 +12,7 @@ import (
 // Checkin 签到记录
 type Checkin struct {
 	Id           int    `json:"id" gorm:"primaryKey;autoIncrement"`
-	ProviderId   int    `json:"provider_id" gorm:"not null;index;uniqueIndex:idx_provider_user_checkin_date,priority:1"`
+	ProviderId   int    `json:"provider_id" gorm:"not null;default:0;index;uniqueIndex:idx_provider_user_checkin_date,priority:1"`
 	UserId       int    `json:"user_id" gorm:"not null;uniqueIndex:idx_provider_user_checkin_date,priority:2"`
 	CheckinDate  string `json:"checkin_date" gorm:"type:varchar(10);not null;uniqueIndex:idx_provider_user_checkin_date,priority:3"` // 格式: YYYY-MM-DD
 	QuotaAwarded int    `json:"quota_awarded" gorm:"not null"`

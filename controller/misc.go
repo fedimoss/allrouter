@@ -119,6 +119,13 @@ func GetStatus(c *gin.Context) {
 		"checkin_enabled":             getStatusCheckinEnabled(c),
 	}
 
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	if providerId > 0 {
+		primaryColor, secondaryColor := providerThemeColors(nil)
+		data["primary_color"] = primaryColor
+		data["secondary_color"] = secondaryColor
+	}
+
 	// 根据启用状态注入可选内容
 	if v, ok := c.Get("provider_config"); ok {
 		if cfg, ok := v.(model.ProviderConfig); ok {
@@ -131,10 +138,12 @@ func GetStatus(c *gin.Context) {
 			if cfg.FooterText != "" {
 				data["footer_html"] = cfg.FooterText
 			}
+			primaryColor, secondaryColor := providerThemeColors(&cfg)
+			data["primary_color"] = primaryColor
+			data["secondary_color"] = secondaryColor
 			data["provider_config"] = providerConfigResponse(c, &cfg)
 		}
 	}
-	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	data["provider_id"] = providerId
 	data["provider_enabled"] = providerId > 0
 

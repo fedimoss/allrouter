@@ -40,6 +40,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   API,
+  DEFAULT_THEME_PRIMARY_COLOR,
+  DEFAULT_THEME_SECONDARY_COLOR,
   isAdmin,
   isProviderOwner,
   showError,
@@ -75,6 +77,8 @@ const emptyProvider = {
 const emptyConfig = {
   site_name: '',
   logo: '',
+  theme_color: DEFAULT_THEME_PRIMARY_COLOR,
+  secondary_color: DEFAULT_THEME_SECONDARY_COLOR,
   footer_text: '',
 };
 
@@ -103,6 +107,33 @@ const ratioToMarkupPercent = (ratio) => {
 const markupPercentToRatio = (percent) => {
   const value = Number(percent || 0);
   return Number((1 + value / 100).toFixed(6));
+};
+
+const getColorInputValue = (value, fallback = '#000000') => {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const color = value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(color)) {
+    return color;
+  }
+  if (/^#[0-9a-fA-F]{3}$/.test(color)) {
+    return `#${color
+      .slice(1)
+      .split('')
+      .map((char) => char + char)
+      .join('')}`;
+  }
+  return fallback;
+};
+
+const getConfigFormValues = (config) => {
+  const values = { ...emptyConfig, ...(config || {}) };
+  return {
+    ...values,
+    theme_color: values.theme_color || DEFAULT_THEME_PRIMARY_COLOR,
+    secondary_color: values.secondary_color || DEFAULT_THEME_SECONDARY_COLOR,
+  };
 };
 
 const getPricingFormValues = (pricing) => {
@@ -145,6 +176,10 @@ const ProviderPage = () => {
   const [baseModels, setBaseModels] = useState([]);
   const [baseModelsLoading, setBaseModelsLoading] = useState(false);
   const [pricingType, setPricingType] = useState(emptyPricing.pricing_type);
+  const [configColors, setConfigColors] = useState({
+    theme_color: DEFAULT_THEME_PRIMARY_COLOR,
+    secondary_color: DEFAULT_THEME_SECONDARY_COLOR,
+  });
   const [ownerOptions, setOwnerOptions] = useState([]);
 
   const providerFormRef = useRef(null);
@@ -165,7 +200,7 @@ const ProviderPage = () => {
     setLoading(true);
     try {
       if (adminMode) {
-        const res = await API.get('/api/provider/admin/');
+        const res = await API.get('/api/provider/admin');
         if (res.data.success) {
           setProviders(res.data.data || []);
         } else {
@@ -264,9 +299,11 @@ const ProviderPage = () => {
 
   useEffect(() => {
     if (!configModalVisible || !configFormRef.current) return;
-    configFormRef.current.setValues({
-      ...emptyConfig,
-      ...(currentProvider?.config || {}),
+    const values = getConfigFormValues(currentProvider?.config);
+    configFormRef.current.setValues(values);
+    setConfigColors({
+      theme_color: values.theme_color,
+      secondary_color: values.secondary_color,
     });
   }, [configModalVisible, currentProvider]);
 
@@ -349,6 +386,15 @@ const ProviderPage = () => {
     pricingFormRef.current?.setValue?.('public_model_name', values.base_model_name);
   };
 
+  const handleConfigColorPickerChange = (field, value) => {
+    setConfigColors((colors) => ({ ...colors, [field]: value }));
+    configFormRef.current?.setValue?.(field, value);
+  };
+
+  const handleConfigColorInputChange = (field, value) => {
+    setConfigColors((colors) => ({ ...colors, [field]: value }));
+  };
+
   const getLogoUploadPath = (data) => {
     let path = '';
     if (typeof data === 'string') {
@@ -426,7 +472,7 @@ const ProviderPage = () => {
       : { name: values.name };
     const res =
       adminMode && !editingProvider
-        ? await API.post('/api/provider/admin/', payload)
+        ? await API.post('/api/provider/admin', payload)
         : adminMode
           ? await API.put(`/api/provider/admin/${editingProvider.id}`, payload)
           : await API.put('/api/provider/self', payload);
@@ -609,7 +655,11 @@ const ProviderPage = () => {
         title: t('页面配置'),
         dataIndex: 'config',
         render: (config) => (
-          <Text>{config?.site_name || config?.logo ? t('已配置') : t('未配置')}</Text>
+          <Text>
+            {config?.site_name || config?.logo || config?.theme_color || config?.secondary_color
+              ? t('已配置')
+              : t('未配置')}
+          </Text>
         ),
       },
       {
@@ -809,7 +859,7 @@ const ProviderPage = () => {
       >
         <Form
           key={`${currentProvider?.id || 0}-config`}
-          initValues={{ ...emptyConfig, ...(currentProvider?.config || {}) }}
+          initValues={getConfigFormValues(currentProvider?.config)}
           getFormApi={(api) => (configFormRef.current = api)}
         >
           <Form.Input field='site_name' label={t('站点名')} />
@@ -836,6 +886,69 @@ const ProviderPage = () => {
                 {t('上传图片')}
               </Button>
             </Upload>
+          </div>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>
+            {t('主题色设置')}
+          </div>
+          <div className='flex flex-wrap gap-10'>
+            <div className='flex-1 min-w-[220px]'>
+              <div className='flex items-end gap-2'>
+                <input
+                  aria-label={t('选择主色')}
+                  type='color'
+                  value={getColorInputValue(configColors.theme_color, DEFAULT_THEME_PRIMARY_COLOR)}
+                  onChange={(event) =>
+                    handleConfigColorPickerChange('theme_color', event.target.value)
+                  }
+                  style={{
+                    width: 30,
+                    height: 32,
+                    padding: 0,
+                    border: 0,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    marginBottom: 12,
+                  }}
+                />
+                <div className='flex-1'>
+                  <Form.Input
+                    field='theme_color'
+                    label={t('主色')}
+                    placeholder={DEFAULT_THEME_PRIMARY_COLOR}
+                    onChange={(value) => handleConfigColorInputChange('theme_color', value)}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className='flex-1 min-w-[220px]'>
+              <div className='flex items-end gap-2'>
+                <input
+                  aria-label={t('选择辅色')}
+                  type='color'
+                  value={getColorInputValue(configColors.secondary_color, DEFAULT_THEME_SECONDARY_COLOR)}
+                  onChange={(event) =>
+                    handleConfigColorPickerChange('secondary_color', event.target.value)
+                  }
+                  style={{
+                    width: 30,
+                    height: 32,
+                    padding: 0,
+                    border: 0,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    marginBottom: 12,
+                  }}
+                />
+                <div className='flex-1'>
+                  <Form.Input
+                    field='secondary_color'
+                    label={t('辅色')}
+                    placeholder={DEFAULT_THEME_SECONDARY_COLOR}
+                    onChange={(value) => handleConfigColorInputChange('secondary_color', value)}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
           <Form.TextArea field='footer_text' label={t('页脚文案')} autosize />
         </Form>
