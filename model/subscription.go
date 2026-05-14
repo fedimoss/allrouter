@@ -125,6 +125,7 @@ func getSubscriptionPlanInfoCache() *cachex.HybridCache[SubscriptionPlanInfo] {
 	return subscriptionPlanInfoCache
 }
 
+// 将数值类型 ID 转为字符串类型
 func subscriptionPlanCacheKey(id int) string {
 	if id <= 0 {
 		return ""
@@ -350,16 +351,19 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 	return next.Unix()
 }
 
+// GetSubscriptionPlanById 获取订阅套餐详情
 func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
 	return getSubscriptionPlanByIdTx(nil, id)
 }
 
+// getSubscriptionPlanByIdTx 获取订阅套餐详情（事务）
 func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	if id <= 0 {
 		return nil, errors.New("invalid plan id")
 	}
 	key := subscriptionPlanCacheKey(id)
 	if key != "" {
+		// 将套餐 ID 作为键从缓存中获取订阅套餐详情
 		if cached, found, err := getSubscriptionPlanCache().Get(key); err == nil && found {
 			return &cached, nil
 		}

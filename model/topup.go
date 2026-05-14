@@ -211,10 +211,18 @@ func (topUp *TopUp) GetQuotaToAdd() (int, error) {
 		// 在线支付充值：根据不同支付方式计算额度
 		switch topUp.PaymentMethod {
 		case "stripe":
-			// Stripe 订单特殊处理：
-			// Stripe 的 Money 字段存储的是"应发放的充值额度（基础额度 × 分组倍率）"
-			// 所以这里直接按 Money 换算，不需要再乘以 QuotaPerUnit
+			// Stripe 的 Money 字段存储的是美元金额，直接按 Money × QuotaPerUnit 换算
 			return int(decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()), nil
+		case "crypto":
+			// 加密货币充值：使用原始币种金额（OriginalMoney）换算，而非 USDT 金额（Money）
+			// 与 Stripe 逻辑一致：美元金额 × QuotaPerUnit；人民币金额先转美元再 × QuotaPerUnit
+			money := topUp.OriginalMoney
+			if topUp.Currency == "¥" {
+				if config, err := GetCurrencyConfig("CNY"); err == nil && config.UnitPrice > 0 {
+					money = money / config.UnitPrice
+				}
+			}
+			return int(decimal.NewFromFloat(money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()), nil
 		case "creem":
 			// Creem 支付：直接使用 Amount 字段的值（已经是最终额度）
 			if topUp.Amount <= 0 {
@@ -1122,6 +1130,143 @@ func RechargeWaffo(tradeNo string) (err error) {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 	}
 
+	return nil
+}
+
+// RechargeCrypto 处理加密货币链上充值成功逻辑
+// 在用户提交交易哈希并通过链上验证后调用，完成以下步骤：
+// 1. 使用行级锁锁定订单和加密货币交易记录，避免重复处理
+// 2. 校验支付方式、订单状态、业务类型
+// 3. 防止同一笔交易哈希被重复使用
+// 4. 更新订单状态为成功
+// 5. 更新加密货币交易记录（交易哈希、付款地址、区块号、确认数等）
+// 6. 计算并增加用户额度
+// 7. 处理邀请返利（如果适用）
+// 8. 异步更新缓存并记录日志
+//
+// 参数：
+//   - tradeNo: 订单号
+//   - txHash: 链上交易哈希
+//   - payerAddress: 付款方地址
+//   - blockNumber: 区块号
+//   - confirmations: 确认数
+func RechargeCrypto(tradeNo string, txHash string, payerAddress string, blockNumber uint64, confirmations int) (err error) {
+	if tradeNo == "" {
+		return errors.New("未提供订单号")
+	}
+	txHash = normalizeTxHash(txHash)
+	if txHash == "" {
+		return errors.New("未提供交易哈希")
+	}
+
+	var quotaToAdd int
+	var inviterId int
+	var rebateQuota int
+	var completedNow bool
+	topUp := &TopUp{}
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		// 行级锁锁定订单，防止并发重复处理
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return errors.New("充值订单不存在")
+		}
+		// 校验支付方式为 Web3 USDT BSC
+		if topUp.PaymentMethod != "crypto" {
+			return ErrPaymentMethodMismatch
+		}
+		// 幂等处理：已成功直接返回
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return errors.New("充值订单状态错误")
+		}
+		if topUp.GetBizType() != TopUpBizTypePayment {
+			return errors.New("账单类型错误")
+		}
+
+		// 行级锁锁定加密货币交易记录
+		var cryptoTx CryptoTransaction
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&cryptoTx).Error; err != nil {
+			return errors.New("加密货币交易记录不存在")
+		}
+		// 确保交易记录与订单匹配
+		if cryptoTx.TopUpId != topUp.Id {
+			return errors.New("加密货币交易记录不匹配")
+		}
+		// 幂等处理：加密货币交易已成功直接返回
+		if cryptoTx.Status == CryptoTransactionStatusSuccess {
+			return nil
+		}
+		// 防止同一笔链上交易哈希被重复使用
+		var duplicateCount int64
+		if err := tx.Model(&CryptoTransaction{}).
+			Where("tx_hash = ? AND trade_no <> ?", txHash, tradeNo).
+			Count(&duplicateCount).Error; err != nil {
+			return err
+		}
+		if duplicateCount > 0 {
+			return errors.New("交易哈希已被使用")
+		}
+
+		// 计算实际到账额度
+		quotaToAdd, err = topUp.GetQuotaToAdd()
+		if err != nil {
+			return err
+		}
+
+		// 更新订单状态为成功
+		now := common.GetTimestamp()
+		topUp.CompleteTime = now
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+
+		// 更新加密货币交易记录
+		cryptoTx.TxHash = &txHash
+		cryptoTx.PayerAddress = payerAddress
+		cryptoTx.BlockNumber = blockNumber
+		cryptoTx.Confirmations = confirmations
+		cryptoTx.Status = CryptoTransactionStatusSuccess
+		cryptoTx.CompleteTime = now
+		if err := tx.Save(&cryptoTx).Error; err != nil {
+			return err
+		}
+
+		// 增加用户额度
+		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+			return err
+		}
+		// 处理邀请返利
+		inviterId, rebateQuota, err = applyInviteTopupRebateTx(tx, topUp, quotaToAdd)
+		if err != nil {
+			return err
+		}
+		completedNow = true
+		return nil
+	})
+
+	if err != nil {
+		common.SysError("crypto topup failed: " + err.Error())
+		return errors.New("充值失败，请稍后重试")
+	}
+	if !completedNow {
+		return nil
+	}
+
+	// 事务外异步处理：更新缓存和记录日志
+	asyncIncrUserQuotaCache(topUp.UserId, quotaToAdd)
+	asyncIncrUserQuotaCache(inviterId, rebateQuota)
+	if inviterId > 0 && rebateQuota > 0 {
+		RecordLog(inviterId, LogTypeTopup, fmt.Sprintf("invite rebate credited %s, source user ID %d, trade no %s", logger.LogQuota(rebateQuota), topUp.UserId, topUp.TradeNo))
+	}
+	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("加密货币充值成功，充值金额: %v，支付金额：%.6f USDT", logger.FormatQuota(quotaToAdd), topUp.Money))
 	return nil
 }
 
