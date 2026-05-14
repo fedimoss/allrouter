@@ -10,6 +10,8 @@ import { useIsMobile } from '../../hooks/common/useIsMobile';
 import ReconciliationDetailSheet from './ReconciliationDetailSheet';
 
 import weChatImg from '../../../public/WeChat.png';
+import stripeImg from '../../../public/stripe.png';
+
 
 const { Text } = Typography;
 
@@ -236,7 +238,7 @@ const PayReconciliationList = () => {
           const isStripe = record?.payment_method === PAYMENT_METHODS.stripe || text === 'Stripe';
           return (
             <span className='inline-flex items-center gap-2 text-[16px] leading-[22px] text-[#475569] font-medium'>
-              {isStripe ? <SiStripe size={16} color='#635BFF' /> : <img src={weChatImg} alt='微信支付' className='w-4 h-4' />}
+              {isStripe ? <img src={stripeImg} alt='Stripe' className='w-4 h-4' /> : <img src={weChatImg} alt='微信支付' className='w-4 h-4' />}
               {text || (isStripe ? 'Stripe' : '微信支付')}
             </span>
           );
@@ -257,7 +259,7 @@ const PayReconciliationList = () => {
         width: 110,
         render: (_, record) => (
           <button
-            className='text-[#1CDFD5] text-[14px] font-medium'
+            className='text-[color:var(--theme-primary)] text-[14px] font-medium'
             onClick={() => {
               setActiveRow(record);
               setDetailVisible(true);
@@ -343,9 +345,9 @@ const PayReconciliationList = () => {
                 padding: '0 16px',
                 borderRadius: 10,
                 background: '#DDF7FA',
-                borderColor: '#1CDFD533',
+                borderColor: 'var(--theme-primary-20)',
                 borderWidth: 1,
-                color: '#1CDFD5',
+                color: 'var(--theme-primary)',
                 fontWeight: 600,
                 fontSize: 14,
               }}

@@ -12,6 +12,7 @@ import (
 const (
 	PaymentChannelTypeWechat = "wxpay"
 	PaymentChannelTypeStripe = "stripe"
+	PaymentChannelTypeCrypto = "crypto"
 )
 
 // PaymentBillRecord 通用支付渠道账单明细表。

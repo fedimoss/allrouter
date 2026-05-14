@@ -33,6 +33,8 @@ import {
   getSystemName,
   showError,
   setStatusData,
+  applyThemeColors,
+  extractThemeColors,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -66,7 +68,7 @@ const PageLayout = () => {
     '/console/provider/logs',
     '/pricing',
     '/login',
-    '/register'
+    '/register',
   ];
 
   const shouldHideFooter = cardProPages.includes(location.pathname);
@@ -103,8 +105,22 @@ const PageLayout = () => {
 
   const loadStatus = async () => {
     try {
-      const res = await API.get('/api/status');
-      const { success, data } = res.data;
+      const [statusRes, webColorsRes] = await Promise.allSettled([
+        API.get('/api/status'),
+        API.get('/api/web_colors'),
+      ]);
+      if (webColorsRes.status === 'fulfilled') {
+        const { primaryColor, secondaryColor } = extractThemeColors(
+          webColorsRes.value,
+        );
+        if (primaryColor || secondaryColor) {
+          applyThemeColors(primaryColor, secondaryColor);
+        }
+      }
+      if (statusRes.status !== 'fulfilled') {
+        throw statusRes.reason;
+      }
+      const { success, data } = statusRes.value.data;
       if (success) {
         statusDispatch({ type: 'set', payload: data });
         setStatusData(data);
@@ -118,18 +134,17 @@ const PageLayout = () => {
 
   useEffect(() => {
     loadUser();
-    loadStatus().catch(console.error);
-    let systemName = getSystemName();
-    if (systemName) {
-      document.title = systemName;
-    }
-    let logo = getLogo();
-    if (logo) {
-      let linkElement = document.querySelector("link[rel~='icon']");
-      if (linkElement) {
-        linkElement.href = logo;
-      }
-    }
+    loadStatus()
+      .then(() => {
+        const systemName = getSystemName();
+        if (systemName) document.title = systemName;
+        const logo = getLogo();
+        if (logo) {
+          const linkElement = document.querySelector("link[rel~='icon']");
+          if (linkElement) linkElement.href = logo;
+        }
+      })
+      .catch(console.error);
     const savedLang = localStorage.getItem('i18nextLng');
     if (savedLang) {
       i18n.changeLanguage(savedLang);

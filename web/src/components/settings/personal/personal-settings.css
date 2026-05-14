@@ -461,7 +461,7 @@ html.dark .personal-setting-v2 .semi-tabs-tab:hover {
   margin-bottom: 28px;
   gap:12px;
   svg{
-    color: #1CDFD5;  
+    color: var(--theme-primary);  
   }
 }
 

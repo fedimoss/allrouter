@@ -1,4 +1,4 @@
-﻿/*
+/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -137,8 +137,7 @@ const Home = () => {
   const isMobile = useIsMobile();
 
   const docsLink = statusState?.status?.docs_link || '';
-  const serverAddress =
-    statusState?.status?.server_address || `${window.location.origin}`;
+  const serverAddress = `${window.location.origin}`; //statusState?.status?.server_address || 
   const showDefaultHome = homePageContentLoaded && homePageContent === '';
   const docsLangPrefix = i18n.language.startsWith('zh') ? 'zh' : 'en';
 
@@ -518,7 +517,7 @@ const Home = () => {
             </section>
 
             <section id='models' className='landing-v2-logo-section'>
-              <p>{t('支持全球主流及国产自研模型')}</p>
+              <p>{t('支持全球主流开源模型')}</p>
               <MarqueeLogos logos={partnerLogos} speed={0.5} />
             </section>
 

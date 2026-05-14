@@ -1,17 +1,17 @@
 :root {
-  --brand-cyan: #09fef7;
-  --brand-yellow: #f8ff15;
-  --brand-gradient: linear-gradient(135deg, #09fef7 0%, #f8ff15 100%);
-  --brand-gradient-text: linear-gradient(135deg, #09fef7, #f8ff15);
+  --brand-cyan: var(--theme-primary, #0031B5);
+  --brand-yellow: var(--theme-secondary, #B7F400);
+  --brand-gradient: var(--theme-gradient-135);
+  --brand-gradient-text: var(--theme-gradient-135);
 
   --brand-purple: #8b5cf6;
   --brand-pink: #ec4899;
   --brand-light: #f0fdfa;
 
-  --glow-color: rgba(9, 254, 247, 0.4);
-  --glow-hover: rgba(248, 255, 21, 0.5);
-  --shadow-brand: 0 4px 6px -1px rgba(9, 254, 247, 0.1),
-    0 2px 4px -1px rgba(9, 254, 247, 0.06);
+  --glow-color: var(--theme-primary-40);
+  --glow-hover: var(--theme-secondary-50);
+  --shadow-brand: 0 4px 6px -1px var(--theme-primary-10),
+    0 2px 4px -1px var(--theme-primary-10);
 
   --bg-body: #ffffff;
   --bg-section: #f9fafb;

@@ -753,7 +753,7 @@ const TaskLogsPage = () => {
             </button>
             <button
               type='button'
-              className='tasklog-v2-primary-button'
+              className='tasklog-v2-primary-button theme-btn-color'
               onClick={() => setColumnSelectorOpen(false)}
             >
               {logsData.t('完成')}
@@ -836,7 +836,7 @@ const TaskLogsPage = () => {
                   <div className='tasklog-v2-filter-actions'>
                     <button
                       type='submit'
-                      className='tasklog-v2-primary-button'
+                      className='tasklog-v2-primary-button theme-btn-color'
                       disabled={logsData.loading}
                     >
                       {logsData.loading ? (
@@ -879,7 +879,7 @@ const TaskLogsPage = () => {
                     <p className='tasklog-v2-empty-hint'>{logsData.t('当前未选择任何表格列。')}</p>
                     <button
                       type='button'
-                      className='tasklog-v2-primary-button'
+                      className='tasklog-v2-primary-button theme-btn-color'
                       onClick={() => setVisibleColumns(getDefaultVisibleColumns(logsData.isAdminUser))}
                     >
                       {logsData.t('恢复默认')}

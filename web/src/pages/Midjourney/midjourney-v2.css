@@ -39,7 +39,7 @@ html.dark .mjlog-v2-header-tag-emerald{border-color:rgba(16,185,129,.35);backgro
 .mjlog-v2-range-separator{font-size:12px;color:var(--mj-text-soft)}
 .mjlog-v2-filter-actions{flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;gap:8px}
 .mjlog-v2-primary-button,.mjlog-v2-secondary-button,.mjlog-v2-icon-button,.mjlog-v2-page-button,.mjlog-v2-copy-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;cursor:pointer;transition:transform .18s ease,background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,opacity .18s ease}
-.mjlog-v2-primary-button{border-radius:12px;background:var(--brand-gradient);padding:10px 16px;font-size:14px;font-weight:700;color:#020617;box-shadow:0 10px 24px rgba(9,254,247,.18)}
+.mjlog-v2-primary-button{border-radius:12px;background:var(--brand-gradient);padding:10px 16px;font-size:14px;font-weight:700;}
 .mjlog-v2-primary-button:disabled,.mjlog-v2-page-button:disabled{cursor:not-allowed;opacity:.45}
 .mjlog-v2-secondary-button,.mjlog-v2-icon-button,.mjlog-v2-page-button{border:1px solid var(--mj-border);background:var(--mj-surface);color:var(--mj-text-muted)}
 .mjlog-v2-secondary-button{border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600}
@@ -74,7 +74,7 @@ html.dark .mjlog-v2-pill-violet{background:rgba(124,58,237,.18);color:#c4b5fd}ht
 .mjlog-v2-status-neutral{color:#64748b}.mjlog-v2-status-neutral::before{background:#94a3b8}
 .mjlog-v2-progress-wrap{display:flex;flex-direction:column;gap:6px}
 .mjlog-v2-progress-track{position:relative;height:6px;overflow:hidden;border-radius:999px;background:var(--mj-surface-muted)}
-.mjlog-v2-progress-fill{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#09fef7,#06b6d4)}
+.mjlog-v2-progress-fill{display:block;height:100%;border-radius:999px;background:var(--theme-gradient)}
 .mjlog-v2-progress-text{font-size:12px;font-weight:600;color:var(--mj-text-muted)}
 .mjlog-v2-text-trigger{display:block;max-width:100%;overflow:hidden;border:0;background:transparent;padding:0;cursor:pointer;text-align:left;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--mj-text)}
 .mjlog-v2-text-trigger-fail{color:#dc2626;font-weight:500}

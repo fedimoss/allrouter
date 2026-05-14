@@ -460,7 +460,7 @@ const PersonalSetting = () => {
     }
     setProfileInputs((prev) => ({
       username: currentUser?.username || prev.username || '',
-      avatar: currentUser?.avatar || prev.avatar || settings.avatar || defaultAvatar,
+      avatar: currentUser?.avatar || defaultAvatar,
       phone_country_code:
         currentUser?.phone_country_code ||
         prev.phone_country_code ||
@@ -992,7 +992,7 @@ const PersonalSetting = () => {
                         size='large'
                         shape='square'
                         hoverMask={hoverMask}
-                        src={profileInputs.avatar || undefined}
+                        src={profileInputs.avatar || defaultAvatar}
                       />
                     </Upload>
                     <div className='min-w-0'>

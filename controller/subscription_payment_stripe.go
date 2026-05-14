@@ -23,7 +23,7 @@ import (
 // SubscriptionStripePayRequest 订阅 Stripe 支付请求参数
 type SubscriptionStripePayRequest struct {
 	PlanId          int    `json:"plan_id"`                    // 要购买的订阅套餐 ID
-	DisplayCurrency string `json:"display_currency,omitempty"` // 前端传入的展示币种（如 "USD"、"CNY"），用于选择对应的 Stripe Price
+	DisplayCurrency string `json:"display_currency,omitempty"` // 前端传入的展示币种（如 "USD"、"CNY"），用于选择对应的 Stripe Price ID
 }
 
 func SubscriptionRequestStripePay(c *gin.Context) {
