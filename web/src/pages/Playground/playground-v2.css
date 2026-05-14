@@ -17,7 +17,7 @@
   --pg-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
   --pg-overlay: rgba(15, 23, 42, 0.45);
   --pg-code: #020617;
-  --pg-range-active: #09fef7;
+  --pg-range-active: var(--theme-primary);
   --pg-range-track: #e2e8f0;
   min-height: 100%;
   color: var(--pg-text);
@@ -234,7 +234,7 @@ html.dark .playground-v2-pill {
 .playground-v2-button,
 .playground-v2-send-button {
   border: 0;
-  color: #020617;
+  color: var(--theme-primary-btn-color);
   background: var(--brand-gradient);
 }
 
@@ -340,7 +340,7 @@ html.dark .playground-v2-pill {
 }
 
 .playground-v2-switch[data-active='true'] {
-  background: #1CDFD5;
+  background: var(--theme-primary);
 }
 
 .playground-v2-switch[data-active='true']::after {
@@ -364,8 +364,8 @@ html.dark .playground-v2-pill {
 }
 
 .playground-v2-checkbox[data-active='true'] {
-  border-color: #1CDFD5;
-  background: #1CDFD5;
+  border-color: var(--theme-primary);
+  background: var(--theme-primary);
 }
 
 .playground-v2-checkbox svg {
@@ -445,7 +445,7 @@ html.dark .playground-v2-pill {
 .playground-v2-select .semi-select.semi-select-focus,
 .playground-v2-select.semi-select.semi-select-open,
 .playground-v2-select .semi-select.semi-select-open {
-  border-color: var(--brand-cyan, #1CDFD5);
+  border-color: var(--brand-cyan, var(--theme-primary));
   box-shadow: 0 0 0 2px rgba(9, 254, 247, 0.25);
 }
 
@@ -744,11 +744,11 @@ html.dark .playground-v2-range::-moz-range-thumb {
   padding: 0;
   font-size: 12px;
   font-weight: 500;
-  color: var(--brand-cyan, #1CDFD5);
+  color: var(--brand-cyan, var(--theme-primary));
 }
 
 .playground-v2-image-add-button:hover {
-  color: var(--brand-yellow, #f8ff15);
+  color: var(--brand-yellow, var(--theme-secondary));
 }
 
 .playground-v2-image-upload-button {
@@ -763,8 +763,8 @@ html.dark .playground-v2-range::-moz-range-thumb {
 }
 
 .playground-v2-image-upload-button:hover {
-  border-color: var(--brand-cyan, #1CDFD5);
-  color: var(--brand-cyan, #1CDFD5);
+  border-color: var(--brand-cyan, var(--theme-primary));
+  color: var(--brand-cyan, var(--theme-primary));
 }
 
 .playground-v2-image-remove-button {

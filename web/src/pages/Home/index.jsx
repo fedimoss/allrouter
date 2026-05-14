@@ -1,4 +1,4 @@
-﻿/*
+/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -518,7 +518,7 @@ const Home = () => {
             </section>
 
             <section id='models' className='landing-v2-logo-section'>
-              <p>{t('支持全球主流及国产自研模型')}</p>
+              <p>{t('支持全球主流开源模型')}</p>
               <MarqueeLogos logos={partnerLogos} speed={0.5} />
             </section>
 

@@ -289,9 +289,9 @@ const Exchange = () => {
                 className='!rounded-xl !h-[56px] !min-w-[160px] !font-bold !text-base hover:!shadow-lg hover:!-translate-y-0.5 !transition-all'
                 style={{
                   background:
-                    'linear-gradient(135deg, #09fef7 0%, #f8ff15 100%)',
+                    'var(--theme-gradient-135)',
                   borderColor: 'transparent',
-                  color: '#000',
+                  color: 'var(--theme-primary-btn-color)',
                 }}
               >
                 {t('立即兑换')}
@@ -368,7 +368,7 @@ const Exchange = () => {
                 className='!rounded-lg !font-semibold'
                 style={{
                   background:
-                    'linear-gradient(135deg, #09fef7 0%, #f8ff15 100%)',
+                    'var(--theme-gradient-135)',
                   borderColor: 'transparent',
                   color: '#000',
                 }}
@@ -411,10 +411,10 @@ const Exchange = () => {
                   if (card.link) window.location.href = card.link;
                 }}
               >
-                <div className='text-[12px] text-[#1CDFD5] font-bold mb-2'>{card.subTitle}</div>
+                <div className='text-[12px] text-[color:var(--theme-primary)] font-bold mb-2'>{card.subTitle}</div>
                 <div className='text-[20px] text-[#475569] font-bold mb-2'>{card.title}</div>
                 <div className='text-[14px] text-[#94A3B8] mb-4'>{card.desc}</div>
-                <span className="text-[12px] text-[#1CDFD5] font-bold flex items-center">
+                <span className="text-[12px] text-[color:var(--theme-primary)] font-bold flex items-center">
                   {card.linkText} <ArrowRight size={14} className='inline-block ml-1 transition-transform group-hover:translate-x-1' />
                 </span>
               </div>

@@ -312,11 +312,11 @@ const CertificationList = () => {
                 height: '100%',
                 width: '100%',
                 borderRadius: 999,
-                backgroundColor: healthy ? '#1CDFD5' : 'var(--semi-color-danger)',
+                backgroundColor: healthy ? 'var(--theme-primary)' : 'var(--semi-color-danger)',
               }}
             />
           </div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: healthy ? '#1CDFD5' : 'var(--semi-color-danger)' }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: healthy ? 'var(--theme-primary)' : 'var(--semi-color-danger)' }}>
             100% {t('成功')}
           </div>
         </div>
@@ -362,13 +362,13 @@ const CertificationList = () => {
             <div className='border rounded-2xl px-6 py-6 backdrop-blur dark:border-cyan-900/50 bg-white/50 dark:bg-cyan-900/30'>
               <div className='flex items-center text-[#64748B] justify-between mb-4 font-[500] text-[14px] dark:text-slate-400'>
                 {t('健康节点')}
-                <CircleCheck size={20} style={{color:'#1CDFD5'}} />
+                <CircleCheck size={20} style={{color:'var(--theme-primary)'}} />
               </div>
               <div className='text-[48px] text-[#475569] font-[900]' style={{lineHeight:'48px'}}>
                 {healthyCount}
               </div>
               <div className='mt-6'>
-                <Progress percent={(healthyCount/totalCount).toFixed(2) * 100 || 0 } stroke="#1CDFD5" size="large" aria-label="disk usage" />
+                <Progress percent={(healthyCount/totalCount).toFixed(2) * 100 || 0 } stroke="var(--theme-primary)" size="large" aria-label="disk usage" />
               </div>
             </div>
             <div className='border rounded-2xl px-6 py-6 backdrop-blur dark:border-cyan-900/50 bg-white/50 dark:bg-cyan-900/30'>
@@ -443,7 +443,7 @@ const CertificationList = () => {
                       <td style={{ padding: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                           <div style={{ marginTop: 2, height: 32, width: 32, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <FileText size={15} style={{color:'#1CDFD5'}} />
+                            <FileText size={15} style={{color:'var(--theme-primary)'}} />
                           </div>
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8}}>
@@ -521,7 +521,7 @@ const CertificationList = () => {
                   size='small'
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  style={{ fontSize: 12,color:'#1CDFD5' }}
+                  style={{ fontSize: 12,color:'var(--theme-primary)' }}
                 >
                   {t('上一页')}
                 </Button>
@@ -529,7 +529,7 @@ const CertificationList = () => {
                   size='small'
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  style={{ fontSize: 12,color:'#1CDFD5' }}
+                  style={{ fontSize: 12,color:'var(--theme-primary)' }}
                 >
                   {t('下一页')}
                 </Button>

@@ -45,6 +45,7 @@ import {
   Mail,
   Info,
   List,
+  Hammer,
 } from 'lucide-react';
 import { SiWechat, SiX } from 'react-icons/si';
 import { useTranslation } from 'react-i18next';
@@ -64,7 +65,6 @@ import { isAdmin } from '../../helpers/utils';
 import TransferModal from '../topup/modals/TransferModal';
 import InviteDetailModal from './modals/InviteDetailModal';
 import bannerImg from '../../../public/invite-banner.png';
-import hammerImg from '../../../public/hammer.svg';
 import walletImg from '../../../public/wallet-balance.png';
 import houseImg from '../../../public/house.png';
 import invitePeopleImg from '../../../public/invite-people.png';
@@ -88,7 +88,7 @@ const Invitation = () => {
       reward: 1000,
       register_time: '2024-01-01 12:00:00',
       status: '查看',
-    }
+    },
   ]);
 
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -125,7 +125,9 @@ const Invitation = () => {
   const loadInviteRecords = async (page = 1, pageSize = invitePageSize) => {
     setInviteLoading(true);
     try {
-      const base = isAdmin() ? '/api/user/aff/records' : '/api/user/self/aff/records';
+      const base = isAdmin()
+        ? '/api/user/aff/records'
+        : '/api/user/self/aff/records';
       const res = await API.get(`${base}?p=${page}&page_size=${pageSize}`);
       const { success, message, data } = res.data;
       if (success) {
@@ -183,11 +185,12 @@ const Invitation = () => {
   useEffect(() => {
     loadInviteRecords(invitePage, invitePageSize).then();
   }, [invitePage, invitePageSize]);
-  
-  const affQuota = userState?.user?.aff_quota || 0;               // 原始邀请额度，用于划转接口和按钮禁用判断
+
+  const affQuota = userState?.user?.aff_quota || 0; // 原始邀请额度，用于划转接口和按钮禁用判断
   const affQuotaDisplay = userState?.user?.aff_quota_display || 0; // 后端转换后的展示金额
-  const affHistoryQuota = userState?.user?.aff_history_quota || 0;               // 原始历史邀请收益
-  const affHistoryQuotaDisplay = userState?.user?.aff_history_quota_display || 0; // 后端转换后的历史展示金额
+  const affHistoryQuota = userState?.user?.aff_history_quota || 0; // 原始历史邀请收益
+  const affHistoryQuotaDisplay =
+    userState?.user?.aff_history_quota_display || 0; // 后端转换后的历史展示金额
   const displaySymbol = userState?.user?.display_symbol; // 用户当前币种符号（如 $ 或 ¥）
   const affCount = userState?.user?.aff_count || 0;
 
@@ -209,7 +212,9 @@ const Invitation = () => {
       dataIndex: 'reward',
       key: 'reward',
       render: (reward) => (
-        <div className='text-[#1CDFD5] text-[14px] font-bold'>+{reward}</div>
+        <div className='text-[color:var(--theme-primary)] text-[14px] font-bold'>
+          +{reward}
+        </div>
       ),
     },
     {
@@ -219,7 +224,7 @@ const Invitation = () => {
       render: (row, record) => {
         return (
           <span
-            className='text-[#1CDFD5] bg-[#1CDFD533] border border-[#1CDFD5] rounded-md px-3 py-1 text-[14px] font-bold cursor-pointer'
+            className='text-[color:var(--theme-primary)] bg-[color:var(--theme-primary-20)] border border-[color:var(--theme-primary)] rounded-md px-3 py-1 text-[14px] font-bold cursor-pointer'
             onClick={() => {
               setSelectedInvite(record);
               setOpenInviteDetail(true);
@@ -229,7 +234,7 @@ const Invitation = () => {
           </span>
         );
       },
-    }
+    },
   ];
 
   // 奖励规则 (静态)
@@ -238,25 +243,19 @@ const Invitation = () => {
       num: 1,
       color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30',
       title: t('永久分成'),
-      desc: t(
-        '您将获得被邀请人算力产生的 15% 收益作为佣金。',
-      ),
+      desc: t('您将获得被邀请人算力产生的 15% 收益作为佣金。'),
     },
     {
       num: 2,
       color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/30',
       title: t('即时结算'),
-      desc: t(
-        '佣金随被邀请人收益实时同步至您的待领取账户。',
-      ),
+      desc: t('佣金随被邀请人收益实时同步至您的待领取账户。'),
     },
     {
       num: 3,
       color: 'text-green-600 bg-green-50 dark:bg-green-900/30',
       title: t('多级激励'),
-      desc: t(
-        '若被邀请人再次邀请他人，您可获得二级 5% 的额外激励。',
-      ),
+      desc: t('若被邀请人再次邀请他人，您可获得二级 5% 的额外激励。'),
     },
   ];
 
@@ -264,18 +263,22 @@ const Invitation = () => {
   const faqItems = [
     {
       q: t('如何提取奖励收益？'),
-      a: t('当待提取收益达到 10 USDT 时即可申请提现，系统将在 24 小时内自动处理至您的关联钱包。'),
+      a: t(
+        '当待提取收益达到 10 USDT 时即可申请提现，系统将在 24 小时内自动处理至您的关联钱包。',
+      ),
     },
     {
       q: t('邀请人数是否有上限？'),
-      a: t('没有上限。您可以邀请无限数量的伙伴，且所有符合规则的收益均受系统算法保护。'),
+      a: t(
+        '没有上限。您可以邀请无限数量的伙伴，且所有符合规则的收益均受系统算法保护。',
+      ),
     },
     {
       q: t('奖励为何没有到账？'),
       a: t(
         '请确认被邀请人是否已完成实名认证并成功启动首个算力节点。如有异常请联系技术支持。',
       ),
-    }
+    },
   ];
 
   const toggleFaq = (index) => {
@@ -315,8 +318,9 @@ const Invitation = () => {
       dataIndex: 'reward_quota',
       key: 'reward_quota',
       render: (rewardQuota) => (
-        <div className='text-[#1CDFD5] text-[14px] font-bold'>
-          {inviteDisplaySymbol}{rewardQuota ?? 0}
+        <div className='text-[color:var(--theme-primary)] text-[14px] font-bold'>
+          {inviteDisplaySymbol}
+          {rewardQuota ?? 0}
         </div>
       ),
     },
@@ -326,7 +330,7 @@ const Invitation = () => {
       key: 'status',
       render: (_, record) => (
         <span
-          className='text-[#1CDFD5] bg-[#1CDFD533] border border-[#1CDFD5] rounded-md px-3 py-1 text-[14px] font-bold cursor-pointer'
+          className='text-[color:var(--theme-primary)] bg-[color:var(--theme-primary-20)] border border-[color:var(--theme-primary)] rounded-md px-3 py-1 text-[14px] font-bold cursor-pointer'
           onClick={() => {
             setSelectedInvite(record);
             setOpenInviteDetail(true);
@@ -341,11 +345,21 @@ const Invitation = () => {
   return (
     <div className='p-4 md:p-6'>
       {/* 页面标题区域 */}
-      <div className='mb-6 rounded-2xl px-4 py-6 shadow-sm' style={{backgroundImage: `url(${bannerImg})`, backgroundSize: 'cover', backgroundPosition: 'center'}}>
+      <div
+        className='mb-6 rounded-2xl px-4 py-6 shadow-sm'
+        style={{
+          backgroundImage: `url(${bannerImg})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
         <div className='p-4 text-[48px] font-500 text-white'>
           {t('邀请奖励计划')}
         </div>
-        <div className='px-2 text-[18px] font-medium text-slate-500 dark:text-slate-400' style={{width:'min(657px,100%)'}}>
+        <div
+          className='px-2 text-[18px] font-medium text-slate-500 dark:text-slate-400'
+          style={{ width: 'min(657px,100%)' }}
+        >
           {t(
             '邀请您的合作伙伴加入 Emerald Matrix AI 矩阵，开启算力共享新时代。每成功邀请一位新用户，您将获得其算力收益的 15% 作为永久激励奖励。',
           )}
@@ -356,13 +370,17 @@ const Invitation = () => {
       <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
         {/* 待提取收益 */}
         <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
-          <img src={walletImg} alt='wallet' className='absolute bottom-0 right-0 z-0 h-[70px]' />
+          <img
+            src={walletImg}
+            alt='wallet'
+            className='absolute bottom-0 right-0 z-0 h-[70px]'
+          />
           <div className='flex items-start justify-between mb-3'>
             <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
               {t('待提取收益')}
             </span>
           </div>
-          <div className='dark:text-cyan-300 mb-1 text-[#1CDFD5] font-[900] text-[30px] leading-[30px]'>
+          <div className='dark:text-cyan-300 mb-1 text-[color:var(--theme-primary)] font-[900] text-[30px] leading-[30px]'>
             {/* 使用后端转换值 + 用户币种符号展示待提取收益 */}
             {formatDisplayMoney(affQuotaDisplay, displaySymbol)}
           </div>
@@ -374,11 +392,11 @@ const Invitation = () => {
             className='!mt-4 !rounded-lg relative z-10 dark:text-cyan-300 dark:border-cyan-300'
             style={{
               width: '60%',
-              border: '1px solid #1CDFD533',
-              background: '#1CDFD51A',
-              color: '#1CDFD5',
+              border: '1px solid var(--theme-primary-20)',
+              background: 'var(--theme-primary-10)',
+              color: 'var(--theme-primary-btn-color)',
               padding: '18px',
-              fontSize:'12px',
+              fontSize: '12px',
             }}
             disabled={!affQuota || affQuota <= 0}
             onClick={() => setOpenTransfer(true)}
@@ -389,7 +407,11 @@ const Invitation = () => {
 
         {/* 累计总收益 */}
         <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
-          <img src={houseImg} alt='house' className='absolute bottom-0 right-0 z-0 h-[70px]' />
+          <img
+            src={houseImg}
+            alt='house'
+            className='absolute bottom-0 right-0 z-0 h-[70px]'
+          />
           <div className='flex items-start justify-between mb-3'>
             <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
               {t('累计总收益')}
@@ -406,7 +428,11 @@ const Invitation = () => {
 
         {/* 成功邀请人数 */}
         <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
-          <img src={invitePeopleImg} alt='invitePeople' className='absolute bottom-0 right-0 z-0 h-[70px]' />
+          <img
+            src={invitePeopleImg}
+            alt='invitePeople'
+            className='absolute bottom-0 right-0 z-0 h-[70px]'
+          />
           <div className='flex items-start justify-between mb-3'>
             <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
               {t('成功邀请人数')}
@@ -422,9 +448,7 @@ const Invitation = () => {
       </div>
 
       {/* 主内容区：左右布局 */}
-      <div
-        className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'grid-cols-3'}`}
-      >
+      <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'grid-cols-3'}`}>
         {/* 左侧：邀请链接 + 邀请明细 */}
         <div className={isMobile ? '' : 'col-span-2'}>
           {/* 邀请链接卡片 */}
@@ -439,9 +463,9 @@ const Invitation = () => {
                 value={affLink}
                 size='large'
                 readonly
-                className='flex-1 !rounded-lg'
+                className='flex-1 !rounded-lg dark:bg-slate-900 dark:border-slate-700'
                 placeholder={t('加载中...')}
-                style={{ fontSize: '16px', background:'#F8FAFC', borderColor:'#fff'}}
+                style={{ fontSize: '16px' }}
               />
               <Button
                 theme='solid'
@@ -450,9 +474,9 @@ const Invitation = () => {
                 icon={<Copy size={14} />}
                 className='!rounded-lg'
                 style={{
-                  background: 'linear-gradient(135deg, #09FEF7, #BAFF29)',
+                  background: 'var(--theme-gradient-135)',
                   borderColor: 'transparent',
-                  color: '#00210B',
+                  color: 'var(--theme-primary-btn-color)',
                 }}
               >
                 {t('复制链接')}
@@ -478,22 +502,19 @@ const Invitation = () => {
                 type='tertiary'
                 className='!rounded-lg'
                 icon={<SiWechat size={18} />}
-              >
-              </Button>
+              ></Button>
               <Button
                 size='large'
                 type='tertiary'
                 className='!rounded-lg'
                 icon={<SiX size={18} />}
-              >
-              </Button>
+              ></Button>
               <Button
                 size='large'
                 type='tertiary'
                 className='!rounded-lg'
                 icon={<Mail size={18} />}
-              >
-              </Button>
+              ></Button>
             </div>
           </div>
 
@@ -501,9 +522,7 @@ const Invitation = () => {
           <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl border border-slate-200 dark:border-slate-700 p-5'>
             <div className='flex items-center justify-between mb-4'>
               <div className='flex items-center gap-2'>
-                <div className='text-[18px] font-medium'>
-                  {t('邀请明细')}
-                </div>
+                <div className='text-[18px] font-medium'>{t('邀请明细')}</div>
               </div>
             </div>
             <Table
@@ -515,9 +534,7 @@ const Invitation = () => {
               empty={
                 <Empty
                   image={
-                    <IllustrationNoResult
-                      style={{ width: 120, height: 120 }}
-                    />
+                    <IllustrationNoResult style={{ width: 120, height: 120 }} />
                   }
                   darkModeImage={
                     <IllustrationNoResultDark
@@ -547,25 +564,24 @@ const Invitation = () => {
           {/* 奖励规则 */}
           <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-6'>
             <div className='flex items-center gap-2 mb-5'>
-              <img src={hammerImg} className='w-5 h-5' />
-              <div className='font-medium text-[18px]'>
-                {t('奖励规则')}
-              </div>
+              <Hammer
+                className='w-5 h-5'
+                style={{ color: 'var(--theme-primary)' }}
+              />
+              <div className='font-medium text-[18px]'>{t('奖励规则')}</div>
             </div>
             <div className='space-y-5'>
               {rewardRules.map((rule) => (
                 <div key={rule.num}>
                   <div className='flex items-center gap-2 mb-2'>
-                    <span className={`w-6 h-6 flex text-cyan-300 items-center justify-center text-xs font-[900] flex-shrink-0`}>
+                    <span
+                      className={`w-6 h-6 flex text-cyan-300 items-center justify-center text-xs font-[900] flex-shrink-0`}
+                    >
                       0{rule.num}
                     </span>
                     <Text strong>{rule.title}</Text>
                   </div>
-                  <Text
-                    type='tertiary'
-                    size='small'
-                    className='block pl-8'
-                  >
+                  <Text type='tertiary' size='small' className='block pl-8'>
                     {rule.desc}
                   </Text>
                 </div>
@@ -576,9 +592,7 @@ const Invitation = () => {
           {/* 常见问题 */}
           <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl border border-slate-200 dark:border-slate-700 p-5'>
             <div className='flex items-center gap-2 mb-4'>
-              <div className='font-medium text-[18px]'>
-                {t('常见问题')}
-              </div>
+              <div className='font-medium text-[18px]'>{t('常见问题')}</div>
             </div>
             <div className='space-y-0'>
               {faqItems.map((faq, index) => (
@@ -597,11 +611,7 @@ const Invitation = () => {
                     />
                   </div>
                   <Collapsible isOpen={expandedFaq === index}>
-                    <Text
-                      type='tertiary'
-                      size='small'
-                      className='block pb-3'
-                    >
+                    <Text type='tertiary' size='small' className='block pb-3'>
                       {faq.a}
                     </Text>
                   </Collapsible>

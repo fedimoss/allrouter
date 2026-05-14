@@ -73,6 +73,7 @@ const SubscriptionPurchaseModal = ({
   onPayStripe,
   onPayCreem,
   onPayEpay,
+  onPayCrypto,
 }) => {
   const plan = selectedPlan?.plan; // 获取当前选中的套餐对象
   const totalAmount = Number(plan?.total_amount || 0); // 套餐总额度（0 表示不限）
@@ -269,8 +270,8 @@ const SubscriptionPurchaseModal = ({
                   <Button
                     theme='solid'
                     type='primary'
-                    onClick={onPayEpay}
-                    loading={paying}
+                    onClick={selectedEpayMethod === 'crypto' ? onPayCrypto : onPayEpay}
+                    loading={selectedEpayMethod === 'crypto' ? false : paying}
                     disabled={!selectedEpayMethod || purchaseLimitReached}
                   >
                     {t('支付')}

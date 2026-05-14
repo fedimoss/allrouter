@@ -32,8 +32,9 @@ import { LocaleProvider } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import zh_CN from '@douyinfe/semi-ui/lib/es/locale/source/zh_CN';
 import en_GB from '@douyinfe/semi-ui/lib/es/locale/source/en_GB';
+import { applyStoredThemeColors } from './helpers';
 
-
+applyStoredThemeColors();
 
 function SemiLocaleWrapper({ children }) {
   const { i18n } = useTranslation();

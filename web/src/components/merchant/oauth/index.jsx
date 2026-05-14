@@ -446,8 +446,8 @@ const OauthList = () => {
                       theme='solid'
                       style={{
                         backgroundImage:
-                          'linear-gradient(135deg, #09FEF7 0%, #F8FF15 100%)',
-                        color: '#005C59',
+                          'var(--theme-gradient-135)',
+                        color: 'var(--theme-primary-btn-color)',
                       }}
                       onClick={() => submitCallback(item)}
                     >
@@ -504,7 +504,7 @@ const OauthList = () => {
                       border: '1px solid rgba(28, 223, 213, 0.2)',
                       borderRadius: 12,
                       background: 'rgba(28, 223, 213, 0.1)',
-                      color: '#1CDFD5',
+                      color: 'var(--theme-primary)',
                     }}
                   >
                     {isLoading ? (
@@ -575,8 +575,8 @@ const OauthList = () => {
                       style={{
                      
                       backgroundImage:
-                          'linear-gradient(135deg, #09FEF7 0%, #F8FF15 100%)',
-                        color: '#005C59',
+                          'var(--theme-gradient-135)',
+                        color: 'var(--theme-primary-btn-color)',
                     }}
                     >
                       {isCompleteLoading ? (

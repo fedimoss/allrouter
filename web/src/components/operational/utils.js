@@ -1,4 +1,4 @@
-﻿import { renderQuotaWithAmount } from '../../helpers';
+import { renderQuotaWithAmount } from '../../helpers';
 
 export function joinClasses(...values) {
   return values.filter(Boolean).join(' ');

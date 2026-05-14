@@ -521,7 +521,11 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				}
 				return 6, true
 			}
-			return 8, true
+			//gpt-5价格未匹配默认从8改为6
+			//if strings.HasPrefix(name, "gpt-5.5") {
+			//	return 6, true
+			//}
+			return 6, true
 		}
 		// gpt-4.5-preview匹配
 		if strings.HasPrefix(name, "gpt-4.5-preview") {

@@ -24,6 +24,7 @@ import { Avatar, Button, Dropdown } from '@douyinfe/semi-ui';
 import { IconExit, IconUserSetting } from '@douyinfe/semi-icons';
 import { API, renderQuota, showSuccess, stringToColor, formatDisplayMoney } from '../../../helpers';
 import { UserContext } from '../../../context/User';
+import defaultAvatar from '../../../../public/logo-white.svg';
 
 const SidebarUserPanel = ({ collapsed }) => {
   const { t } = useTranslation();
@@ -81,9 +82,8 @@ const SidebarUserPanel = ({ collapsed }) => {
             <Avatar
               size='small'
               className='sidebar-user-avatar'
-            >
-              {userState.user.username[0]?.toUpperCase()}
-            </Avatar>
+              src={userState.user.avatar || defaultAvatar}
+            />
             {!collapsed && (
               <div className='sidebar-user-meta'>
                 <div className='sidebar-user-name'>{userState.user.username}</div>

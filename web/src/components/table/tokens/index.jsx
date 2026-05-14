@@ -1037,7 +1037,7 @@ function TokensPage() {
               <div className='token-v2-toolbar-actions'>
                 <button
                   type='button'
-                  className='token-v2-primary-button'
+                  className='token-v2-primary-button theme-btn-color'
                   onClick={handleOpenCreate}
                 >
                   <Plus size={16} />
