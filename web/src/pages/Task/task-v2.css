@@ -36,7 +36,7 @@ html.dark .tasklog-v2-filter-card{box-shadow:0 16px 30px rgba(0,0,0,.2)}
 .tasklog-v2-filter-range input{min-width:0}
 .tasklog-v2-range-separator{font-size:12px;color:var(--task-text-soft)}
 .tasklog-v2-filter-actions{flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;gap:8px}
-.tasklog-v2-primary-button{padding:10px 16px;border-radius:12px;background:var(--brand-gradient);font-size:14px;font-weight:700;color:#020617;box-shadow:0 10px 24px rgba(9,254,247,.18)}
+.tasklog-v2-primary-button{padding:10px 16px;border-radius:12px;background:var(--brand-gradient);font-size:14px;font-weight:700;}
 .tasklog-v2-secondary-button{padding:10px 14px;border-radius:12px;font-size:14px;font-weight:600}
 .tasklog-v2-icon-button{width:36px;height:36px;border-radius:12px}
 .tasklog-v2-copy-button,.tasklog-v2-ghost-icon{width:26px;height:26px;flex-shrink:0;border-radius:999px;background:transparent}
@@ -71,7 +71,7 @@ html.dark .tasklog-v2-pill-violet{background:rgba(124,58,237,.18);color:#c4b5fd}
 .tasklog-v2-status-neutral{color:#64748b}.tasklog-v2-status-neutral::before{background:#94a3b8}
 .tasklog-v2-progress-wrap{display:flex;flex-direction:column;gap:6px}
 .tasklog-v2-progress-track{position:relative;height:6px;overflow:hidden;border-radius:999px;background:var(--task-surface-muted)}
-.tasklog-v2-progress-fill{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#09fef7,#06b6d4)}
+.tasklog-v2-progress-fill{display:block;height:100%;border-radius:999px;background:var(--theme-gradient)}
 .tasklog-v2-progress-text{font-size:12px;font-weight:600;color:var(--task-text-muted)}
 .tasklog-v2-text-trigger{display:block;max-width:100%;overflow:hidden;text-align:left;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--task-text)}
 .tasklog-v2-text-trigger-error{color:#dc2626;font-weight:500}

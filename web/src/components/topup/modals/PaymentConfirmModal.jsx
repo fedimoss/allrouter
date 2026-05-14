@@ -104,7 +104,7 @@ const PaymentConfirmModal = ({
         <>
           <div className='flex justify-end'>
             <Button onClick={handleCancel} style={{color:'#000'}}>{t('取消')}</Button>
-            <Button style={{ color: '#000', background:'linear-gradient(90deg, #09FEF7 0%, #BAFF29 100%)'}}  onClick={onlineTopUp}>{t('充值')}</Button>
+            <Button style={{ color: 'var(--theme-primary-btn-color)', background:'var(--theme-gradient)'}}  onClick={onlineTopUp}>{t('充值')}</Button>
           </div>
         </>
       }

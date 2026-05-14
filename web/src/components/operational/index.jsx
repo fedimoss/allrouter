@@ -1,4 +1,4 @@
-﻿/*
+/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -224,7 +224,7 @@ function ColumnMenu({ columns, visibleColumnKeys, onToggle }) {
                 className={joinClasses(
                   'flex h-4 w-4 items-center justify-center rounded-[4px] border text-[10px] font-semibold',
                   checked
-                    ? 'border-transparent text-slate-950'
+                    ? 'border-transparent theme-btn-color'
                     : 'border-slate-300 text-transparent dark:border-slate-600',
                 )}
                 style={checked ? gradientButtonStyle : undefined}
@@ -501,7 +501,7 @@ function AdvancedFilterModal({ open, fields, values, onChange, onClose, onReset,
             重置
           </button>
           <button
-            className='rounded-2xl px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_8px_20px_rgba(9,254,247,0.2)]'
+            className='rounded-2xl px-5 py-3 text-sm font-semibold theme-btn-color'
             onClick={onSubmit}
             style={gradientButtonStyle}
             type='button'
@@ -830,7 +830,7 @@ export default function Operational () {
                     value={searchInput}
                   />
                   <button
-                    className='absolute right-2 top-1/2 -translate-y-1/2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50'
+                    className='absolute right-2 top-1/2 -translate-y-1/2 rounded-xl px-3 py-2 text-xs font-semibold theme-btn-color disabled:opacity-50'
                     disabled={!hasRecordsApi}
                     onClick={handleSearchSubmit}
                     style={gradientButtonStyle}

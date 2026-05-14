@@ -33,6 +33,8 @@ import {
   getSystemName,
   showError,
   setStatusData,
+  applyThemeColors,
+  extractThemeColors,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -60,7 +62,7 @@ const PageLayout = () => {
     '/console/models',
     '/pricing',
     '/login',
-    '/register'
+    '/register',
   ];
 
   const shouldHideFooter = cardProPages.includes(location.pathname);
@@ -97,8 +99,22 @@ const PageLayout = () => {
 
   const loadStatus = async () => {
     try {
-      const res = await API.get('/api/status');
-      const { success, data } = res.data;
+      const [statusRes, webColorsRes] = await Promise.allSettled([
+        API.get('/api/status'),
+        API.get('/api/web_colors'),
+      ]);
+      if (webColorsRes.status === 'fulfilled') {
+        const { primaryColor, secondaryColor } = extractThemeColors(
+          webColorsRes.value,
+        );
+        if (primaryColor || secondaryColor) {
+          applyThemeColors(primaryColor, secondaryColor);
+        }
+      }
+      if (statusRes.status !== 'fulfilled') {
+        throw statusRes.reason;
+      }
+      const { success, data } = statusRes.value.data;
       if (success) {
         statusDispatch({ type: 'set', payload: data });
         setStatusData(data);

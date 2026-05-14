@@ -133,8 +133,6 @@ html.dark .token-v2-toolbar {
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 600;
-  color: #020617;
-  box-shadow: 0 10px 24px rgba(9, 254, 247, 0.18);
 }
 
 .token-v2-primary-button:hover {
@@ -682,8 +680,8 @@ html.dark .token-v2-action-danger:hover {
 }
 
 .token-v2-page-current {
-  border-color: #1CDFD5;
-  color: #1CDFD5;
+  border-color: var(--theme-primary);
+  color: var(--theme-primary);
 }
 
 .token-v2-empty-state,

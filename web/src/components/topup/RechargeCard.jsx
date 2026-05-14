@@ -465,17 +465,22 @@ const RechargeCard = ({
             return <Text type='tertiary'>-</Text>;
           }
           // 优先使用后端返回的币种符号，回退到用户默认展示币种
-          const paySymbol =
-            record.display_symbol || displayCurrency?.symbol || '$';
+          const isCrypto = record.payment_method === 'crypto';
+          const paySymbol = isCrypto
+            ? ''
+            : record.display_symbol || displayCurrency?.symbol || '$';
+          const suffix = isCrypto ? ' USDT' : '';
           return (
             <Text
               className='text-xl dark:!text-cyan-300'
               style={{
                 fontWeight: '800',
-                color: '#1CDFD5',
+                color: 'var(--theme-primary)',
               }}
             >
-              {formatDisplayMoney(money, paySymbol)}
+              {isCrypto
+                ? `${normalizedMoney}${suffix}`
+                : formatDisplayMoney(money, paySymbol)}
             </Text>
           );
         },
@@ -605,7 +610,7 @@ const RechargeCard = ({
                         className='text-slate-600 dark:text-slate-300'
                       >
                         {t('实付金额')}：
-                        <span className='text-[#1CDFD5] font-semibold'>
+                        <span className='text-[color:var(--theme-primary)] font-semibold'>
                           {renderAmount()}
                         </span>
                       </Text>
@@ -638,7 +643,7 @@ const RechargeCard = ({
                           key={index}
                           className={`h-12 rounded-xl text-l font-semibold transition-all ${
                             selectedPreset === preset.value
-                              ? 'text-[#1CDFD5] border border-[#1CDFD5] dark:bg-cyan-900/10 dark:text-[#1CDFD5]'
+                              ? 'text-[color:var(--theme-primary)] border border-[color:var(--theme-primary)] dark:bg-cyan-900/10 dark:text-[color:var(--theme-primary)]'
                               : 'bg-[#F8FAFC] text-slate-700 dark:bg-gray-800 dark:text-slate-200'
                           }`}
                           onClick={() => {
@@ -697,16 +702,16 @@ const RechargeCard = ({
                                 }
                                 className={`h-20 rounded-xl border transition-all px-3 ${
                                   selected
-                                    ? 'border-[#1CDFD5] bg-[#1CDFD520] text-[#1CDFD5] dark:border-[#1CDFD5] dark:bg-cyan-900/30'
+                                    ? 'border-[color:var(--theme-primary)] bg-[color:var(--theme-primary-12)] text-[color:var(--theme-primary)] dark:border-[color:var(--theme-primary)] dark:bg-cyan-900/30'
                                     : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
                                 } ${disabled ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer'}`}
                               >
                                 <div className='h-full flex flex-col items-center justify-center gap-2'>
                                   {renderPayMethodIcon(payMethod)}
                                   <span
-                                    className={`text-sm font-medium ${selected ? 'text-[#1CDFD5]' : 'dark:text-slate-200'}`}
+                                    className={`text-sm font-medium ${selected ? 'text-[color:var(--theme-primary)]' : 'dark:text-slate-200'}`}
                                   >
-                                    {payMethod.name}
+                                    {t(payMethod.name)}
                                   </span>
                                 </div>
                               </button>
@@ -947,7 +952,7 @@ const RechargeCard = ({
               {t('平台赠送或活动奖励')}
             </span>
             <span
-              className='text-xs text-[#1CDFD5] underline cursor-pointer mt-2'
+              className='text-xs text-[color:var(--theme-primary)] underline cursor-pointer mt-2'
               onClick={toInvitationDetail}
             >
               {t('查看收益详情')}
@@ -967,7 +972,7 @@ const RechargeCard = ({
             {userState?.user?.request_count || 0}
           </p>
           <div className='flex items-center justify-between'>
-            <span className='text-[12px] text-[#1CDFD5] flex items-center  mt-2'>
+            <span className='text-[12px] text-[color:var(--theme-primary)] flex items-center  mt-2'>
               <TrendingUp size={16} className='mr-1' />{' '}
               {t('较昨日') + (userState?.user?.request_count_change || 0)}
             </span>
@@ -1039,19 +1044,19 @@ const RechargeCard = ({
             </h3>
             <ul className='space-y-3 text-sm text-slate-600 dark:text-slate-300'>
               <li className='flex items-center gap-2 pl-1'>
-                <span className='text-lg font-bold text-[#1CDFD5] dark:text-cyan-400'>
+                <span className='text-lg font-bold text-[color:var(--theme-primary)] dark:text-cyan-400'>
                   01
                 </span>
                 <span>{t('如需查看消费明细，请到「账单中心」页面。')}</span>
               </li>
               <li className='flex items-center gap-2 pl-1'>
-                <span className='text-lg font-bold text-[#1CDFD5] dark:text-cyan-400'>
+                <span className='text-lg font-bold text-[color:var(--theme-primary)] dark:text-cyan-400'>
                   02
                 </span>
                 <span>{t('设置合适充值档位，可减少频繁操作。')}</span>
               </li>
               <li className='flex items-center gap-2 pl-1'>
-                <span className='text-lg font-bold text-[#1CDFD5] dark:text-cyan-400'>
+                <span className='text-lg font-bold text-[color:var(--theme-primary)] dark:text-cyan-400'>
                   03
                 </span>
                 <span>{t('如遇支付问题，请通过帮助中心联系支持。')}</span>
@@ -1111,7 +1116,9 @@ const RechargeCard = ({
         visible={cryptoDrawerVisible}
         onClose={() => setCryptoDrawerVisible(false)}
         amount={topUpCount}
+        currency={stripeCurrency?.currency || 'USD'}
         t={t}
+        onSuccess={() => loadTopups(historyPage, historyPageSize)}
       />
     </div>
   );

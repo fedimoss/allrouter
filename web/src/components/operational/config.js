@@ -1,4 +1,4 @@
-﻿export const pagePanelClassName =
+export const pagePanelClassName =
   'rounded-[30px] border border-slate-200/80 bg-white shadow-[0_20px_60px_rgba(148,163,184,0.16)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-[0_20px_60px_rgba(2,6,23,0.42)]';
 
 export const blockPanelClassName =
@@ -11,7 +11,7 @@ export const lightButtonClassName =
   'inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 transition hover:border-cyan-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-cyan-500';
 
 export const gradientButtonStyle = {
-  background: 'linear-gradient(97.63deg, #09FEF7 0%, #BAFF29 100%)',
+  background: 'var(--theme-gradient)',
 };
 
 export const DATE_RANGE_OPTIONS = [

@@ -37,7 +37,7 @@ const fallbackTabs = [
   { label: '调用次数排行', value: '4' },
 ];
 
-const quotaRadioColors = ['#25dfe0', '#4f8ef7', '#6d6af8'];
+const quotaRadioColors = ['var(--theme-primary)', '#4f8ef7', '#6d6af8'];
 
 const ModelDataAnalysisPanel = ({
   t,

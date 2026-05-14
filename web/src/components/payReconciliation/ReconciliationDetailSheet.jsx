@@ -4,7 +4,8 @@ import { IconClose } from '@douyinfe/semi-icons';
 import { CircleAlert, CircleCheckBig } from 'lucide-react';
 import { API, showError } from '../../helpers';
 import { useTranslation } from 'react-i18next';
-import wechatPayImg from '../../../public/wechat_pay.png';
+import stripeLogo from '../../../public/stripe.png';
+import weChatLogo from '../../../public/WeChat.png';
 
 const StatusChip = ({ text, danger = false }) => (
   <span className={`inline-flex items-center gap-2 font-semibold ${danger ? 'text-[#FF4D4F]' : 'text-[#09CC73]'}`}>
@@ -144,11 +145,19 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
   return (
     <SideSheet visible={visible} onCancel={onClose} width={800} placement='right' closeOnEsc maskClosable bodyStyle={{ padding: 0 }} headerStyle={{ display: 'none' }}>
       <div className='p-5'>
-        <div className='overflow-hidden rounded-2xl bg-white'>
+        <div className='overflow-hidden bg-white'>
           <div className='border-b border-slate-200 pb-3'>
             <div className='flex items-start justify-between gap-4'>
               <div className='flex items-center gap-2.5'>
-                <img src={wechatPayImg} alt='微信支付' className='h-12 w-12 rounded-md' />
+                <div className='h-12 w-12 rounded-[16px] border border-[#0000000D] bg-[#0000000D] flex items-center justify-center'>
+                  {
+                    channelRecord.payment_method === 'wxpay' ? (
+                      <img src={weChatLogo} alt='微信支付' className='h-6 w-6 rounded-md' />
+                    ) : (
+                      <img src={stripeLogo} alt='Stripe' className='h-6 w-6 rounded-md' />
+                    )
+                  }
+                </div>
                 <div>
                   <div className='flex items-center gap-2'>
                     <span className='text-[20px] leading-[22px] font-semibold text-slate-800'>{t(header.title) || t('微信支付')}</span>
