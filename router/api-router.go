@@ -95,8 +95,8 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/stripe/amount", controller.RequestStripeAmount)
 				selfRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.RequestCreemPay)
 				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
-				selfRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.RequestCryptoPay)         // 加密货币充值下单
-				selfRoute.POST("/crypto/confirm", middleware.CriticalRateLimit(), controller.RequestCryptoConfirm) // 加密货币充值确认
+				selfRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.RequestCryptoPay) // 加密货币充值下单
+				selfRoute.POST("/crypto/confirm", controller.RequestCryptoConfirm)                         // 加密货币充值确认
 				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 				selfRoute.POST("/avatar", controller.UploadAvatar) // 上传头像
@@ -151,8 +151,8 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
 			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
 			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
-			subscriptionRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCryptoPay)         // 加密货币订阅
-			subscriptionRoute.POST("/crypto/confirm", middleware.CriticalRateLimit(), controller.SubscriptionRequestCryptoConfirm) // 加密货币订阅确认
+			subscriptionRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCryptoPay) // 加密货币订阅
+			subscriptionRoute.POST("/crypto/confirm", controller.SubscriptionRequestCryptoConfirm)                         // 加密货币订阅确认
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())

@@ -4332,3 +4332,84 @@ ON CONFLICT ("key") DO NOTHING;
 
 
 
+DROP TABLE IF EXISTS "crypto_transactions";
+
+CREATE SEQUENCE IF NOT EXISTS "crypto_transactions_id_seq";
+
+CREATE TABLE "crypto_transactions" (
+                                       "id" INT8 NOT NULL DEFAULT nextval('crypto_transactions_id_seq' :: REGCLASS),
+                                       "top_up_id" INT8,
+                                       "subscription_order_id" INT8,
+                                       "user_id" INT8,
+                                       "trade_no" VARCHAR (255),
+                                       "tx_hash" VARCHAR (128),
+                                       "chain_id" INT8,
+                                       "token_symbol" VARCHAR (20),
+                                       "token_contract" VARCHAR (128),
+                                       "receiver_address" VARCHAR (128),
+                                       "payer_address" VARCHAR (128),
+                                       "usdt_amount" VARCHAR (64),
+                                       "block_number" INT8 DEFAULT 0,
+                                       "confirmations" INT8 DEFAULT 0,
+                                       "status" VARCHAR (20),
+                                       "create_time" INT8,
+                                       "complete_time" INT8,
+                                       "updated_at" TIMESTAMPTZ (6)
+);
+
+-- 表注释
+COMMENT ON TABLE "crypto_transactions" IS '加密货币链上交易记录';
+
+-- 字段注释
+COMMENT ON COLUMN "crypto_transactions"."id"                      IS '主键';
+COMMENT ON COLUMN "crypto_transactions"."top_up_id"               IS '关联的充值订单 ID';
+COMMENT ON COLUMN "crypto_transactions"."subscription_order_id"   IS '关联的订阅订单 ID';
+COMMENT ON COLUMN "crypto_transactions"."user_id"                 IS '用户 ID';
+COMMENT ON COLUMN "crypto_transactions"."trade_no"                IS '订单号（唯一）';
+COMMENT ON COLUMN "crypto_transactions"."tx_hash"                 IS '链上交易哈希（确认后填入，唯一）';
+COMMENT ON COLUMN "crypto_transactions"."chain_id"                IS '链 ID（如 BSC 主网为 56）';
+COMMENT ON COLUMN "crypto_transactions"."token_symbol"            IS '代币符号（如 USDT）';
+COMMENT ON COLUMN "crypto_transactions"."token_contract"          IS '代币合约地址';
+COMMENT ON COLUMN "crypto_transactions"."receiver_address"        IS '收款地址';
+COMMENT ON COLUMN "crypto_transactions"."payer_address"           IS '付款地址（链上确认后填入）';
+COMMENT ON COLUMN "crypto_transactions"."usdt_amount"             IS 'USDT 金额（字符串存储，保证精度）';
+COMMENT ON COLUMN "crypto_transactions"."block_number"            IS '区块号（确认后填入）';
+COMMENT ON COLUMN "crypto_transactions"."confirmations"           IS '确认数（确认后填入）';
+COMMENT ON COLUMN "crypto_transactions"."status"                  IS '状态：pending-待确认 / success-已完成 / failed-失败';
+COMMENT ON COLUMN "crypto_transactions"."create_time"             IS '创建时间（Unix 时间戳）';
+COMMENT ON COLUMN "crypto_transactions"."complete_time"           IS '完成时间（Unix 时间戳）';
+COMMENT ON COLUMN "crypto_transactions"."updated_at"              IS '记录更新时间';
+
+
+
+DROP TABLE IF EXISTS "public"."crypto_chain_config";
+
+CREATE TABLE "public"."crypto_chain_config" (
+                                                "network"           varchar(32) NOT NULL,
+                                                "chain_id"          int8 NOT NULL,
+                                                "token_symbol"      varchar(20) NOT NULL DEFAULT 'USDT',
+                                                "token_decimals"    int2 NOT NULL DEFAULT 18,
+                                                "token_contract"    varchar(128) NOT NULL DEFAULT '',
+                                                "receiver_address"  varchar(128) NOT NULL DEFAULT '',
+                                                "rpc_url"           varchar(512) NOT NULL DEFAULT '',
+                                                "min_confirmations" int2 NOT NULL DEFAULT 3,
+                                                PRIMARY KEY ("network", "token_symbol")
+);
+
+-- 表注释
+COMMENT ON TABLE "public"."crypto_chain_config" IS '加密货币链配置表：每条链每种代币一行，network + token_symbol 唯一确定一组参数';
+
+-- 字段注释
+COMMENT ON COLUMN "public"."crypto_chain_config"."network"           IS '网络名称（复合主键），如 Sepolia / BSC / Polygon，大小写不敏感匹配';
+COMMENT ON COLUMN "public"."crypto_chain_config"."chain_id"          IS 'EIP-155 链 ID（Sepolia=11155111, BSC=97, Polygon=137）';
+COMMENT ON COLUMN "public"."crypto_chain_config"."token_symbol"      IS '代币符号（复合主键），如 USDT / USDC';
+COMMENT ON COLUMN "public"."crypto_chain_config"."token_decimals"    IS '代币精度（Sepolia MockUSDT=6, BSC USDT=18, Polygon USDT=6）';
+COMMENT ON COLUMN "public"."crypto_chain_config"."token_contract"    IS '代币合约地址';
+COMMENT ON COLUMN "public"."crypto_chain_config"."receiver_address"  IS '收款钱包地址';
+COMMENT ON COLUMN "public"."crypto_chain_config"."rpc_url"           IS '链节点 RPC 地址（含 API Key）';
+COMMENT ON COLUMN "public"."crypto_chain_config"."min_confirmations" IS '最小链上确认数（测试网建议 1~2，主网建议 ≥3）';
+
+
+INSERT INTO "public"."options" ("key", "value") VALUES
+                                                    ('CryptoUSDtoTokenRate', '1'),
+                                                    ('CryptoCNYtoTokenRate', '0.1471');
