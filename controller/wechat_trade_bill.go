@@ -48,7 +48,7 @@ func RunWechatTradeBill(c *gin.Context) {
 			return
 		}
 		// 执行 Stripe 账单拉取与对账流程
-		result, err = runStripeBillWorkflow(billDate)
+		result, err = service.RunStripeBillWorkflow(billDate)
 	// wxpay 分支
 	default:
 		result, err = service.RunWechatTradeBillWorkflowWithDBConfig(billDate)

@@ -53,15 +53,11 @@ import {
   CheckCircle,
   Gift,
   Lightbulb,
-  Copy
+  Copy,
 } from 'lucide-react';
 import { IconGift, IconSearch } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import {
-  API,
-  timestamp2string,
-  formatDisplayMoney,
-} from '../../helpers';
+import { API, timestamp2string, formatDisplayMoney } from '../../helpers';
 import {
   getTopupBizTypeConfig,
   getEffectiveTopupMin,
@@ -69,17 +65,39 @@ import {
   isSubscriptionTopup,
 } from '../../helpers/topup';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
+import CryptoPaymentDrawer from './CryptoPaymentDrawer';
 import balanceBgimg from '../../../public/wallet-balance.png';
 import dateBgimg from '../../../public/wallet-date.png';
+import dollarIcon from '../../../public/icon-dollar.svg';
 
 const { Text } = Typography;
 
 // 状态映射配置
 const STATUS_CONFIG = {
-  success: { type: 'success', key: '成功',color:'rgb(10, 130, 54)',bgColor:'green' },
-  pending: { type: 'warning', key: '待支付',color:'rgba(253, 184, 120, 1)',bgColor:'orange' },
-  failed: { type: 'danger', key: '失败',color:'rgba(255, 107, 107, 1)',bgColor:'red' },
-  expired: { type: 'danger', key: '已过期',color:'rgba(255, 107, 107, 1)',bgColor:'red' },
+  success: {
+    type: 'success',
+    key: '成功',
+    color: 'rgb(10, 130, 54)',
+    bgColor: 'green',
+  },
+  pending: {
+    type: 'warning',
+    key: '待支付',
+    color: 'rgba(253, 184, 120, 1)',
+    bgColor: 'orange',
+  },
+  failed: {
+    type: 'danger',
+    key: '失败',
+    color: 'rgba(255, 107, 107, 1)',
+    bgColor: 'red',
+  },
+  expired: {
+    type: 'danger',
+    key: '已过期',
+    color: 'rgba(255, 107, 107, 1)',
+    bgColor: 'red',
+  },
 };
 
 // 支付方式映射
@@ -89,6 +107,7 @@ const PAYMENT_METHOD_MAP = {
   waffo: 'Waffo',
   alipay: '支付宝',
   wxpay: '微信',
+  crypto: '加密货币',
   redemptionCode: '兑换码',
   redemption_code: '兑换码',
 };
@@ -158,6 +177,7 @@ const RechargeCard = ({
   const [historyPageSize, setHistoryPageSize] = useState(10);
   const [historyKeyword, setHistoryKeyword] = useState('');
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
+  const [cryptoDrawerVisible, setCryptoDrawerVisible] = useState(false);
   // 当未选择支付方式且仅 Stripe 可用时，回退为 stripe，用于输入框的最低金额计算
   const fallbackInputPaymentType =
     !selectedPayMethod && enableStripeTopUp && !enableOnlineTopUp
@@ -194,7 +214,10 @@ const RechargeCard = ({
       .find((m) => {
         const minTopupVal = Number(m.min_topup) || 0;
         const isStripe = m.type === 'stripe';
-        if ((!enableOnlineTopUp && !isStripe) || (!enableStripeTopUp && isStripe)) {
+        if (
+          (!enableOnlineTopUp && !isStripe) ||
+          (!enableStripeTopUp && isStripe)
+        ) {
           return false;
         }
         return minTopupVal <= Number(topUpCount || 0);
@@ -205,7 +228,11 @@ const RechargeCard = ({
       return;
     }
 
-    if (enableWaffoTopUp && Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0) {
+    if (
+      enableWaffoTopUp &&
+      Array.isArray(waffoPayMethods) &&
+      waffoPayMethods.length > 0
+    ) {
       setSelectedPayMethod('waffo:0');
     }
   }, [
@@ -293,10 +320,20 @@ const RechargeCard = ({
   };
 
   const renderPayMethodIcon = (payMethod) => {
-    if (payMethod.type === 'alipay') return <SiAlipay size={20} color='#1677FF' />;
-    if (payMethod.type === 'wxpay') return <SiWechat size={20} color='#07C160' />;
-    if (payMethod.type === 'stripe') return <SiStripe size={20} color='#635BFF' />;
-    return <CreditCard size={20} color={payMethod.color || 'var(--semi-color-text-2)'} />;
+    if (payMethod.type === 'alipay')
+      return <SiAlipay size={20} color='#1677FF' />;
+    if (payMethod.type === 'wxpay')
+      return <SiWechat size={20} color='#07C160' />;
+    if (payMethod.type === 'stripe')
+      return <SiStripe size={20} color='#635BFF' />;
+    if (payMethod.type === 'crypto')
+      return <img src={dollarIcon} alt='crypto' style={{ width: 16 }} />;
+    return (
+      <CreditCard
+        size={20}
+        color={payMethod.color || 'var(--semi-color-text-2)'}
+      />
+    );
   };
 
   const handlePrimaryTopUp = () => {
@@ -308,6 +345,11 @@ const RechargeCard = ({
       return;
     }
 
+    if (selectedPayMethod === 'crypto') {
+      setCryptoDrawerVisible(true);
+      return;
+    }
+
     preTopUp(selectedPayMethod);
   };
 
@@ -315,8 +357,14 @@ const RechargeCard = ({
     if (isInviteRebateTopup(record)) {
       return (
         <span className='flex items-center gap-2'>
-          <Tag color='green' style={{ padding: '0 10px', height: 26, lineHeight: '24px' }}>
-            <span className='inline-flex items-center gap-1 font-medium' style={{ color: 'rgb(10, 130, 54)' }}>
+          <Tag
+            color='green'
+            style={{ padding: '0 10px', height: 26, lineHeight: '24px' }}
+          >
+            <span
+              className='inline-flex items-center gap-1 font-medium'
+              style={{ color: 'rgb(10, 130, 54)' }}
+            >
               <CheckCircle size={14} />
               {t('已入账')}
             </span>
@@ -330,8 +378,11 @@ const RechargeCard = ({
     const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
     return (
       <span className='flex items-center gap-2'>
-        <Tag color={config.bgColor} style={{ padding: '0 6px', height: 22, lineHeight: '22px' }}>
-           <span style={{ color: config.color }}>{t(config.key)}</span>
+        <Tag
+          color={config.bgColor}
+          style={{ padding: '0 6px', height: 22, lineHeight: '22px' }}
+        >
+          <span style={{ color: config.color }}>{t(config.key)}</span>
         </Tag>
       </span>
     );
@@ -411,19 +462,25 @@ const RechargeCard = ({
         render: (money, record) => {
           const normalizedMoney = Number(money || 0);
           if (normalizedMoney <= 0) {
-            return <Text type="tertiary">-</Text>;
+            return <Text type='tertiary'>-</Text>;
           }
           // 优先使用后端返回的币种符号，回退到用户默认展示币种
-          const paySymbol =
-            record.display_symbol || displayCurrency?.symbol || '$';
+          const isCrypto = record.payment_method === 'crypto';
+          const paySymbol = isCrypto
+            ? ''
+            : record.display_symbol || displayCurrency?.symbol || '$';
+          const suffix = isCrypto ? ' USDT' : '';
           return (
-            <Text className='text-xl dark:!text-cyan-300' style={
-              {
+            <Text
+              className='text-xl dark:!text-cyan-300'
+              style={{
                 fontWeight: '800',
-                color:'#1CDFD5'
-              }
-            }>
-              {formatDisplayMoney(money, paySymbol)}
+                color: 'var(--theme-primary)',
+              }}
+            >
+              {isCrypto
+                ? `${normalizedMoney}${suffix}`
+                : formatDisplayMoney(money, paySymbol)}
             </Text>
           );
         },
@@ -442,7 +499,7 @@ const RechargeCard = ({
             <Button
               type='tertiary'
               theme='borderless'
-              icon={<Copy size={14} style={{color:'#999'}} />}
+              icon={<Copy size={14} style={{ color: '#999' }} />}
               size='small'
               onClick={() => {
                 navigator.clipboard.writeText(record?.trade_no || '');
@@ -476,13 +533,18 @@ const RechargeCard = ({
                   field='topUpCount'
                   hideButtons
                   label={t('请输入充值金额')}
-                  disabled={!enableOnlineTopUp && !enableStripeTopUp && !enableWaffoTopUp}
+                  disabled={
+                    !enableOnlineTopUp &&
+                    !enableStripeTopUp &&
+                    !enableWaffoTopUp
+                  }
                   placeholder={
                     isStripeCurrencyInput
                       ? t('充值数量，最低 ') +
                         (stripeCurrency.currency === 'CNY' ? '¥' : '$') +
                         inputMinTopUp
-                      : t('充值数量，最低 ') + renderQuotaWithAmount(inputMinTopUp)
+                      : t('充值数量，最低 ') +
+                        renderQuotaWithAmount(inputMinTopUp)
                   }
                   className='charge-input'
                   value={topUpCount}
@@ -510,7 +572,10 @@ const RechargeCard = ({
                     if (!parsed || parsed < inputMinTopUp) {
                       setTopUpCount(inputMinTopUp);
                       setSelectedPreset(null);
-                      onlineFormApiRef.current?.setValue('topUpCount', inputMinTopUp);
+                      onlineFormApiRef.current?.setValue(
+                        'topUpCount',
+                        inputMinTopUp,
+                      );
                       // 无时区币种配置时需重新请求金额
                       if (!stripeCurrency) {
                         if (selectedPayMethod === 'stripe' && getStripeAmount) {
@@ -540,9 +605,14 @@ const RechargeCard = ({
                         />
                       }
                     >
-                      <Text type='secondary' className='text-slate-600 dark:text-slate-300'>
+                      <Text
+                        type='secondary'
+                        className='text-slate-600 dark:text-slate-300'
+                      >
                         {t('实付金额')}：
-                        <span className='text-[#1CDFD5] font-semibold'>{renderAmount()}</span>
+                        <span className='text-[color:var(--theme-primary)] font-semibold'>
+                          {renderAmount()}
+                        </span>
                       </Text>
                     </Skeleton>
                   }
@@ -558,10 +628,14 @@ const RechargeCard = ({
                 >
                   <div className='grid grid-cols-2 md:grid-cols-6 gap-3'>
                     {presetAmounts.map((preset, index) => {
-                      const discount = preset.discount || topupInfo?.discount?.[preset.value] || 1.0;
+                      const discount =
+                        preset.discount ||
+                        topupInfo?.discount?.[preset.value] ||
+                        1.0;
                       const hasDiscount = discount < 1.0;
                       // 币种符号：中国时区显示 ¥，其他时区都显示 $
-                      const symbol = stripeCurrency?.currency === 'CNY' ? '¥' : '$';
+                      const symbol =
+                        stripeCurrency?.currency === 'CNY' ? '¥' : '$';
 
                       return (
                         <button
@@ -569,23 +643,33 @@ const RechargeCard = ({
                           key={index}
                           className={`h-12 rounded-xl text-l font-semibold transition-all ${
                             selectedPreset === preset.value
-                              ? 'text-[#1CDFD5] border border-[#1CDFD5] dark:bg-cyan-900/10 dark:text-[#1CDFD5]'
+                              ? 'text-[color:var(--theme-primary)] border border-[color:var(--theme-primary)] dark:bg-cyan-900/10 dark:text-[color:var(--theme-primary)]'
                               : 'bg-[#F8FAFC] text-slate-700 dark:bg-gray-800 dark:text-slate-200'
                           }`}
                           onClick={() => {
                             setTopUpCount(preset.value);
                             setSelectedPreset(preset.value);
-                            onlineFormApiRef.current?.setValue('topUpCount', preset.value);
+                            onlineFormApiRef.current?.setValue(
+                              'topUpCount',
+                              preset.value,
+                            );
                             // 有时区币种配置时无需调后端金额接口
                             if (!stripeCurrency) {
-                              const disc = preset.discount || topupInfo?.discount?.[preset.value] || 1.0;
+                              const disc =
+                                preset.discount ||
+                                topupInfo?.discount?.[preset.value] ||
+                                1.0;
                               setAmount(preset.value * priceRatio * disc);
                             }
                           }}
                         >
-                          {symbol} {preset.value} 
+                          {symbol} {preset.value}
                           {hasDiscount && (
-                            <Tag style={{ marginLeft: 6 }} color='green' size='small'>
+                            <Tag
+                              style={{ marginLeft: 6 }}
+                              color='green'
+                              size='small'
+                            >
                               {t('折')}
                             </Tag>
                           )}
@@ -595,86 +679,112 @@ const RechargeCard = ({
                   </div>
                 </Form.Slot>
 
-                {payMethods && payMethods.filter((m) => m.type !== 'waffo').length > 0 && (
-                  <Form.Slot label={t('选择支付方式')}>
-                    <div className='grid grid-cols-2 md:grid-cols-4 gap-3'>
-                      {payMethods
-                        .filter((m) => m.type !== 'waffo')
-                        .map((payMethod) => {
-                          const disabled = isPayMethodDisabled(payMethod);
-                          const selected = selectedPayMethod === payMethod.type;
-                          const minTopupVal = Number(payMethod.min_topup) || 0;
+                {payMethods &&
+                  payMethods.filter((m) => m.type !== 'waffo').length > 0 && (
+                    <Form.Slot label={t('选择支付方式')}>
+                      <div className='grid grid-cols-2 md:grid-cols-4 gap-3'>
+                        {payMethods
+                          .filter((m) => m.type !== 'waffo')
+                          .map((payMethod) => {
+                            const disabled = isPayMethodDisabled(payMethod);
+                            const selected =
+                              selectedPayMethod === payMethod.type;
+                            const minTopupVal =
+                              Number(payMethod.min_topup) || 0;
 
-                          const card = (
+                            const card = (
+                              <button
+                                type='button'
+                                key={payMethod.type}
+                                disabled={disabled}
+                                onClick={() =>
+                                  setSelectedPayMethod(payMethod.type)
+                                }
+                                className={`h-20 rounded-xl border transition-all px-3 ${
+                                  selected
+                                    ? 'border-[color:var(--theme-primary)] bg-[color:var(--theme-primary-12)] text-[color:var(--theme-primary)] dark:border-[color:var(--theme-primary)] dark:bg-cyan-900/30'
+                                    : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
+                                } ${disabled ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer'}`}
+                              >
+                                <div className='h-full flex flex-col items-center justify-center gap-2'>
+                                  {renderPayMethodIcon(payMethod)}
+                                  <span
+                                    className={`text-sm font-medium ${selected ? 'text-[color:var(--theme-primary)]' : 'dark:text-slate-200'}`}
+                                  >
+                                    {t(payMethod.name)}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+
+                            return disabled &&
+                              minTopupVal > Number(topUpCount || 0) ? (
+                              <Tooltip
+                                content={
+                                  t('此支付方式最低充值金额为') +
+                                  ' ' +
+                                  minTopupVal
+                                }
+                                key={payMethod.type}
+                              >
+                                {card}
+                              </Tooltip>
+                            ) : (
+                              <React.Fragment key={payMethod.type}>
+                                {card}
+                              </React.Fragment>
+                            );
+                          })}
+                      </div>
+                    </Form.Slot>
+                  )}
+
+                {enableWaffoTopUp &&
+                  waffoPayMethods &&
+                  waffoPayMethods.length > 0 && (
+                    <Form.Slot label={t('Waffo 充值')}>
+                      <div className='grid grid-cols-2 md:grid-cols-3 gap-3'>
+                        {waffoPayMethods.map((method, index) => {
+                          const methodKey = `waffo:${index}`;
+                          const selected = selectedPayMethod === methodKey;
+                          return (
                             <button
                               type='button'
-                              key={payMethod.type}
-                              disabled={disabled}
-                              onClick={() => setSelectedPayMethod(payMethod.type)}
+                              key={methodKey}
+                              onClick={() => setSelectedPayMethod(methodKey)}
                               className={`h-20 rounded-xl border transition-all px-3 ${
                                 selected
-                                  ? 'border-[#1CDFD5] bg-[#1CDFD520] text-[#1CDFD5] dark:border-[#1CDFD5] dark:bg-cyan-900/30'
-                                  : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
-                              } ${disabled ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer'}`}
+                                  ? 'border-cyan-500 dark:border-cyan-400 dark:bg-cyan-900/30'
+                                  : 'border-slate-200 bg-white hover:border-cyan-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-cyan-600'
+                              }`}
                             >
                               <div className='h-full flex flex-col items-center justify-center gap-2'>
-                                {renderPayMethodIcon(payMethod)}
-                                <span className={`text-sm font-medium ${selected? 'text-[#1CDFD5]':'dark:text-slate-200'}`}>
-                                  {payMethod.name}
+                                {method.icon ? (
+                                  <img
+                                    src={method.icon}
+                                    alt={method.name}
+                                    style={{
+                                      width: 22,
+                                      height: 22,
+                                      objectFit: 'contain',
+                                    }}
+                                  />
+                                ) : (
+                                  <CreditCard
+                                    size={20}
+                                    color='var(--semi-color-text-2)'
+                                  />
+                                )}
+                                <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>
+                                  {method.name}
                                 </span>
                               </div>
                             </button>
                           );
-
-                          return disabled && minTopupVal > Number(topUpCount || 0) ? (
-                            <Tooltip content={t('此支付方式最低充值金额为') + ' ' + minTopupVal} key={payMethod.type}>
-                              {card}
-                            </Tooltip>
-                          ) : (
-                            <React.Fragment key={payMethod.type}>{card}</React.Fragment>
-                          );
                         })}
-                    </div>
-                  </Form.Slot>
-                )}
-
-                {enableWaffoTopUp && waffoPayMethods && waffoPayMethods.length > 0 && (
-                  <Form.Slot label={t('Waffo 充值')}>
-                    <div className='grid grid-cols-2 md:grid-cols-3 gap-3'>
-                      {waffoPayMethods.map((method, index) => {
-                        const methodKey = `waffo:${index}`;
-                        const selected = selectedPayMethod === methodKey;
-                        return (
-                          <button
-                            type='button'
-                            key={methodKey}
-                            onClick={() => setSelectedPayMethod(methodKey)}
-                            className={`h-20 rounded-xl border transition-all px-3 ${
-                              selected
-                                ? 'border-cyan-500 dark:border-cyan-400 dark:bg-cyan-900/30'
-                                : 'border-slate-200 bg-white hover:border-cyan-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-cyan-600'
-                            }`}
-                          >
-                            <div className='h-full flex flex-col items-center justify-center gap-2'>
-                              {method.icon ? (
-                                <img
-                                  src={method.icon}
-                                  alt={method.name}
-                                  style={{ width: 22, height: 22, objectFit: 'contain' }}
-                                />
-                              ) : (
-                                <CreditCard size={20} color='var(--semi-color-text-2)' />
-                              )}
-                              <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>
-                                {method.name}
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </Form.Slot>
-                )}
+                      </div>
+                    </Form.Slot>
+                  )}
 
                 <Button
                   onClick={handlePrimaryTopUp}
@@ -701,12 +811,15 @@ const RechargeCard = ({
                       className='cursor-pointer !rounded-2xl transition-all hover:shadow-md border-gray-200 hover:border-cyan-300 dark:border-slate-700 dark:hover:border-cyan-500'
                       bodyStyle={{ textAlign: 'center', padding: '16px' }}
                     >
-                      <div className='font-medium text-lg mb-2'>{product.name}</div>
+                      <div className='font-medium text-lg mb-2'>
+                        {product.name}
+                      </div>
                       <div className='text-sm text-gray-600 dark:text-slate-300 mb-2'>
                         {t('充值额度')}: {product.quota}
                       </div>
                       <div className='text-lg font-semibold text-cyan-600 dark:text-cyan-400'>
-                        {product.currency === 'EUR' ? '€' : '$'}{product.price}
+                        {product.currency === 'EUR' ? '€' : '$'}
+                        {product.price}
                       </div>
                     </Card>
                   ))}
@@ -718,7 +831,9 @@ const RechargeCard = ({
       ) : (
         <Banner
           type='info'
-          description={t('管理员未开启在线充值功能，请联系管理员开启或使用兑换码充值。')}
+          description={t(
+            '管理员未开启在线充值功能，请联系管理员开启或使用兑换码充值。',
+          )}
           className='!rounded-xl'
           closeIcon={null}
         />
@@ -758,84 +873,108 @@ const RechargeCard = ({
 
       {/* 顶部概览卡片 */}
       <div className='grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4'>
-        <div className='rounded-2xl from-cyan-50 bg-white dark:border-cyan-900/50 dark:from-slate-900 dark:bg-slate-800 dark:via-slate-900 dark:to-slate-950 p-5'
-        >
+        <div className='rounded-2xl from-cyan-50 bg-white dark:border-cyan-900/50 dark:from-slate-900 dark:bg-slate-800 dark:via-slate-900 dark:to-slate-950 p-5'>
           <div className='flex items-center justify-between mb-2'>
             <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
               {t('当前余额')}
             </h3>
-            <div className=''>
-
-            </div>
+            <div className=''></div>
           </div>
-          <p className='text-[24px] text-[#475569] dark:text-cyan-400' style={{ fontWeight: '900' }}>
-            {formatDisplayMoney(userState?.user?.quota, displayCurrency?.symbol)}
+          <p
+            className='text-[24px] text-[#475569] dark:text-cyan-400'
+            style={{ fontWeight: '900' }}
+          >
+            {formatDisplayMoney(
+              userState?.user?.quota,
+              displayCurrency?.symbol,
+            )}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2 flex items-center gap-1'>
             {t('当前账户剩余的全部金额')}
           </p>
         </div>
 
-        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
-        >
+        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'>
           <div className='flex items-center justify-between mb-2'>
             <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
               {t('历史消费')}
             </h3>
           </div>
-          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            {formatDisplayMoney(userState?.user?.used_quota, displayCurrency?.symbol)}
+          <p
+            className='text-[24px] text-[#475569] dark:text-white'
+            style={{ fontWeight: '900' }}
+          >
+            {formatDisplayMoney(
+              userState?.user?.used_quota,
+              displayCurrency?.symbol,
+            )}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
             {t('历史全部的消耗金额')}
           </p>
         </div>
-        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
-        >
+        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'>
           <div className='flex items-center justify-between mb-2'>
             <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
               {t('历史充值')}
             </h3>
           </div>
-          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            {formatDisplayMoney(userState?.user?.total_topup_quota, displayCurrency?.symbol)}
+          <p
+            className='text-[24px] text-[#475569] dark:text-white'
+            style={{ fontWeight: '900' }}
+          >
+            {formatDisplayMoney(
+              userState?.user?.total_topup_quota,
+              displayCurrency?.symbol,
+            )}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
             {t('历史充值的全部金额')}
           </p>
         </div>
-        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
-        >
+        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'>
           <div className='flex items-center justify-between mb-2'>
             <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
               {t('历史奖励/获赠')}
             </h3>
           </div>
-          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
-            {formatDisplayMoney(userState?.user?.welfare_quota, displayCurrency?.symbol)}
+          <p
+            className='text-[24px] text-[#475569] dark:text-white'
+            style={{ fontWeight: '900' }}
+          >
+            {formatDisplayMoney(
+              userState?.user?.welfare_quota,
+              displayCurrency?.symbol,
+            )}
           </p>
           <div className='flex items-center justify-between'>
             <span className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
               {t('平台赠送或活动奖励')}
             </span>
-            <span className='text-xs text-[#1CDFD5] underline cursor-pointer mt-2' onClick={toInvitationDetail}>
+            <span
+              className='text-xs text-[color:var(--theme-primary)] underline cursor-pointer mt-2'
+              onClick={toInvitationDetail}
+            >
               {t('查看收益详情')}
             </span>
           </div>
         </div>
-        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'
-        >
+        <div className='rounded-2xl from-emerald-50 bg-white dark:bg-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'>
           <div className='flex items-center justify-between mb-2'>
             <h3 className='text-sm font-medium text-[#94A3B8] dark:text-slate-400'>
               {t('请求次数')}
             </h3>
           </div>
-          <p className='text-[24px] text-[#475569] dark:text-white' style={{ fontWeight: '900' }}>
+          <p
+            className='text-[24px] text-[#475569] dark:text-white'
+            style={{ fontWeight: '900' }}
+          >
             {userState?.user?.request_count || 0}
           </p>
           <div className='flex items-center justify-between'>
-            <span className='text-[12px] text-[#1CDFD5] flex items-center  mt-2'>
-              <TrendingUp size={16} className='mr-1' /> {t('较昨日') + (userState?.user?.request_count_change || 0)}
+            <span className='text-[12px] text-[color:var(--theme-primary)] flex items-center  mt-2'>
+              <TrendingUp size={16} className='mr-1' />{' '}
+              {t('较昨日') + (userState?.user?.request_count_change || 0)}
             </span>
           </div>
         </div>
@@ -901,19 +1040,25 @@ const RechargeCard = ({
         <div className='space-y-4'>
           <div className='rounded-2xl from-cyan-50 bg-white dark:bg-slate-800 to-emerald-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-5'>
             <h3 className='font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2'>
-              <Lightbulb style={{color:'#FDB878'}} /> {t('充值小贴士')}
+              <Lightbulb style={{ color: '#FDB878' }} /> {t('充值小贴士')}
             </h3>
             <ul className='space-y-3 text-sm text-slate-600 dark:text-slate-300'>
               <li className='flex items-center gap-2 pl-1'>
-                <span className='text-lg font-bold text-[#1CDFD5] dark:text-cyan-400'>01</span>
+                <span className='text-lg font-bold text-[color:var(--theme-primary)] dark:text-cyan-400'>
+                  01
+                </span>
                 <span>{t('如需查看消费明细，请到「账单中心」页面。')}</span>
               </li>
               <li className='flex items-center gap-2 pl-1'>
-                <span className='text-lg font-bold text-[#1CDFD5] dark:text-cyan-400'>02</span>
+                <span className='text-lg font-bold text-[color:var(--theme-primary)] dark:text-cyan-400'>
+                  02
+                </span>
                 <span>{t('设置合适充值档位，可减少频繁操作。')}</span>
               </li>
               <li className='flex items-center gap-2 pl-1'>
-                <span className='text-lg font-bold text-[#1CDFD5] dark:text-cyan-400'>03</span>
+                <span className='text-lg font-bold text-[color:var(--theme-primary)] dark:text-cyan-400'>
+                  03
+                </span>
                 <span>{t('如遇支付问题，请通过帮助中心联系支持。')}</span>
               </li>
             </ul>
@@ -954,14 +1099,27 @@ const RechargeCard = ({
           size='small'
           empty={
             <Empty
-              image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-              darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
+              image={
+                <IllustrationNoResult style={{ width: 150, height: 150 }} />
+              }
+              darkModeImage={
+                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+              }
               description={t('暂无账单记录')}
               style={{ padding: 30 }}
             />
           }
         />
       </div>
+
+      <CryptoPaymentDrawer
+        visible={cryptoDrawerVisible}
+        onClose={() => setCryptoDrawerVisible(false)}
+        amount={topUpCount}
+        currency={stripeCurrency?.currency || 'USD'}
+        t={t}
+        onSuccess={() => loadTopups(historyPage, historyPageSize)}
+      />
     </div>
   );
 };

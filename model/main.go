@@ -290,6 +290,8 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&CliUser{},
 		&CurrencyStripeConfig{},
+		&CryptoTransaction{}, // 加密货币链上交易记录表
+		&CryptoChainConfig{}, // 加密货币链配置表
 		&PaymentBillRecord{},
 		&PaymentBillReconcile{},
 	)
@@ -343,6 +345,8 @@ func migrateDBFast() error {
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
+		{&CryptoTransaction{}, "CryptoTransaction"}, // 加密货币链上交易记录表
+		{&CryptoChainConfig{}, "CryptoChainConfig"}, // 加密货币链配置表
 		{&PaymentBillRecord{}, "PaymentBillRecord"},
 		{&PaymentBillReconcile{}, "PaymentBillReconcile"},
 	}

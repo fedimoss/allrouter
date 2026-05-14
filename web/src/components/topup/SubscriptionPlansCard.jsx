@@ -40,6 +40,7 @@ import {
 } from '../../helpers/currency';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
+import CryptoPaymentDrawer from './CryptoPaymentDrawer';
 import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
@@ -108,6 +109,7 @@ const SubscriptionPlansCard = ({
   const [paying, setPaying] = useState(false);
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [cryptoDrawerVisible, setCryptoDrawerVisible] = useState(false);
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]); // 过滤出易支付方式列表
   // 标准化币种配置，确保 symbol / currency / unitPrice 等字段均有合理默认值
@@ -259,6 +261,42 @@ const SubscriptionPlansCard = ({
     } finally {
       setPaying(false);
     }
+  };
+
+  const payCrypto = () => {
+    setCryptoDrawerVisible(true);
+  };
+
+  const createSubscriptionCryptoOrder = async (networkName) => {
+    const planId = selectedPlan?.plan?.id;
+    if (!planId) throw new Error('No plan selected');
+    const resp = await fetch('/api/subscription/crypto/pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'New-Api-User': String(JSON.parse(localStorage.getItem('user') || '{}').id || '') },
+      credentials: 'include',
+      body: JSON.stringify({ plan_id: planId, network: networkName }),
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.message);
+    return data.data;
+  };
+
+  const confirmSubscriptionCryptoOrder = async (tradeNo, txHash) => {
+    const resp = await fetch('/api/subscription/crypto/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'New-Api-User': String(JSON.parse(localStorage.getItem('user') || '{}').id || '') },
+      credentials: 'include',
+      body: JSON.stringify({ trade_no: tradeNo, tx_hash: txHash }),
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.message);
+    return data.data;
+  };
+
+  const handleCryptoPaySuccess = () => {
+    setCryptoDrawerVisible(false);
+    closeBuy();
+    startSubscriptionRefreshPolling();
   };
 
   // 当前订阅信息 - 支持多个订阅
@@ -743,6 +781,23 @@ const SubscriptionPlansCard = ({
         onPayStripe={payStripe}
         onPayCreem={payCreem}
         onPayEpay={payEpay}
+        onPayCrypto={payCrypto}
+      />
+
+      <CryptoPaymentDrawer
+        visible={cryptoDrawerVisible}
+        onClose={() => setCryptoDrawerVisible(false)}
+        amount={(() => {
+          const price = Number(selectedPlan?.plan?.price_amount || 0);
+          return normalizedDisplayCurrency.currency === 'CNY'
+            ? price * normalizedDisplayCurrency.unitPrice
+            : price;
+        })()}
+        currency={normalizedDisplayCurrency.currency || 'USD'}
+        t={t}
+        onSuccess={handleCryptoPaySuccess}
+        createOrder={createSubscriptionCryptoOrder}
+        confirmOrder={confirmSubscriptionCryptoOrder}
       />
     </>
   );

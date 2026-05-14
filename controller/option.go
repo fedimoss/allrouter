@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/gin-gonic/gin"
 )
@@ -444,4 +445,146 @@ func UploadWebLogo(c *gin.Context) {
 	// 返回成功响应
 	logoURL := "/static/logo/" + hash + ext
 	common.ApiSuccess(c, gin.H{"url": logoURL})
+}
+
+// GetCryptoChainConfig 获取加密货币链配置
+func GetCryptoChainConfig(c *gin.Context) {
+	// 定义链配置列表
+	var cfgs []model.CryptoChainConfig
+
+	// 查询所有链配置
+	cfgs, err := model.GetCryptoChainConfigList()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, cfgs)
+}
+
+// UpdateCryptoChainConfig 更新加密货币链配置
+func UpdateCryptoChainConfig(c *gin.Context) {
+	// 从请求中接收 CryptoChainConfig 数组
+	var req struct {
+		Crypto []model.CryptoChainConfig `json:"crypto"`
+	}
+
+	// 校验请求参数是否为空
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 规范化和默认值：token_symbol 为空时默认 USDT
+	// 该字段是为了后续每个网络对应多个加密货币的币种设计的, 目前只有 USDT, 所以默认 USDT
+	// 如果后续添加了多币种, 则是: {"network": "Sepolia", "token_symbol": "USDT"}, {"network": "Sepolia", "token_symbol": "ETH"}
+	for i := range req.Crypto {
+		if strings.TrimSpace(req.Crypto[i].TokenSymbol) == "" {
+			req.Crypto[i].TokenSymbol = "USDT"
+		}
+	}
+
+	// 更新数据库配置
+	if err := model.UpdateCryptoChainConfigList(req.Crypto); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 返回成功响应
+	common.ApiSuccess(c, nil)
+}
+
+// GetCryptoRate 获取加密货币汇率
+func GetCryptoRate(c *gin.Context) {
+	usdToToken := getCryptoUSDtoTokenRate()
+	cnyToToken := getCryptoCNYtoTokenRate()
+	common.ApiSuccess(c, gin.H{
+		"usd_to_token_rate": usdToToken,
+		"cny_to_token_rate": cnyToToken,
+	})
+}
+
+// updateCryptoRateRequest 更新加密货币汇率请求
+type updateCryptoRateRequest struct {
+	USDtoTokenRate string `json:"usd_to_token_rate"`
+	CNYtoTokenRate string `json:"cny_to_token_rate"`
+}
+
+// UpdateCryptoRate 更新加密货币汇率
+func UpdateCryptoRate(c *gin.Context) {
+	var req updateCryptoRateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// 更新 USD→Token 汇率
+	if strings.TrimSpace(req.USDtoTokenRate) != "" {
+		if _, err := decimal.NewFromString(req.USDtoTokenRate); err != nil {
+			common.ApiErrorMsg(c, "USD 汇率格式错误")
+			return
+		}
+		if err := model.UpdateOption("CryptoUSDtoTokenRate", req.USDtoTokenRate); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	// 更新 CNY→Token 汇率
+	if strings.TrimSpace(req.CNYtoTokenRate) != "" {
+		if _, err := decimal.NewFromString(req.CNYtoTokenRate); err != nil {
+			common.ApiErrorMsg(c, "CNY 汇率格式错误")
+			return
+		}
+		if err := model.UpdateOption("CryptoCNYtoTokenRate", req.CNYtoTokenRate); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	common.ApiSuccess(c, nil)
+}
+
+// setWebColorsRequest 设置网站主色和辅色请求
+type setWebColorsRequest struct {
+	PrimaryColor   string `json:"primary_color"`
+	SecondaryColor string `json:"secondary_color"`
+}
+
+// SetWebColors 设置网站主色和辅色
+func SetWebColors(c *gin.Context) {
+	var req setWebColorsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	// 更新主色
+	if strings.TrimSpace(req.PrimaryColor) != "" {
+		if err := model.UpdateOption("WebPrimaryColor", strings.TrimSpace(req.PrimaryColor)); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	// 更新辅色
+	if strings.TrimSpace(req.SecondaryColor) != "" {
+		if err := model.UpdateOption("WebSecondaryColor", strings.TrimSpace(req.SecondaryColor)); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	common.ApiSuccess(c, nil)
+}
+
+// GetWebColors 获取网站主题色（无需登录）
+func GetWebColors(c *gin.Context) {
+	primary := ""   // 主色
+	secondary := "" //辅色
+	common.OptionMapRWMutex.RLock()
+	if v, ok := common.OptionMap["WebPrimaryColor"]; ok {
+		primary = common.Interface2String(v)
+	}
+	if v, ok := common.OptionMap["WebSecondaryColor"]; ok {
+		secondary = common.Interface2String(v)
+	}
+	common.OptionMapRWMutex.RUnlock()
+	common.ApiSuccess(c, gin.H{
+		"primary_color":   primary,
+		"secondary_color": secondary,
+	})
 }

@@ -761,7 +761,7 @@ const MjLogsPage = () => {
                   <div className='mjlog-v2-filter-actions'>
                     <button
                       type='submit'
-                      className='mjlog-v2-primary-button'
+                      className='mjlog-v2-primary-button theme-btn-color'
                       disabled={logsData.loading}
                     >
                       {logsData.loading ? (

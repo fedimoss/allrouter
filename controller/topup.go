@@ -27,6 +27,7 @@ import (
 
 // applyTopUpDisplayCurrency 将充值记录列表中的美元金额按展示币种转换为本地币种
 // 同时填充 DisplayCurrency 和 DisplaySymbol 字段供前端展示
+// 加密货币（payment_method = "crypto"）跳过汇率换算，由 applyCryptoTokenSymbol 单独处理 DisplaySymbol
 func applyTopUpDisplayCurrency(topups []*model.TopUp, displayInfo model.DisplayCurrencyInfo) {
 	for _, topUp := range topups {
 		if topUp == nil {
@@ -34,10 +35,41 @@ func applyTopUpDisplayCurrency(topups []*model.TopUp, displayInfo model.DisplayC
 		}
 		topUp.DisplayCurrency = displayInfo.Currency
 		topUp.DisplaySymbol = displayInfo.Symbol
+		// 加密货币不做法币汇率换算
+		if topUp.PaymentMethod == "crypto" {
+			continue
+		}
 		if displayInfo.Currency != "CNY" {
 			continue
 		}
 		topUp.Money = model.RoundDisplayCurrencyAmount(topUp.Money * displayInfo.Rate)
+	}
+}
+
+// applyCryptoTokenSymbol 为加密货币充值记录填充 DisplaySymbol
+// 从 crypto_transactions 表批量查询 token_symbol，替换默认的法币符号
+func applyCryptoTokenSymbol(topups []*model.TopUp) {
+	var tradeNos []string
+	indexByTradeNo := make(map[string]*model.TopUp)
+	for _, topUp := range topups {
+		if topUp == nil || topUp.PaymentMethod != "crypto" {
+			continue
+		}
+		tradeNos = append(tradeNos, topUp.TradeNo)
+		indexByTradeNo[topUp.TradeNo] = topUp
+	}
+	if len(tradeNos) == 0 {
+		return
+	}
+
+	symbols, err := model.GetCryptoTokenSymbolsByTradeNos(tradeNos)
+	if err != nil {
+		return
+	}
+	for tradeNo, symbol := range symbols {
+		if topUp, ok := indexByTradeNo[tradeNo]; ok {
+			topUp.DisplaySymbol = symbol
+		}
 	}
 }
 
@@ -476,6 +508,7 @@ func GetUserTopUps(c *gin.Context) {
 	// 将充值金额转换为用户本地币种展示
 	displayInfo := getDisplayCurrencyForUser(c)
 	applyTopUpDisplayCurrency(topups, displayInfo)
+	applyCryptoTokenSymbol(topups)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(topups)

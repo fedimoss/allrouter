@@ -16,9 +16,9 @@
   --auth-text-muted: #b5bcc4;
   --auth-border: #e7ebf0;
   --auth-border-strong: #ccd3db;
-  --auth-accent: #25dfe0;
-  --auth-accent-2: #95ff2d;
-  --auth-accent-gradient: linear-gradient(90deg, #25dfe0 0%, #95ff2d 100%);
+  --auth-accent: var(--theme-primary);
+  --auth-accent-2: var(--theme-secondary);
+  --auth-accent-gradient: var(--theme-gradient);
   --auth-shadow: 0 24px 60px rgba(14, 24, 36, 0.08);
   --auth-shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.06);
   font-family: var(--font-main);
@@ -110,7 +110,7 @@
 }
 
 .auth-v2 .brand-logo .logo-img {
-  background: linear-gradient(36.23deg, #F8FF15 -36.56%, #32FEA5 106.01%);
+  background: var(--theme-gradient-135);
   width: 34px;
   height: 34px;
   border-radius: 8px;
@@ -552,7 +552,6 @@
   border-radius: 10px;
   background: var(--auth-accent-gradient) !important;
   box-shadow: 0 16px 28px rgba(37, 223, 224, 0.24);
-  color: #0f1318 !important;
   font-size: 1rem;
   font-weight: 800;
 }
@@ -708,8 +707,8 @@
 }
 
 .auth-v2 .semi-checkbox-inner.semi-checkbox-checked {
-  background-color: #25dfe0 !important;
-  border-color: #25dfe0 !important;
+  background-color: var(--theme-primary) !important;
+  border-color: var(--theme-primary) !important;
 }
 
 .auth-v2 .remember-checkbox {
@@ -730,7 +729,7 @@
 }
 
 .auth-v2 .remember-checkbox-box.checked {
-  border-color: #25dfe0;
+  border-color: var(--theme-primary);
 }
 
 .auth-v2 .remember-checkbox-box.checked::after {
@@ -742,7 +741,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #25dfe0;
+  background-color: var(--theme-primary);
 }
 
 .auth-v2 .remember-checkbox-label {

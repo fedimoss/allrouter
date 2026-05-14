@@ -1154,9 +1154,9 @@ html.dark .usage-logs-v2-stat-icon-tpm {
   box-shadow: none !important;
 }
 .usage-logs-v2-button-secondary-active {
-  border: 1px solid #1CDFD5 !important;
+  border: 1px solid var(--theme-primary) !important;
   background: rgba(28, 223, 213, 0.05) !important;
-  color: #1CDFD5 !important;
+  color: var(--theme-primary) !important;
   box-shadow: none !important;
 }
 
@@ -1211,7 +1211,7 @@ html.dark .usage-logs-v2-stat-icon-tpm {
 .usage-logs-v2-control.semi-datepicker:focus-within
   .semi-datepicker-range-input,
 .usage-logs-v2-control .semi-select-focus .semi-select-selection {
-  /* border-color: #1CDFD5 !important; */
+  /* border-color: var(--theme-primary) !important; */
   /* box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.08) !important; */
 }
 

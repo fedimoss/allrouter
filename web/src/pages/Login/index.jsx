@@ -477,7 +477,7 @@ export default function LoginPage() {
                 htmlType='submit'
                 type='primary'
                 theme='solid'
-                className='btn-submit'
+                className='btn-submit theme-btn-color'
                 size='large'
                 loading={loginLoading}
                 disabled={

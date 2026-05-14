@@ -65,7 +65,7 @@ const ColumnSelectorModal = ({
           {/* <Button onClick={() => setShowColumnSelector(false)}>
             {t('取消')}
           </Button> */}
-          <Button onClick={() => setShowColumnSelector(false)} style={{ background:'linear-gradient(90deg, #09FEF7 0%, #BAFF29 100%)',color:'#000'}}>
+          <Button onClick={() => setShowColumnSelector(false)} style={{ background:'var(--theme-gradient)',color:'#000'}}>
             {t('确定')}
           </Button>
         </div>

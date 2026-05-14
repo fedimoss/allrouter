@@ -1,4 +1,4 @@
-﻿/*
+/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ import {
   Avatar,
 } from '@douyinfe/semi-ui';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
-import { Copy, Heart, Info,Eye } from 'lucide-react';
+import { Copy, Heart, Info, Eye } from 'lucide-react';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
@@ -56,11 +56,15 @@ const estimateContext = (modelName = '') => {
   return '64k';
 };
 
-const estimateChannelCount = (model) => {
-  const count = Array.isArray(model?.enable_groups) ? model.enable_groups.length : 0;
-  if (count >= 4) return 4;
-  if (count >= 2) return 3;
-  return 2;
+const estimateChannelCount = (model, usableGroup) => {
+  if (!Array.isArray(model?.enable_groups)) return 0;
+
+  const usableGroupNames = new Set(Object.keys(usableGroup || {}));
+  if (usableGroupNames.size === 0) {
+    return model.enable_groups.length;
+  }
+
+  return model.enable_groups.filter((group) => usableGroupNames.has(group)).length;
 };
 
 const buildPrimaryPriceItems = (priceData, t, quotaDisplayType) => {
@@ -94,6 +98,7 @@ const PricingCardView = ({
   setCurrentPage,
   selectedGroup,
   groupRatio,
+  usableGroup,
   copyText,
   setModalImageUrl,
   setIsModalOpenurl,
@@ -295,7 +300,7 @@ const PricingCardView = ({
                       <h3>{model.model_name}</h3>
                       <div className='pricing-market-desktop-card-meta'>
                         <span>Context: {estimateContext(model.model_name)}</span>
-                        <span>{estimateChannelCount(model)} {t('个渠道')}</span>
+                        <span>{estimateChannelCount(model, usableGroup)} {t('个渠道')}</span>
                       </div>
                     </div>
                   </div>

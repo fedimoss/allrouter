@@ -30,7 +30,14 @@ import {
   Upload,
 } from '@douyinfe/semi-ui';
 import { IconUpload } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess, timestamp2string } from '../../helpers';
+import {
+  API,
+  applyThemeColors,
+  extractThemeColors,
+  showError,
+  showSuccess,
+  timestamp2string,
+} from '../../helpers';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
@@ -47,6 +54,8 @@ const OtherSetting = () => {
     [LEGAL_PRIVACY_POLICY_KEY]: '',
     SystemName: '',
     Logo: '',
+    WebPrimaryColor: '#1CDFD5',
+    WebSecondaryColor: '#BAFF29',
     Footer: '',
     About: '',
     HomePageContent: '',
@@ -80,6 +89,7 @@ const OtherSetting = () => {
     [LEGAL_PRIVACY_POLICY_KEY]: false,
     SystemName: false,
     Logo: false,
+    WebColors: false,
     HomePageContent: false,
     About: false,
     Footer: false,
@@ -89,6 +99,29 @@ const OtherSetting = () => {
   const handleInputChange = async (value, e) => {
     const name = e.target.id;
     setInputs((inputs) => ({ ...inputs, [name]: value }));
+  };
+
+  const getColorInputValue = (value) => {
+    if (typeof value !== 'string') {
+      return '#000000';
+    }
+    const color = value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(color)) {
+      return color;
+    }
+    if (/^#[0-9a-fA-F]{3}$/.test(color)) {
+      return `#${color
+        .slice(1)
+        .split('')
+        .map((char) => char + char)
+        .join('')}`;
+    }
+    return '#000000';
+  };
+
+  const handleColorPickerChange = (key, value) => {
+    setInputs((inputs) => ({ ...inputs, [key]: value }));
+    formAPIPersonalization.current?.setValue?.(key, value);
   };
 
   const getLogoUploadPath = (data) => {
@@ -249,6 +282,31 @@ const OtherSetting = () => {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: false }));
     }
   };
+  // 个性化设置 - 主题色
+  const submitWebColors = async () => {
+    try {
+      setLoadingInput((loadingInput) => ({ ...loadingInput, WebColors: true }));
+      const res = await API.post('/api/option/web_colors', {
+        primary_color: inputs.WebPrimaryColor || '',
+        secondary_color: inputs.WebSecondaryColor || '',
+      });
+      const { success, message } = res.data || {};
+      if (success) {
+        applyThemeColors(inputs.WebPrimaryColor, inputs.WebSecondaryColor);
+        showSuccess(t('主题色设置已更新'));
+      } else {
+        showError(message || t('主题色设置更新失败'));
+      }
+    } catch (error) {
+      console.error(t('主题色设置更新失败'), error);
+      showError(t('主题色设置更新失败'));
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        WebColors: false,
+      }));
+    }
+  };
   // 个性化设置 - 首页内容
   const submitOption = async (key) => {
     try {
@@ -346,15 +404,39 @@ const OtherSetting = () => {
     }
   };
   const getOptions = async () => {
-    const res = await API.get('/api/option/');
-    const { success, message, data } = res.data;
+    const [optionResult, webColorsResult] = await Promise.allSettled([
+      API.get('/api/option/'),
+      API.get('/api/web_colors'),
+    ]);
+    if (optionResult.status !== 'fulfilled') {
+      showError(t('获取设置失败'));
+      return;
+    }
+    const { success, message, data } = optionResult.value.data;
     if (success) {
-      let newInputs = {};
+      let newInputs = { ...inputs };
       data.forEach((item) => {
         if (item.key in inputs) {
           newInputs[item.key] = item.value;
         }
       });
+      if (webColorsResult.status === 'fulfilled') {
+        const { primaryColor, secondaryColor } = extractThemeColors(
+          webColorsResult.value,
+        );
+        if (primaryColor) {
+          newInputs.WebPrimaryColor = primaryColor;
+        }
+        if (secondaryColor) {
+          newInputs.WebSecondaryColor = secondaryColor;
+        }
+        if (primaryColor || secondaryColor) {
+          applyThemeColors(
+            newInputs.WebPrimaryColor,
+            newInputs.WebSecondaryColor,
+          );
+        }
+      }
       setInputs(newInputs);
       formAPISettingGeneral.current.setValues(newInputs);
       formAPIPersonalization.current.setValues(newInputs);
@@ -529,6 +611,87 @@ const OtherSetting = () => {
               </div>
               <Button onClick={submitLogo} loading={loadingInput['Logo']}>
                 {t('设置 Logo')}
+              </Button>
+              <div
+                style={{
+                  marginTop: 16,
+                  marginBottom: 8,
+                  fontWeight: 600,
+                }}
+              >
+                {t('主题色设置')}
+              </div>
+              <div className='flex flex-wrap gap-10'>
+                <div className='flex-1 min-w-[220px]'>
+                  <div className='flex items-end gap-2'>
+                    <input
+                      aria-label={t('选择主色')}
+                      type='color'
+                      value={getColorInputValue(inputs.WebPrimaryColor)}
+                      onChange={(event) =>
+                        handleColorPickerChange(
+                          'WebPrimaryColor',
+                          event.target.value,
+                        )
+                      }
+                      style={{
+                        width: 30,
+                        height: 32,
+                        padding: 0,
+                        border: 0,
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        marginBottom: 12,
+                      }}
+                    />
+                    <div className='flex-1'>
+                      <Form.Input
+                        label={t('主色')}
+                        placeholder='#1CDFD5'
+                        field={'WebPrimaryColor'}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className='flex-1 min-w-[220px]'>
+                  <div className='flex items-end gap-2'>
+                    <input
+                      aria-label={t('选择辅助色')}
+                      type='color'
+                      value={getColorInputValue(inputs.WebSecondaryColor)}
+                      onChange={(event) =>
+                        handleColorPickerChange(
+                          'WebSecondaryColor',
+                          event.target.value,
+                        )
+                      }
+                      style={{
+                        width: 30,
+                        height: 32,
+                        padding: 0,
+                        border: 0,
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        marginBottom: 12,
+                      }}
+                    />
+                    <div className='flex-1'>
+                      <Form.Input
+                        label={t('辅助色')}
+                        placeholder='#BAFF29'
+                        field={'WebSecondaryColor'}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <Button
+                onClick={submitWebColors}
+                loading={loadingInput['WebColors']}
+              >
+                {t('确定设置')}
               </Button>
               <Form.TextArea
                 label={t('首页内容')}
