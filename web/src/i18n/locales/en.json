@@ -4141,17 +4141,7 @@
       "被邀请人充值成功后，使用充值额度消费，按消费额度的百分比返利给邀请人，0 表示关闭":"After an invitee successfully tops up and consumes paid quota, rebate the inviter by this percentage of the consumed quota. 0 disables it.",
       "被邀请人使用充值额度消费后，按消费额度的百分比返利给二级邀请人，0 表示关闭":"After an invitee consumes paid quota, rebate the level 2 inviter by this percentage of the consumed quota. 0 disables it.",
       "消费返利":"Consumption Rebate",
-      "被邀请人":"The invited person",
-      "注册奖励":"Registration Reward",
-      "充值返利":"Recharge Rebate",
-      "被邀请人ID：":"Invited Person ID：",
-      "累计贡献返利：":"Total Contribution Rebate：",
       "一级累计贡献返利：":"Level 1 Cumulative Contribution Rebate：",
-      "二级累计贡献返利：":"Level 2 Cumulative Contribution Rebate：",
-      "返利明细":"Rebate Details",
-      "暂无返利记录": "No Rebate Records Found",
-      "奖励":"Reward",
-      "显示":"Display",
-      "上传图片":"Upload Image"
+      "二级累计贡献返利：":"Level 2 Cumulative Contribution Rebate："
     }
 }

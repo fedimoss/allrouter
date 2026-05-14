@@ -18,9 +18,9 @@
   --sidebar-width: 260px;
   --sidebar-width-collapsed: 64px;
   --sidebar-current-width: var(--sidebar-width);
-  --theme-primary: #1CDFD5;
-  --theme-secondary: #BAFF29;
-  --theme-primary-btn-color: #005C59;
+  --theme-primary: #0031B5;
+  --theme-secondary: #B7F400;
+  --theme-primary-btn-color: #ffffff;
   --theme-primary-rgb: 28, 223, 213;
   --theme-primary-10: rgba(var(--theme-primary-rgb), 0.1);
   --theme-primary-12: rgba(var(--theme-primary-rgb), 0.12);

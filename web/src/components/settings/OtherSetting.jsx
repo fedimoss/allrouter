@@ -54,8 +54,8 @@ const OtherSetting = () => {
     [LEGAL_PRIVACY_POLICY_KEY]: '',
     SystemName: '',
     Logo: '',
-    WebPrimaryColor: '#1CDFD5',
-    WebSecondaryColor: '#BAFF29',
+    WebPrimaryColor: '#0031B5',
+    WebSecondaryColor: '#B7F400',
     Footer: '',
     About: '',
     HomePageContent: '',
@@ -647,7 +647,7 @@ const OtherSetting = () => {
                     <div className='flex-1'>
                       <Form.Input
                         label={t('主色')}
-                        placeholder='#1CDFD5'
+                        placeholder='#0031B5'
                         field={'WebPrimaryColor'}
                         onChange={handleInputChange}
                       />
@@ -679,7 +679,7 @@ const OtherSetting = () => {
                     <div className='flex-1'>
                       <Form.Input
                         label={t('辅助色')}
-                        placeholder='#BAFF29'
+                        placeholder='#B7F400'
                         field={'WebSecondaryColor'}
                         onChange={handleInputChange}
                       />

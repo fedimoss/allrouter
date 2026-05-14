@@ -1,6 +1,6 @@
 :root {
-  --brand-cyan: var(--theme-primary, #1CDFD5);
-  --brand-yellow: var(--theme-secondary, #BAFF29);
+  --brand-cyan: var(--theme-primary, #0031B5);
+  --brand-yellow: var(--theme-secondary, #B7F400);
   --brand-gradient: var(--theme-gradient-135);
   --brand-gradient-text: var(--theme-gradient-135);
 

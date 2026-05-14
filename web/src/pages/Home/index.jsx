@@ -137,8 +137,7 @@ const Home = () => {
   const isMobile = useIsMobile();
 
   const docsLink = statusState?.status?.docs_link || '';
-  const serverAddress =
-    statusState?.status?.server_address || `${window.location.origin}`;
+  const serverAddress = `${window.location.origin}`; //statusState?.status?.server_address || 
   const showDefaultHome = homePageContentLoaded && homePageContent === '';
   const docsLangPrefix = i18n.language.startsWith('zh') ? 'zh' : 'en';
 
