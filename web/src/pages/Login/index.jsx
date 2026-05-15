@@ -467,7 +467,7 @@ export default function LoginPage() {
                   onClick={() => setRememberPassword(!rememberPassword)}
                 >
                   <span className={`remember-checkbox-box ${rememberPassword ? 'checked' : ''}`} />
-                  <span className='remember-checkbox-label'>{t('保持登录状态 (30天)')}</span>
+                  <span className='remember-checkbox-label'>{t('记住我')}</span>
                 </label>
               </div>
 

@@ -1,16 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { SideSheet, Table, Tag } from '@douyinfe/semi-ui';
 import { IconClose } from '@douyinfe/semi-icons';
-import { CircleAlert, CircleCheckBig } from 'lucide-react';
+import { CircleAlert, CircleCheckBig, Coins } from 'lucide-react';
 import { API, showError } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import stripeLogo from '../../../public/stripe.png';
 import weChatLogo from '../../../public/WeChat.png';
 
 const StatusChip = ({ text, danger = false }) => (
-  <span className={`inline-flex items-center gap-2 font-semibold ${danger ? 'text-[#FF4D4F]' : 'text-[#09CC73]'}`}>
-    <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${danger ? 'bg-[#FDEBEC]' : 'bg-[#ECFBF3]'}`}>
-      {danger ? <CircleAlert size={12} className='text-[#FF4D4F]' /> : <CircleCheckBig size={12} className='text-[#09CC73]' />}
+  <span
+    className={`inline-flex items-center gap-2 font-semibold ${danger ? 'text-[#FF4D4F]' : 'text-[#09CC73]'}`}
+  >
+    <span
+      className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${danger ? 'bg-[#FDEBEC]' : 'bg-[#ECFBF3]'}`}
+    >
+      {danger ? (
+        <CircleAlert size={12} className='text-[#FF4D4F]' />
+      ) : (
+        <CircleCheckBig size={12} className='text-[#09CC73]' />
+      )}
     </span>
     <span className='text-[14px] leading-[20px]'>{text}</span>
   </span>
@@ -18,10 +26,23 @@ const StatusChip = ({ text, danger = false }) => (
 
 const PairValue = ({ label, value, status }) => (
   <div className='px-2 py-1'>
-    <span className='mr-4 text-[13px] text-slate-400'>{label}：</span>
-    {status === 'success' ? <StatusChip text={value || '-'} /> : <span className='text-[15px] font-semibold text-slate-600'>{value || '-'}</span>}
+    <span className='mr-1 text-[13px] text-slate-400'>{label}：</span>
+    {status === 'success' ? (
+      <StatusChip text={value || '-'} />
+    ) : (
+      <span className='text-[15px] font-semibold text-slate-600'>
+        {value || '-'}
+      </span>
+    )}
   </div>
 );
+
+const maskMiddleText = (value, headLength = 8, tailLength = 8) => {
+  if (!value || value.length <= headLength + tailLength + 3) {
+    return value || '-';
+  }
+  return `${value.slice(0, headLength)}***${value.slice(-tailLength)}`;
+};
 
 const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
   const { t } = useTranslation();
@@ -55,7 +76,20 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
   const header = detail?.header || {};
   const markTxt = detail?.markTxt || detail?.remark || '-';
   const isMatched = detail?.reconcile_status === 'matched';
-  const reconcileText = detail?.reconcile_status_text || (isMatched ? '一致' : '异常');
+  const reconcileText =
+    detail?.reconcile_status_text || (isMatched ? '一致' : '异常');
+  const paymentMethod = channelRecord.payment_method;
+  const cryptoTradeNo =
+    paymentMethod === 'crypto' && channelRecord.wechat_trade_no ? (
+      <span
+        className='inline-block max-w-full whitespace-nowrap'
+        title={channelRecord.wechat_trade_no}
+      >
+        {maskMiddleText(channelRecord.wechat_trade_no)}
+      </span>
+    ) : (
+      channelRecord.wechat_trade_no
+    );
 
   const detailRows = useMemo(
     () => [
@@ -64,7 +98,7 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
         leftLabel: t('系统单号'),
         leftValue: localRecord.local_id ?? '-',
         rightLabel: t('渠道单号'),
-        rightValue: channelRecord.wechat_trade_no,
+        rightValue: cryptoTradeNo,
       },
       {
         id: 'r2',
@@ -85,16 +119,21 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
       {
         id: 'r4',
         leftLabel: t('请求金额'),
-        leftValue: localRecord.requested_amount_text ? `${localRecord.currency_symbol}${localRecord.requested_amount_text}` : '-',
+        leftValue: localRecord.requested_amount_text
+          ? `${localRecord.currency_symbol} ${localRecord.requested_amount_text}`
+          : '-',
         rightLabel: t('实际支付'),
-        rightValue: channelRecord.actual_amount_text ? `${localRecord.currency_symbol}${channelRecord.actual_amount_text}` : '-',
+        rightValue: channelRecord.actual_amount_text
+          ? `${localRecord.currency_symbol} ${channelRecord.actual_amount_text}`
+          : '-',
       },
       {
         id: 'r5',
         leftLabel: t('创建时间'),
         leftValue: localRecord.create_time_text,
         rightLabel: t('支付完成'),
-        rightValue: channelRecord.trade_complete_time || channelRecord.trade_time,
+        rightValue:
+          channelRecord.trade_complete_time || channelRecord.trade_time,
       },
       {
         id: 'remark',
@@ -109,7 +148,11 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
   const columns = useMemo(
     () => [
       {
-        title: <span className='text-[16px] text-[#475569]'>{t('Allrouter 系统记录')}</span>,
+        title: (
+          <span className='text-[16px] text-[#475569]'>
+            {t('Allrouter 系统记录')}
+          </span>
+        ),
         key: 'left',
         width: '50%',
         render: (_, record) => {
@@ -117,25 +160,46 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
             return {
               children: (
                 <div className='px-2 py-1'>
-                  <span className='mr-4 text-[13px] text-slate-400'>{record.mergedLabel}：</span>
-                  <span className='text-[15px] font-semibold text-slate-600'>{record.mergedValue || '-'}</span>
+                  <span className='mr-1 text-[13px] text-slate-400'>
+                    {record.mergedLabel}：
+                  </span>
+                  <span className='text-[15px] font-semibold text-slate-600'>
+                    {record.mergedValue || '-'}
+                  </span>
                 </div>
               ),
               props: { colSpan: 2 },
             };
           }
-          return <PairValue label={record.leftLabel} value={record.leftValue} status={record.leftStatus} />;
+          return (
+            <PairValue
+              label={record.leftLabel}
+              value={record.leftValue}
+              status={record.leftStatus}
+            />
+          );
         },
       },
       {
-        title: <span className='text-[16px] text-[#475569]'>{t('支付渠道')}（{t(channelRecord.payment_method_text) || t('微信支付')}）</span>,
+        title: (
+          <span className='text-[16px] text-[#475569]'>
+            {t('支付渠道')}（
+            {t(channelRecord.payment_method_text) || t('微信支付')}）
+          </span>
+        ),
         key: 'right',
         width: '50%',
         render: (_, record) => {
           if (record?.isMerged) {
             return { children: null, props: { colSpan: 0 } };
           }
-          return <PairValue label={record.rightLabel} value={record.rightValue} status={record.rightStatus} />;
+          return (
+            <PairValue
+              label={record.rightLabel}
+              value={record.rightValue}
+              status={record.rightStatus}
+            />
+          );
         },
       },
     ],
@@ -143,44 +207,83 @@ const ReconciliationDetailSheet = ({ visible, onClose, row }) => {
   );
 
   return (
-    <SideSheet visible={visible} onCancel={onClose} width={800} placement='right' closeOnEsc maskClosable bodyStyle={{ padding: 0 }} headerStyle={{ display: 'none' }}>
+    <SideSheet
+      visible={visible}
+      onCancel={onClose}
+      width={800}
+      placement='right'
+      closeOnEsc
+      maskClosable
+      bodyStyle={{ padding: 0 }}
+      headerStyle={{ display: 'none' }}
+    >
       <div className='p-5'>
         <div className='overflow-hidden bg-white'>
           <div className='border-b border-slate-200 pb-3'>
             <div className='flex items-start justify-between gap-4'>
               <div className='flex items-center gap-2.5'>
                 <div className='h-12 w-12 rounded-[16px] border border-[#0000000D] bg-[#0000000D] flex items-center justify-center'>
-                  {
-                    channelRecord.payment_method === 'wxpay' ? (
-                      <img src={weChatLogo} alt='微信支付' className='h-6 w-6 rounded-md' />
-                    ) : (
-                      <img src={stripeLogo} alt='Stripe' className='h-6 w-6 rounded-md' />
-                    )
-                  }
+                  {paymentMethod === 'wxpay' ? (
+                    <img
+                      src={weChatLogo}
+                      alt='微信支付'
+                      className='h-6 w-6 rounded-md'
+                    />
+                  ) : paymentMethod === 'crypto' ? (
+                    <Coins size={24} className='text-[#F59E0B]' />
+                  ) : (
+                    <img
+                      src={stripeLogo}
+                      alt='Stripe'
+                      className='h-6 w-6 rounded-md'
+                    />
+                  )}
                 </div>
                 <div>
                   <div className='flex items-center gap-2'>
-                    <span className='text-[20px] leading-[22px] font-semibold text-slate-800'>{t(header.title) || t('微信支付')}</span>
+                    <span className='text-[20px] leading-[22px] font-semibold text-slate-800'>
+                      {t(header.title) || t('微信支付')}
+                    </span>
                     <Tag size='small' color='blue'>
                       {t(header.tag) || '-'}
                     </Tag>
                   </div>
-                  <div className='mt-1 text-[13px] leading-[18px] text-slate-500'>{t('Allrouter系统对账单明细')}</div>
+                  <div className='mt-1 text-[13px] leading-[18px] text-slate-500'>
+                    {t('Allrouter系统对账单明细')}
+                  </div>
                 </div>
               </div>
-              <button onClick={onClose} className='mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100'>
+              <button
+                onClick={onClose}
+                className='mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100'
+              >
                 <IconClose />
               </button>
             </div>
           </div>
 
           <div className='py-4'>
-            <div className='mb-4 text-[16px] text-[#475569]'>{t('对账详情')}</div>
+            <div className='mb-4 text-[16px] text-[#475569]'>
+              {t('对账详情')}
+            </div>
             <div className='overflow-hidden rounded-xl border border-slate-200'>
-              <Table columns={columns} dataSource={detailRows} rowKey='id' pagination={false} bordered loading={loading} />
+              <Table
+                columns={columns}
+                dataSource={detailRows}
+                rowKey='id'
+                pagination={false}
+                bordered
+                loading={loading}
+              />
               <div className='border-t border-slate-200 px-5 py-4'>
-                <span className='mr-4 text-[13px] text-slate-400'>{t('核对结果')}：</span>
-                {isMatched ? <StatusChip text={t(reconcileText)} /> : <StatusChip text={t(reconcileText)} danger />}
+                <span className='mr-4 text-[13px] text-slate-400'>
+                  {t('核对结果')}：
+                </span>
+                {isMatched ? (
+                  <StatusChip text={t(reconcileText)} />
+                ) : (
+                  <StatusChip text={t(reconcileText)} danger />
+                )}
               </div>
             </div>
           </div>

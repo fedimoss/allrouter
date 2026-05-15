@@ -110,10 +110,10 @@
 }
 
 .auth-v2 .brand-logo .logo-img {
-  background: var(--theme-gradient-135);
+  /* background: var(--theme-gradient-135); */
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  /* border-radius: 8px; */
   overflow: hidden;
 }
 
