@@ -29,8 +29,7 @@ import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useTranslation } from 'react-i18next';
 import {
   API,
-  getLogo,
-  getSystemName,
+  applyBranding,
   showError,
   setStatusData,
   applyThemeColors,
@@ -133,17 +132,10 @@ const PageLayout = () => {
   };
 
   useEffect(() => {
+    applyBranding();
     loadUser();
     loadStatus()
-      .then(() => {
-        const systemName = getSystemName();
-        if (systemName) document.title = systemName;
-        const logo = getLogo();
-        if (logo) {
-          const linkElement = document.querySelector("link[rel~='icon']");
-          if (linkElement) linkElement.href = logo;
-        }
-      })
+      .then(() => applyBranding())
       .catch(console.error);
     const savedLang = localStorage.getItem('i18nextLng');
     if (savedLang) {

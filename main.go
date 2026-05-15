@@ -118,6 +118,9 @@ func main() {
 	// Stripe 对账定时任务
 	service.StartStripeTradeBillTask()
 
+	// Crypto 对账定时任务
+	service.StartCryptoTradeBillTask()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useContext, useEffect, useMemo } from 'react';
 import { Anchor } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -13,9 +13,14 @@ import docsEnMd from './docs_content.en.md?raw';
 import docsOpenClawMd from './docs_content.openclaw.md?raw';
 import docsOpenClawEnMd from './docs_content.openclaw.en.md?raw';
 import { marked } from 'marked';
+import {
+  getSystemName,
+  replaceAllRouterBaseUrl,
+  replaceAllRouterBrandName,
+} from '../../helpers';
+import { StatusContext } from '../../context/Status';
 
 const DOCS_UPDATED_AT = '2026-04-17';
-
 const USAGE_CONTENT_MAP = {
   'zh-CN': docsZhCNMd,
   // 'zh-TW': docsZhTWMd,
@@ -106,18 +111,43 @@ const generateAnchorId = (rawText, anchorCountMap) => {
 
 const Docs = () => {
   const { i18n } = useTranslation();
+  const [statusState] = useContext(StatusContext);
   const [searchParams, setSearchParams] = useSearchParams();
+  const docsSystemName = statusState?.status?.system_name || getSystemName();
+  const docsSectionMap = useMemo(
+    () => ({
+      usage: {
+        ...DOCS_SECTION_MAP.usage,
+        titles: replaceAllRouterBrandName(
+          DOCS_SECTION_MAP.usage.titles,
+          docsSystemName,
+        ),
+      },
+      openclaw: {
+        ...DOCS_SECTION_MAP.openclaw,
+        titles: replaceAllRouterBrandName(
+          DOCS_SECTION_MAP.openclaw.titles,
+          docsSystemName,
+        ),
+      },
+    }),
+    [docsSystemName],
+  );
+  const docsUiTextMap = useMemo(
+    () => replaceAllRouterBrandName(DOCS_UI_TEXT_MAP, docsSystemName),
+    [docsSystemName],
+  );
 
   const language = normalizeLanguage(
     i18n.resolvedLanguage || i18n.language || 'zh-CN',
   );
-  const docsUiText = DOCS_UI_TEXT_MAP[language] || DOCS_UI_TEXT_MAP.default;
+  const docsUiText = docsUiTextMap[language] || docsUiTextMap.default;
 
   const requestedDocKey = searchParams.get('doc');
-  const activeDocKey = DOCS_SECTION_MAP[requestedDocKey]
+  const activeDocKey = docsSectionMap[requestedDocKey]
     ? requestedDocKey
     : 'usage';
-  const activeSection = DOCS_SECTION_MAP[activeDocKey];
+  const activeSection = docsSectionMap[activeDocKey];
   const docsMarkdown =
     activeSection.contentMap[language] ||
     activeSection.contentMap.default ||
@@ -126,18 +156,24 @@ const Docs = () => {
     activeSection.titles[language] || activeSection.titles.default;
 
   useEffect(() => {
-    if (requestedDocKey && !DOCS_SECTION_MAP[requestedDocKey]) {
+    if (requestedDocKey && !docsSectionMap[requestedDocKey]) {
       setSearchParams({}, { replace: true });
     }
-  }, [requestedDocKey, setSearchParams]);
+  }, [docsSectionMap, requestedDocKey, setSearchParams]);
 
   const { htmlContent, toc } = useMemo(() => {
     const renderer = new marked.Renderer();
     const headings = [];
     const anchorCountMap = new Map();
+    const runtimeMarkdown = replaceAllRouterBrandName(
+      replaceAllRouterBaseUrl(docsMarkdown),
+      docsSystemName,
+    );
 
     renderer.heading = function (text, level, raw) {
-      const headingText = String(text).replace(/<[^>]+>/g, '').trim();
+      const headingText = String(text)
+        .replace(/<[^>]+>/g, '')
+        .trim();
       const anchor = generateAnchorId(
         String(raw || headingText).replace(/<[^>]+>/g, ''),
         anchorCountMap,
@@ -147,10 +183,10 @@ const Docs = () => {
     };
 
     return {
-      htmlContent: marked.parse(docsMarkdown, { renderer }),
+      htmlContent: marked.parse(runtimeMarkdown, { renderer }),
       toc: headings,
     };
-  }, [docsMarkdown]);
+  }, [docsMarkdown, docsSystemName]);
 
   const defaultAnchor = toc.length > 0 ? `#${toc[0].id}` : '';
 

@@ -25,7 +25,7 @@ import React, {
   useState,
 } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { API, showError } from '../../helpers';
+import { API, showError, withBrowserBaseUrl } from '../../helpers';
 import { StatusContext } from '../../context/Status';
 import { UserContext } from '../../context/User';
 import { useActualTheme, useSetTheme, useTheme } from '../../context/Theme';
@@ -54,13 +54,17 @@ import minimaxLogo from '../../../public/logos/minimax.svg';
 import chatglmLogo from '../../../public/logos/chatglm.svg';
 import doubaoLogo from '../../../public/logos/doubao.svg';
 import geminiLogo from '../../../public/logos/gemini.svg';
+import grokLogo from '../../../public/logos/grok.svg';
+import qwenLogo from '../../../public/logos/qwen.svg';
+
+
 
 const logo = getLogo();
 const systemName = getSystemName();
 
 const partnerLogos = [
   { src: openaiLogo, alt: 'ChatGPT' },
-  { src: anthropicLogo, alt: 'Anthropic' },
+  { src: anthropicLogo, alt: 'Claude' },
   { src: geminiLogo, alt: 'Gemini' },
   { src: zhipuLogo, alt: 'Zhipu AI' },
   { src: metaLogo, alt: 'Meta' },
@@ -70,6 +74,8 @@ const partnerLogos = [
   { src: minimaxLogo, alt: 'Minimax' },
   { src: chatglmLogo, alt: 'ChatGLM' },
   { src: doubaoLogo, alt: 'Doubao' },
+  { src: grokLogo, alt: 'Grok' },
+  { src: qwenLogo, alt: 'Qwen' },
 ];
 
 const featureCards = [
@@ -137,13 +143,15 @@ const Home = () => {
   const isMobile = useIsMobile();
 
   const docsLink = statusState?.status?.docs_link || '';
-  const serverAddress = `${window.location.origin}`; //statusState?.status?.server_address || 
+  const serverAddress = `${window.location.origin}`;
   const showDefaultHome = homePageContentLoaded && homePageContent === '';
   const docsLangPrefix = i18n.language.startsWith('zh') ? 'zh' : 'en';
 
-  const docsHref = docsLink || `https://allrouter.ai/${docsLangPrefix}/docs`;
-  const apiReferenceHref = `https://allrouter.ai/${docsLangPrefix}/docs/api`;
-  const communityHref = `https://allrouter.ai/${docsLangPrefix}/docs/support/community-interaction`;
+  const docsHref = docsLink || withBrowserBaseUrl(`/${docsLangPrefix}/docs`);
+  const apiReferenceHref = withBrowserBaseUrl(`/${docsLangPrefix}/docs/api`);
+  const communityHref = withBrowserBaseUrl(
+    `/${docsLangPrefix}/docs/support/community-interaction`,
+  );
   const currentUser = userState?.user || getStoredUser();
   const isLoggedIn = Boolean(currentUser?.id);
   const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
@@ -330,7 +338,7 @@ const Home = () => {
       },
       {
         html: `<span class='landing-v2-c-c'># ${escapeHtml(
-          t('任意模型即开即用：gpt-4、claude-3、llama-3...')
+          t('任意模型即开即用：gpt-4、claude-3、llama-3...'),
         )}</span>`,
         delay: 620,
       },
@@ -401,16 +409,15 @@ const Home = () => {
           >
             <div className='landing-v2-logo'>
               <div className='landing-v2-logo-bg'>
-              <img
-                src={logo}
-                className='landing-v2-real-logo'
-                />
+                <img src={logo} className='landing-v2-real-logo' />
               </div>
-              <span>{ systemName }</span>
+              <span>{systemName}</span>
             </div>
 
             <div className='landing-v2-nav-links'>
-              <Link to='/' className='landing-v2-nav-link-active'>{t('首页')}</Link>
+              <Link to='/' className='landing-v2-nav-link-active'>
+                {t('首页')}
+              </Link>
               <Link to={consoleNavTarget}>{t('控制台')}</Link>
               <Link to={pricingNavTarget}>{t('模型广场')}</Link>
               <a href={docsHref} target='_blank' rel='noreferrer'>
@@ -467,7 +474,9 @@ const Home = () => {
                   <span className='landing-v2-hero-badge-dot' />
                   {t('V2.0 现已上线')}
                 </div>
-                <div className='landing-v2-hero-title'>{t('一套 API，畅连所有 AI')}</div>
+                <div className='landing-v2-hero-title'>
+                  {t('一套 API，畅连所有 AI')}
+                </div>
                 <p>
                   {t(
                     '统一的大模型网关。可在 OpenAI、Claude、Llama 及 50+ 模型间即时切换，并通过智能路由最高节省 50% 成本。',
@@ -479,7 +488,8 @@ const Home = () => {
                     target='_blank'
                     className='landing-v2-btn-primary landing-v2-btn-lg'
                   >
-                    {t('免费开始构建')}&nbsp;&nbsp;<ArrowRight size={18} />
+                    {t('免费开始构建')}&nbsp;&nbsp;
+                    <ArrowRight size={18} />
                   </Link>
                   <a
                     href={docsHref}
@@ -525,7 +535,7 @@ const Home = () => {
               <div className='landing-v2-section-header'>
                 <div className='landing-v2-heading'>
                   {t('为什么选择')}{' '}
-                  <span className='landing-v2-heading-accent'>AllRouter</span>
+                  <span className='landing-v2-heading-accent'>{systemName}</span>
                 </div>
               </div>
 
@@ -546,7 +556,9 @@ const Home = () => {
 
             <section className='landing-v2-cta-section'>
               <div className='landing-v2-cta-box'>
-                <div className='landing-v2-cta-box-title'>{t('准备好优化您的 AI 工作流了吗？')}</div>
+                <div className='landing-v2-cta-box-title'>
+                  {t('准备好优化您的 AI 工作流了吗？')}
+                </div>
                 <p>
                   {t(
                     '加入 2,000+ 开发者，开始享受更稳定、更廉价的大模型服务。',
@@ -567,11 +579,8 @@ const Home = () => {
             <div className='landing-v2-footer-top'>
               <div className='landing-v2-footer-brand'>
                 <div className='landing-v2-logo landing-v2-logo-small'>
-                  <img
-                    src={logo}
-                    className='landing-v2-real-logo'
-                  />
-                  <span>{ systemName }</span>
+                  <img src={logo} className='landing-v2-real-logo' />
+                  <span>{systemName}</span>
                 </div>
                 <p>
                   {t(

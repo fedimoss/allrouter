@@ -49,6 +49,20 @@ func RunWechatTradeBill(c *gin.Context) {
 		}
 		// 执行 Stripe 账单拉取与对账流程
 		result, err = service.RunStripeBillWorkflow(billDate)
+	// Crypto 分支：先清空当天数据，再拉取对账，防止重复执行产生重复记录
+	case "crypto":
+		// 清空加密货币支付账单记录
+		if err = model.DeletePaymentBillRecordsByChannelAndBillDate(model.PaymentChannelTypeCrypto, billDate); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		// 再清空加密货币支付账单对账记录
+		if err = model.DeletePaymentBillReconcilesByChannelAndBillDate(model.PaymentChannelTypeCrypto, billDate); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		// 执行加密货币支付账单拉取与对账流程
+		result, err = service.RunCryptoBillWorkflow(billDate)
 	// wxpay 分支
 	default:
 		result, err = service.RunWechatTradeBillWorkflowWithDBConfig(billDate)

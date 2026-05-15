@@ -30,7 +30,7 @@ import ThemeToggle from './ThemeToggle';
 import LanguageSelector from './LanguageSelector';
 import NotificationButton from './NotificationButton';
 import UserArea from './UserArea';
-import { isAdmin } from '../../../helpers';
+import { isAdmin, withBrowserBaseUrl } from '../../../helpers';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const {
@@ -68,7 +68,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   console.log(location.pathname);
   const isPublicRoute = !isConsoleRoute;
   const docsLangPrefix = currentLang.startsWith('zh') ? 'zh' : 'en';
-  const docsHref = docsLink || `https://allrouter.ai/${docsLangPrefix}/docs`;
+  const docsHref = docsLink || withBrowserBaseUrl(`/${docsLangPrefix}/docs`);
   const isLoggedIn = Boolean(userState?.user);
   const consoleNavTarget = isLoggedIn ? '/console' : '/login';
   const pricingNavTarget =
@@ -110,10 +110,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   };
 
   const pathname = location.pathname;
-  const currentLabel =
-    pathname.startsWith('/console/chat')
-      ? t('聊天')
-      : breadcrumbLabelMap[pathname] || t('控制台');
+  const currentLabel = pathname.startsWith('/console/chat')
+    ? t('聊天')
+    : breadcrumbLabelMap[pathname] || t('控制台');
   const breadcrumbItems = [
     { label: t('首页'), to: '/' },
     { label: t('控制台'), to: '/console' },
@@ -142,10 +141,14 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             <span>{systemName}</span>
           </Link>
 
-          <div className={`landing-v2-nav-links ${location.pathname === '/pricing' ? 'nav-left' : ''}`}>
+          <div
+            className={`landing-v2-nav-links ${location.pathname === '/pricing' ? 'nav-left' : ''}`}
+          >
             <Link to='/'>{t('首页')}</Link>
             <Link to={consoleNavTarget}>{t('控制台')}</Link>
-            <Link to={pricingNavTarget} className='landing-v2-nav-link-active'>{t('模型广场')}</Link>
+            <Link to={pricingNavTarget} className='landing-v2-nav-link-active'>
+              {t('模型广场')}
+            </Link>
             <a href={docsHref} target='_blank' rel='noreferrer'>
               {t('文档')}
             </a>
@@ -206,7 +209,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
               />
               <div className='header-console-breadcrumb-wrap hidden md:flex'>
                 <Breadcrumb
-                    separator={<ChevronRight size={14} />}
+                  separator={<ChevronRight size={14} />}
                   className='header-console-breadcrumb'
                 >
                   {breadcrumbItems.map((item, index) => {
