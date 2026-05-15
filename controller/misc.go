@@ -63,6 +63,8 @@ func GetStatus(c *gin.Context) {
 		"telegram_bot_name":           common.TelegramBotName,
 		"system_name":                 common.SystemName,
 		"logo":                        common.Logo,
+		"wechat_support":              common.WechatSupport, // 微信客服
+		"qq_support":                  common.QQSupport,     // QQ客服
 		"footer_html":                 common.Footer,
 		"wechat_qrcode":               common.WeChatAccountQRCodeImageURL,
 		"wechat_login":                common.WeChatAuthEnabled,
@@ -141,7 +143,7 @@ func GetStatus(c *gin.Context) {
 			primaryColor, secondaryColor := providerThemeColors(&cfg)
 			data["primary_color"] = primaryColor
 			data["secondary_color"] = secondaryColor
-			data["provider_config"] = providerConfigResponse(c, &cfg)
+			data["provider_config"] = providerConfigResponse(c, &cfg) // 提供商配置
 		}
 	}
 	data["provider_id"] = providerId

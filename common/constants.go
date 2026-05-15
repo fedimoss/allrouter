@@ -15,6 +15,8 @@ var Version = "v0.0.0"            // this hard coding will be replaced automatic
 var SystemName = "All Router"
 var Footer = ""
 var Logo = ""
+var WechatSupport = "" // 微信客服
+var QQSupport = ""     // QQ客服
 var TopUpLink = ""
 
 // var ChatLink = ""

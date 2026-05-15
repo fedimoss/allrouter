@@ -65,6 +65,7 @@ func providerThemeColors(cfg *model.ProviderConfig) (string, string) {
 	return primary, secondary
 }
 
+// providerConfigResponse 构建提供商配置响应
 func providerConfigResponse(c *gin.Context, cfg *model.ProviderConfig) gin.H {
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	resp := gin.H{"provider_id": providerId, "enabled": providerId > 0}
@@ -87,8 +88,8 @@ func providerConfigResponse(c *gin.Context, cfg *model.ProviderConfig) gin.H {
 	resp["announcement"] = cfg.Announcement
 	resp["footer_text"] = cfg.FooterText
 	resp["support_url"] = cfg.SupportUrl
-	resp["wechat_support"] = cfg.WechatSupport
-	resp["qq_support"] = cfg.QQSupport
+	resp["wechat_support"] = cfg.WechatSupport // 微信客服
+	resp["qq_support"] = cfg.QQSupport         // QQ客服
 	return resp
 }
 
