@@ -55,6 +55,8 @@ type ProviderConfig struct {
 	SupportUrl      string `json:"support_url" gorm:"type:text"`
 	CreatedAt       int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt       int64  `json:"updated_at" gorm:"bigint"`
+	WechatSupport   string `json:"wechat_support" gorm:"type:text"`
+	QQSupport       string `json:"qq_support" gorm:"type:text"`
 }
 
 type ProviderModelPricing struct {

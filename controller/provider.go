@@ -87,6 +87,8 @@ func providerConfigResponse(c *gin.Context, cfg *model.ProviderConfig) gin.H {
 	resp["announcement"] = cfg.Announcement
 	resp["footer_text"] = cfg.FooterText
 	resp["support_url"] = cfg.SupportUrl
+	resp["wechat_support"] = cfg.WechatSupport
+	resp["qq_support"] = cfg.QQSupport
 	return resp
 }
 
@@ -353,6 +355,8 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 		"footer_text":      strings.TrimSpace(req.FooterText),
 		"support_url":      strings.TrimSpace(req.SupportUrl),
 		"updated_at":       common.GetTimestamp(),
+		"wechat_support":   strings.TrimSpace(req.WechatSupport), // 微信客服
+		"qq_support":       strings.TrimSpace(req.QQSupport),     // QQ客服
 	}
 	var cfg model.ProviderConfig
 	err := model.DB.Where("provider_id = ?", providerId).First(&cfg).Error

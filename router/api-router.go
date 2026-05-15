@@ -190,6 +190,8 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/web_colors", controller.SetWebColors)                            // 设置网站主色和辅色
 			optionRoute.POST("/update_crypto_chain_config", controller.UpdateCryptoChainConfig) // 更新加密货币链配置
 			optionRoute.POST("/update_crypto_rate", controller.UpdateCryptoRate)                // 更新加密货币汇率
+			optionRoute.POST("/wechat_qrcode", controller.UploadWechatCustomerQrcode)           // 上传微信客服二维码
+			optionRoute.POST("/web_support", controller.SetWebSupport)                          // 设置网站客服
 		}
 		// 加密货币公开读取接口（普通用户登录即可调用）
 		optionReadRoute := apiRouter.Group("/option")

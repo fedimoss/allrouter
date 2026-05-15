@@ -108,6 +108,8 @@ user.avatar_format_unsupported: "Only JPG/PNG format is supported"
 setting.web_logo_not_selected: "Please select a logo file"
 setting.web_logo_size_exceeded: "Logo file cannot exceed 5MB"
 setting.web_logo_format_unsupported: "Only JPG/PNG/GIF/SVG format is supported"
+setting.wechat_customer_qrcode_size_exceeded: "WeChat customer QR code cannot exceed 5MB"
+setting.wechat_customer_qrcode_format_unsupported: "WeChat customer QR code only supports JPG/PNG/GIF/SVG format"
 
 # Quota messages
 quota.negative: "Quota cannot be negative!"
