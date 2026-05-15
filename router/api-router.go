@@ -95,8 +95,8 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/stripe/amount", controller.RequestStripeAmount)
 				selfRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.RequestCreemPay)
 				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
-				selfRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.RequestCryptoPay)         // 加密货币充值下单
-				selfRoute.POST("/crypto/confirm", middleware.CriticalRateLimit(), controller.RequestCryptoConfirm) // 加密货币充值确认
+				selfRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.RequestCryptoPay) // 加密货币充值下单
+				selfRoute.POST("/crypto/confirm", controller.RequestCryptoConfirm)                         // 加密货币充值确认
 				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 				selfRoute.POST("/avatar", controller.UploadAvatar) // 上传头像
@@ -151,8 +151,8 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
 			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
 			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
-			subscriptionRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCryptoPay)         // 加密货币订阅
-			subscriptionRoute.POST("/crypto/confirm", middleware.CriticalRateLimit(), controller.SubscriptionRequestCryptoConfirm) // 加密货币订阅确认
+			subscriptionRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCryptoPay) // 加密货币订阅
+			subscriptionRoute.POST("/crypto/confirm", controller.SubscriptionRequestCryptoConfirm)                         // 加密货币订阅确认
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())
@@ -186,10 +186,15 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/migrate_console_setting", controller.MigrateConsoleSetting)      // 用于迁移检测的旧键，下个版本会删除
 			optionRoute.POST("/web_logo", controller.UploadWebLogo)                             // 上传网站logo
 			optionRoute.POST("/web_colors", controller.SetWebColors)                            // 设置网站主色和辅色
-			optionRoute.GET("/get_crypto_chain_config", controller.GetCryptoChainConfig)        // 获取加密货币链配置
 			optionRoute.POST("/update_crypto_chain_config", controller.UpdateCryptoChainConfig) // 更新加密货币链配置
-			optionRoute.GET("/get_crypto_rate", controller.GetCryptoRate)                       // 获取加密货币汇率
 			optionRoute.POST("/update_crypto_rate", controller.UpdateCryptoRate)                // 更新加密货币汇率
+		}
+		// 加密货币公开读取接口（普通用户登录即可调用）
+		optionReadRoute := apiRouter.Group("/option")
+		optionReadRoute.Use(middleware.UserAuth())
+		{
+			optionReadRoute.GET("/get_crypto_chain_config", controller.GetCryptoChainConfig) // 获取加密货币链配置
+			optionReadRoute.GET("/get_crypto_rate", controller.GetCryptoRate)                // 获取加密货币汇率
 		}
 
 		// 币种 Stripe 价格配置（管理后台）
