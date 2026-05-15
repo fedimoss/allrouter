@@ -25,7 +25,12 @@ import React, {
   useState,
 } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { API, showError, withBrowserBaseUrl } from '../../helpers';
+import {
+  API,
+  setStatusData,
+  showError,
+  withBrowserBaseUrl,
+} from '../../helpers';
 import { StatusContext } from '../../context/Status';
 import { UserContext } from '../../context/User';
 import { useActualTheme, useSetTheme, useTheme } from '../../context/Theme';
@@ -39,8 +44,14 @@ import LanguageSelector from '../../components/layout/headerbar/LanguageSelector
 import NotificationButton from '../../components/layout/headerbar/NotificationButton';
 import UserArea from '../../components/layout/headerbar/UserArea';
 import MarqueeLogos from '../../components/common/MarqueeLogos';
+import FloatingSupport from '../../components/common/FloatingSupport';
 
-import { getLogo, getSystemName } from '../../helpers';
+import {
+  getLogo,
+  getQQSupport,
+  getSystemName,
+  getWechatSupport,
+} from '../../helpers';
 
 import openaiLogo from '../../../public/logos/openai.svg';
 import anthropicLogo from '../../../public/logos/anthropic.svg';
@@ -56,8 +67,6 @@ import doubaoLogo from '../../../public/logos/doubao.svg';
 import geminiLogo from '../../../public/logos/gemini.svg';
 import grokLogo from '../../../public/logos/grok.svg';
 import qwenLogo from '../../../public/logos/qwen.svg';
-
-
 
 const logo = getLogo();
 const systemName = getSystemName();
@@ -131,7 +140,7 @@ const getStoredUser = () => {
 const Home = () => {
   const { t, i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
-  const [statusState] = useContext(StatusContext);
+  const [statusState, statusDispatch] = useContext(StatusContext);
   const actualTheme = useActualTheme();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -152,6 +161,26 @@ const Home = () => {
   const communityHref = withBrowserBaseUrl(
     `/${docsLangPrefix}/docs/support/community-interaction`,
   );
+  const supportConfig = useMemo(() => {
+    const status = statusState?.status;
+    if (!status) {
+      return {
+        wechatQRCode: getWechatSupport(),
+        qqSupport: getQQSupport(),
+      };
+    }
+    const providerConfig = status.provider_config;
+    if (providerConfig?.enabled) {
+      return {
+        wechatQRCode: providerConfig.wechat_support || '',
+        qqSupport: providerConfig.qq_support || '',
+      };
+    }
+    return {
+      wechatQRCode: status.wechat_support || '',
+      qqSupport: status.qq_support || '',
+    };
+  }, [statusState?.status]);
   const currentUser = userState?.user || getStoredUser();
   const isLoggedIn = Boolean(currentUser?.id);
   const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
@@ -286,6 +315,36 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const refreshStatus = async () => {
+      try {
+        const res = await API.get('/api/status');
+        const { success, data, message } = res.data || {};
+        if (cancelled) {
+          return;
+        }
+        if (success) {
+          statusDispatch({ type: 'set', payload: data });
+          setStatusData(data);
+        } else if (message) {
+          showError(message);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to refresh status:', error);
+        }
+      }
+    };
+
+    refreshStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [statusDispatch]);
+
+  useEffect(() => {
     if (!showDefaultHome) {
       return undefined;
     }
@@ -401,6 +460,10 @@ const Home = () => {
         visible={noticeVisible}
         onClose={() => setNoticeVisible(false)}
         isMobile={isMobile}
+      />
+      <FloatingSupport
+        wechatQRCode={supportConfig.wechatQRCode}
+        qqSupport={supportConfig.qqSupport}
       />
       {showDefaultHome ? (
         <>
@@ -535,7 +598,9 @@ const Home = () => {
               <div className='landing-v2-section-header'>
                 <div className='landing-v2-heading'>
                   {t('为什么选择')}{' '}
-                  <span className='landing-v2-heading-accent'>{systemName}</span>
+                  <span className='landing-v2-heading-accent'>
+                    {systemName}
+                  </span>
                 </div>
               </div>
 

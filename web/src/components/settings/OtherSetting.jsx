@@ -59,6 +59,8 @@ const OtherSetting = () => {
     Footer: '',
     About: '',
     HomePageContent: '',
+    WechatSupport: '',
+    QQSupport: '',
   });
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -95,6 +97,8 @@ const OtherSetting = () => {
     Footer: false,
     CheckUpdate: false,
     LogoUpload: false,
+    WeChatQRCodeUpload: false,
+    WebSupport: false,
   });
   const handleInputChange = async (value, e) => {
     const name = e.target.id;
@@ -249,6 +253,8 @@ const OtherSetting = () => {
   };
   // 个性化设置
   const formAPIPersonalization = useRef();
+  // 客服设置
+  const formAPIWebSupport = useRef();
   //  个性化设置 - SystemName
   const submitSystemName = async () => {
     try {
@@ -353,6 +359,81 @@ const OtherSetting = () => {
     }
   };
 
+  const handleWeChatQRCodeUpload = async ({
+    file,
+    fileInstance,
+    onSuccess,
+    onError,
+  }) => {
+    try {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        WeChatQRCodeUpload: true,
+      }));
+      const uploadFile = fileInstance || file?.fileInstance;
+      if (!uploadFile) {
+        throw new Error(t('请选择图片'));
+      }
+      const formData = new FormData();
+      formData.append('wechat_qrcode', uploadFile);
+      const res = await API.post('/api/option/wechat_qrcode', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        throw new Error(message || t('微信二维码上传失败'));
+      }
+      const wechatQRCodePath = getLogoUploadPath(data);
+      if (!wechatQRCodePath) {
+        throw new Error(t('微信二维码上传返回地址无效'));
+      }
+      setInputs((inputs) => ({
+        ...inputs,
+        WechatSupport: wechatQRCodePath,
+      }));
+      formAPIWebSupport.current?.setValue?.('WechatSupport', wechatQRCodePath);
+      showSuccess(t('微信二维码上传成功'));
+      onSuccess?.(data || {});
+    } catch (error) {
+      showError(error?.message || t('微信二维码上传失败'));
+      onError?.({ status: 500 }, error);
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        WeChatQRCodeUpload: false,
+      }));
+    }
+  };
+
+  const submitWebSupport = async () => {
+    try {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        WebSupport: true,
+      }));
+      const res = await API.post('/api/option/web_support', {
+        wechat_support: inputs.WechatSupport || '',
+        qq_support: inputs.QQSupport || '',
+      });
+      const { success, message } = res.data || {};
+      if (success) {
+        showSuccess(t('客服设置已更新'));
+      } else {
+        showError(message || t('客服设置更新失败'));
+      }
+    } catch (error) {
+      console.error(t('客服设置更新失败'), error);
+      showError(error?.message || t('客服设置更新失败'));
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        WebSupport: false,
+      }));
+    }
+  };
+
   const checkUpdate = async () => {
     try {
       setLoadingInput((loadingInput) => ({
@@ -440,6 +521,7 @@ const OtherSetting = () => {
       setInputs(newInputs);
       formAPISettingGeneral.current.setValues(newInputs);
       formAPIPersonalization.current.setValues(newInputs);
+      formAPIWebSupport.current?.setValues(newInputs);
     } else {
       showError(message);
     }
@@ -742,6 +824,59 @@ const OtherSetting = () => {
               />
               <Button onClick={submitFooter} loading={loadingInput['Footer']}>
                 {t('设置页脚')}
+              </Button>
+            </Form.Section>
+          </Card>
+        </Form>
+        {/* 客服设置 */}
+        <Form
+          values={inputs}
+          getFormApi={(formAPI) => (formAPIWebSupport.current = formAPI)}
+        >
+          <Card>
+            <Form.Section text={t('客服设置')}>
+              <div className='flex flex-wrap items-end gap-4'>
+                <Upload
+                  action='/'
+                  accept='image/*'
+                  showUploadList={false}
+                  uploadTrigger='auto'
+                  customRequest={handleWeChatQRCodeUpload}
+                >
+                  <Button
+                    icon={<IconUpload />}
+                    loading={loadingInput['WeChatQRCodeUpload']}
+                    style={{ marginBottom: 12 }}
+                  >
+                    {t('上传微信二维码')}
+                  </Button>
+                </Upload>
+                {inputs.WechatSupport ? (
+                  <img
+                    src={inputs.WechatSupport}
+                    alt={t('微信二维码')}
+                    style={{
+                      width: 96,
+                      height: 96,
+                      objectFit: 'contain',
+                      border: '1px solid var(--semi-color-border)',
+                      borderRadius: 6,
+                    }}
+                  />
+                ) : null}
+              </div>
+              <Form.Input
+                label={t('QQ号')}
+                placeholder={t('请输入QQ号')}
+                field={'QQSupport'}
+                onChange={handleInputChange}
+                showClear
+              />
+              <Button
+                onClick={submitWebSupport}
+                loading={loadingInput['WebSupport']}
+              >
+                {t('保存设置')}
               </Button>
             </Form.Section>
           </Card>

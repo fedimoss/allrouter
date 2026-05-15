@@ -79,6 +79,8 @@ const emptyConfig = {
   logo: '',
   theme_color: DEFAULT_THEME_PRIMARY_COLOR,
   secondary_color: DEFAULT_THEME_SECONDARY_COLOR,
+  wechat_support: '',
+  qq_support: '',
   footer_text: '',
 };
 
@@ -146,7 +148,8 @@ const getPricingFormValues = (pricing) => {
 
 const getOwnerLabel = (user) => {
   if (!user) return '';
-  const name = user.display_name || user.username || user.email || `ID ${user.id}`;
+  const name =
+    user.display_name || user.username || user.email || `ID ${user.id}`;
   const email = user.email ? ` / ${user.email}` : '';
   return `${name}${email} (#${user.id})`;
 };
@@ -173,6 +176,7 @@ const ProviderPage = () => {
   const [pricingRows, setPricingRows] = useState([]);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [wechatQRCodeUploading, setWechatQRCodeUploading] = useState(false);
   const [baseModels, setBaseModels] = useState([]);
   const [baseModelsLoading, setBaseModelsLoading] = useState(false);
   const [pricingType, setPricingType] = useState(emptyPricing.pricing_type);
@@ -283,7 +287,11 @@ const ProviderPage = () => {
 
   useEffect(() => {
     if (providers.length === 0) return;
-    if (currentProvider && providers.some((provider) => provider.id === currentProvider.id)) return;
+    if (
+      currentProvider &&
+      providers.some((provider) => provider.id === currentProvider.id)
+    )
+      return;
     setCurrentProvider(providers[0]);
   }, [providers, currentProvider]);
 
@@ -383,7 +391,10 @@ const ProviderPage = () => {
       showError(t('请先选择实际调用主站模型'));
       return;
     }
-    pricingFormRef.current?.setValue?.('public_model_name', values.base_model_name);
+    pricingFormRef.current?.setValue?.(
+      'public_model_name',
+      values.base_model_name,
+    );
   };
 
   const handleConfigColorPickerChange = (field, value) => {
@@ -453,6 +464,44 @@ const ProviderPage = () => {
     }
   };
 
+  const handleWeChatQRCodeUpload = async ({
+    file,
+    fileInstance,
+    onSuccess,
+    onError,
+  }) => {
+    try {
+      setWechatQRCodeUploading(true);
+      const uploadFile = fileInstance || file?.fileInstance;
+      if (!uploadFile) {
+        throw new Error(t('请选择图片'));
+      }
+      const formData = new FormData();
+      formData.append('wechat_qrcode', uploadFile);
+      const res = await API.post('/api/option/wechat_qrcode', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        throw new Error(message || t('微信二维码上传失败'));
+      }
+      const wechatQRCodePath = getLogoUploadPath(data);
+      if (!wechatQRCodePath) {
+        throw new Error(t('微信二维码上传返回地址无效'));
+      }
+      configFormRef.current?.setValue?.('wechat_support', wechatQRCodePath);
+      showSuccess(t('微信二维码上传成功'));
+      onSuccess?.(data || {});
+    } catch (error) {
+      showError(error?.message || t('微信二维码上传失败'));
+      onError?.({ status: 500 }, error);
+    } finally {
+      setWechatQRCodeUploading(false);
+    }
+  };
+
   const submitProvider = async () => {
     const values = providerFormRef.current?.getValues?.() || {};
     if (!values.name) {
@@ -503,7 +552,10 @@ const ProviderPage = () => {
           )
         : await API.put(`/api/provider/domains/${editingDomain.id}`, payload)
       : adminMode
-        ? await API.post(`/api/provider/admin/${currentProvider.id}/domains`, payload)
+        ? await API.post(
+            `/api/provider/admin/${currentProvider.id}/domains`,
+            payload,
+          )
         : await API.post('/api/provider/domains', payload);
     if (res.data.success) {
       showSuccess(t('保存成功'));
@@ -529,10 +581,15 @@ const ProviderPage = () => {
 
   const submitConfig = async () => {
     const values = configFormRef.current?.getValues?.() || {};
+    const payload = {
+      ...values,
+      wechat_support: values.wechat_support || '',
+      qq_support: values.qq_support || '',
+    };
     const url = adminMode
       ? `/api/provider/admin/${currentProvider.id}/config`
       : '/api/provider/config';
-    const res = await API.put(url, values);
+    const res = await API.put(url, payload);
     if (res.data.success) {
       showSuccess(t('保存成功'));
       setConfigModalVisible(false);
@@ -548,21 +605,27 @@ const ProviderPage = () => {
       showError(t('模型名称不能为空'));
       return;
     }
-    const nextPricingType = values.pricing_type || pricingType || emptyPricing.pricing_type;
+    const nextPricingType =
+      values.pricing_type || pricingType || emptyPricing.pricing_type;
     const { markup_percent, ...submitValues } = values;
     const payload = {
       ...submitValues,
       id: editingPricing?.id || 0,
       enabled: values.enabled !== false,
       pricing_type: nextPricingType,
-      ratio: nextPricingType === 'ratio' ? markupPercentToRatio(markup_percent) : 1,
-      delta_model_ratio: nextPricingType === 'delta' ? Number(values.delta_model_ratio || 0) : 0,
-      delta_model_price: nextPricingType === 'delta' ? Number(values.delta_model_price || 0) : 0,
+      ratio:
+        nextPricingType === 'ratio' ? markupPercentToRatio(markup_percent) : 1,
+      delta_model_ratio:
+        nextPricingType === 'delta' ? Number(values.delta_model_ratio || 0) : 0,
+      delta_model_price:
+        nextPricingType === 'delta' ? Number(values.delta_model_price || 0) : 0,
     };
     const url = adminMode
       ? `/api/provider/admin/${currentProvider.id}/model_pricing`
       : '/api/provider/model_pricing';
-    const res = payload.id ? await API.put(url, payload) : await API.post(url, payload);
+    const res = payload.id
+      ? await API.put(url, payload)
+      : await API.post(url, payload);
     if (res.data.success) {
       showSuccess(t('保存成功'));
       setPricingModalVisible(false);
@@ -607,7 +670,9 @@ const ProviderPage = () => {
           <Space vertical align='start' spacing={2}>
             <Text strong>{name}</Text>
             {adminMode ? (
-              <Text type='secondary'>Owner User ID: {record.owner_user_id}</Text>
+              <Text type='secondary'>
+                Owner User ID: {record.owner_user_id}
+              </Text>
             ) : null}
           </Space>
         ),
@@ -656,7 +721,12 @@ const ProviderPage = () => {
         dataIndex: 'config',
         render: (config) => (
           <Text>
-            {config?.site_name || config?.logo || config?.theme_color || config?.secondary_color
+            {config?.site_name ||
+            config?.logo ||
+            config?.theme_color ||
+            config?.secondary_color ||
+            config?.wechat_support ||
+            config?.qq_support
               ? t('已配置')
               : t('未配置')}
           </Text>
@@ -673,7 +743,11 @@ const ProviderPage = () => {
         width: adminMode ? 360 : 300,
         render: (_, record) => (
           <Space wrap>
-            <Button size='small' icon={<IconEdit />} onClick={() => openProviderModal(record)}>
+            <Button
+              size='small'
+              icon={<IconEdit />}
+              onClick={() => openProviderModal(record)}
+            >
               {t('编辑')}
             </Button>
             <Button size='small' onClick={() => openDomainModal(record)}>
@@ -685,13 +759,19 @@ const ProviderPage = () => {
             <Button size='small' onClick={() => openPricingList(record)}>
               {t('模型定价')}
             </Button>
-            <Button size='small' icon={<IconGiftStroked />} onClick={() => openRewardModal(record)}>
+            <Button
+              size='small'
+              icon={<IconGiftStroked />}
+              onClick={() => openRewardModal(record)}
+            >
               {t('奖励配置')}
             </Button>
             {adminMode ? (
               <Popconfirm
                 title={t('确认禁用该服务商？')}
-                content={t('禁用后该域名不会再解析成服务商站点，历史数据会保留。')}
+                content={t(
+                  '禁用后该域名不会再解析成服务商站点，历史数据会保留。',
+                )}
                 onConfirm={() => disableProvider(record)}
               >
                 <Button size='small' type='danger' icon={<IconDelete />}>
@@ -713,28 +793,36 @@ const ProviderPage = () => {
     {
       title: t('计价方式'),
       dataIndex: 'pricing_type',
-      render: (type) => (type === 'delta' ? t('按固定差价') : t('按百分比加价')),
+      render: (type) =>
+        type === 'delta' ? t('按固定差价') : t('按百分比加价'),
     },
     {
       title: t('加价比例'),
       dataIndex: 'ratio',
-      render: (ratio, record) => (record.pricing_type === 'ratio' ? `${ratioToMarkupPercent(ratio)}%` : '-'),
+      render: (ratio, record) =>
+        record.pricing_type === 'ratio'
+          ? `${ratioToMarkupPercent(ratio)}%`
+          : '-',
     },
     {
       title: t('Token 模型加价倍率'),
       dataIndex: 'delta_model_ratio',
-      render: (value, record) => (record.pricing_type === 'delta' ? value : '-'),
+      render: (value, record) =>
+        record.pricing_type === 'delta' ? value : '-',
     },
     {
       title: t('按次模型加价金额'),
       dataIndex: 'delta_model_price',
-      render: (value, record) => (record.pricing_type === 'delta' ? value : '-'),
+      render: (value, record) =>
+        record.pricing_type === 'delta' ? value : '-',
     },
     {
       title: t('状态'),
       dataIndex: 'enabled',
       render: (enabled) => (
-        <Tag color={enabled ? 'green' : 'grey'}>{enabled ? t('启用') : t('禁用')}</Tag>
+        <Tag color={enabled ? 'green' : 'grey'}>
+          {enabled ? t('启用') : t('禁用')}
+        </Tag>
       ),
     },
     {
@@ -742,10 +830,17 @@ const ProviderPage = () => {
       width: 160,
       render: (_, record) => (
         <Space>
-          <Button size='small' icon={<IconEdit />} onClick={() => openPricingModal(record)}>
+          <Button
+            size='small'
+            icon={<IconEdit />}
+            onClick={() => openPricingModal(record)}
+          >
             {t('编辑')}
           </Button>
-          <Popconfirm title={t('确认删除？')} onConfirm={() => deletePricing(record)}>
+          <Popconfirm
+            title={t('确认删除？')}
+            onConfirm={() => deletePricing(record)}
+          >
             <Button size='small' type='danger' icon={<IconDelete />} />
           </Popconfirm>
         </Space>
@@ -789,7 +884,11 @@ const ProviderPage = () => {
             {t('刷新')}
           </Button>
           {adminMode ? (
-            <Button type='primary' icon={<IconPlus />} onClick={() => openProviderModal()}>
+            <Button
+              type='primary'
+              icon={<IconPlus />}
+              onClick={() => openProviderModal()}
+            >
               {t('新建服务商')}
             </Button>
           ) : null}
@@ -824,10 +923,16 @@ const ProviderPage = () => {
                 optionList={ownerOptions}
                 filter
                 remote
-                onSearch={(keyword) => fetchOwnerCandidates(keyword, editingProvider)}
+                onSearch={(keyword) =>
+                  fetchOwnerCandidates(keyword, editingProvider)
+                }
                 placeholder={t('搜索用户名、显示名、邮箱或用户 ID')}
               />
-              <Form.Select field='status' label={t('状态')} optionList={STATUS_OPTIONS} />
+              <Form.Select
+                field='status'
+                label={t('状态')}
+                optionList={STATUS_OPTIONS}
+              />
             </>
           ) : null}
         </Form>
@@ -844,8 +949,16 @@ const ProviderPage = () => {
           initValues={editingDomain || emptyDomain}
           getFormApi={(api) => (domainFormRef.current = api)}
         >
-          <Form.Input field='domain' label={t('域名')} placeholder='ai.example.com' />
-          <Form.Select field='status' label={t('状态')} optionList={DOMAIN_STATUS_OPTIONS} />
+          <Form.Input
+            field='domain'
+            label={t('域名')}
+            placeholder='ai.example.com'
+          />
+          <Form.Select
+            field='status'
+            label={t('状态')}
+            optionList={DOMAIN_STATUS_OPTIONS}
+          />
           <Form.Input field='verify_token' label={t('验证标识')} />
         </Form>
       </Modal>
@@ -896,9 +1009,15 @@ const ProviderPage = () => {
                 <input
                   aria-label={t('选择主色')}
                   type='color'
-                  value={getColorInputValue(configColors.theme_color, DEFAULT_THEME_PRIMARY_COLOR)}
+                  value={getColorInputValue(
+                    configColors.theme_color,
+                    DEFAULT_THEME_PRIMARY_COLOR,
+                  )}
                   onChange={(event) =>
-                    handleConfigColorPickerChange('theme_color', event.target.value)
+                    handleConfigColorPickerChange(
+                      'theme_color',
+                      event.target.value,
+                    )
                   }
                   style={{
                     width: 30,
@@ -915,7 +1034,9 @@ const ProviderPage = () => {
                     field='theme_color'
                     label={t('主色')}
                     placeholder={DEFAULT_THEME_PRIMARY_COLOR}
-                    onChange={(value) => handleConfigColorInputChange('theme_color', value)}
+                    onChange={(value) =>
+                      handleConfigColorInputChange('theme_color', value)
+                    }
                   />
                 </div>
               </div>
@@ -925,9 +1046,15 @@ const ProviderPage = () => {
                 <input
                   aria-label={t('选择辅色')}
                   type='color'
-                  value={getColorInputValue(configColors.secondary_color, DEFAULT_THEME_SECONDARY_COLOR)}
+                  value={getColorInputValue(
+                    configColors.secondary_color,
+                    DEFAULT_THEME_SECONDARY_COLOR,
+                  )}
                   onChange={(event) =>
-                    handleConfigColorPickerChange('secondary_color', event.target.value)
+                    handleConfigColorPickerChange(
+                      'secondary_color',
+                      event.target.value,
+                    )
                   }
                   style={{
                     width: 30,
@@ -944,13 +1071,48 @@ const ProviderPage = () => {
                     field='secondary_color'
                     label={t('辅色')}
                     placeholder={DEFAULT_THEME_SECONDARY_COLOR}
-                    onChange={(value) => handleConfigColorInputChange('secondary_color', value)}
+                    onChange={(value) =>
+                      handleConfigColorInputChange('secondary_color', value)
+                    }
                   />
                 </div>
               </div>
             </div>
           </div>
           <Form.TextArea field='footer_text' label={t('页脚文案')} autosize />
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>
+            {t('客服设置')}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <Form.Input
+                field='wechat_support'
+                label={t('微信二维码')}
+                placeholder={t('可以填写图片链接，也可以上传图片自动生成地址')}
+              />
+            </div>
+            <Upload
+              action='/'
+              accept='image/*'
+              showUploadList={false}
+              uploadTrigger='auto'
+              customRequest={handleWeChatQRCodeUpload}
+            >
+              <Button
+                icon={<IconUpload />}
+                loading={wechatQRCodeUploading}
+                style={{ marginBottom: 12 }}
+              >
+                {t('上传微信二维码')}
+              </Button>
+            </Upload>
+          </div>
+          <Form.Input
+            field='qq_support'
+            label={t('QQ号')}
+            placeholder={t('请输入QQ号')}
+            showClear
+          />
         </Form>
       </Modal>
 
@@ -960,8 +1122,14 @@ const ProviderPage = () => {
         onCancel={() => setPricingListVisible(false)}
         footer={
           <Space>
-            <Button onClick={() => setPricingListVisible(false)}>{t('关闭')}</Button>
-            <Button type='primary' icon={<IconPlus />} onClick={() => openPricingModal()}>
+            <Button onClick={() => setPricingListVisible(false)}>
+              {t('关闭')}
+            </Button>
+            <Button
+              type='primary'
+              icon={<IconPlus />}
+              onClick={() => openPricingModal()}
+            >
               {t('新增定价')}
             </Button>
           </Space>
@@ -989,8 +1157,16 @@ const ProviderPage = () => {
           initValues={getPricingFormValues(editingPricing)}
           getFormApi={(api) => (pricingFormRef.current = api)}
         >
-          <Form.Input field='public_model_name' label={t('展示给服务商用户的模型名')} />
-          <Button size='small' type='tertiary' onClick={useBaseModelAsPublicName} style={{ marginBottom: 12 }}>
+          <Form.Input
+            field='public_model_name'
+            label={t('展示给服务商用户的模型名')}
+          />
+          <Button
+            size='small'
+            type='tertiary'
+            onClick={useBaseModelAsPublicName}
+            style={{ marginBottom: 12 }}
+          >
             {t('使用实际模型名')}
           </Button>
           <Form.Select
@@ -1004,7 +1180,9 @@ const ProviderPage = () => {
             onChange={handleBaseModelChange}
           />
           <Text type='tertiary' size='small'>
-            {t('这里只能选择主站当前已启用渠道支持的模型，避免手动填写错误导致服务商用户调用失败。')}
+            {t(
+              '这里只能选择主站当前已启用渠道支持的模型，避免手动填写错误导致服务商用户调用失败。',
+            )}
           </Text>
           <Form.Switch field='enabled' label={t('启用')} />
           <Form.Select
@@ -1025,17 +1203,35 @@ const ProviderPage = () => {
           />
           {pricingType === 'ratio' ? (
             <>
-              <Form.InputNumber field='markup_percent' label={t('加价比例')} min={0} step={1} suffix='%' />
+              <Form.InputNumber
+                field='markup_percent'
+                label={t('加价比例')}
+                min={0}
+                step={1}
+                suffix='%'
+              />
               <Text type='tertiary' size='small'>
-                {t('填 20 表示在主站成本价基础上加价 20%，系统保存时会自动换算为 1.2 倍；填 0 表示不加价。')}
+                {t(
+                  '填 20 表示在主站成本价基础上加价 20%，系统保存时会自动换算为 1.2 倍；填 0 表示不加价。',
+                )}
               </Text>
             </>
           ) : (
             <>
-              <Form.InputNumber field='delta_model_ratio' label={t('Token 模型加价倍率')} step={0.01} />
-              <Form.InputNumber field='delta_model_price' label={t('按次模型加价金额')} step={0.000001} />
+              <Form.InputNumber
+                field='delta_model_ratio'
+                label={t('Token 模型加价倍率')}
+                step={0.01}
+              />
+              <Form.InputNumber
+                field='delta_model_price'
+                label={t('按次模型加价金额')}
+                step={0.000001}
+              />
               <Text type='tertiary' size='small'>
-                {t('按 token 计费的模型看“Token 模型加价倍率”；按次、按张、按任务计费的模型看“按次模型加价金额”。填 0 表示不额外加价。')}
+                {t(
+                  '按 token 计费的模型看“Token 模型加价倍率”；按次、按张、按任务计费的模型看“按次模型加价金额”。填 0 表示不额外加价。',
+                )}
               </Text>
             </>
           )}
@@ -1048,7 +1244,6 @@ const ProviderPage = () => {
         adminMode={adminMode}
         onClose={() => setRewardModalVisible(false)}
       />
-
     </div>
   );
 };

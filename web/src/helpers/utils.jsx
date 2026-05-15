@@ -68,6 +68,14 @@ export function getLogo() {
   return logo;
 }
 
+export function getWechatSupport() {
+  return localStorage.getItem('wechat_support') || '';
+}
+
+export function getQQSupport() {
+  return localStorage.getItem('qq_support') || '';
+}
+
 export function applyBranding({
   systemName = getSystemName(),
   logo = getLogo(),

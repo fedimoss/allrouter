@@ -548,7 +548,7 @@ html.dark .personal-setting-v2 .semi-tabs-tab:hover {
   justify-content: center;
   flex-shrink: 0;
   color: #ffffff;
-  background: linear-gradient(135deg, #06b6d4, #84cc16);
+  background: var(--theme-gradient);
   box-shadow: 0 12px 24px rgba(6, 182, 212, 0.24);
 }
 .semi-avatar-extra-large .semi-avatar-label{

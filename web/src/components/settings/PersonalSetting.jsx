@@ -64,7 +64,7 @@ import {
   Wallet,
   Camera,
 } from 'lucide-react';
-
+import { getLogo } from '../../helpers';
 import AccountManagement from './personal/cards/AccountManagement';
 import NotificationSettings from './personal/cards/NotificationSettings';
 import PreferencesSettings, {
@@ -76,7 +76,7 @@ import WeChatBindModal from './personal/modals/WeChatBindModal';
 import AccountDeleteModal from './personal/modals/AccountDeleteModal';
 import ChangePasswordModal from './personal/modals/ChangePasswordModal';
 import { getLanguageByTimezone, normalizeLanguage } from '../../i18n/language';
-import defaultAvatar from '../../../public/logo-white.svg';
+import defaultAvatar from '../../../public/avatar.svg';
 import './personal/personal-settings.css';
 
 const style = {
@@ -88,6 +88,7 @@ const style = {
   justifyContent: 'center',
   color: 'var(--semi-color-white)',
 };
+const logo = getLogo();
 
 const hoverMask = (<div style={style}>
   <Camera />
@@ -184,7 +185,7 @@ const PersonalSetting = () => {
   const [status, setStatus] = useState({});
   const [profileInputs, setProfileInputs] = useState({
     username: '',
-    avatar: defaultAvatar,
+    avatar: logo,
     phone_country_code: '+86',
     phone_number: '',
     timezone: '',
