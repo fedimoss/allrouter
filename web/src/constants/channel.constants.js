@@ -118,7 +118,7 @@ export const CHANNEL_OPTIONS = [
   { value: 38, color: 'blue', label: 'Jina' },
   { value: 40, color: 'purple', label: 'SiliconCloud' },
   { value: 42, color: 'blue', label: 'Mistral AI' },
-  // { value: 8, color: 'pink', label: '自定义渠道' },
+  { value: 8, color: 'pink', label: '自定义渠道' },
   {
     value: 22,
     color: 'blue',
