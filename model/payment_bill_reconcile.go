@@ -35,8 +35,8 @@ type PaymentBillReconcile struct {
 	BillDate     string `json:"bill_date" gorm:"type:varchar(16);index"`
 	TradeTime    string `json:"trade_time" gorm:"type:varchar(64);index"`
 
-	ChannelTradeNo      string `json:"channel_trade_no" gorm:"type:varchar(64);index"`
-	MerchantTradeNo     string `json:"merchant_trade_no" gorm:"type:varchar(64);index"`
+	ChannelTradeNo      string `json:"channel_trade_no" gorm:"type:varchar(128);index"`
+	MerchantTradeNo     string `json:"merchant_trade_no" gorm:"type:varchar(128);index"`
 	TradeType           string `json:"trade_type" gorm:"type:varchar(64)"`
 	ChannelStatus       string `json:"channel_status" gorm:"type:varchar(64);index"`
 	ChannelRefundStatus string `json:"channel_refund_status" gorm:"type:varchar(64)"`
@@ -173,6 +173,7 @@ func UpsertPaymentBillReconciles(rows []*PaymentBillReconcile) (int64, error) {
 	return tx.RowsAffected, tx.Error
 }
 
+// buildPaymentBillReconcileQuery 构建支付对账查询语句
 func buildPaymentBillReconcileQuery(channelType string, filter *PaymentBillReconcileFilter) *gorm.DB {
 	query := DB.Model(&PaymentBillReconcile{}).Where("channel_type = ?", strings.TrimSpace(channelType))
 	if filter == nil {
@@ -223,9 +224,11 @@ func parsePaymentBillAmount(text string) float64 {
 // GetPaymentBillReconciles 查询某渠道的对账分页列表。
 func GetPaymentBillReconciles(channelType string, pageInfo *common.PageInfo, filter *PaymentBillReconcileFilter) ([]*PaymentBillReconcile, int64, error) {
 	var (
-		rows  []*PaymentBillReconcile
-		total int64
+		rows  []*PaymentBillReconcile // 对账记录列表
+		total int64                   // 总记录数
 	)
+
+	// 构建查询
 	query := buildPaymentBillReconcileQuery(channelType, filter)
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -302,6 +305,7 @@ func GetAllPaymentBillReconciles(channelType string, filter *PaymentBillReconcil
 
 // DeletePaymentBillReconcilesByChannelAndBillDate 按渠道和账单日期删除对账结果。
 func DeletePaymentBillReconcilesByChannelAndBillDate(channelType string, billDate string) error {
+	// 清空渠道账单对账记录
 	return DB.Where("channel_type = ? AND bill_date = ?", channelType, billDate).Delete(&PaymentBillReconcile{}).Error
 }
 
