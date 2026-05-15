@@ -116,6 +116,10 @@ func normalizeProviderDomainStatus(status int) int {
 	return model.ProviderDomainStatusPending
 }
 
+func validateProviderRebateRatio(ratio float64) bool {
+	return ratio >= 0 && ratio <= 100
+}
+
 func buildProviderAdminResponses(providers []model.Provider, withPricing bool) ([]providerAdminResponse, error) {
 	responses := make([]providerAdminResponse, 0, len(providers))
 	if len(providers) == 0 {
@@ -535,6 +539,10 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 	if req.Ratio == 0 {
 		req.Ratio = 1
 	}
+	if !validateProviderRebateRatio(req.ConsumeRebateRatioLevel1) || !validateProviderRebateRatio(req.ConsumeRebateRatioLevel2) {
+		common.ApiErrorMsg(c, "consume rebate ratio must be between 0 and 100")
+		return
+	}
 	if req.Id == 0 {
 		if err := model.DB.Create(&req).Error; err != nil {
 			common.ApiError(c, err)
@@ -546,14 +554,16 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 	if err := model.DB.Model(&model.ProviderModelPricing{}).
 		Where("id = ? AND provider_id = ?", req.Id, providerId).
 		Updates(map[string]interface{}{
-			"public_model_name": req.PublicModelName,
-			"base_model_name":   req.BaseModelName,
-			"enabled":           req.Enabled,
-			"pricing_type":      req.PricingType,
-			"ratio":             req.Ratio,
-			"delta_model_ratio": req.DeltaModelRatio,
-			"delta_model_price": req.DeltaModelPrice,
-			"updated_at":        common.GetTimestamp(),
+			"public_model_name":           req.PublicModelName,
+			"base_model_name":             req.BaseModelName,
+			"enabled":                     req.Enabled,
+			"pricing_type":                req.PricingType,
+			"ratio":                       req.Ratio,
+			"delta_model_ratio":           req.DeltaModelRatio,
+			"delta_model_price":           req.DeltaModelPrice,
+			"consume_rebate_ratio_level1": req.ConsumeRebateRatioLevel1,
+			"consume_rebate_ratio_level2": req.ConsumeRebateRatioLevel2,
+			"updated_at":                  common.GetTimestamp(),
 		}).Error; err != nil {
 		common.ApiError(c, err)
 		return
