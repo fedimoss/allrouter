@@ -1,3 +1,5 @@
+// Package controller 提供加密货币订阅支付相关的 HTTP 接口处理。
+// 包含下单（SubscriptionRequestCryptoPay）和确认（SubscriptionRequestCryptoConfirm）两个核心接口。
 package controller
 
 import (
@@ -89,13 +91,14 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 		}
 	}
 
-	// 获取用户的展示币种：根据时区确定，未设置时区默认 "America/New_York" → USD
+	// 以下为已注释的展示币种自动推断逻辑（保留供后续参考）：
+	// 根据用户时区确定展示币种，未设置时区默认 "America/New_York" → USD
 	// displayCurrency := model.GetDisplayCurrencyInfoByTimezone(user.Timezone).Currency
 	// if displayCurrency == "" {
 	// 	displayCurrency = model.GetDisplayCurrencyInfoByTimezone("America/New_York").Currency
 	// }
 
-	// 币种符号：USD → $，CNY → ￥
+	// 币种符号映射：USD → $，CNY → ￥
 	currencySymbol := "$"
 	if strings.EqualFold(plan.Currency, "CNY") {
 		currencySymbol = "￥"
@@ -233,6 +236,10 @@ func SubscriptionRequestCryptoConfirm(c *gin.Context) {
 	defer UnlockOrder(tradeNo)
 	// 完成订阅订单，激活用户订阅
 	if err := model.CompleteSubscriptionOrder(tradeNo, txHash, PaymentMethodCrypto); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.CompleteCryptoTransaction(tradeNo, txHash, transfer.From, transfer.BlockNumber, transfer.Confirmations); err != nil {
 		common.ApiError(c, err)
 		return
 	}

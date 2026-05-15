@@ -150,7 +150,9 @@ func formatTimestampText(ts int64) string {
 }
 
 func formatMoneyText(amount float64) string {
-	return fmt.Sprintf("%.2f", amount)
+	// return fmt.Sprintf("%.2f", amount)
+	// 不再保留小数位, 会影响金额显示
+	return strconv.FormatFloat(amount, 'f', -1, 64)
 }
 
 func getLocalTradeStatusText(status string) string {
@@ -231,6 +233,8 @@ func getWechatTradeBillLocalTypeText(localType string) string {
 		return "充值订单"
 	case "subscription":
 		return "订阅订单"
+	case "crypto":
+		return "加密货币"
 	default:
 		return strings.TrimSpace(localType)
 	}
@@ -248,6 +252,8 @@ func getWechatTradeBillPaymentMethodText(method string) string {
 		return "Creem"
 	case "waffo":
 		return "Waffo"
+	case "crypto":
+		return "加密货币"
 	default:
 		return strings.TrimSpace(method)
 	}
@@ -335,6 +341,9 @@ func (s *WechatTradeBillQueryService) GetDashboard(filter *WechatTradeBillListFi
 	// stripe 分支
 	case "stripe":
 		return s.getStripeDashboard(filter, userId)
+	// crypto 分支
+	case "crypto":
+		return s.getCryptoDashboard(filter)
 	// wxpay 分支
 	default:
 		return s.getWechatDashboard(filter)
@@ -348,6 +357,15 @@ func (s *WechatTradeBillQueryService) getWechatDashboard(filter *WechatTradeBill
 		return nil, err
 	}
 	return buildDashboardResponse(overview, "¥"), nil
+}
+
+// getCryptoDashboard 加密货币支付 dashboard，币种统一为 USDT，不做汇率换算。
+func (s *WechatTradeBillQueryService) getCryptoDashboard(filter *WechatTradeBillListFilter) (*WechatTradeBillDashboardResponse, error) {
+	overview, err := model.GetPaymentBillReconcileOverview(model.PaymentChannelTypeCrypto, normalizeWechatTradeBillListFilter(filter))
+	if err != nil {
+		return nil, err
+	}
+	return buildDashboardResponse(overview, "USDT"), nil
 }
 
 // getStripeDashboard Stripe 支付 dashboard，按当前管理员的时区确定目标币种，统一换算后汇总。
@@ -489,6 +507,9 @@ func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter 
 	// Stripe 分支
 	case "stripe":
 		rows, total, err = model.GetPaymentBillReconciles(model.PaymentChannelTypeStripe, pageInfo, normalizeWechatTradeBillListFilter(filter))
+	// Crypto 分支
+	case "crypto":
+		rows, total, err = model.GetPaymentBillReconciles(model.PaymentChannelTypeCrypto, pageInfo, normalizeWechatTradeBillListFilter(filter))
 	// wxpay 分支
 	default:
 		rows, total, err = model.GetPaymentBillReconciles(model.PaymentChannelTypeWechat, pageInfo, normalizeWechatTradeBillListFilter(filter))
@@ -671,8 +692,11 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 			localRecord.SystemTradeNo = topup.TradeNo
 			localRecord.Status = topup.Status
 			localRecord.StatusText = getLocalTradeStatusText(topup.Status)
-			localRecord.RequestedAmount = topup.OriginalMoney
-			localRecord.RequestedAmountText = formatMoneyText(topup.OriginalMoney)
+			// crypto 支付：reconcile.LocalAmount 已经是实际 USDT 金额，不需要用 topup.OriginalMoney 覆盖
+			if reconcile.LocalPaymentMethod != model.PaymentChannelTypeCrypto {
+				localRecord.RequestedAmount = topup.OriginalMoney
+				localRecord.RequestedAmountText = formatMoneyText(topup.OriginalMoney)
+			}
 			localRecord.CreateTime = topup.CreateTime
 			localRecord.CreateTimeText = formatTimestampText(topup.CreateTime)
 			localRecord.CompleteTime = topup.CompleteTime
@@ -684,8 +708,11 @@ func (s *WechatTradeBillQueryService) GetDetail(id int) (*WechatTradeBillDetailR
 			localRecord.SystemTradeNo = order.TradeNo
 			localRecord.Status = order.Status
 			localRecord.StatusText = getLocalTradeStatusText(order.Status)
-			localRecord.RequestedAmount = order.OriginalMoney
-			localRecord.RequestedAmountText = formatMoneyText(order.OriginalMoney)
+			// crypto 支付：reconcile.LocalAmount 已经是实际 USDT 金额，不需要用 order.OriginalMoney 覆盖
+			if reconcile.LocalPaymentMethod != model.PaymentChannelTypeCrypto {
+				localRecord.RequestedAmount = order.OriginalMoney
+				localRecord.RequestedAmountText = formatMoneyText(order.OriginalMoney)
+			}
 			localRecord.CreateTime = order.CreateTime
 			localRecord.CreateTimeText = formatTimestampText(order.CreateTime)
 			localRecord.CompleteTime = order.CompleteTime

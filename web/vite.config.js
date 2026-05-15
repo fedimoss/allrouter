@@ -102,6 +102,10 @@ export default defineConfig({
         target: 'http://192.168.0.228:3000',
         changeOrigin: true,
       },
+      '/static': {
+        target: 'http://192.168.0.222:3000',
+        changeOrigin: true,
+      },
     },
   },
 });

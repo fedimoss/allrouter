@@ -1,7 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button, DatePicker, Input, Pagination, Table, Tag, Typography } from '@douyinfe/semi-ui';
+import {
+  Button,
+  DatePicker,
+  Input,
+  Pagination,
+  Table,
+  Tag,
+  Typography,
+} from '@douyinfe/semi-ui';
 import { IconFilter, IconRefresh, IconSearch } from '@douyinfe/semi-icons';
-import { BadgeCheck, CircleAlert, CircleCheckBig, SquareKanban, ShieldCheck } from 'lucide-react';
+import {
+  BadgeCheck,
+  CircleAlert,
+  CircleCheckBig,
+  Coins,
+  SquareKanban,
+  ShieldCheck,
+} from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
@@ -12,25 +27,73 @@ import ReconciliationDetailSheet from './ReconciliationDetailSheet';
 import weChatImg from '../../../public/WeChat.png';
 import stripeImg from '../../../public/stripe.png';
 
-
 const { Text } = Typography;
 
 const PAYMENT_METHODS = {
   wxpay: 'wxpay',
   stripe: 'stripe',
+  crypto: 'crypto',
 };
 
+const PAYMENT_METHOD_TABS = [
+  { key: PAYMENT_METHODS.wxpay, label: '微信支付' },
+  { key: PAYMENT_METHODS.stripe, label: 'Stripe' },
+  { key: PAYMENT_METHODS.crypto, label: '加密货币' },
+];
+
 const CARD_META = [
-  { key: 'total', title: '充值订单总额', desc: '系统生成订单的总金额', tone: 'normal', icon: SquareKanban },
-  { key: 'success', title: '支付成功总数', desc: '微信/Stripe确认收到单子', tone: 'normal', icon: ShieldCheck },
-  { key: 'matched', title: '对账一致（平账）', desc: '正常', tone: 'success', icon: ShieldCheck },
-  { key: 'abnormal', title: '对账异常', desc: '需要人工处理', tone: 'danger', icon: CircleAlert, dangerIconText: '!' },
-  { key: 'abnormalAmount', title: '异常涉及总金额', desc: '', tone: 'danger-soft', icon: CircleAlert, dangerIconText: '¥' },
+  {
+    key: 'total',
+    title: '充值订单总额',
+    desc: '系统生成订单的总金额',
+    tone: 'normal',
+    icon: SquareKanban,
+  },
+  {
+    key: 'success',
+    title: '支付成功总数',
+    desc: '支付渠道确认收到单子',
+    tone: 'normal',
+    icon: ShieldCheck,
+  },
+  {
+    key: 'matched',
+    title: '对账一致（平账）',
+    desc: '正常',
+    tone: 'success',
+    icon: ShieldCheck,
+  },
+  {
+    key: 'abnormal',
+    title: '对账异常',
+    desc: '需要人工处理',
+    tone: 'danger',
+    icon: CircleAlert,
+    dangerIconText: '!',
+  },
+  {
+    key: 'abnormalAmount',
+    title: '异常涉及总金额',
+    desc: '',
+    tone: 'danger-soft',
+    icon: CircleAlert,
+    dangerIconText: '¥',
+  },
 ];
 
 const statusMap = {
-  matched: { text: '一致', bg: '#D9F3E8', color: '#09CC73', icon: CircleCheckBig },
-  abnormal: { text: '异常', bg: '#F9E7E7', color: '#FF4D4F', icon: CircleAlert },
+  matched: {
+    text: '一致',
+    bg: '#D9F3E8',
+    color: '#09CC73',
+    icon: CircleCheckBig,
+  },
+  abnormal: {
+    text: '异常',
+    bg: '#F9E7E7',
+    color: '#FF4D4F',
+    icon: CircleAlert,
+  },
 };
 
 const cardClass = {
@@ -40,7 +103,9 @@ const cardClass = {
   'danger-soft': 'border-[#FF4D4F] bg-[#FDF2F2] dark:bg-rose-900/10',
 };
 
-const HeaderText = ({ children }) => <span className='text-[13px] font-medium text-[#93A5BD]'>{children}</span>;
+const HeaderText = ({ children }) => (
+  <span className='text-[13px] font-medium text-[#93A5BD]'>{children}</span>
+);
 
 const formatDate = (value) => dayjs(value).format('YYYY-MM-DD');
 
@@ -49,7 +114,8 @@ const buildDateQuery = (dateValue) => {
   return `&bill_date=${encodeURIComponent(formatDate(dateValue))}`;
 };
 
-const buildPaymentMethodQuery = (paymentMethod) => `payment_method=${encodeURIComponent(paymentMethod || PAYMENT_METHODS.wxpay)}`;
+const buildPaymentMethodQuery = (paymentMethod) =>
+  `payment_method=${encodeURIComponent(paymentMethod || PAYMENT_METHODS.wxpay)}`;
 
 const renderLocalType = (localType, t) => {
   if (localType === 'subscription') return t('订阅');
@@ -165,17 +231,38 @@ const PayReconciliationList = () => {
   }, [page]);
 
   const summaryCards = useMemo(() => {
-    const totalAmount = Number(stat.total_amount || 0).toFixed(2);
-    const abnormalAmount = Number(stat.abnormal_amount || 0).toFixed(2);
+    const formatAmount = (value) => {
+      const rawValue = value ?? 0;
+      if (channelTab === PAYMENT_METHODS.crypto) {
+        return `${rawValue}`;
+      }
+      return Number(rawValue).toFixed(2);
+    };
+
     return CARD_META.map((m) => {
-      if (m.key === 'total') return { ...m, value: `${stat.currency_symbol} ${totalAmount}` };
-      if (m.key === 'success') return { ...m, value: `${stat.payment_success_count || 0}`, unit: t('笔') };
-      if (m.key === 'matched') return { ...m, value: `${stat.matched_count || 0}`, unit: t('笔') };
-      if (m.key === 'abnormal') return { ...m, value: `${stat.abnormal_count || 0}`, unit: t('笔') };
-      if (m.key === 'abnormalAmount') return { ...m, value: `${stat.currency_symbol} ${abnormalAmount}` };
+      if (m.key === 'total')
+        return {
+          ...m,
+          value: `${stat.currency_symbol} ${formatAmount(stat.total_amount)}`,
+        };
+      if (m.key === 'success')
+        return {
+          ...m,
+          value: `${stat.payment_success_count || 0}`,
+          unit: t('笔'),
+        };
+      if (m.key === 'matched')
+        return { ...m, value: `${stat.matched_count || 0}`, unit: t('笔') };
+      if (m.key === 'abnormal')
+        return { ...m, value: `${stat.abnormal_count || 0}`, unit: t('笔') };
+      if (m.key === 'abnormalAmount')
+        return {
+          ...m,
+          value: `${stat.currency_symbol} ${formatAmount(stat.abnormal_amount)}`,
+        };
       return m;
     });
-  }, [stat, t]);
+  }, [channelTab, stat, t]);
 
   const columns = useMemo(
     () => [
@@ -189,7 +276,10 @@ const PayReconciliationList = () => {
           const cfg = statusMap[normalized] || statusMap.matched;
           const Icon = cfg.icon;
           return (
-            <Tag className='!border-0 !rounded-[10px] !px-[12px] !h-[34px] !inline-flex !items-center' style={{ background: cfg.bg, color: cfg.color }}>
+            <Tag
+              className='!border-0 !rounded-[10px] !px-[12px] !h-[34px] !inline-flex !items-center'
+              style={{ background: cfg.bg, color: cfg.color }}
+            >
               <span className='inline-flex items-center gap-1.5 text-[13px] leading-none font-semibold'>
                 <Icon size={13} />
                 {record?.status_text || cfg.text}
@@ -211,7 +301,8 @@ const PayReconciliationList = () => {
         key: 'local_id',
         width: 100,
         render: (v) => {
-          if (v === 0 || v === '0' || v === null || typeof v === 'undefined') return '-';
+          if (v === 0 || v === '0' || v === null || typeof v === 'undefined')
+            return '-';
           return v;
         },
       },
@@ -235,16 +326,40 @@ const PayReconciliationList = () => {
         key: 'payment_method_text',
         width: 145,
         render: (text, record) => {
-          const isStripe = record?.payment_method === PAYMENT_METHODS.stripe || text === 'Stripe';
+          const isStripe =
+            record?.payment_method === PAYMENT_METHODS.stripe ||
+            text === 'Stripe';
+          const isCrypto =
+            record?.payment_method === PAYMENT_METHODS.crypto ||
+            text === 'Crypto' ||
+            text === '加密货币';
+          if (isCrypto) {
+            return (
+              <span className='inline-flex items-center gap-2 text-[16px] leading-[22px] text-[#475569] font-medium'>
+                <Coins size={16} className='text-[#F59E0B]' />
+                {text || t('加密货币')}
+              </span>
+            );
+          }
           return (
             <span className='inline-flex items-center gap-2 text-[16px] leading-[22px] text-[#475569] font-medium'>
-              {isStripe ? <img src={stripeImg} alt='Stripe' className='w-4 h-4' /> : <img src={weChatImg} alt='微信支付' className='w-4 h-4' />}
+              {isStripe ? (
+                <img src={stripeImg} alt='Stripe' className='w-4 h-4' />
+              ) : (
+                <img src={weChatImg} alt='微信支付' className='w-4 h-4' />
+              )}
               {text || (isStripe ? 'Stripe' : '微信支付')}
             </span>
           );
         },
       },
-      { title: <HeaderText>{t('支付时间')}</HeaderText>, dataIndex: 'trade_time', key: 'trade_time', width: 170, render: (v) => v || '-' },
+      {
+        title: <HeaderText>{t('支付时间')}</HeaderText>,
+        dataIndex: 'trade_time',
+        key: 'trade_time',
+        width: 170,
+        render: (v) => v || '-',
+      },
       {
         title: <HeaderText>{t('订单类型')}</HeaderText>,
         dataIndex: 'local_type',
@@ -279,42 +394,37 @@ const PayReconciliationList = () => {
   return (
     <div className='min-h-full bg-[#F8FAFC] dark:bg-slate-900'>
       <div className='dark:bg-slate-800'>
-        <h1 className='text-[30px] leading-[45px] font-semibold text-[#475569] dark:text-slate-100'>{t('支付对账')}</h1>
-        <Text className='!text-[16px] !text-[#94A3B8]'>{t('系统账单与支付渠道的账单对比核对')}</Text>
+        <h1 className='text-[30px] leading-[45px] font-semibold text-[#475569] dark:text-slate-100'>
+          {t('支付对账')}
+        </h1>
+        <Text className='!text-[16px] !text-[#94A3B8]'>
+          {t('系统账单与支付渠道的账单对比核对')}
+        </Text>
 
         <div className='mt-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between'>
           <div className='flex flex-wrap items-center gap-4'>
             <div className='inline-flex items-center rounded-[16px] bg-[#fff] p-[5px] gap-[6px] dark:bg-slate-900'>
-              <Button
-                theme='borderless'
-                onClick={() => setChannelTab(PAYMENT_METHODS.wxpay)}
-                style={{
-                  minWidth: 108,
-                  height: 40,
-                  borderRadius: 10,
-                  color: channelTab === PAYMENT_METHODS.wxpay ? '#082E1A' : '#64748B',
-                  background: channelTab === PAYMENT_METHODS.wxpay ? '#F8FAFC' : 'transparent',
-                  fontSize: 14,
-                  fontWeight: channelTab === PAYMENT_METHODS.wxpay ? 600 : 500,
-                }}
-              >
-                {t('微信支付')}
-              </Button>
-              <Button
-                theme='borderless'
-                onClick={() => setChannelTab(PAYMENT_METHODS.stripe)}
-                style={{
-                  minWidth: 108,
-                  height: 40,
-                  borderRadius: 10,
-                  color: channelTab === PAYMENT_METHODS.stripe ? '#082E1A' : '#64748B',
-                  background: channelTab === PAYMENT_METHODS.stripe ? '#F8FAFC' : 'transparent',
-                  fontSize: 14,
-                  fontWeight: channelTab === PAYMENT_METHODS.stripe ? 600 : 500,
-                }}
-              >
-                {t('Stripe')}
-              </Button>
+              {PAYMENT_METHOD_TABS.map((tab) => {
+                const active = channelTab === tab.key;
+                return (
+                  <Button
+                    key={tab.key}
+                    theme='borderless'
+                    onClick={() => setChannelTab(tab.key)}
+                    style={{
+                      minWidth: 108,
+                      height: 40,
+                      borderRadius: 10,
+                      color: active ? '#082E1A' : '#64748B',
+                      background: active ? '#F8FAFC' : 'transparent',
+                      fontSize: 14,
+                      fontWeight: active ? 600 : 500,
+                    }}
+                  >
+                    {t(tab.label)}
+                  </Button>
+                );
+              })}
             </div>
             <DatePicker
               size='large'
@@ -362,9 +472,22 @@ const PayReconciliationList = () => {
         {summaryCards.map((card) => {
           const Icon = card.icon;
           return (
-            <div key={card.key} className={`min-h-[148px] rounded-2xl border p-5 ${cardClass[card.tone]}`} style={card.tone.includes('danger') ? { borderColor: '#FF4D4F', background: '#FDF2F2' } : undefined}>
+            <div
+              key={card.key}
+              className={`min-h-[148px] rounded-2xl border p-5 ${cardClass[card.tone]}`}
+              style={
+                card.tone.includes('danger')
+                  ? { borderColor: '#FF4D4F', background: '#FDF2F2' }
+                  : undefined
+              }
+            >
               <div className='flex items-center justify-between'>
-                <span className='text-[14px] font-semibold' style={{ color: card.tone.includes('danger') ? '#FF4D4F' : '#94A3B8' }}>
+                <span
+                  className='text-[14px] font-semibold'
+                  style={{
+                    color: card.tone.includes('danger') ? '#FF4D4F' : '#94A3B8',
+                  }}
+                >
                   {t(card.title)}
                 </span>
                 <span
@@ -377,14 +500,35 @@ const PayReconciliationList = () => {
                         : { background: '#DFF2E8', color: '#09CC73' }
                   }
                 >
-                  {card.tone.includes('danger') ? <span className='text-[16px] leading-none font-bold'>{card.dangerIconText}</span> : <Icon size={20} style={{ color: 'currentColor' }} />}
+                  {card.tone.includes('danger') ? (
+                    <span className='text-[16px] leading-none font-bold'>
+                      {card.dangerIconText}
+                    </span>
+                  ) : (
+                    <Icon size={20} style={{ color: 'currentColor' }} />
+                  )}
                 </span>
               </div>
-              <div className='mt-5 text-[24px] leading-[38px] font-[900]' style={{ color: card.tone.includes('danger') ? '#FF4D4F' : '#475569' }}>
-                {statLoading ? '--' : card.value} <span className='text-[12px] font-[700]' style={{ color: card.tone.includes('danger') ? '#FF4D4F' : '#64748B' }}>{t(card.unit)}</span>
+              <div
+                className='mt-5 text-[24px] leading-[38px] font-[900]'
+                style={{
+                  color: card.tone.includes('danger') ? '#FF4D4F' : '#475569',
+                }}
+              >
+                {statLoading ? '--' : card.value}{' '}
+                <span
+                  className='text-[12px] font-[700]'
+                  style={{
+                    color: card.tone.includes('danger') ? '#FF4D4F' : '#64748B',
+                  }}
+                >
+                  {t(card.unit)}
+                </span>
               </div>
               {card.desc ? (
-                <div className={`mt-3 inline-flex items-center gap-1 text-[12px] ${card.tone === 'danger' ? 'text-[#FF4D4F]' : card.tone === 'success' ? 'text-[#09CC73]' : 'text-[#64748B]'}`}>
+                <div
+                  className={`mt-3 inline-flex items-center gap-1 text-[12px] ${card.tone === 'danger' ? 'text-[#FF4D4F]' : card.tone === 'success' ? 'text-[#09CC73]' : 'text-[#64748B]'}`}
+                >
                   {card.key === 'matched' ? <CircleCheckBig size={12} /> : null}
                   {card.key === 'abnormal' ? <CircleAlert size={12} /> : null}
                   {t(card.desc)}
@@ -397,7 +541,9 @@ const PayReconciliationList = () => {
 
       <div className='rounded-2xl bg-white dark:bg-slate-800 p-8 mt-8'>
         <div className='mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-          <h2 className='text-[20px] leading-[36px] font-[500] text-[#475569] dark:text-slate-100'>{t('对账结果明细列表')}</h2>
+          <h2 className='text-[20px] leading-[36px] font-[500] text-[#475569] dark:text-slate-100'>
+            {t('对账结果明细列表')}
+          </h2>
           <div className='flex items-center gap-2'>
             <Input
               prefix={<IconSearch />}
@@ -425,17 +571,41 @@ const PayReconciliationList = () => {
 
         <div className='overflow-x-auto'>
           <div className='min-w-[1200px]'>
-            <Table columns={columns} dataSource={rows} rowKey='id' pagination={false} loading={listLoading} />
+            <Table
+              columns={columns}
+              dataSource={rows}
+              rowKey='id'
+              pagination={false}
+              loading={listLoading}
+            />
           </div>
         </div>
 
         <div className='mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-          <Text type='tertiary'>{t('显示第 {{start}} - {{end}} 条，共 {{total}} 条', { start, end, total })}</Text>
-          <Pagination total={total} pageSize={pageSize} currentPage={page} onPageChange={setPage} size='small' showQuickJumper showSizeChanger={false} />
+          <Text type='tertiary'>
+            {t('显示第 {{start}} - {{end}} 条，共 {{total}} 条', {
+              start,
+              end,
+              total,
+            })}
+          </Text>
+          <Pagination
+            total={total}
+            pageSize={pageSize}
+            currentPage={page}
+            onPageChange={setPage}
+            size='small'
+            showQuickJumper
+            showSizeChanger={false}
+          />
         </div>
       </div>
 
-      <ReconciliationDetailSheet visible={detailVisible} onClose={() => setDetailVisible(false)} row={activeRow} />
+      <ReconciliationDetailSheet
+        visible={detailVisible}
+        onClose={() => setDetailVisible(false)}
+        row={activeRow}
+      />
     </div>
   );
 };

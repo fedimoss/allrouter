@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	PaymentChannelTypeWechat = "wxpay"
-	PaymentChannelTypeStripe = "stripe"
-	PaymentChannelTypeCrypto = "crypto"
+	PaymentChannelTypeWechat = "wxpay"  // 微信支付
+	PaymentChannelTypeStripe = "stripe" // Stripe 支付
+	PaymentChannelTypeCrypto = "crypto" // 加密货币支付
 )
 
 // PaymentBillRecord 通用支付渠道账单明细表。
@@ -31,8 +31,8 @@ type PaymentBillRecord struct {
 	MchID           string `json:"mch_id" gorm:"type:varchar(64);index"`
 	SubMchID        string `json:"sub_mch_id" gorm:"type:varchar(64)"`
 	DeviceID        string `json:"device_id" gorm:"type:varchar(64)"`
-	ChannelTradeNo  string `json:"channel_trade_no" gorm:"type:varchar(64);index"`
-	MerchantTradeNo string `json:"merchant_trade_no" gorm:"type:varchar(64);index"`
+	ChannelTradeNo  string `json:"channel_trade_no" gorm:"type:varchar(128);index"`
+	MerchantTradeNo string `json:"merchant_trade_no" gorm:"type:varchar(255);index"`
 	PayerID         string `json:"payer_id" gorm:"type:varchar(128)"`
 
 	TradeType        string `json:"trade_type" gorm:"type:varchar(64)"`
@@ -88,15 +88,17 @@ func BatchInsertPaymentBillRecords(rows []*PaymentBillRecord) (int64, error) {
 		return 0, nil
 	}
 
-	batch := make([]PaymentBillRecord, 0, len(rows))
+	batch := make([]PaymentBillRecord, 0, len(rows)) // 批量写入的账单明细
+
+	// 遍历所有账单明细
 	for _, row := range rows {
 		if row == nil {
 			continue
 		}
-		row.ChannelType = strings.TrimSpace(row.ChannelType)
-		row.BillDate = strings.TrimSpace(row.BillDate)
-		row.FilePath = strings.TrimSpace(row.FilePath)
-		row.RowHash = strings.TrimSpace(row.RowHash)
+		row.ChannelType = strings.TrimSpace(row.ChannelType) // 渠道类型
+		row.BillDate = strings.TrimSpace(row.BillDate)       // 账单日期
+		row.FilePath = strings.TrimSpace(row.FilePath)       // 文件路径
+		row.RowHash = strings.TrimSpace(row.RowHash)         // 行哈希
 		if row.ChannelType == "" || row.RowHash == "" {
 			continue
 		}
@@ -109,6 +111,7 @@ func BatchInsertPaymentBillRecords(rows []*PaymentBillRecord) (int64, error) {
 		return 0, nil
 	}
 
+	// 批量写入账单明细，按 channel_type + row_hash 去重
 	tx := DB.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
 			{Name: "channel_type"},
@@ -139,5 +142,6 @@ func GetPaymentBillRecordsByChannelAndBillDateRange(channelType string, billDate
 
 // DeletePaymentBillRecordsByChannelAndBillDate 按渠道和账单日期删除已入库的渠道账单明细。
 func DeletePaymentBillRecordsByChannelAndBillDate(channelType string, billDate string) error {
+	// 清空渠道账单明细
 	return DB.Where("channel_type = ? AND bill_date = ?", channelType, billDate).Delete(&PaymentBillRecord{}).Error
 }

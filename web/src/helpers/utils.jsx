@@ -28,6 +28,9 @@ import {
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 
+const DEFAULT_PUBLIC_BASE_URL = 'https://allrouter.ai';
+const DEFAULT_DOCS_BRAND_NAME_PATTERN = /AllRouter(?:\.AI)?/g;
+
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
 };
@@ -56,6 +59,62 @@ export function getLogo() {
   let logo = localStorage.getItem('logo');
   if (!logo) return '/logo-white.svg';
   return logo;
+}
+
+export function applyBranding({
+  systemName = getSystemName(),
+  logo = getLogo(),
+} = {}) {
+  if (systemName) {
+    document.title = systemName;
+  }
+
+  if (!logo) return;
+
+  let linkElement = document.querySelector("link[rel~='icon']");
+  if (!linkElement) {
+    linkElement = document.createElement('link');
+    linkElement.rel = 'icon';
+    document.head.appendChild(linkElement);
+  }
+  linkElement.href = logo;
+}
+
+export function getBrowserBaseUrl() {
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return DEFAULT_PUBLIC_BASE_URL;
+  }
+  return window.location.origin;
+}
+
+export function withBrowserBaseUrl(path = '') {
+  if (!path) return getBrowserBaseUrl();
+  return `${getBrowserBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+export function replaceAllRouterBaseUrl(content = '') {
+  if (typeof content !== 'string') return content;
+  return content.replaceAll(DEFAULT_PUBLIC_BASE_URL, getBrowserBaseUrl());
+}
+
+export function replaceAllRouterBrandName(
+  content = '',
+  systemName = getSystemName(),
+) {
+  if (!systemName) return content;
+  if (Array.isArray(content)) {
+    return content.map((item) => replaceAllRouterBrandName(item, systemName));
+  }
+  if (content && typeof content === 'object') {
+    return Object.fromEntries(
+      Object.entries(content).map(([key, value]) => [
+        key,
+        replaceAllRouterBrandName(value, systemName),
+      ]),
+    );
+  }
+  if (typeof content !== 'string') return content;
+  return content.replace(DEFAULT_DOCS_BRAND_NAME_PATTERN, systemName);
 }
 
 export function getUserIdFromLocalStorage() {
@@ -200,7 +259,9 @@ function getUserTimezone() {
       // 如果用户对象中有时区字段且非空，直接返回该时区
       if (user?.timezone) return user.timezone;
     }
-  } catch { /* JSON 解析失败时静默忽略，回退到浏览器本地时区 */ }
+  } catch {
+    /* JSON 解析失败时静默忽略，回退到浏览器本地时区 */
+  }
   // 未登录或未配置时区，返回 undefined
   return undefined;
 }
@@ -212,13 +273,13 @@ export function timestamp2string(timestamp) {
   const timezone = getUserTimezone();
   // 构造 Intl.DateTimeFormat 的格式化选项
   const options = {
-    year: 'numeric',     // 年份完整显示（如 2026）
-    month: '2-digit',    // 月份两位数（如 04）
-    day: '2-digit',      // 日期两位数（如 19）
-    hour: '2-digit',     // 小时两位数（如 08）
-    minute: '2-digit',   // 分钟两位数（如 31）
-    second: '2-digit',   // 秒两位数（如 31）
-    hour12: false,       // 使用 24 小时制
+    year: 'numeric', // 年份完整显示（如 2026）
+    month: '2-digit', // 月份两位数（如 04）
+    day: '2-digit', // 日期两位数（如 19）
+    hour: '2-digit', // 小时两位数（如 08）
+    minute: '2-digit', // 分钟两位数（如 31）
+    second: '2-digit', // 秒两位数（如 31）
+    hour12: false, // 使用 24 小时制
   };
   // 如果用户配置了时区，将其注入格式化选项
   if (timezone) {
@@ -734,7 +795,9 @@ export const calculateModelPrice = ({
         ? formatTokenPrice(inputRatioPriceUSD * Number(record.cache_ratio))
         : null,
       createCachePrice: hasRatioValue(record.create_cache_ratio)
-        ? formatTokenPrice(inputRatioPriceUSD * Number(record.create_cache_ratio))
+        ? formatTokenPrice(
+            inputRatioPriceUSD * Number(record.create_cache_ratio),
+          )
         : null,
       imagePrice: hasRatioValue(record.image_ratio)
         ? formatTokenPrice(inputRatioPriceUSD * Number(record.image_ratio))
@@ -780,11 +843,7 @@ export const calculateModelPrice = ({
   };
 };
 
-export const getModelPriceItems = (
-  priceData,
-  t,
-  quotaDisplayType = 'USD',
-) => {
+export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
   if (priceData.isPerToken) {
     if (quotaDisplayType === 'TOKENS' || priceData.isTokensDisplay) {
       return [
@@ -880,7 +939,10 @@ export const getModelPriceItems = (
         value: priceData.audioOutputPrice,
         suffix: unitSuffix,
       },
-    ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+    ].filter(
+      (item) =>
+        item.value !== null && item.value !== undefined && item.value !== '',
+    );
   }
 
   return [
@@ -890,7 +952,10 @@ export const getModelPriceItems = (
       value: priceData.price,
       suffix: ` / ${t('次')}`,
     },
-  ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+  ].filter(
+    (item) =>
+      item.value !== null && item.value !== undefined && item.value !== '',
+  );
 };
 
 // 格式化价格信息（用于卡片视图）
