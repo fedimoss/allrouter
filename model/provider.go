@@ -60,17 +60,19 @@ type ProviderConfig struct {
 }
 
 type ProviderModelPricing struct {
-	Id              int     `json:"id"`
-	ProviderId      int     `json:"provider_id" gorm:"index;not null;index:idx_provider_public_model,unique"`
-	PublicModelName string  `json:"public_model_name" gorm:"type:varchar(255);not null;index:idx_provider_public_model,unique"`
-	BaseModelName   string  `json:"base_model_name" gorm:"type:varchar(255);not null;index"`
-	Enabled         bool    `json:"enabled" gorm:"default:true;index"`
-	PricingType     string  `json:"pricing_type" gorm:"type:varchar(16);not null;default:'ratio'"`
-	Ratio           float64 `json:"ratio" gorm:"type:decimal(18,8);default:1"`
-	DeltaModelRatio float64 `json:"delta_model_ratio" gorm:"type:decimal(18,8);default:0"`
-	DeltaModelPrice float64 `json:"delta_model_price" gorm:"type:decimal(18,8);default:0"`
-	CreatedAt       int64   `json:"created_at" gorm:"bigint"`
-	UpdatedAt       int64   `json:"updated_at" gorm:"bigint"`
+	Id                       int     `json:"id"`
+	ProviderId               int     `json:"provider_id" gorm:"index;not null;index:idx_provider_public_model,unique"`
+	PublicModelName          string  `json:"public_model_name" gorm:"type:varchar(255);not null;index:idx_provider_public_model,unique"`
+	BaseModelName            string  `json:"base_model_name" gorm:"type:varchar(255);not null;index"`
+	Enabled                  bool    `json:"enabled" gorm:"default:true;index"`
+	PricingType              string  `json:"pricing_type" gorm:"type:varchar(16);not null;default:'ratio'"`
+	Ratio                    float64 `json:"ratio" gorm:"type:decimal(18,8);default:1"`
+	DeltaModelRatio          float64 `json:"delta_model_ratio" gorm:"type:decimal(18,8);default:0"`
+	DeltaModelPrice          float64 `json:"delta_model_price" gorm:"type:decimal(18,8);default:0"`
+	ConsumeRebateRatioLevel1 float64 `json:"consume_rebate_ratio_level1" gorm:"type:decimal(10,6);not null;default:0"`
+	ConsumeRebateRatioLevel2 float64 `json:"consume_rebate_ratio_level2" gorm:"type:decimal(10,6);not null;default:0"`
+	CreatedAt                int64   `json:"created_at" gorm:"bigint"`
+	UpdatedAt                int64   `json:"updated_at" gorm:"bigint"`
 }
 
 type ProviderContext struct {

@@ -97,6 +97,8 @@ const emptyPricing = {
   markup_percent: 0,
   delta_model_ratio: 0,
   delta_model_price: 0,
+  consume_rebate_ratio_level1: 0,
+  consume_rebate_ratio_level2: 0,
 };
 
 const ratioToMarkupPercent = (ratio) => {
@@ -146,7 +148,8 @@ const getPricingFormValues = (pricing) => {
 
 const getOwnerLabel = (user) => {
   if (!user) return '';
-  const name = user.display_name || user.username || user.email || `ID ${user.id}`;
+  const name =
+    user.display_name || user.username || user.email || `ID ${user.id}`;
   const email = user.email ? ` / ${user.email}` : '';
   return `${name}${email} (#${user.id})`;
 };
@@ -283,7 +286,11 @@ const ProviderPage = () => {
 
   useEffect(() => {
     if (providers.length === 0) return;
-    if (currentProvider && providers.some((provider) => provider.id === currentProvider.id)) return;
+    if (
+      currentProvider &&
+      providers.some((provider) => provider.id === currentProvider.id)
+    )
+      return;
     setCurrentProvider(providers[0]);
   }, [providers, currentProvider]);
 
@@ -383,7 +390,10 @@ const ProviderPage = () => {
       showError(t('请先选择实际调用主站模型'));
       return;
     }
-    pricingFormRef.current?.setValue?.('public_model_name', values.base_model_name);
+    pricingFormRef.current?.setValue?.(
+      'public_model_name',
+      values.base_model_name,
+    );
   };
 
   const handleConfigColorPickerChange = (field, value) => {
@@ -503,7 +513,10 @@ const ProviderPage = () => {
           )
         : await API.put(`/api/provider/domains/${editingDomain.id}`, payload)
       : adminMode
-        ? await API.post(`/api/provider/admin/${currentProvider.id}/domains`, payload)
+        ? await API.post(
+            `/api/provider/admin/${currentProvider.id}/domains`,
+            payload,
+          )
         : await API.post('/api/provider/domains', payload);
     if (res.data.success) {
       showSuccess(t('保存成功'));
@@ -548,21 +561,33 @@ const ProviderPage = () => {
       showError(t('模型名称不能为空'));
       return;
     }
-    const nextPricingType = values.pricing_type || pricingType || emptyPricing.pricing_type;
+    const nextPricingType =
+      values.pricing_type || pricingType || emptyPricing.pricing_type;
     const { markup_percent, ...submitValues } = values;
     const payload = {
       ...submitValues,
       id: editingPricing?.id || 0,
       enabled: values.enabled !== false,
       pricing_type: nextPricingType,
-      ratio: nextPricingType === 'ratio' ? markupPercentToRatio(markup_percent) : 1,
-      delta_model_ratio: nextPricingType === 'delta' ? Number(values.delta_model_ratio || 0) : 0,
-      delta_model_price: nextPricingType === 'delta' ? Number(values.delta_model_price || 0) : 0,
+      ratio:
+        nextPricingType === 'ratio' ? markupPercentToRatio(markup_percent) : 1,
+      delta_model_ratio:
+        nextPricingType === 'delta' ? Number(values.delta_model_ratio || 0) : 0,
+      delta_model_price:
+        nextPricingType === 'delta' ? Number(values.delta_model_price || 0) : 0,
+      consume_rebate_ratio_level1: Number(
+        values.consume_rebate_ratio_level1 || 0,
+      ),
+      consume_rebate_ratio_level2: Number(
+        values.consume_rebate_ratio_level2 || 0,
+      ),
     };
     const url = adminMode
       ? `/api/provider/admin/${currentProvider.id}/model_pricing`
       : '/api/provider/model_pricing';
-    const res = payload.id ? await API.put(url, payload) : await API.post(url, payload);
+    const res = payload.id
+      ? await API.put(url, payload)
+      : await API.post(url, payload);
     if (res.data.success) {
       showSuccess(t('保存成功'));
       setPricingModalVisible(false);
@@ -607,7 +632,9 @@ const ProviderPage = () => {
           <Space vertical align='start' spacing={2}>
             <Text strong>{name}</Text>
             {adminMode ? (
-              <Text type='secondary'>Owner User ID: {record.owner_user_id}</Text>
+              <Text type='secondary'>
+                Owner User ID: {record.owner_user_id}
+              </Text>
             ) : null}
           </Space>
         ),
@@ -656,7 +683,10 @@ const ProviderPage = () => {
         dataIndex: 'config',
         render: (config) => (
           <Text>
-            {config?.site_name || config?.logo || config?.theme_color || config?.secondary_color
+            {config?.site_name ||
+            config?.logo ||
+            config?.theme_color ||
+            config?.secondary_color
               ? t('已配置')
               : t('未配置')}
           </Text>
@@ -673,7 +703,11 @@ const ProviderPage = () => {
         width: adminMode ? 360 : 300,
         render: (_, record) => (
           <Space wrap>
-            <Button size='small' icon={<IconEdit />} onClick={() => openProviderModal(record)}>
+            <Button
+              size='small'
+              icon={<IconEdit />}
+              onClick={() => openProviderModal(record)}
+            >
               {t('编辑')}
             </Button>
             <Button size='small' onClick={() => openDomainModal(record)}>
@@ -685,13 +719,19 @@ const ProviderPage = () => {
             <Button size='small' onClick={() => openPricingList(record)}>
               {t('模型定价')}
             </Button>
-            <Button size='small' icon={<IconGiftStroked />} onClick={() => openRewardModal(record)}>
+            <Button
+              size='small'
+              icon={<IconGiftStroked />}
+              onClick={() => openRewardModal(record)}
+            >
               {t('奖励配置')}
             </Button>
             {adminMode ? (
               <Popconfirm
                 title={t('确认禁用该服务商？')}
-                content={t('禁用后该域名不会再解析成服务商站点，历史数据会保留。')}
+                content={t(
+                  '禁用后该域名不会再解析成服务商站点，历史数据会保留。',
+                )}
                 onConfirm={() => disableProvider(record)}
               >
                 <Button size='small' type='danger' icon={<IconDelete />}>
@@ -713,28 +753,46 @@ const ProviderPage = () => {
     {
       title: t('计价方式'),
       dataIndex: 'pricing_type',
-      render: (type) => (type === 'delta' ? t('按固定差价') : t('按百分比加价')),
+      render: (type) =>
+        type === 'delta' ? t('按固定差价') : t('按百分比加价'),
     },
     {
       title: t('加价比例'),
       dataIndex: 'ratio',
-      render: (ratio, record) => (record.pricing_type === 'ratio' ? `${ratioToMarkupPercent(ratio)}%` : '-'),
+      render: (ratio, record) =>
+        record.pricing_type === 'ratio'
+          ? `${ratioToMarkupPercent(ratio)}%`
+          : '-',
     },
     {
       title: t('Token 模型加价倍率'),
       dataIndex: 'delta_model_ratio',
-      render: (value, record) => (record.pricing_type === 'delta' ? value : '-'),
+      render: (value, record) =>
+        record.pricing_type === 'delta' ? value : '-',
     },
     {
       title: t('按次模型加价金额'),
       dataIndex: 'delta_model_price',
-      render: (value, record) => (record.pricing_type === 'delta' ? value : '-'),
+      render: (value, record) =>
+        record.pricing_type === 'delta' ? value : '-',
+    },
+    {
+      title: t('一级消费返佣比例'),
+      dataIndex: 'consume_rebate_ratio_level1',
+      render: (value) => `${Number(value || 0)}%`,
+    },
+    {
+      title: t('二级消费返佣比例'),
+      dataIndex: 'consume_rebate_ratio_level2',
+      render: (value) => `${Number(value || 0)}%`,
     },
     {
       title: t('状态'),
       dataIndex: 'enabled',
       render: (enabled) => (
-        <Tag color={enabled ? 'green' : 'grey'}>{enabled ? t('启用') : t('禁用')}</Tag>
+        <Tag color={enabled ? 'green' : 'grey'}>
+          {enabled ? t('启用') : t('禁用')}
+        </Tag>
       ),
     },
     {
@@ -742,10 +800,17 @@ const ProviderPage = () => {
       width: 160,
       render: (_, record) => (
         <Space>
-          <Button size='small' icon={<IconEdit />} onClick={() => openPricingModal(record)}>
+          <Button
+            size='small'
+            icon={<IconEdit />}
+            onClick={() => openPricingModal(record)}
+          >
             {t('编辑')}
           </Button>
-          <Popconfirm title={t('确认删除？')} onConfirm={() => deletePricing(record)}>
+          <Popconfirm
+            title={t('确认删除？')}
+            onConfirm={() => deletePricing(record)}
+          >
             <Button size='small' type='danger' icon={<IconDelete />} />
           </Popconfirm>
         </Space>
@@ -789,7 +854,11 @@ const ProviderPage = () => {
             {t('刷新')}
           </Button>
           {adminMode ? (
-            <Button type='primary' icon={<IconPlus />} onClick={() => openProviderModal()}>
+            <Button
+              type='primary'
+              icon={<IconPlus />}
+              onClick={() => openProviderModal()}
+            >
               {t('新建服务商')}
             </Button>
           ) : null}
@@ -824,10 +893,16 @@ const ProviderPage = () => {
                 optionList={ownerOptions}
                 filter
                 remote
-                onSearch={(keyword) => fetchOwnerCandidates(keyword, editingProvider)}
+                onSearch={(keyword) =>
+                  fetchOwnerCandidates(keyword, editingProvider)
+                }
                 placeholder={t('搜索用户名、显示名、邮箱或用户 ID')}
               />
-              <Form.Select field='status' label={t('状态')} optionList={STATUS_OPTIONS} />
+              <Form.Select
+                field='status'
+                label={t('状态')}
+                optionList={STATUS_OPTIONS}
+              />
             </>
           ) : null}
         </Form>
@@ -844,8 +919,16 @@ const ProviderPage = () => {
           initValues={editingDomain || emptyDomain}
           getFormApi={(api) => (domainFormRef.current = api)}
         >
-          <Form.Input field='domain' label={t('域名')} placeholder='ai.example.com' />
-          <Form.Select field='status' label={t('状态')} optionList={DOMAIN_STATUS_OPTIONS} />
+          <Form.Input
+            field='domain'
+            label={t('域名')}
+            placeholder='ai.example.com'
+          />
+          <Form.Select
+            field='status'
+            label={t('状态')}
+            optionList={DOMAIN_STATUS_OPTIONS}
+          />
           <Form.Input field='verify_token' label={t('验证标识')} />
         </Form>
       </Modal>
@@ -896,9 +979,15 @@ const ProviderPage = () => {
                 <input
                   aria-label={t('选择主色')}
                   type='color'
-                  value={getColorInputValue(configColors.theme_color, DEFAULT_THEME_PRIMARY_COLOR)}
+                  value={getColorInputValue(
+                    configColors.theme_color,
+                    DEFAULT_THEME_PRIMARY_COLOR,
+                  )}
                   onChange={(event) =>
-                    handleConfigColorPickerChange('theme_color', event.target.value)
+                    handleConfigColorPickerChange(
+                      'theme_color',
+                      event.target.value,
+                    )
                   }
                   style={{
                     width: 30,
@@ -915,7 +1004,9 @@ const ProviderPage = () => {
                     field='theme_color'
                     label={t('主色')}
                     placeholder={DEFAULT_THEME_PRIMARY_COLOR}
-                    onChange={(value) => handleConfigColorInputChange('theme_color', value)}
+                    onChange={(value) =>
+                      handleConfigColorInputChange('theme_color', value)
+                    }
                   />
                 </div>
               </div>
@@ -925,9 +1016,15 @@ const ProviderPage = () => {
                 <input
                   aria-label={t('选择辅色')}
                   type='color'
-                  value={getColorInputValue(configColors.secondary_color, DEFAULT_THEME_SECONDARY_COLOR)}
+                  value={getColorInputValue(
+                    configColors.secondary_color,
+                    DEFAULT_THEME_SECONDARY_COLOR,
+                  )}
                   onChange={(event) =>
-                    handleConfigColorPickerChange('secondary_color', event.target.value)
+                    handleConfigColorPickerChange(
+                      'secondary_color',
+                      event.target.value,
+                    )
                   }
                   style={{
                     width: 30,
@@ -944,7 +1041,9 @@ const ProviderPage = () => {
                     field='secondary_color'
                     label={t('辅色')}
                     placeholder={DEFAULT_THEME_SECONDARY_COLOR}
-                    onChange={(value) => handleConfigColorInputChange('secondary_color', value)}
+                    onChange={(value) =>
+                      handleConfigColorInputChange('secondary_color', value)
+                    }
                   />
                 </div>
               </div>
@@ -960,8 +1059,14 @@ const ProviderPage = () => {
         onCancel={() => setPricingListVisible(false)}
         footer={
           <Space>
-            <Button onClick={() => setPricingListVisible(false)}>{t('关闭')}</Button>
-            <Button type='primary' icon={<IconPlus />} onClick={() => openPricingModal()}>
+            <Button onClick={() => setPricingListVisible(false)}>
+              {t('关闭')}
+            </Button>
+            <Button
+              type='primary'
+              icon={<IconPlus />}
+              onClick={() => openPricingModal()}
+            >
               {t('新增定价')}
             </Button>
           </Space>
@@ -982,15 +1087,23 @@ const ProviderPage = () => {
         visible={pricingModalVisible}
         onCancel={() => setPricingModalVisible(false)}
         onOk={submitPricing}
-        width={720}
+        width={780}
       >
         <Form
           key={editingPricing?.id || `${currentProvider?.id || 0}-new-pricing`}
           initValues={getPricingFormValues(editingPricing)}
           getFormApi={(api) => (pricingFormRef.current = api)}
         >
-          <Form.Input field='public_model_name' label={t('展示给服务商用户的模型名')} />
-          <Button size='small' type='tertiary' onClick={useBaseModelAsPublicName} style={{ marginBottom: 12 }}>
+          <Form.Input
+            field='public_model_name'
+            label={t('展示给服务商用户的模型名')}
+          />
+          <Button
+            size='small'
+            type='tertiary'
+            onClick={useBaseModelAsPublicName}
+            style={{ marginBottom: 12 }}
+          >
             {t('使用实际模型名')}
           </Button>
           <Form.Select
@@ -1004,7 +1117,9 @@ const ProviderPage = () => {
             onChange={handleBaseModelChange}
           />
           <Text type='tertiary' size='small'>
-            {t('这里只能选择主站当前已启用渠道支持的模型，避免手动填写错误导致服务商用户调用失败。')}
+            {t(
+              '这里只能选择主站当前已启用渠道支持的模型，避免手动填写错误导致服务商用户调用失败。',
+            )}
           </Text>
           <Form.Switch field='enabled' label={t('启用')} />
           <Form.Select
@@ -1025,20 +1140,69 @@ const ProviderPage = () => {
           />
           {pricingType === 'ratio' ? (
             <>
-              <Form.InputNumber field='markup_percent' label={t('加价比例')} min={0} step={1} suffix='%' />
+              <Form.InputNumber
+                field='markup_percent'
+                label={t('加价比例')}
+                min={0}
+                step={1}
+                suffix='%'
+              />
               <Text type='tertiary' size='small'>
-                {t('填 20 表示在主站成本价基础上加价 20%，系统保存时会自动换算为 1.2 倍；填 0 表示不加价。')}
+                {t(
+                  '填 20 表示在主站成本价基础上加价 20%，系统保存时会自动换算为 1.2 倍；填 0 表示不加价。',
+                )}
               </Text>
             </>
           ) : (
             <>
-              <Form.InputNumber field='delta_model_ratio' label={t('Token 模型加价倍率')} step={0.01} />
-              <Form.InputNumber field='delta_model_price' label={t('按次模型加价金额')} step={0.000001} />
+              <Form.InputNumber
+                field='delta_model_ratio'
+                label={t('Token 模型加价倍率')}
+                step={0.01}
+              />
+              <Form.InputNumber
+                field='delta_model_price'
+                label={t('按次模型加价金额')}
+                step={0.000001}
+              />
               <Text type='tertiary' size='small'>
-                {t('按 token 计费的模型看“Token 模型加价倍率”；按次、按张、按任务计费的模型看“按次模型加价金额”。填 0 表示不额外加价。')}
+                {t(
+                  '按 token 计费的模型看“Token 模型加价倍率”；按次、按张、按任务计费的模型看“按次模型加价金额”。填 0 表示不额外加价。',
+                )}
               </Text>
             </>
           )}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: 12,
+            }}
+          >
+            <Form.InputNumber
+              field='consume_rebate_ratio_level1'
+              label={t('一级消费返佣比例')}
+              min={0}
+              max={100}
+              step={0.01}
+              precision={6}
+              suffix='%'
+            />
+            <Form.InputNumber
+              field='consume_rebate_ratio_level2'
+              label={t('二级消费返佣比例')}
+              min={0}
+              max={100}
+              step={0.01}
+              precision={6}
+              suffix='%'
+            />
+          </div>
+          <Text type='tertiary' size='small'>
+            {t(
+              '消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生对应层级返佣。',
+            )}
+          </Text>
         </Form>
       </Modal>
 
@@ -1048,7 +1212,6 @@ const ProviderPage = () => {
         adminMode={adminMode}
         onClose={() => setRewardModalVisible(false)}
       />
-
     </div>
   );
 };

@@ -396,7 +396,7 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 			err = decreaseErr
 			if err == nil && breakdown.PaidUsed > 0 {
 				rebateRequestId := fmt.Sprintf("%s:post:%s", relayInfo.RequestId, common.GetRandomString(8))
-				if _, _, rebateErr := model.ApplyInviteConsumeRebate(relayInfo.UserId, rebateRequestId, breakdown.PaidUsed); rebateErr != nil {
+				if _, _, rebateErr := model.ApplyInviteConsumeRebate(relayInfo.UserId, rebateRequestId, breakdown.PaidUsed, consumeRebateContextFromRelay(nil, relayInfo)); rebateErr != nil {
 					common.SysLog("error applying consume rebate: " + rebateErr.Error())
 				}
 			}

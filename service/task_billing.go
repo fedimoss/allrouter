@@ -102,13 +102,29 @@ func taskAdjustFunding(task *model.Task, delta int) error {
 		}
 		if breakdown.PaidUsed > 0 {
 			rebateRequestId := fmt.Sprintf("%s:adjust:%s", task.TaskID, common.GetRandomString(8))
-			if _, _, rebateErr := model.ApplyInviteConsumeRebate(task.UserId, rebateRequestId, breakdown.PaidUsed); rebateErr != nil {
+			if _, _, rebateErr := model.ApplyInviteConsumeRebate(task.UserId, rebateRequestId, breakdown.PaidUsed, consumeRebateContextFromTask(task)); rebateErr != nil {
 				logger.LogWarn(context.Background(), fmt.Sprintf("消费返利失败 task %s: %s", task.TaskID, rebateErr.Error()))
 			}
 		}
 		return nil
 	}
 	return model.IncreaseUserQuota(task.UserId, -delta, false)
+}
+
+func consumeRebateContextFromTask(task *model.Task) *model.ConsumeRebateContext {
+	if task == nil || task.PrivateData.BillingContext == nil {
+		return nil
+	}
+	bc := task.PrivateData.BillingContext
+	if bc.ProviderId <= 0 || bc.ProviderPublicModel == "" {
+		return nil
+	}
+	return &model.ConsumeRebateContext{
+		ProviderId:        bc.ProviderId,
+		ProviderPricingId: bc.ProviderPricingId,
+		PublicModelName:   bc.ProviderPublicModel,
+		BaseModelName:     bc.ProviderBaseModel,
+	}
 }
 
 // taskAdjustTokenQuota 调整任务的令牌额度，delta > 0 表示扣费，delta < 0 表示退还。
@@ -145,6 +161,12 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 			for k, v := range bc.OtherRatios {
 				other[k] = v
 			}
+		}
+		if bc.ProviderId > 0 {
+			other["provider_id"] = bc.ProviderId
+			other["provider_pricing_id"] = bc.ProviderPricingId
+			other["provider_public_model"] = bc.ProviderPublicModel
+			other["provider_base_model"] = bc.ProviderBaseModel
 		}
 	}
 	props := task.Properties
