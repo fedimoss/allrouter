@@ -36,12 +36,7 @@ import {
   IconSettingStroked,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
-import {
-  API,
-  renderQuota,
-  showError,
-  showSuccess,
-} from '../../helpers';
+import { API, renderQuota, showError, showSuccess } from '../../helpers';
 import {
   displayAmountToQuota,
   quotaToDisplayAmount,
@@ -58,8 +53,6 @@ const emptyConfig = {
   checkin_enabled: false,
   checkin_min_quota: 0,
   checkin_max_quota: 0,
-  invite_topup_rebate_ratio: 0,
-  invite_consume_rebate_ratio_level2: 0,
 };
 
 const quotaFields = [
@@ -73,7 +66,9 @@ const quotaFields = [
 const toFormValues = (config) => {
   const values = { ...emptyConfig, ...(config || {}) };
   quotaFields.forEach(([quotaKey, amountKey]) => {
-    values[amountKey] = Number(quotaToDisplayAmount(values[quotaKey] || 0).toFixed(6));
+    values[amountKey] = Number(
+      quotaToDisplayAmount(values[quotaKey] || 0).toFixed(6),
+    );
   });
   return values;
 };
@@ -85,10 +80,6 @@ const toPayload = (values, config) => {
     delete payload[amountKey];
   });
   payload.checkin_enabled = payload.checkin_enabled === true;
-  payload.invite_topup_rebate_ratio = Number(payload.invite_topup_rebate_ratio || 0);
-  payload.invite_consume_rebate_ratio_level2 = Number(
-    payload.invite_consume_rebate_ratio_level2 || 0,
-  );
   return payload;
 };
 
@@ -111,7 +102,13 @@ const Metric = ({ label, value, strong }) => (
   </div>
 );
 
-const ProviderRewardModal = ({ visible, provider, adminMode, onClose, embedded = false }) => {
+const ProviderRewardModal = ({
+  visible,
+  provider,
+  adminMode,
+  onClose,
+  embedded = false,
+}) => {
   const { t } = useTranslation();
   const formRef = useRef(null);
   const [activeTab, setActiveTab] = useState('config');
@@ -240,7 +237,7 @@ const ProviderRewardModal = ({ visible, provider, adminMode, onClose, embedded =
 
   return (
     <Modal
-      title={`${provider?.name || t('服务商')} - ${t('奖励商业化')}`}
+      title={`${provider?.name || t('服务商')} - ${t('奖励配置')}`}
       visible={visible}
       onCancel={onClose}
       footer={
@@ -305,23 +302,10 @@ const ProviderRewardModal = ({ visible, provider, adminMode, onClose, embedded =
                   step={0.01}
                   precision={6}
                 />
-                <Form.InputNumber
-                  field='invite_topup_rebate_ratio'
-                  label={t('一级消费返利比例')}
-                  min={0}
-                  step={0.01}
-                  precision={6}
-                  suffix='%'
+                <Form.Switch
+                  field='checkin_enabled'
+                  label={t('启用签到奖励')}
                 />
-                <Form.InputNumber
-                  field='invite_consume_rebate_ratio_level2'
-                  label={t('二级消费返利比例')}
-                  min={0}
-                  step={0.01}
-                  precision={6}
-                  suffix='%'
-                />
-                <Form.Switch field='checkin_enabled' label={t('启用签到奖励')} />
                 <Form.InputNumber
                   field='checkin_min_quota_amount'
                   label={t('签到最小奖励')}
@@ -339,7 +323,7 @@ const ProviderRewardModal = ({ visible, provider, adminMode, onClose, embedded =
               </div>
             </Form>
             <Text type='secondary'>
-              {t('金额输入会按当前额度显示设置换算为系统原始 quota；返利比例单位为百分比。')}
+              {t('金额输入会按当前额度显示设置换算为系统原始 quota。')}
             </Text>
           </TabPane>
 
@@ -362,7 +346,11 @@ const ProviderRewardModal = ({ visible, provider, adminMode, onClose, embedded =
             >
               <Metric
                 label={t('服务商 ID')}
-                value={<Tag color='blue'>{summary.provider_id || provider?.id || '-'}</Tag>}
+                value={
+                  <Tag color='blue'>
+                    {summary.provider_id || provider?.id || '-'}
+                  </Tag>
+                }
               />
               <Metric
                 label={t('累计奖励支出')}

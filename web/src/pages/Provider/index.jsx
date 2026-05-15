@@ -99,6 +99,8 @@ const emptyPricing = {
   markup_percent: 0,
   delta_model_ratio: 0,
   delta_model_price: 0,
+  consume_rebate_ratio_level1: 0,
+  consume_rebate_ratio_level2: 0,
 };
 
 const ratioToMarkupPercent = (ratio) => {
@@ -619,6 +621,12 @@ const ProviderPage = () => {
         nextPricingType === 'delta' ? Number(values.delta_model_ratio || 0) : 0,
       delta_model_price:
         nextPricingType === 'delta' ? Number(values.delta_model_price || 0) : 0,
+      consume_rebate_ratio_level1: Number(
+        values.consume_rebate_ratio_level1 || 0,
+      ),
+      consume_rebate_ratio_level2: Number(
+        values.consume_rebate_ratio_level2 || 0,
+      ),
     };
     const url = adminMode
       ? `/api/provider/admin/${currentProvider.id}/model_pricing`
@@ -815,6 +823,16 @@ const ProviderPage = () => {
       dataIndex: 'delta_model_price',
       render: (value, record) =>
         record.pricing_type === 'delta' ? value : '-',
+    },
+    {
+      title: t('一级消费返佣比例'),
+      dataIndex: 'consume_rebate_ratio_level1',
+      render: (value) => `${Number(value || 0)}%`,
+    },
+    {
+      title: t('二级消费返佣比例'),
+      dataIndex: 'consume_rebate_ratio_level2',
+      render: (value) => `${Number(value || 0)}%`,
     },
     {
       title: t('状态'),
@@ -1150,7 +1168,7 @@ const ProviderPage = () => {
         visible={pricingModalVisible}
         onCancel={() => setPricingModalVisible(false)}
         onOk={submitPricing}
-        width={720}
+        width={780}
       >
         <Form
           key={editingPricing?.id || `${currentProvider?.id || 0}-new-pricing`}
@@ -1235,6 +1253,37 @@ const ProviderPage = () => {
               </Text>
             </>
           )}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: 12,
+            }}
+          >
+            <Form.InputNumber
+              field='consume_rebate_ratio_level1'
+              label={t('一级消费返佣比例')}
+              min={0}
+              max={100}
+              step={0.01}
+              precision={6}
+              suffix='%'
+            />
+            <Form.InputNumber
+              field='consume_rebate_ratio_level2'
+              label={t('二级消费返佣比例')}
+              min={0}
+              max={100}
+              step={0.01}
+              precision={6}
+              suffix='%'
+            />
+          </div>
+          <Text type='tertiary' size='small'>
+            {t(
+              '消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生对应层级返佣。',
+            )}
+          </Text>
         </Form>
       </Modal>
 

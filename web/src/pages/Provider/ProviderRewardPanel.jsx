@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
@@ -17,7 +36,10 @@ import {
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, renderQuota, showError, showSuccess } from '../../helpers';
-import { displayAmountToQuota, quotaToDisplayAmount } from '../../helpers/quota';
+import {
+  displayAmountToQuota,
+  quotaToDisplayAmount,
+} from '../../helpers/quota';
 
 const { Text } = Typography;
 
@@ -30,8 +52,6 @@ const emptyConfig = {
   checkin_enabled: false,
   checkin_min_quota: 0,
   checkin_max_quota: 0,
-  invite_topup_rebate_ratio: 0,
-  invite_consume_rebate_ratio_level2: 0,
 };
 
 const quotaFields = [
@@ -45,7 +65,9 @@ const quotaFields = [
 const toFormValues = (config) => {
   const values = { ...emptyConfig, ...(config || {}) };
   quotaFields.forEach(([quotaKey, amountKey]) => {
-    values[amountKey] = Number(quotaToDisplayAmount(values[quotaKey] || 0).toFixed(6));
+    values[amountKey] = Number(
+      quotaToDisplayAmount(values[quotaKey] || 0).toFixed(6),
+    );
   });
   return values;
 };
@@ -57,10 +79,6 @@ const toPayload = (values, config) => {
     delete payload[amountKey];
   });
   payload.checkin_enabled = payload.checkin_enabled === true;
-  payload.invite_topup_rebate_ratio = Number(payload.invite_topup_rebate_ratio || 0);
-  payload.invite_consume_rebate_ratio_level2 = Number(
-    payload.invite_consume_rebate_ratio_level2 || 0,
-  );
   return payload;
 };
 
@@ -94,7 +112,9 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
 
   const baseUrl = useMemo(() => {
     if (!provider?.id) return '';
-    return adminMode ? `/api/provider/admin/${provider.id}/reward` : '/api/provider/reward';
+    return adminMode
+      ? `/api/provider/admin/${provider.id}/reward`
+      : '/api/provider/reward';
   }, [adminMode, provider?.id]);
 
   const formValues = useMemo(() => toFormValues(config), [config]);
@@ -157,20 +177,52 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
 
   const summaryRows = useMemo(
     () => [
-      { key: 'new_user_quota', label: t('新用户注册奖励'), quota: summary.new_user_quota || 0 },
-      { key: 'invitee_quota', label: t('被邀请人奖励'), quota: summary.invitee_quota || 0 },
-      { key: 'inviter_quota', label: t('邀请人奖励'), quota: summary.inviter_quota || 0 },
-      { key: 'checkin_quota', label: t('签到奖励'), quota: summary.checkin_quota || 0 },
-      { key: 'redemption_quota', label: t('兑换码奖励'), quota: summary.redemption_quota || 0 },
-      { key: 'consume_rebate_quota', label: t('消费返利'), quota: summary.consume_rebate_quota || 0 },
-      { key: 'topup_rebate_quota', label: t('充值返利'), quota: summary.topup_rebate_quota || 0 },
+      {
+        key: 'new_user_quota',
+        label: t('新用户注册奖励'),
+        quota: summary.new_user_quota || 0,
+      },
+      {
+        key: 'invitee_quota',
+        label: t('被邀请人奖励'),
+        quota: summary.invitee_quota || 0,
+      },
+      {
+        key: 'inviter_quota',
+        label: t('邀请人奖励'),
+        quota: summary.inviter_quota || 0,
+      },
+      {
+        key: 'checkin_quota',
+        label: t('签到奖励'),
+        quota: summary.checkin_quota || 0,
+      },
+      {
+        key: 'redemption_quota',
+        label: t('兑换码奖励'),
+        quota: summary.redemption_quota || 0,
+      },
+      {
+        key: 'consume_rebate_quota',
+        label: t('消费返利'),
+        quota: summary.consume_rebate_quota || 0,
+      },
+      {
+        key: 'topup_rebate_quota',
+        label: t('充值返利'),
+        quota: summary.topup_rebate_quota || 0,
+      },
     ],
     [summary, t],
   );
 
   const summaryColumns = [
     { title: t('奖励类型'), dataIndex: 'label' },
-    { title: t('累计额度'), dataIndex: 'quota', render: (quota) => renderQuota(quota) },
+    {
+      title: t('累计额度'),
+      dataIndex: 'quota',
+      render: (quota) => renderQuota(quota),
+    },
   ];
 
   if (!provider?.id) {
@@ -183,11 +235,20 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
 
   return (
     <Spin spinning={loading}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginBottom: 12,
+        }}
+      >
         <div>
           <Text strong>{provider.name}</Text>
           <div>
-            <Tag color='blue'>{t('服务商 ID')} {provider.id}</Tag>
+            <Tag color='blue'>
+              {t('服务商 ID')} {provider.id}
+            </Tag>
           </div>
         </div>
         <Space>
@@ -204,85 +265,132 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
 
       <Tabs type='line' activeKey={activeTab} onChange={setActiveTab}>
         {mode !== 'summary' && (
-        <TabPane
-          itemKey='config'
-          tab={
-            <Space>
-              <IconSettingStroked />
-              {t('奖励配置')}
-            </Space>
-          }
-        >
-          <Form
-            key={`${provider?.id || 0}-${config?.id || 'default'}-reward-config`}
-            initValues={formValues}
-            getFormApi={(api) => (formRef.current = api)}
-            labelPosition='left'
-            labelWidth={160}
+          <TabPane
+            itemKey='config'
+            tab={
+              <Space>
+                <IconSettingStroked />
+                {t('奖励配置')}
+              </Space>
+            }
+          >
+            <Form
+              key={`${provider?.id || 0}-${config?.id || 'default'}-reward-config`}
+              initValues={formValues}
+              getFormApi={(api) => (formRef.current = api)}
+              labelPosition='left'
+              labelWidth={160}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                  columnGap: 24,
+                }}
+              >
+                <Form.InputNumber
+                  field='quota_for_new_user_amount'
+                  label={t('注册赠送')}
+                  min={0}
+                  step={0.01}
+                  precision={6}
+                />
+                <Form.InputNumber
+                  field='quota_for_invitee_amount'
+                  label={t('被邀请人奖励')}
+                  min={0}
+                  step={0.01}
+                  precision={6}
+                />
+                <Form.InputNumber
+                  field='quota_for_inviter_amount'
+                  label={t('邀请人奖励')}
+                  min={0}
+                  step={0.01}
+                  precision={6}
+                />
+                <Form.Switch
+                  field='checkin_enabled'
+                  label={t('启用签到奖励')}
+                />
+                <Form.InputNumber
+                  field='checkin_min_quota_amount'
+                  label={t('签到最小奖励')}
+                  min={0}
+                  step={0.01}
+                  precision={6}
+                />
+                <Form.InputNumber
+                  field='checkin_max_quota_amount'
+                  label={t('签到最大奖励')}
+                  min={0}
+                  step={0.01}
+                  precision={6}
+                />
+              </div>
+            </Form>
+            <Text type='secondary'>
+              {t('金额输入会按当前额度显示设置换算为系统原始 quota。')}
+            </Text>
+          </TabPane>
+        )}
+
+        {mode !== 'config' && (
+          <TabPane
+            itemKey='summary'
+            tab={
+              <Space>
+                <IconHistogram />
+                {t('奖励报表')}
+              </Space>
+            }
           >
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                columnGap: 24,
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: 12,
+                marginBottom: 16,
               }}
             >
-              <Form.InputNumber field='quota_for_new_user_amount' label={t('注册赠送')} min={0} step={0.01} precision={6} />
-              <Form.InputNumber field='quota_for_invitee_amount' label={t('被邀请人奖励')} min={0} step={0.01} precision={6} />
-              <Form.InputNumber field='quota_for_inviter_amount' label={t('邀请人奖励')} min={0} step={0.01} precision={6} />
-              <Form.InputNumber field='invite_topup_rebate_ratio' label={t('一级消费返利比例')} min={0} step={0.01} precision={6} suffix='%' />
-              <Form.InputNumber field='invite_consume_rebate_ratio_level2' label={t('二级消费返利比例')} min={0} step={0.01} precision={6} suffix='%' />
-              <Form.Switch field='checkin_enabled' label={t('启用签到奖励')} />
-              <Form.InputNumber field='checkin_min_quota_amount' label={t('签到最小奖励')} min={0} step={0.01} precision={6} />
-              <Form.InputNumber field='checkin_max_quota_amount' label={t('签到最大奖励')} min={0} step={0.01} precision={6} />
+              <Metric
+                label={t('服务商 ID')}
+                value={
+                  <Tag color='blue'>
+                    {summary.provider_id || provider?.id || '-'}
+                  </Tag>
+                }
+              />
+              <Metric
+                label={t('累计奖励支出')}
+                value={renderQuota(summary.welfare_quota || 0)}
+                strong
+              />
+              <Metric
+                label={t('邀请体系奖励')}
+                value={renderQuota(
+                  (summary.inviter_quota || 0) +
+                    (summary.invitee_quota || 0) +
+                    (summary.consume_rebate_quota || 0) +
+                    (summary.topup_rebate_quota || 0),
+                )}
+              />
+              <Metric
+                label={t('运营活动奖励')}
+                value={renderQuota(
+                  (summary.new_user_quota || 0) +
+                    (summary.checkin_quota || 0) +
+                    (summary.redemption_quota || 0),
+                )}
+              />
             </div>
-          </Form>
-          <Text type='secondary'>
-            {t('金额输入会按当前额度显示设置换算为系统原始 quota；返利比例单位为百分比。')}
-          </Text>
-        </TabPane>
-        )}
-
-        {mode !== 'config' && (
-        <TabPane
-          itemKey='summary'
-          tab={
-            <Space>
-              <IconHistogram />
-              {t('奖励报表')}
-            </Space>
-          }
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: 12,
-              marginBottom: 16,
-            }}
-          >
-            <Metric label={t('服务商 ID')} value={<Tag color='blue'>{summary.provider_id || provider?.id || '-'}</Tag>} />
-            <Metric label={t('累计奖励支出')} value={renderQuota(summary.welfare_quota || 0)} strong />
-            <Metric
-              label={t('邀请体系奖励')}
-              value={renderQuota(
-                (summary.inviter_quota || 0) +
-                  (summary.invitee_quota || 0) +
-                  (summary.consume_rebate_quota || 0) +
-                  (summary.topup_rebate_quota || 0),
-              )}
+            <Table
+              rowKey='key'
+              columns={summaryColumns}
+              dataSource={summaryRows}
+              pagination={false}
             />
-            <Metric
-              label={t('运营活动奖励')}
-              value={renderQuota(
-                (summary.new_user_quota || 0) +
-                  (summary.checkin_quota || 0) +
-                  (summary.redemption_quota || 0),
-              )}
-            />
-          </div>
-          <Table rowKey='key' columns={summaryColumns} dataSource={summaryRows} pagination={false} />
-        </TabPane>
+          </TabPane>
         )}
       </Tabs>
     </Spin>

@@ -65,6 +65,7 @@ func providerThemeColors(cfg *model.ProviderConfig) (string, string) {
 	return primary, secondary
 }
 
+// providerConfigResponse 构建提供商配置响应
 func providerConfigResponse(c *gin.Context, cfg *model.ProviderConfig) gin.H {
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	resp := gin.H{"provider_id": providerId, "enabled": providerId > 0}
@@ -87,6 +88,8 @@ func providerConfigResponse(c *gin.Context, cfg *model.ProviderConfig) gin.H {
 	resp["announcement"] = cfg.Announcement
 	resp["footer_text"] = cfg.FooterText
 	resp["support_url"] = cfg.SupportUrl
+	resp["wechat_support"] = cfg.WechatSupport // 微信客服
+	resp["qq_support"] = cfg.QQSupport         // QQ客服
 	return resp
 }
 
@@ -111,6 +114,10 @@ func normalizeProviderDomainStatus(status int) int {
 		return model.ProviderDomainStatusVerified
 	}
 	return model.ProviderDomainStatusPending
+}
+
+func validateProviderRebateRatio(ratio float64) bool {
+	return ratio >= 0 && ratio <= 100
 }
 
 func buildProviderAdminResponses(providers []model.Provider, withPricing bool) ([]providerAdminResponse, error) {
@@ -353,6 +360,8 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 		"footer_text":      strings.TrimSpace(req.FooterText),
 		"support_url":      strings.TrimSpace(req.SupportUrl),
 		"updated_at":       common.GetTimestamp(),
+		"wechat_support":   strings.TrimSpace(req.WechatSupport), // 微信客服
+		"qq_support":       strings.TrimSpace(req.QQSupport),     // QQ客服
 	}
 	var cfg model.ProviderConfig
 	err := model.DB.Where("provider_id = ?", providerId).First(&cfg).Error
@@ -530,6 +539,10 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 	if req.Ratio == 0 {
 		req.Ratio = 1
 	}
+	if !validateProviderRebateRatio(req.ConsumeRebateRatioLevel1) || !validateProviderRebateRatio(req.ConsumeRebateRatioLevel2) {
+		common.ApiErrorMsg(c, "consume rebate ratio must be between 0 and 100")
+		return
+	}
 	if req.Id == 0 {
 		if err := model.DB.Create(&req).Error; err != nil {
 			common.ApiError(c, err)
@@ -541,14 +554,16 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 	if err := model.DB.Model(&model.ProviderModelPricing{}).
 		Where("id = ? AND provider_id = ?", req.Id, providerId).
 		Updates(map[string]interface{}{
-			"public_model_name": req.PublicModelName,
-			"base_model_name":   req.BaseModelName,
-			"enabled":           req.Enabled,
-			"pricing_type":      req.PricingType,
-			"ratio":             req.Ratio,
-			"delta_model_ratio": req.DeltaModelRatio,
-			"delta_model_price": req.DeltaModelPrice,
-			"updated_at":        common.GetTimestamp(),
+			"public_model_name":           req.PublicModelName,
+			"base_model_name":             req.BaseModelName,
+			"enabled":                     req.Enabled,
+			"pricing_type":                req.PricingType,
+			"ratio":                       req.Ratio,
+			"delta_model_ratio":           req.DeltaModelRatio,
+			"delta_model_price":           req.DeltaModelPrice,
+			"consume_rebate_ratio_level1": req.ConsumeRebateRatioLevel1,
+			"consume_rebate_ratio_level2": req.ConsumeRebateRatioLevel2,
+			"updated_at":                  common.GetTimestamp(),
 		}).Error; err != nil {
 		common.ApiError(c, err)
 		return

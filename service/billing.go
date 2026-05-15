@@ -65,7 +65,7 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 		//订阅计费不会触发消费返利。
 		paidQuota := relayInfo.Billing.ClaimPaidConsumedForRebate()
 		if paidQuota > 0 {
-			if _, _, err := model.ApplyInviteConsumeRebate(relayInfo.UserId, relayInfo.RequestId, paidQuota); err != nil {
+			if _, _, err := model.ApplyInviteConsumeRebate(relayInfo.UserId, relayInfo.RequestId, paidQuota, consumeRebateContextFromRelay(ctx, relayInfo)); err != nil {
 				logger.LogError(ctx, "error applying consume rebate: "+err.Error())
 			}
 		}
@@ -88,6 +88,38 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 		return PostConsumeQuota(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota, true)
 	}
 	return nil
+}
+
+func consumeRebateContextFromRelay(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) *model.ConsumeRebateContext {
+	providerId := 0
+	providerPricingId := 0
+	publicModel := ""
+	baseModel := ""
+	if ctx == nil {
+		if relayInfo != nil {
+			providerId = relayInfo.ProviderId
+			providerPricingId = relayInfo.ProviderPricingId
+			publicModel = relayInfo.ProviderPublicModel
+			baseModel = relayInfo.ProviderBaseModel
+		}
+	} else {
+		providerId = common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
+		providerPricingId = common.GetContextKeyInt(ctx, constant.ContextKeyProviderPricingId)
+		publicModel = common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel)
+		baseModel = common.GetContextKeyString(ctx, constant.ContextKeyProviderBaseModel)
+	}
+	if providerId <= 0 || publicModel == "" {
+		return nil
+	}
+	if baseModel == "" && relayInfo != nil {
+		baseModel = relayInfo.OriginModelName
+	}
+	return &model.ConsumeRebateContext{
+		ProviderId:        providerId,
+		ProviderPricingId: providerPricingId,
+		PublicModelName:   publicModel,
+		BaseModelName:     baseModel,
+	}
 }
 
 func applyProviderProfitForRelay(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, paidQuota int) {
