@@ -29,8 +29,8 @@ import { useUsersData } from '../../../hooks/users/useUsersData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
 
-const UsersPage = () => {
-  const usersData = useUsersData();
+const UsersPage = ({ apiPrefix = '/api/user', providerMode = false }) => {
+  const usersData = useUsersData({ apiPrefix, providerMode });
   const isMobile = useIsMobile();
 
   const {
@@ -68,6 +68,7 @@ const UsersPage = () => {
         refresh={refresh}
         visible={showAddUser}
         handleClose={closeAddUser}
+        apiPrefix={usersData.apiPrefix}
       />
 
       <EditUserModal
@@ -75,6 +76,8 @@ const UsersPage = () => {
         visible={showEditUser}
         handleClose={closeEditUser}
         editingUser={editingUser}
+        apiPrefix={usersData.apiPrefix}
+        providerMode={providerMode}
       />
 
       <CardPro

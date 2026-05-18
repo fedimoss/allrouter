@@ -97,16 +97,19 @@ func GetProviderContextByDomain(domain string) (*ProviderContext, error) {
 		return nil, nil
 	}
 	var providerDomain ProviderDomain
-	err := DB.Where("domain = ? AND status = ?", domain, ProviderDomainStatusVerified).First(&providerDomain).Error
-	if err != nil {
-		return nil, err
+	result := DB.Where("domain = ? AND status = ?", domain, ProviderDomainStatusVerified).Find(&providerDomain)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
 	}
 	var provider Provider
-	if err = DB.Where("id = ? AND status = ?", providerDomain.ProviderId, ProviderStatusEnabled).First(&provider).Error; err != nil {
+	if err := DB.Where("id = ? AND status = ?", providerDomain.ProviderId, ProviderStatusEnabled).First(&provider).Error; err != nil {
 		return nil, err
 	}
 	var cfg ProviderConfig
-	_ = DB.Where("provider_id = ?", provider.Id).First(&cfg).Error
+	_ = DB.Where("provider_id = ?", provider.Id).Find(&cfg).Error
 	ctx := &ProviderContext{
 		ProviderId:  provider.Id,
 		OwnerUserId: provider.OwnerUserId,

@@ -50,6 +50,7 @@ const UsersTable = (usersData) => {
     refresh,
     resetUserPasskey,
     resetUserTwoFA,
+    providerMode,
     t,
   } = usersData;
 
@@ -141,6 +142,7 @@ const UsersTable = (usersData) => {
       showResetPasskeyModal: showResetPasskeyUserModal,
       showResetTwoFAModal: showResetTwoFAUserModal,
       showUserSubscriptionsModal: showUserSubscriptionsUserModal,
+      providerMode,
     });
   }, [
     t,
@@ -153,6 +155,7 @@ const UsersTable = (usersData) => {
     showResetPasskeyUserModal,
     showResetTwoFAUserModal,
     showUserSubscriptionsUserModal,
+    providerMode,
   ]);
 
   // Handle compact mode by removing fixed positioning
@@ -201,21 +204,25 @@ const UsersTable = (usersData) => {
       />
 
       {/* Modal components */}
-      <PromoteUserModal
-        visible={showPromoteModal}
-        onCancel={() => setShowPromoteModal(false)}
-        onConfirm={handlePromoteConfirm}
-        user={modalUser}
-        t={t}
-      />
+      {!providerMode && (
+        <>
+          <PromoteUserModal
+            visible={showPromoteModal}
+            onCancel={() => setShowPromoteModal(false)}
+            onConfirm={handlePromoteConfirm}
+            user={modalUser}
+            t={t}
+          />
 
-      <DemoteUserModal
-        visible={showDemoteModal}
-        onCancel={() => setShowDemoteModal(false)}
-        onConfirm={handleDemoteConfirm}
-        user={modalUser}
-        t={t}
-      />
+          <DemoteUserModal
+            visible={showDemoteModal}
+            onCancel={() => setShowDemoteModal(false)}
+            onConfirm={handleDemoteConfirm}
+            user={modalUser}
+            t={t}
+          />
+        </>
+      )}
 
       <EnableDisableUserModal
         visible={showEnableDisableModal}
@@ -237,29 +244,33 @@ const UsersTable = (usersData) => {
         t={t}
       />
 
-      <ResetPasskeyModal
-        visible={showResetPasskeyModal}
-        onCancel={() => setShowResetPasskeyModal(false)}
-        onConfirm={handleResetPasskeyConfirm}
-        user={modalUser}
-        t={t}
-      />
+      {!providerMode && (
+        <>
+          <ResetPasskeyModal
+            visible={showResetPasskeyModal}
+            onCancel={() => setShowResetPasskeyModal(false)}
+            onConfirm={handleResetPasskeyConfirm}
+            user={modalUser}
+            t={t}
+          />
 
-      <ResetTwoFAModal
-        visible={showResetTwoFAModal}
-        onCancel={() => setShowResetTwoFAModal(false)}
-        onConfirm={handleResetTwoFAConfirm}
-        user={modalUser}
-        t={t}
-      />
+          <ResetTwoFAModal
+            visible={showResetTwoFAModal}
+            onCancel={() => setShowResetTwoFAModal(false)}
+            onConfirm={handleResetTwoFAConfirm}
+            user={modalUser}
+            t={t}
+          />
 
-      <UserSubscriptionsModal
-        visible={showUserSubscriptionsModal}
-        onCancel={() => setShowUserSubscriptionsModal(false)}
-        user={modalUser}
-        t={t}
-        onSuccess={() => refresh?.()}
-      />
+          <UserSubscriptionsModal
+            visible={showUserSubscriptionsModal}
+            onCancel={() => setShowUserSubscriptionsModal(false)}
+            user={modalUser}
+            t={t}
+            onSuccess={() => refresh?.()}
+          />
+        </>
+      )}
     </>
   );
 };

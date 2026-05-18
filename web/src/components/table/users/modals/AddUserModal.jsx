@@ -53,7 +53,9 @@ const AddUserModal = (props) => {
 
   const submit = async (values) => {
     setLoading(true);
-    const res = await API.post(`/api/user/`, values);
+    const apiPrefix = (props.apiPrefix || '/api/user').replace(/\/$/, '');
+    const url = apiPrefix === '/api/user' ? `${apiPrefix}/` : apiPrefix;
+    const res = await API.post(url, values);
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('用户账户创建成功！'));

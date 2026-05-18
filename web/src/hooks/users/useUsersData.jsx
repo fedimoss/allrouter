@@ -23,8 +23,9 @@ import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 
-export const useUsersData = () => {
+export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } = {}) => {
   const { t } = useTranslation();
+  const normalizedApiPrefix = apiPrefix.replace(/\/$/, '');
   const [compactMode, setCompactMode] = useTableCompactMode('users');
 
   // State management
@@ -72,7 +73,11 @@ export const useUsersData = () => {
   // Load users data
   const loadUsers = async (startIdx, pageSize) => {
     setLoading(true);
-    const res = await API.get(`/api/user/?p=${startIdx}&page_size=${pageSize}`);
+    const listUrl =
+      normalizedApiPrefix === '/api/user'
+        ? `${normalizedApiPrefix}/?p=${startIdx}&page_size=${pageSize}`
+        : `${normalizedApiPrefix}?p=${startIdx}&page_size=${pageSize}`;
+    const res = await API.get(listUrl);
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
@@ -106,7 +111,7 @@ export const useUsersData = () => {
     }
     setSearching(true);
     const res = await API.get(
-      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`,
+      `${normalizedApiPrefix}/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`,
     );
     const { success, message, data } = res.data;
     if (success) {
@@ -125,7 +130,7 @@ export const useUsersData = () => {
     // Trigger loading state to force table re-render
     setLoading(true);
 
-    const res = await API.post('/api/user/manage', {
+    const res = await API.post(`${normalizedApiPrefix}/manage`, {
       id: userId,
       action,
     });
@@ -159,7 +164,7 @@ export const useUsersData = () => {
       return;
     }
     try {
-      const res = await API.delete(`/api/user/${user.id}/reset_passkey`);
+      const res = await API.delete(`${normalizedApiPrefix}/${user.id}/reset_passkey`);
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('Passkey 已重置'));
@@ -176,7 +181,7 @@ export const useUsersData = () => {
       return;
     }
     try {
-      const res = await API.delete(`/api/user/${user.id}/2fa`);
+      const res = await API.delete(`${normalizedApiPrefix}/${user.id}/2fa`);
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('二步验证已重置'));
@@ -237,12 +242,15 @@ export const useUsersData = () => {
   // Fetch groups data
   const fetchGroups = async () => {
     try {
-      let res = await API.get(`/api/group/`);
+      const groupUrl = providerMode ? '/api/user/self/groups' : '/api/group/';
+      let res = await API.get(groupUrl);
       if (res === undefined) {
         return;
       }
+      const groups = res.data?.data || [];
+      const groupNames = Array.isArray(groups) ? groups : Object.keys(groups);
       setGroupOptions(
-        res.data.data.map((group) => ({
+        groupNames.map((group) => ({
           label: group,
           value: group,
         })),
@@ -283,6 +291,8 @@ export const useUsersData = () => {
     userCount,
     searching,
     groupOptions,
+    apiPrefix: normalizedApiPrefix,
+    providerMode,
 
     // Modal state
     showAddUser,
