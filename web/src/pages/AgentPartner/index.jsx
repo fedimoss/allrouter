@@ -1,17 +1,10 @@
 import React, { useCallback, useContext, useMemo } from 'react';
 import { ArrowRight } from 'lucide-react';
 import {
-  Users,
   Network,
-  Smartphone,
-  Clock,
   BadgeCheck,
   Server,
   LayoutDashboard,
-  GraduationCap,
-  Megaphone,
-  Briefcase,
-  Crown,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -101,19 +94,19 @@ const successStories = [
     name: '张同学',
     role: '大学生代理',
     revenue: '¥4,500+',
-    desc: '通过校园社群推广，月入 3000+，轻松覆盖生活费。',
+    desc: '通过校园社群推广，月入 3000+',
   },
   {
     name: '李经理',
     role: '技术博主代理',
     revenue: '¥8,000+',
-    desc: '利用教育资源网络推广，稳定月收入持续增长。',
+    desc: '利用教育资源网络，稳定月收入',
   },
   {
     name: '王总',
     role: '社群运营代理',
     revenue: '¥38,000+',
-    desc: '通过粉丝流量变现，收入可观且持续增长。',
+    desc: '通过粉丝流量变现，收入可观',
   },
 ];
 
@@ -129,27 +122,27 @@ const whyUsCards = [
     desc: '覆盖主流模型服务，降低上游波动带来的沟通成本。',
   },
   {
-    icon: LayoutDashboard,
-    title: '可视化收益看板',
-    desc: '实时查看推广数据、用户活跃度、佣金明细，一目了然。',
-  },
-  {
     icon: Network,
     title: '支持 OEM',
-    desc: '提供品牌定制能力，可自定义平台名称、Logo、域名等。',
+    desc: '使用自有独立域名，自定义品牌LOGO与色彩系统。',
   },
+  {
+    icon: LayoutDashboard,
+    title: '可视化收益看板',
+    desc: '实时查看用户增长、充值金额与本月分成。',
+  }
 ];
 
-function WhyUsCard({ title, desc }) {
+function WhyUsCard({ t, title, desc }) {
   return (
     <div className='bg-white dark:bg-[var(--landing-v2-bg-code)] rounded-xl border border-gray-100 dark:border-gray-700/50 p-5'>
       <div className='flex items-center gap-4'>
         <div className='w-3 h-3 rounded-full bg-[var(--theme-primary)] flex-shrink-0' />
         <span className='text-base font-bold text-[var(--landing-v2-text-main)]'>
-          {title}
+          {t(title)}
         </span>
         <span className='flex-1 text-sm text-[var(--landing-v2-text-sub)] truncate'>
-          {desc}
+          {t(desc)}
         </span>
         <span className='text-[var(--landing-v2-text-sub)] flex-shrink-0 w-6 h-6 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center text-sm'>
           +
@@ -247,7 +240,7 @@ const AgentPartner = () => {
           <Link to={consoleNavTarget}>{t('控制台')}</Link>
           <Link to='/pricing'>{t('模型广场')}</Link>
           <Link to='/agent-partner' className='landing-v2-nav-link-active'>
-            代理加盟
+            {t('代理加盟')}
           </Link>
           <a href={docsHref} target='_blank' rel='noreferrer'>
             {t('文档')}
@@ -299,30 +292,30 @@ const AgentPartner = () => {
             <div className='flex-1 min-w-0'>
               <div className='inline-flex border border-[var(--theme-primary)]/10 items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-xs font-medium mb-6'>
                 <span className='w-1.5 h-1.5 rounded-full bg-[var(--theme-primary)]' />
-                代理计划已开放
+                {t('代理计划已开放')}
               </div>
               <h1 className='text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[var(--landing-v2-text-main)] leading-tight mb-4'>
-                加入我们！
+                {t('加入我们！')}
               </h1>
               <h1 className='text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[var(--landing-v2-text-main)] leading-tight mb-4'>
-                成为合作代理商
+                {t('成为合作代理商')}
               </h1>
               <p className='text-[#A6ACB0] line-height-1.5 font-[20px]'>
-                为开发者与企业引入稳定、低成本的大模型 API 服务，获得长期分润收益。
+                {t('为开发者与企业引入稳定、低成本的大模型 API 服务，获得长期分润收益。')}
               </p>
               <div className='flex flex-wrap gap-3 mb-8 mt-8'>
                 <a
                   href='#cta'
                   className='inline-flex items-center gap-1.5 px-6 py-3 rounded-lg text-white bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] hover:opacity-90 transition'
                 >
-                  立即申请
+                  {t('立即申请')}
                   <ArrowRight size={16} />
                 </a>
                 <a
                   href='#why-us'
                   className='inline-flex items-center gap-1.5 px-6 py-3 rounded-lg text-[var(--theme-primary)] border border-[var(--theme-primary)]/30 hover:bg-[var(--theme-primary)]/5 transition'
                 >
-                  了解方案
+                  {t('了解方案')}
                 </a>
               </div>
               <ul className='space-y-2.5 text-sm text-[var(--landing-v2-text-sub)]'>
@@ -335,7 +328,7 @@ const AgentPartner = () => {
                     <div className='w-[14px] h-[14px] rounded-full display-inline-block items-center justify-center flex bg-[var(--theme-primary)] flex-shrink-0'>
                       <span className='w-1 h-1 rounded-full bg-white'></span>
                     </div>
-                    {item}
+                    {t(item)}
                   </li>
                 ))}
               </ul>
@@ -348,35 +341,35 @@ const AgentPartner = () => {
                   <span className='w-3 h-3 rounded-full bg-red-400' />
                   <span className='w-3 h-3 rounded-full bg-yellow-400' />
                   <span className='w-3 h-3 rounded-full bg-green-400' />
-                  <span className='ml-2 text-xs text-gray-400 font-medium'>
-                    代理收益看板
-                  </span>
                 </div>
-                <p className='px-5 pt-4 pb-2 text-xs text-gray-500'>
-                  实时查看推广链接、用户充值与分润结算。
+                <p className='px-5 text-[26px] text-white font-[700] mt-4'>
+                  {t('代理收益看板')}
                 </p>
-                <div className='px-5 pb-5'>
+                <p className='px-5 pt-2 pb-2 text-xs text-gray-500'>
+                  {t('实时查看推广链接、用户充值与分润结算。')}
+                </p>
+                <div className='px-5 pb-5 mt-6'>
                   <div className='grid grid-cols-3 gap-3 mb-4'>
-                    <div className='bg-white/5 rounded-xl p-3 text-center'>
+                    <div className='bg-white/5 rounded-xl p-3'>
+                      <p className='text-[10px] text-gray-400 mt-1'>
+                        {t('本月分成')}
+                      </p>
                       <p className='text-xl font-extrabold text-emerald-400'>
                         ¥8,000+
                       </p>
-                      <p className='text-[10px] text-gray-400 mt-1'>
-                        本月分润
-                      </p>
                     </div>
-                    <div className='bg-white/5 rounded-xl p-3 text-center'>
+                    <div className='bg-white/5 rounded-xl p-3'>
+                      <p className='text-[10px] text-gray-400 mt-1'>
+                        {t('新增用户')}
+                      </p>
                       <p className='text-xl font-extrabold text-sky-400'>126</p>
-                      <p className='text-[10px] text-gray-400 mt-1'>
-                        推广用户
-                      </p>
                     </div>
-                    <div className='bg-white/5 rounded-xl p-3 text-center'>
-                      <p className='text-xl font-extrabold text-amber-400'>
-                        18.6%
-                      </p>
+                    <div className='bg-white/5 rounded-xl p-3'>
                       <p className='text-[10px] text-gray-400 mt-1'>
-                        转化率
+                        {t('转化率')}
+                      </p>
+                      <p className='text-xl font-extrabold text-white'>
+                        18.6%
                       </p>
                     </div>
                   </div>
@@ -408,11 +401,11 @@ const AgentPartner = () => {
           <div className='max-w-6xl mx-auto'>
             <div className='text-center mb-12'>
               <div className='text-2xl sm:text-3xl font-extrabold text-[var(--landing-v2-text-main)] mb-3'>
-                适合人群
+                {t('适合人群')}
               </div>
               <div className='w-12 h-1 mx-auto rounded-full bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] mb-4' />
               <p className='text-[var(--landing-v2-text-sub)] text-sm'>
-                为不同群体提供灵活、可持续的推广收入机会。
+                {t('为不同群体提供灵活、可持续的推广收入机会。')}
               </p>
             </div>
             <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6'>
@@ -423,10 +416,10 @@ const AgentPartner = () => {
                 >
                   <img alt src={card.icon} className='w-[52px]' />
                   <h3 className='text-base font-bold text-[var(--landing-v2-text-main)] mb-2'>
-                    {card.title}
+                    {t(card.title)}
                   </h3>
                   <p className='text-sm text-[var(--landing-v2-text-sub)] leading-relaxed'>
-                    {card.desc}
+                    {t(card.desc)}
                   </p>
                 </article>
               ))}
@@ -439,30 +432,33 @@ const AgentPartner = () => {
           <div className='max-w-6xl mx-auto'>
             <div className='text-center mb-12'>
               <div className='text-2xl sm:text-3xl font-extrabold text-[var(--landing-v2-text-main)] mb-3'>
-                如果你有以下特点
+                {t('如果你有以下特点')}
               </div>
               <div className='w-12 h-1 mx-auto rounded-full bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] mb-4' />
               <p className='text-[var(--landing-v2-text-sub)] text-sm'>
-                具备其中任意一项，就可以把
-                AllRouter 代理计划做成稳定副业。
+                {t('具备其中任意一项，就可以把 {{systemName}} 代理计划做成稳定副业。', { systemName })}
               </p>
             </div>
-            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6'>
+            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 overflow-hidden'>
               {qualificationCards.map((card) => (
-                <article
+                <div
                   key={card.title}
                   style={{
-                    background: 'linear-gradient(120.26deg, #FFFFFF 4.39 %, #F2FFFD 46.49 %, #ECFFE1 92.11 %)'}}
-                  className='bg-white dark:bg-[var(--landing-v2-bg-code)] rounded-xl shadow-sm hover:shadow-lg transition-shadow pt-2 text-center'
+                    height: '300px',
+                    background: 'linear-gradient(120deg, #FFFFFF 4.39%, #F2FFFD 46.49%, #ECFFE1 92.11%)',
+                  }}
+                  className=' flex flex-col items-center relative rounded-xl text-center'
                 >
-                  <img alt src={card.icon} className='w-[100%]' />
-                  <h3 className='text-base font-bold text-[var(--landing-v2-text-main)] mb-2'>
-                    {card.title}
-                  </h3>
-                  <p className='text-sm text-[var(--landing-v2-text-sub)] leading-relaxed'>
-                    {card.desc}
-                  </p>
-                </article>
+                  <img alt src={card.icon} className='w-[100%] h-[158px]' />
+                  <div className='bg-white dark:bg-[var(--landing-v2-bg-code)] rounded-xl flex-1 w-full p-5 flex flex-col items-center'>
+                    <h3 className='text-base font-bold text-[var(--landing-v2-text-main)] mb-2'>
+                      {t(card.title)}
+                    </h3>
+                    <p className='text-sm text-[var(--landing-v2-text-sub)] leading-relaxed'>
+                      {t(card.desc)}
+                    </p>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -473,35 +469,30 @@ const AgentPartner = () => {
           <div className='max-w-5xl mx-auto'>
             <div className='text-center mb-12'>
               <div className='text-2xl sm:text-3xl font-extrabold text-[var(--landing-v2-text-main)] mb-3'>
-                成功案例
+                {t('成功案例')}
               </div>
               <div className='w-12 h-1 mx-auto rounded-full bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] mb-4' />
               <p className='text-[var(--landing-v2-text-sub)] text-sm'>
-                真实推广路径可复制，适合从轻量尝试开始。
+                {t('真实推广路径可复制，适合从轻量尝试开始。')}
               </p>
             </div>
             <div className='grid grid-cols-1 sm:grid-cols-3 gap-8'>
               {successStories.map((story) => (
                 <div
                   key={story.name}
-                  className='text-center py-8 px-4'
+                  className='text-center px-4'
                 >
-                  <p className='text-4xl font-extrabold text-[var(--landing-v2-text-main)]'>
-                    {story.revenue}
+                  <p className='text-[42px] font-[700] text-[var(--landing-v2-text-main)]'>
+                    {t(story.revenue)}
                   </p>
-                  <p className='text-xs text-[var(--landing-v2-text-sub)] mt-1'>
-                    月均收益
-                  </p>
+                  <div className='w-12 h-1 mx-auto rounded-full bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] mb-4' />
                   <div className='mt-5'>
-                    <span className='text-base font-bold text-[var(--landing-v2-text-main)]'>
-                      {story.name}
-                    </span>
-                    <span className='text-xs text-[var(--landing-v2-text-sub)] ml-2'>
-                      {story.role}
+                    <span className='text-[17px] font-[500] text-[var(--landing-v2-text-main)]'>
+                      {t(story.name)} {t(story.role)}
                     </span>
                   </div>
-                  <p className='text-sm text-[var(--landing-v2-text-sub)] mt-3 leading-relaxed'>
-                    {story.desc}
+                  <p className='text-[12px] text-[#A6ACB0] mt-3 leading-relaxed'>
+                    {t(story.desc)}
                   </p>
                 </div>
               ))}
@@ -513,14 +504,17 @@ const AgentPartner = () => {
         <section id='why-us' className='w-full py-20 px-6 bg-gray-50 dark:bg-gray-900/30'>
           <div className='max-w-2xl mx-auto'>
             <div className='text-center mb-12'>
-              <div className='text-2xl sm:text-3xl font-extrabold text-[var(--landing-v2-text-main)] mb-3'>
-                为什么选择我们
+              <div className='text-[36px] sm:text-3xl font-extrabold text-[var(--landing-v2-text-main)] mb-3'>
+                {t('为什么选择我们')}
               </div>
               <div className='w-12 h-1 mx-auto rounded-full bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)]' />
+              <p className='text-[15px] text-[#A6ACB0] mt-3 leading-relaxed'>
+                {t('用统一模型网关、透明结算和运营支持，降低代理推广门槛。')}
+              </p>
             </div>
-            <div className='space-y-4'>
+            <div className='space-y-3'>
               {whyUsCards.map((card) => (
-                <WhyUsCard key={card.title} {...card} />
+                <WhyUsCard key={card.title} t={t} {...card} />
               ))}
             </div>
           </div>
@@ -530,18 +524,16 @@ const AgentPartner = () => {
         <section id='cta' className='landing-v2-cta-section'>
           <div className='landing-v2-cta-box'>
             <div className='landing-v2-cta-box-title'>
-              准备好开始推广赚钱了吗？
+              {t('准备好开始推广赚钱了吗？')}
             </div>
             <p>
-              立即提交合作意向，我们的运营团队将在 24
-              小时内与您取得联系，开启您的 AI 代理之旅。
+              {t('加入代理计划，把统一 API 服务推荐给更多开发者和企业客户。')}
             </p>
             <Link
               to='/login'
               className='landing-v2-btn-primary landing-v2-btn-lg'
             >
-              提交合作意向表&nbsp;&nbsp;
-              <ArrowRight size={18} />
+              {t('提交合作意向表')}
             </Link>
           </div>
         </section>

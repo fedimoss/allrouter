@@ -103,7 +103,7 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/static': {
-        target: 'http://192.168.0.222:3000',
+        target: 'http://192.168.0.228:3000',
         changeOrigin: true,
       },
     },
