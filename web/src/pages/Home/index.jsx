@@ -483,6 +483,7 @@ const Home = () => {
               </Link>
               <Link to={consoleNavTarget}>{t('控制台')}</Link>
               <Link to={pricingNavTarget}>{t('模型广场')}</Link>
+              {/* <Link to='/agent-partner'>代理加盟</Link> */}
               <a href={docsHref} target='_blank' rel='noreferrer'>
                 {t('文档')}
               </a>

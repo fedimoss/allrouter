@@ -70,7 +70,10 @@ const PageLayout = () => {
     '/register',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname);
+  const selfContainedPages = ['/agent-partner'];
+  const shouldHideFooter =
+    cardProPages.includes(location.pathname) ||
+    selfContainedPages.includes(location.pathname);
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -85,7 +88,8 @@ const PageLayout = () => {
   const authRoutesWithoutHeader = ['/login', '/register'];
   const shouldShowHeader =
     location.pathname !== '/' &&
-    !authRoutesWithoutHeader.includes(location.pathname);
+    !authRoutesWithoutHeader.includes(location.pathname) &&
+    !selfContainedPages.includes(location.pathname);
   const shouldSplitConsoleLayout = isConsoleRoute && !isMobile;
 
   useEffect(() => {
