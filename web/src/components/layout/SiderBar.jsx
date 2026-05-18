@@ -53,6 +53,7 @@ const routerMap = {
   providerReward: '/console/provider/reward',
   providerRewardReport: '/console/provider/reward-report',
   providerRedemption: '/console/provider/redemption',
+  providerUsers: '/console/provider/users',
   providerProfits: '/console/provider/profits',
   providerLogs: '/console/provider/logs',
   playground: '/console/playground',
@@ -256,6 +257,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('兑换码管理'),
         itemKey: 'providerRedemption',
         to: '/provider/redemption',
+      },
+      {
+        text: t('用户管理'),
+        itemKey: 'providerUsers',
+        to: '/provider/users',
       },
       {
         text: t('服务商利润'),

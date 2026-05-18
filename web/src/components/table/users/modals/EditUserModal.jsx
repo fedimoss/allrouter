@@ -63,6 +63,7 @@ const { Text, Title } = Typography;
 const EditUserModal = (props) => {
   const { t } = useTranslation();
   const userId = props.editingUser.id;
+  const apiPrefix = (props.apiPrefix || '/api/user').replace(/\/$/, '');
   const [loading, setLoading] = useState(true);
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   const [adjustQuotaLocal, setAdjustQuotaLocal] = useState('');
@@ -98,8 +99,11 @@ const EditUserModal = (props) => {
 
   const fetchGroups = async () => {
     try {
-      let res = await API.get(`/api/group/`);
-      setGroupOptions(res.data.data.map((g) => ({ label: g, value: g })));
+      const groupUrl = props.providerMode ? '/api/user/self/groups' : '/api/group/';
+      let res = await API.get(groupUrl);
+      const groups = res.data?.data || [];
+      const groupNames = Array.isArray(groups) ? groups : Object.keys(groups);
+      setGroupOptions(groupNames.map((g) => ({ label: g, value: g })));
     } catch (e) {
       showError(e.message);
     }
@@ -109,7 +113,7 @@ const EditUserModal = (props) => {
 
   const loadUser = async () => {
     setLoading(true);
-    const url = userId ? `/api/user/${userId}` : `/api/user/self`;
+    const url = userId ? `${apiPrefix}/${userId}` : `/api/user/self`;
     const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
@@ -153,7 +157,11 @@ const EditUserModal = (props) => {
     if (userId) {
       payload.id = parseInt(userId);
     }
-    const url = userId ? `/api/user/` : `/api/user/self`;
+    const url = userId
+      ? apiPrefix === '/api/user'
+        ? `${apiPrefix}/`
+        : apiPrefix
+      : `/api/user/self`;
     const res = await API.put(url, payload);
     const { success, message } = res.data;
     if (success) {
@@ -173,7 +181,7 @@ const EditUserModal = (props) => {
     if (adjustMode === 'override' && (adjustQuotaLocal === '' || adjustQuotaLocal == null)) return;
     setAdjustLoading(true);
     try {
-      const res = await API.post('/api/user/manage', {
+      const res = await API.post(`${apiPrefix}/manage`, {
         id: parseInt(userId),
         action: 'add_quota',
         mode: adjustMode,
@@ -185,7 +193,7 @@ const EditUserModal = (props) => {
         setAdjustModalOpen(false);
         setAdjustQuotaLocal('');
         setAdjustAmountLocal('');
-        const userRes = await API.get(`/api/user/${userId}`);
+        const userRes = await API.get(`${apiPrefix}/${userId}`);
         if (userRes.data.success) {
           const data = userRes.data.data;
           data.password = '';
@@ -368,6 +376,8 @@ const EditUserModal = (props) => {
                         />
                       </Col>
 
+                      {!props.providerMode && (
+                        <>
                       <Col span={10}>
                         <Form.InputNumber
                           field='quota_amount'
@@ -411,12 +421,14 @@ const EditUserModal = (props) => {
                           />
                         </div>
                       </Col>
+                        </>
+                      )}
                     </Row>
                   </Card>
                 )}
 
                 {/* 绑定信息入口 */}
-                {userId && (
+                {userId && !props.providerMode && (
                   <Card className='!rounded-2xl shadow-sm border-0'>
                     <div className='flex items-center justify-between gap-3'>
                       <div className='flex items-center min-w-0'>
@@ -452,13 +464,15 @@ const EditUserModal = (props) => {
         </Spin>
       </SideSheet>
 
-      <UserBindingManagementModal
-        visible={bindingModalVisible}
-        onCancel={closeBindingModal}
-        userId={userId}
-        isMobile={isMobile}
-        formApiRef={formApiRef}
-      />
+      {!props.providerMode && (
+        <UserBindingManagementModal
+          visible={bindingModalVisible}
+          onCancel={closeBindingModal}
+          userId={userId}
+          isMobile={isMobile}
+          formApiRef={formApiRef}
+        />
+      )}
 
       {/* 调整额度模态框 */}
       <Modal

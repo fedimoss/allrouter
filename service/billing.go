@@ -61,10 +61,11 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 		if err := relayInfo.Billing.Settle(actualQuota); err != nil {
 			return err
 		}
-		//请求成功结算后，如果本次钱包消费中有充值额度部分，就调用 ApplyInviteConsumeRebate 给邀请人发消费返利。
-		//订阅计费不会触发消费返利。
+		// 普通站点按充值额度消费返佣；服务商站点在利润结算中按利润返佣。
+		// 订阅计费不会触发返佣。
 		paidQuota := relayInfo.Billing.ClaimPaidConsumedForRebate()
-		if paidQuota > 0 {
+		providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
+		if paidQuota > 0 && providerId <= 0 {
 			if _, _, err := model.ApplyInviteConsumeRebate(relayInfo.UserId, relayInfo.RequestId, paidQuota, consumeRebateContextFromRelay(ctx, relayInfo)); err != nil {
 				logger.LogError(ctx, "error applying consume rebate: "+err.Error())
 			}
@@ -184,16 +185,17 @@ func applyProviderProfitForRelay(ctx *gin.Context, relayInfo *relaycommon.RelayI
 	if record.BaseModelName == "" {
 		record.BaseModelName = relayInfo.OriginModelName
 	}
-	applied, err := model.ApplyProviderProfit(record)
+	result, err := model.ApplyProviderProfit(record)
 	if err != nil {
 		logger.LogError(ctx, "error applying provider profit: "+err.Error())
 		return
 	}
+	profitQuota = record.ProfitQuota
 	common.SetContextKey(ctx, constant.ContextKeyProviderPaidQuota, paidQuota)
 	common.SetContextKey(ctx, constant.ContextKeyProviderCoveredCost, coveredCost)
 	common.SetContextKey(ctx, constant.ContextKeyProviderOwnerCost, ownerCost)
 	common.SetContextKey(ctx, constant.ContextKeyProviderProfitQuota, profitQuota)
-	if applied {
+	if result != nil && result.Applied {
 		model.LogProviderProfit(record)
 	}
 }

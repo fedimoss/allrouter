@@ -118,6 +118,26 @@ const ProviderProfitsPage = () => {
     return `${((Number(numerator || 0) / Number(denominator)) * 100).toFixed(2)}%`;
   };
 
+  const getGrossProfitQuota = (record) => {
+    const explicit = Number(record?.gross_profit_quota || 0);
+    if (explicit > 0) return explicit;
+    const charge = Number(record?.provider_user_quota || 0);
+    const baseCost = Number(record?.base_cost_quota || 0);
+    const paid = Math.min(Math.max(Number(record?.paid_quota || 0), 0), charge);
+    const gross = Math.max(charge - baseCost, 0);
+    if (charge <= 0 || paid <= 0 || gross <= 0) return 0;
+    return Math.floor((gross * paid) / charge);
+  };
+
+  const getRebateQuota = (record) => {
+    const explicit = Number(record?.rebate_quota || 0);
+    if (explicit > 0) return explicit;
+    return Math.max(
+      getGrossProfitQuota(record) - Number(record?.profit_quota || 0),
+      0,
+    );
+  };
+
   const getPaymentInfo = (record) => {
     const total = Number(record?.provider_user_quota || 0);
     const cash = Math.min(Math.max(Number(record?.paid_quota || 0), 0), total);
@@ -179,7 +199,9 @@ const ProviderProfitsPage = () => {
     { key: 'base_cost_quota', label: t('基础成本') },
     { key: 'covered_cost_quota', label: t('用户覆盖成本') },
     { key: 'owner_cost_quota', label: t('服务商承担') },
-    { key: 'profit_quota', label: t('利润') },
+    { key: 'gross_profit_quota', label: t('毛利润') },
+    { key: 'rebate_quota', label: t('分佣') },
+    { key: 'profit_quota', label: t('净利润') },
   ];
 
   const columns = useMemo(
@@ -223,7 +245,17 @@ const ProviderProfitsPage = () => {
         render: (value) => quotaText(value),
       },
       {
-        title: t('利润'),
+        title: t('毛利润'),
+        dataIndex: 'gross_profit_quota',
+        render: (_, record) => quotaText(getGrossProfitQuota(record)),
+      },
+      {
+        title: t('分佣'),
+        dataIndex: 'rebate_quota',
+        render: (_, record) => quotaText(getRebateQuota(record)),
+      },
+      {
+        title: t('净利润'),
         dataIndex: 'profit_quota',
         render: (value) => <Text strong>{quotaText(value)}</Text>,
       },
@@ -314,10 +346,13 @@ const ProviderProfitsPage = () => {
   const detail = detailRecord || {};
   const paymentInfo = getPaymentInfo(detail);
   const paidRatio = paymentInfo.ratio;
-  const grossProfit = Math.max(
+  const theoreticalGrossProfit = Math.max(
     Number(detail.provider_user_quota || 0) - Number(detail.base_cost_quota || 0),
     0,
   );
+  const grossProfit = getGrossProfitQuota(detail);
+  const rebateQuota = getRebateQuota(detail);
+  const netProfit = Number(detail.profit_quota || 0);
 
   return (
     <div className='log-v2-page mt-[10px] px-2'>
@@ -588,9 +623,21 @@ const ProviderProfitsPage = () => {
                 'cost',
               )}
               {renderMoneyRow(
-                t('本次利润'),
-                detail.profit_quota,
-                t('主站成本覆盖后，系统只按充值支付占比把可结算利润入账给服务商主账号。'),
+                t('毛利润'),
+                grossProfit,
+                t('服务商售价扣除主站成本后，按充值余额支付占比折算出的分佣前利润。'),
+                'profit',
+              )}
+              {renderMoneyRow(
+                t('一级/二级分佣'),
+                rebateQuota,
+                t('按服务商模型配置的一级、二级分佣比例，从毛利润中扣除后发给邀请人。'),
+                'cost',
+              )}
+              {renderMoneyRow(
+                t('净利润'),
+                netProfit,
+                t('服务商最终入账金额。净利润 = 毛利润 - 一级/二级分佣。'),
                 'profit',
               )}
             </div>
@@ -639,12 +686,20 @@ const ProviderProfitsPage = () => {
                   {quotaText(paymentInfo.reward)}
                 </Text>
                 <Text>
-                  {t('毛利')} = {t('用户收费')} - {t('主站成本')} ={' '}
-                  {quotaText(grossProfit)}
+                  {t('理论毛利')} = {t('用户收费')} - {t('主站成本')} ={' '}
+                  {quotaText(theoreticalGrossProfit)}
                 </Text>
                 <Text>
-                  {t('本次利润')} = {t('毛利')} × {t('充值支付占比')} ={' '}
-                  <Text strong>{quotaText(detail.profit_quota)}</Text>
+                  {t('毛利润')} = {t('理论毛利')} × {t('充值支付占比')} ={' '}
+                  <Text strong>{quotaText(grossProfit)}</Text>
+                </Text>
+                <Text>
+                  {t('分佣')} = {t('一级分佣')} + {t('二级分佣')} ={' '}
+                  <Text strong>{quotaText(rebateQuota)}</Text>
+                </Text>
+                <Text>
+                  {t('净利润')} = {t('毛利润')} - {t('分佣')} ={' '}
+                  <Text strong>{quotaText(netProfit)}</Text>
                 </Text>
                 <Text>
                   {t('服务商承担')} = {t('主站成本')} - {t('用户覆盖成本')} ={' '}

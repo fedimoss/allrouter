@@ -209,6 +209,7 @@ const renderOperations = (
     showResetPasskeyModal,
     showResetTwoFAModal,
     showUserSubscriptionsModal,
+    providerMode,
     t,
   },
 ) => {
@@ -216,35 +217,37 @@ const renderOperations = (
     return <></>;
   }
 
-  const moreMenu = [
-    {
-      node: 'item',
-      name: t('订阅管理'),
-      onClick: () => showUserSubscriptionsModal(record),
-    },
-    {
-      node: 'divider',
-    },
-    {
-      node: 'item',
-      name: t('重置 Passkey'),
-      onClick: () => showResetPasskeyModal(record),
-    },
-    {
-      node: 'item',
-      name: t('重置 2FA'),
-      onClick: () => showResetTwoFAModal(record),
-    },
-    {
-      node: 'divider',
-    },
-    {
-      node: 'item',
-      name: t('注销'),
-      type: 'danger',
-      onClick: () => showDeleteModal(record),
-    },
-  ];
+  const moreMenu = providerMode
+    ? []
+    : [
+        {
+          node: 'item',
+          name: t('订阅管理'),
+          onClick: () => showUserSubscriptionsModal(record),
+        },
+        {
+          node: 'divider',
+        },
+        {
+          node: 'item',
+          name: t('重置 Passkey'),
+          onClick: () => showResetPasskeyModal(record),
+        },
+        {
+          node: 'item',
+          name: t('重置 2FA'),
+          onClick: () => showResetTwoFAModal(record),
+        },
+        {
+          node: 'divider',
+        },
+        {
+          node: 'item',
+          name: t('注销'),
+          type: 'danger',
+          onClick: () => showDeleteModal(record),
+        },
+      ];
 
   return (
     <Space>
@@ -274,23 +277,36 @@ const renderOperations = (
       >
         {t('编辑')}
       </Button>
-      <Button
-        type='warning'
-        size='small'
-        onClick={() => showPromoteModal(record)}
-      >
-        {t('提升')}
-      </Button>
-      <Button
-        type='secondary'
-        size='small'
-        onClick={() => showDemoteModal(record)}
-      >
-        {t('降级')}
-      </Button>
-      <Dropdown menu={moreMenu} trigger='click' position='bottomRight'>
-        <Button type='tertiary' size='small' icon={<IconMore />} />
-      </Dropdown>
+      {!providerMode && (
+        <>
+          <Button
+            type='warning'
+            size='small'
+            onClick={() => showPromoteModal(record)}
+          >
+            {t('提升')}
+          </Button>
+          <Button
+            type='secondary'
+            size='small'
+            onClick={() => showDemoteModal(record)}
+          >
+            {t('降级')}
+          </Button>
+          <Dropdown menu={moreMenu} trigger='click' position='bottomRight'>
+            <Button type='tertiary' size='small' icon={<IconMore />} />
+          </Dropdown>
+        </>
+      )}
+      {providerMode && (
+        <Button
+          type='danger'
+          size='small'
+          onClick={() => showDeleteModal(record)}
+        >
+          {t('删除')}
+        </Button>
+      )}
     </Space>
   );
 };
@@ -309,6 +325,7 @@ export const getUsersColumns = ({
   showResetPasskeyModal,
   showResetTwoFAModal,
   showUserSubscriptionsModal,
+  providerMode = false,
 }) => {
   return [
     {
@@ -366,6 +383,7 @@ export const getUsersColumns = ({
           showResetPasskeyModal,
           showResetTwoFAModal,
           showUserSubscriptionsModal,
+          providerMode,
           t,
         }),
     },

@@ -4937,3 +4937,14 @@ CREATE INDEX IF NOT EXISTS idx_consume_rebates_provider_model
     ON consume_rebates (provider_id, public_model_name);
 
 COMMIT;
+
+
+-- 完善服务利润表
+BEGIN;
+ALTER TABLE provider_profits
+    ADD COLUMN IF NOT EXISTS gross_profit_quota bigint NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS rebate_quota bigint NOT NULL DEFAULT 0;
+
+COMMENT ON COLUMN provider_profits.gross_profit_quota IS '分佣前毛利润';
+COMMENT ON COLUMN provider_profits.rebate_quota IS '一级 + 二级总分佣';
+COMMIT;
