@@ -100,7 +100,7 @@ func taskAdjustFunding(task *model.Task, delta int) error {
 		if err != nil {
 			return err
 		}
-		if breakdown.PaidUsed > 0 {
+		if breakdown.PaidUsed > 0 && consumeRebateContextFromTask(task) == nil {
 			rebateRequestId := fmt.Sprintf("%s:adjust:%s", task.TaskID, common.GetRandomString(8))
 			if _, _, rebateErr := model.ApplyInviteConsumeRebate(task.UserId, rebateRequestId, breakdown.PaidUsed, consumeRebateContextFromTask(task)); rebateErr != nil {
 				logger.LogWarn(context.Background(), fmt.Sprintf("消费返利失败 task %s: %s", task.TaskID, rebateErr.Error()))
