@@ -645,8 +645,9 @@ func SetWebColors(c *gin.Context) {
 
 // GetWebColors 获取网站主题色（无需登录）
 func GetWebColors(c *gin.Context) {
-	primary := ""   // 主色
-	secondary := "" //辅色
+	primary := ""         // 主色
+	secondary := ""       // 辅色
+	buttonTextColor := "" // 按钮文本颜色
 	common.OptionMapRWMutex.RLock()
 	if v, ok := common.OptionMap["WebPrimaryColor"]; ok {
 		primary = common.Interface2String(v)
@@ -654,10 +655,14 @@ func GetWebColors(c *gin.Context) {
 	if v, ok := common.OptionMap["WebSecondaryColor"]; ok {
 		secondary = common.Interface2String(v)
 	}
+	if v, ok := common.OptionMap["WebButtonTextColor"]; ok {
+		buttonTextColor = common.Interface2String(v)
+	}
 	common.OptionMapRWMutex.RUnlock()
 	common.ApiSuccess(c, gin.H{
-		"primary_color":   primary,
-		"secondary_color": secondary,
+		"primary_color":     primary,
+		"secondary_color":   secondary,
+		"button_text_color": buttonTextColor,
 	})
 }
 

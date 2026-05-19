@@ -69,6 +69,9 @@ func InitOptionMap() {
 	common.OptionMap["Footer"] = common.Footer
 	common.OptionMap["SystemName"] = common.SystemName
 	common.OptionMap["Logo"] = common.Logo
+	common.OptionMap["WebPrimaryColor"] = "#09FEF7"
+	common.OptionMap["WebSecondaryColor"] = "#BAFF29"
+	common.OptionMap["WebButtonTextColor"] = "#FFFFFF"
 	common.OptionMap["WechatSupport"] = common.WechatSupport
 	common.OptionMap["QQSupport"] = common.QQSupport
 	common.OptionMap["ServerAddress"] = ""
