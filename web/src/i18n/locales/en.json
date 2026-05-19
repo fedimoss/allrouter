@@ -4134,8 +4134,6 @@
     "确认更新": "Confirm Update",
     "汇率不能为空": "Exchange rate cannot be empty",
     "消费返利比例": "Consumption Rebate Ratio",
-    "一级消费返利比例": "Level 1 Consumption Rebate Ratio",
-    "二级消费返利比例": "Level 2 Consumption Rebate Ratio",
     "被邀请人充值成功后，使用充值额度消费，按消费额度的百分比返利给邀请人，0 表示关闭": "After an invitee successfully tops up and consumes paid quota, rebate the inviter by this percentage of the consumed quota. 0 disables it.",
     "被邀请人使用充值额度消费后，按消费额度的百分比返利给二级邀请人，0 表示关闭": "After an invitee consumes paid quota, rebate the level 2 inviter by this percentage of the consumed quota. 0 disables it.",
     "消费返利": "Consumption Rebate",
