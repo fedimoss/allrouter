@@ -58,6 +58,8 @@ import ProviderRewardReportPage from './pages/Provider/RewardReport';
 import ProviderRedemptionPage from './pages/Provider/Redemption';
 import ProviderProfitsPage from './pages/Provider/Profits';
 import ProviderLogsPage from './pages/Provider/Logs';
+import ProviderUsersPage from './pages/Provider/Users';
+import ProviderWithdrawPage from './pages/Provider/Withdraw';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
@@ -191,6 +193,22 @@ function App() {
           element={
             <PrivateRoute>
               <ProviderProfitsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/provider/users'
+          element={
+            <PrivateRoute>
+              <ProviderUsersPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/provider/withdraw'
+          element={
+            <PrivateRoute>
+              <ProviderWithdrawPage />
             </PrivateRoute>
           }
         />
