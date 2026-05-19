@@ -4326,6 +4326,11 @@
     "确认取消该提现申请？": "Cancel this withdraw request?",
     "已取消": "Canceled",
     "流状态": "Stream Status",
-    "软错误": "Soft Error"
+    "软错误": "Soft Error",
+    "联系客服申请": "Contacter le support pour postuler",
+    "微信客服": "Support WeChat",
+    "微信客服二维码": "QR code du support WeChat",
+    "扫码添加客服微信": "Scannez le code QR pour ajouter le service client sur WeChat",
+    "QQ客服": "Service client QQ"
   }
 }

@@ -75,7 +75,7 @@ const partnerLogos = [
   { src: openaiLogo, alt: 'ChatGPT' },
   { src: anthropicLogo, alt: 'Claude' },
   { src: geminiLogo, alt: 'Gemini' },
-  { src: zhipuLogo, alt: 'Zhipu AI' },
+  // { src: zhipuLogo, alt: 'Zhipu AI' },
   { src: metaLogo, alt: 'Meta' },
   { src: deepseekLogo, alt: 'DeepSeek' },
   { src: huggingFaceLogo, alt: 'Hugging Face' },

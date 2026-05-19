@@ -4308,6 +4308,11 @@
     "确认取消该提现申请？": "Cancel this withdraw request?",
     "已取消": "Canceled",
     "流状态": "Stream Status",
-    "软错误": "Soft Error"
+    "软错误": "Soft Error",
+    "联系客服申请": "カスタマーサポートに連絡",
+    "微信客服": "WeChatサポート",
+    "微信客服二维码": "WeChatサポートQRコード",
+    "扫码添加客服微信": "QRコードをスキャンしてカスタマーサポートのWeChatを追加",
+    "QQ客服": "QQサポート"    
   }
 }

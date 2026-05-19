@@ -4850,6 +4850,11 @@
     "确认取消该提现申请？": "Cancel this withdraw request?",
     "已取消": "Canceled",
     "流状态": "Stream Status",
-    "软错误": "Soft Error"
+    "软错误": "Soft Error",
+    "联系客服申请": "Liên hệ hỗ trợ để đăng ký",
+    "微信客服": "Hỗ trợ WeChat",
+    "微信客服二维码": "Mã QR hỗ trợ WeChat",
+    "扫码添加客服微信": "Scan để thêm Hỗ trợ WeChat",
+    "QQ客服": "Hỗ trợ QQ"
   }
 }

@@ -150,6 +150,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             <Link to={pricingNavTarget} className='landing-v2-nav-link-active'>
               {t('模型广场')}
             </Link>
+            <Link to='/agent-partner'>
+              {t('代理加盟')}
+            </Link>
             <a href={docsHref} target='_blank' rel='noreferrer'>
               {t('文档')}
             </a>

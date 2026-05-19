@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useMemo } from 'react';
+import React, { useCallback, useContext, useMemo, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import {
   Network,
@@ -11,7 +11,9 @@ import { useTranslation } from 'react-i18next';
 import {
   API,
   getLogo,
+  getQQSupport,
   getSystemName,
+  getWechatSupport,
   withBrowserBaseUrl,
 } from '../../helpers';
 import { StatusContext } from '../../context/Status';
@@ -160,6 +162,28 @@ const AgentPartner = () => {
   const setTheme = useSetTheme();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const [showSupport, setShowSupport] = useState(false);
+
+  const supportConfig = useMemo(() => {
+    const status = statusState?.status;
+    if (!status) {
+      return {
+        wechatQRCode: getWechatSupport(),
+        qqSupport: getQQSupport(),
+      };
+    }
+    const providerConfig = status.provider_config;
+    if (providerConfig?.enabled) {
+      return {
+        wechatQRCode: providerConfig.wechat_support || '',
+        qqSupport: providerConfig.qq_support || '',
+      };
+    }
+    return {
+      wechatQRCode: status.wechat_support || '',
+      qqSupport: status.qq_support || '',
+    };
+  }, [statusState?.status]);
 
   const docsLink = statusState?.status?.docs_link || '';
   const docsLangPrefix = i18n.language.startsWith('zh') ? 'zh' : 'en';
@@ -303,20 +327,79 @@ const AgentPartner = () => {
               <p className='text-[#A6ACB0] line-height-1.5 font-[20px]'>
                 {t('为开发者与企业引入稳定、低成本的大模型 API 服务，获得长期分润收益。')}
               </p>
-              <div className='flex flex-wrap gap-3 mb-8 mt-8'>
-                <a
-                  href='#cta'
+              <div className='flex flex-wrap gap-3 mb-4 mt-8 relative'>
+                <button
+                  onClick={() => setShowSupport((v) => !v)}
                   className='inline-flex items-center gap-1.5 px-6 py-3 rounded-lg text-white bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] hover:opacity-90 transition'
                 >
                   {t('立即申请')}
                   <ArrowRight size={16} />
-                </a>
+                </button>
                 <a
-                  href='#why-us'
                   className='inline-flex items-center gap-1.5 px-6 py-3 rounded-lg text-[var(--theme-primary)] border border-[var(--theme-primary)]/30 hover:bg-[var(--theme-primary)]/5 transition'
                 >
                   {t('了解方案')}
                 </a>
+                {showSupport && (
+                  <div className='absolute top-full left-0 mt-3 z-50 bg-white dark:bg-[#1a1f2e] rounded-2xl shadow-2xl border border-gray-200/60 dark:border-gray-700/40 p-0 w-[320px] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200'>
+                    {/* Header */}
+                    <div className='px-5 pt-5 bg-gradient-to-r from-[var(--theme-primary)]/5 to-[var(--theme-secondary)]/5'>
+                      <div className='flex items-center justify-between'>
+                        <div>
+                          <h4 className='text-base font-bold text-[var(--landing-v2-text-main)]'>{t('联系客服申请')}</h4>
+                        </div>
+                        <button
+                          onClick={() => setShowSupport(false)}
+                          className='w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-[var(--landing-v2-text-sub)] hover:text-[var(--landing-v2-text-main)] hover:bg-gray-200 dark:hover:bg-gray-600 transition text-sm'
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className='p-5 space-y-4'>
+                      {/* WeChat */}
+                      {supportConfig.wechatQRCode && (
+                        <div className='flex items-center gap-4 p-3 rounded-xl bg-gray-50 dark:bg-white/5'>
+                          <img
+                            src={supportConfig.wechatQRCode}
+                            alt={t('微信客服二维码')}
+                            className='w-24 h-24 rounded-lg object-cover flex-shrink-0 border border-gray-100 dark:border-gray-700'
+                          />
+                          <div className='flex-1 min-w-0'>
+                            <div className='flex items-center gap-1.5 mb-1'>
+                              <i className='fab fa-weixin text-green-500 text-base' />
+                              <span className='text-sm font-semibold text-[var(--landing-v2-text-main)]'>{t('微信客服')}</span>
+                            </div>
+                            <p className='text-xs text-[var(--landing-v2-text-sub)] leading-relaxed'>
+                              {t('扫码添加客服微信')}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* QQ */}
+                      {supportConfig.qqSupport && (() => {
+                        const qqNumber = String(supportConfig.qqSupport).replace(/\D/g, '');
+                        return qqNumber ? (
+                          <a
+                            href={`tencent://message/?uin=${qqNumber}&Site=&Menu=yes`}
+                            className='flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition group'
+                          >
+                            <div className='w-10 h-10 rounded-lg bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center flex-shrink-0'>
+                              <i className='fab fa-qq text-sky-500 text-lg' />
+                            </div>
+                            <div className='flex-1 min-w-0'>
+                              <span className='text-sm font-semibold text-[var(--landing-v2-text-main)]'>{t('QQ客服')}</span>
+                              <p className='text-xs text-[var(--landing-v2-text-sub)]'>{qqNumber}</p>
+                            </div>
+                            <ArrowRight size={14} className='text-[var(--landing-v2-text-sub)] group-hover:text-[var(--theme-primary)] transition flex-shrink-0' />
+                          </a>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+                )}
               </div>
               <ul className='space-y-2.5 text-sm text-[var(--landing-v2-text-sub)]'>
                 {[
@@ -530,7 +613,6 @@ const AgentPartner = () => {
               {t('加入代理计划，把统一 API 服务推荐给更多开发者和企业客户。')}
             </p>
             <Link
-              to='/login'
               className='landing-v2-btn-primary landing-v2-btn-lg'
             >
               {t('提交合作意向表')}
