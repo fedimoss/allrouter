@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	ProviderWithdrawStatusPending  = 1 // 待审核
-	ProviderWithdrawStatusApproved = 2 // 已通过
-	ProviderWithdrawStatusRejected = 3 // 已拒绝
+	ProviderWithdrawStatusPending   = 1 // 待审核
+	ProviderWithdrawStatusApproved  = 2 // 已通过
+	ProviderWithdrawStatusRejected  = 3 // 已拒绝
+	ProviderWithdrawStatusCancelled = 4 // 已取消
 )
 
 type ProviderWithdraw struct {

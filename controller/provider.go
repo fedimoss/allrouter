@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -980,9 +981,15 @@ func AdminApproveProviderWithdrawRequest(c *gin.Context) {
 
 		// 转换为内部额度并扣除
 		deduction := int(usdAmount * common.QuotaPerUnit)
-		if err := model.DB.Model(&model.User{}).Where("id = ? AND quota >= ?", provider.OwnerUserId, deduction).
-			UpdateColumn("quota", gorm.Expr("quota - ?", deduction)).Error; err != nil {
-			common.ApiError(c, err)
+		// 检查服务商余额是否足够
+		result := model.DB.Model(&model.User{}).Where("id = ? AND quota >= ?", provider.OwnerUserId, deduction).
+			UpdateColumn("quota", gorm.Expr("quota - ?", deduction))
+		if result.Error != nil {
+			common.ApiError(c, result.Error)
+			return
+		}
+		if result.RowsAffected == 0 {
+			common.ApiErrorMsg(c, i18n.T(c, i18n.MsgProviderWithdrawInsufficientBalance))
 			return
 		}
 
@@ -1000,6 +1007,38 @@ func AdminApproveProviderWithdrawRequest(c *gin.Context) {
 	}
 
 	// 返回成功
+	common.ApiSuccess(c, gin.H{
+		"message": "success",
+	})
+}
+
+// 取消提现申请（服务商在自己的提现管理中取消待审核的申请）
+func CancelProviderWithdrawRequest(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Query("id"))
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+
+	var withdraw model.ProviderWithdraw
+	if err := model.DB.Where("id = ?", id).First(&withdraw).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if withdraw.ProviderId != provider.Id {
+		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgProviderWithdrawNotYours))
+		return
+	}
+	if withdraw.Status != model.ProviderWithdrawStatusPending {
+		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgProviderWithdrawCannotCancel))
+		return
+	}
+
+	if err := model.UpdateProviderWithdrawStatus(id, model.ProviderWithdrawStatusCancelled); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
 	common.ApiSuccess(c, gin.H{
 		"message": "success",
 	})

@@ -379,6 +379,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.POST("/withdraw/request", controller.AddProviderWithdrawRequest)    // 添加提现申请
 			providerRoute.GET("/withdraw/list", controller.GetProviderWithdrawList)           // 提现申请列表
 			providerRoute.GET("/withdraw/dashboard", controller.GetProviderWithdrawDashboard) // 提现申请数据概览
+			providerRoute.POST("/withdraw/cancel", controller.CancelProviderWithdrawRequest)  // 取消提现申请
 
 		}
 		providerAdminRoute := apiRouter.Group("/provider/admin")

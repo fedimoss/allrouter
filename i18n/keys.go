@@ -340,3 +340,10 @@ const (
 	MsgCustomOAuthBindingNotFound   = "custom_oauth.binding_not_found"
 	MsgCustomOAuthProviderIdInvalid = "custom_oauth.provider_id_field_invalid"
 )
+
+// Provider related messages
+const (
+	MsgProviderWithdrawInsufficientBalance = "provider.withdraw_insufficient_balance"
+	MsgProviderWithdrawNotYours            = "provider.withdraw_not_yours"
+	MsgProviderWithdrawCannotCancel        = "provider.withdraw_cannot_cancel"
+)

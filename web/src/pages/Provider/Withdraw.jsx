@@ -43,6 +43,7 @@ const STATUS_CONFIG = {
   1: { bgColor: 'orange', textColor: 'rgb(180, 83, 9)',  key: '待审核' },
   2: { bgColor: 'green',  textColor: 'rgb(10, 130, 54)',  key: '已通过' },
   3: { bgColor: 'red',    textColor: 'rgb(185, 28, 28)',  key: '已拒绝' },
+  4: { bgColor: 'grey',   textColor: 'rgb(100, 116, 139)', key: '已取消' },
 };
 
 const WithdrawPage = () => {
@@ -71,6 +72,9 @@ const WithdrawPage = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // --- confirm modal ---
+  const [confirmModal, setConfirmModal] = useState(null); // { id, action, title, content }
 
   // ==================== API calls ====================
 
@@ -200,12 +204,33 @@ const WithdrawPage = () => {
     }
   };
 
+  const handleCancelRequest = async (id) => {
+    if (!ownerMode) return;
+    try {
+      const res = await API.post(`/api/provider/withdraw/cancel?id=${id}`);
+      if (res.data.success) {
+        showSuccess(t('提现申请已取消'));
+        loadList();
+        loadDashboard();
+      } else {
+        showError(res.data.message || t('操作失败'));
+      }
+    } catch {
+      showError(t('网络错误'));
+    }
+  };
+
   // ==================== columns ====================
+
+  const formatNumber = (val, maxDigits) => {
+    if (typeof val !== 'number') return val;
+    return val.toFixed(maxDigits).replace(/\.?0+$/, '');
+  };
 
   const columns = useMemo(() => {
     const moneyRender = (val, symbol, digits) => (
       <span className='tabular-nums text-slate-700 dark:text-slate-300'>
-        {symbol}{typeof val === 'number' ? val.toFixed(digits) : val}
+        {symbol}{formatNumber(val, digits)}
       </span>
     );
 
@@ -219,7 +244,7 @@ const WithdrawPage = () => {
         align: 'right',
         render: (_, record) => (
           <span className='inline-block tabular-nums font-semibold text-slate-800 dark:text-slate-200'>
-            {record.currency}{typeof record.amount === 'number' ? record.amount.toFixed(2) : record.amount}
+            {record.currency}{formatNumber(record.amount, 8)}
           </span>
         ),
       },
@@ -229,7 +254,7 @@ const WithdrawPage = () => {
         key: 'usd_amount',
         width: 130,
         align: 'right',
-        render: (val) => moneyRender(val, '$', 4),
+        render: (val) => moneyRender(val, '$', 8),
       },
       {
         title: t('人民币金额'),
@@ -237,7 +262,7 @@ const WithdrawPage = () => {
         key: 'cny_amount',
         width: 130,
         align: 'right',
-        render: (val) => moneyRender(val, '¥', 2),
+        render: (val) => moneyRender(val, '¥', 8),
       },
       {
         title: t('汇率'),
@@ -247,7 +272,7 @@ const WithdrawPage = () => {
         align: 'right',
         render: (val) => (
           <span className='tabular-nums text-sm text-slate-500 dark:text-slate-400'>
-            {typeof val === 'number' ? val.toFixed(4) : val}
+            {formatNumber(val, 8)}
           </span>
         ),
       },
@@ -310,15 +335,15 @@ const WithdrawPage = () => {
                 size='small'
                 theme='light'
                 type='primary'
-                onClick={() => handleApprove(record.id, 'approve')}
+                onClick={() => setConfirmModal({ id: record.id, action: 'approve', title: t('批准提现'), content: t('确认批准该提现申请？') })}
               >
-                {t('通过')}
+                {t('批准')}
               </Button>
               <Button
                 size='small'
                 theme='light'
                 type='danger'
-                onClick={() => handleApprove(record.id, 'reject')}
+                onClick={() => setConfirmModal({ id: record.id, action: 'reject', title: t('拒绝提现'), content: t('确认拒绝该提现申请？') })}
               >
                 {t('拒绝')}
               </Button>
@@ -328,8 +353,29 @@ const WithdrawPage = () => {
       });
     }
 
+    if (ownerMode) {
+      base.push({
+        title: t('操作'),
+        key: 'actions',
+        width: 80,
+        render: (_, record) => {
+          if (record.status !== 1) return <Text type='tertiary'>--</Text>;
+          return (
+            <Button
+              size='small'
+              theme='light'
+              type='danger'
+              onClick={() => setConfirmModal({ id: record.id, action: 'cancel', title: t('取消提现'), content: t('确认取消该提现申请？') })}
+            >
+              {t('取消')}
+            </Button>
+          );
+        },
+      });
+    }
+
     return base;
-  }, [t, adminMode]);
+  }, [t, adminMode, ownerMode]);
 
   // ==================== guards ====================
 
@@ -348,6 +394,7 @@ const WithdrawPage = () => {
     { value: 1, label: t('待审核') },
     { value: 2, label: t('已通过') },
     { value: 3, label: t('已拒绝') },
+    { value: 4, label: t('已取消') },
   ];
 
   const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -557,6 +604,29 @@ const WithdrawPage = () => {
           </div>
         </div>
       </Card>
+
+      {/* ======== Confirm modal ======== */}
+      <Modal
+        title={confirmModal?.title || ''}
+        visible={!!confirmModal}
+        onCancel={() => setConfirmModal(null)}
+        onOk={async () => {
+          if (!confirmModal) return;
+          const { id, action } = confirmModal;
+          setConfirmModal(null);
+          if (action === 'cancel') {
+            await handleCancelRequest(id);
+          } else {
+            await handleApprove(id, action);
+          }
+        }}
+        okText={t('确认')}
+        cancelText={t('取消')}
+      >
+        <div className='py-4'>
+          <Text>{confirmModal?.content || ''}</Text>
+        </div>
+      </Modal>
 
       {/* ======== Apply modal ======== */}
       <Modal
