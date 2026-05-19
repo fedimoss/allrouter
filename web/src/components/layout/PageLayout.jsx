@@ -110,11 +110,11 @@ const PageLayout = () => {
         API.get('/api/web_colors'),
       ]);
       if (webColorsRes.status === 'fulfilled') {
-        const { primaryColor, secondaryColor } = extractThemeColors(
+        const { primaryColor, secondaryColor, buttonTextColor } = extractThemeColors(
           webColorsRes.value,
         );
-        if (primaryColor || secondaryColor) {
-          applyThemeColors(primaryColor, secondaryColor);
+        if (primaryColor || secondaryColor || buttonTextColor) {
+          applyThemeColors(primaryColor, secondaryColor, buttonTextColor);
         }
       }
       if (statusRes.status !== 'fulfilled') {

@@ -504,7 +504,7 @@ const OtherSetting = () => {
         }
       });
       if (webColorsResult.status === 'fulfilled') {
-        const { primaryColor, secondaryColor } = extractThemeColors(
+        const { primaryColor, secondaryColor, buttonTextColor } = extractThemeColors(
           webColorsResult.value,
         );
         if (primaryColor) {
@@ -513,10 +513,14 @@ const OtherSetting = () => {
         if (secondaryColor) {
           newInputs.WebSecondaryColor = secondaryColor;
         }
-        if (primaryColor || secondaryColor) {
+        if (buttonTextColor) {
+          newInputs.WebButtonTextColor = buttonTextColor;
+        }
+        if (primaryColor || secondaryColor || buttonTextColor) {
           applyThemeColors(
             newInputs.WebPrimaryColor,
             newInputs.WebSecondaryColor,
+            newInputs.WebButtonTextColor
           );
         }
       }
