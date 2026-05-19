@@ -1262,7 +1262,7 @@ const ProviderPage = () => {
           >
             <Form.InputNumber
               field='consume_rebate_ratio_level1'
-              label={t('一级消费返佣比例')}
+              label={t('一级消费返佣比例（利润比例）')}
               min={0}
               max={100}
               step={0.01}
@@ -1271,7 +1271,7 @@ const ProviderPage = () => {
             />
             <Form.InputNumber
               field='consume_rebate_ratio_level2'
-              label={t('二级消费返佣比例')}
+              label={t('二级消费返佣比例（利润比例）')}
               min={0}
               max={100}
               step={0.01}
