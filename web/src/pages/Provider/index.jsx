@@ -949,7 +949,10 @@ const ProviderPage = () => {
               <Form.Select
                 field='status'
                 label={t('状态')}
-                optionList={STATUS_OPTIONS}
+                optionList={STATUS_OPTIONS.map((option) => ({
+                  ...option,
+                  label: t(option.label),
+                }))}
               />
             </>
           ) : null}
@@ -975,7 +978,10 @@ const ProviderPage = () => {
           <Form.Select
             field='status'
             label={t('状态')}
-            optionList={DOMAIN_STATUS_OPTIONS}
+            optionList={DOMAIN_STATUS_OPTIONS.map((option) => ({
+              ...option,
+              label: t(option.label),
+            }))}
           />
           <Form.Input field='verify_token' label={t('验证标识')} />
         </Form>
@@ -1206,7 +1212,10 @@ const ProviderPage = () => {
           <Form.Select
             field='pricing_type'
             label={t('计价方式')}
-            optionList={PRICING_TYPE_OPTIONS}
+            optionList={PRICING_TYPE_OPTIONS.map((option) => ({
+              ...option,
+              label: t(option.label),
+            }))}
             onChange={(value) => {
               const nextType = value || emptyPricing.pricing_type;
               setPricingType(nextType);
