@@ -1014,26 +1014,35 @@ func AdminApproveProviderWithdrawRequest(c *gin.Context) {
 
 // 取消提现申请（服务商在自己的提现管理中取消待审核的申请）
 func CancelProviderWithdrawRequest(c *gin.Context) {
+	// 1. 解析提现申请 ID
 	id, _ := strconv.Atoi(c.Query("id"))
+
+	// 2. 获取当前登录服务商，校验身份
 	provider, ok := getOwnedProvider(c)
 	if !ok {
 		return
 	}
 
+	// 3. 查询提现申请是否存在
 	var withdraw model.ProviderWithdraw
 	if err := model.DB.Where("id = ?", id).First(&withdraw).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 4. 校验该申请是否属于当前服务商
 	if withdraw.ProviderId != provider.Id {
 		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgProviderWithdrawNotYours))
 		return
 	}
+
+	// 5. 只允许取消"待审核"状态的申请
 	if withdraw.Status != model.ProviderWithdrawStatusPending {
 		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgProviderWithdrawCannotCancel))
 		return
 	}
 
+	// 6. 更新状态为"已取消"
 	if err := model.UpdateProviderWithdrawStatus(id, model.ProviderWithdrawStatusCancelled); err != nil {
 		common.ApiError(c, err)
 		return

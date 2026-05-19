@@ -4972,7 +4972,7 @@ COMMENT ON COLUMN "provider_withdraw"."currency"                IS '货币';
 COMMENT ON COLUMN "provider_withdraw"."usd_amount"              IS '美元金额';
 COMMENT ON COLUMN "provider_withdraw"."cny_amount"              IS '人民币金额';
 COMMENT ON COLUMN "provider_withdraw"."usd_to_cny_rate"         IS '美元到人民币汇率';
-COMMENT ON COLUMN "provider_withdraw"."status"                  IS '状态: 1-审核中, 2-审核通过, 3-已拒绝';
+COMMENT ON COLUMN "provider_withdraw"."status"                  IS '状态: 1-审核中, 2-审核通过, 3-已拒绝, 4-已取消';
 COMMENT ON COLUMN "provider_withdraw"."created_at"              IS '创建时间';
 COMMENT ON COLUMN "provider_withdraw"."updated_at"              IS '更新时间';
 
