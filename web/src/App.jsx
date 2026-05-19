@@ -59,6 +59,7 @@ import ProviderRedemptionPage from './pages/Provider/Redemption';
 import ProviderProfitsPage from './pages/Provider/Profits';
 import ProviderLogsPage from './pages/Provider/Logs';
 import ProviderUsersPage from './pages/Provider/Users';
+import ProviderWithdrawPage from './pages/Provider/Withdraw';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
@@ -67,7 +68,6 @@ import SetupCheck from './components/layout/SetupCheck';
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
-const AgentPartner = lazy(() => import('./pages/AgentPartner'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const Docs = lazy(() => import('./pages/Docs'));
@@ -200,6 +200,14 @@ function App() {
           element={
             <PrivateRoute>
               <ProviderProfitsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/provider/withdraw'
+          element={
+            <PrivateRoute>
+              <ProviderWithdrawPage />
             </PrivateRoute>
           }
         />
@@ -476,14 +484,6 @@ function App() {
                 <Pricing />
               </Suspense>
             )
-          }
-        />
-        <Route
-          path='/agent-partner'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <AgentPartner />
-            </Suspense>
           }
         />
         <Route

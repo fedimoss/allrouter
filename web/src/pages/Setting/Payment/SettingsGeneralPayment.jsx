@@ -154,7 +154,7 @@ export default function SettingsGeneralPayment(props) {
           {/* 消费返利比例配置 */}
           <Form.InputNumber
             field='InviteTopupRebateRatio'
-            label={t('一级消费返利比例（利润比例）')}
+            label={t('一级消费返利比例')}
             min={0}
             max={100}
             step={0.1}
@@ -168,7 +168,7 @@ export default function SettingsGeneralPayment(props) {
           {/* 二级消费返利比例配置 */}
           <Form.InputNumber
             field='InviteConsumeRebateRatioLevel2'
-            label={t('二级消费返利比例（利润比例）')}
+            label={t('二级消费返利比例')}
             min={0}
             max={100}
             step={0.1}

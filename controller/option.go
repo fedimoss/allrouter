@@ -605,8 +605,9 @@ func UpdateCryptoRate(c *gin.Context) {
 
 // setWebColorsRequest 设置网站主色和辅色请求
 type setWebColorsRequest struct {
-	PrimaryColor   string `json:"primary_color"`
-	SecondaryColor string `json:"secondary_color"`
+	PrimaryColor    string `json:"primary_color"`     // 主色
+	SecondaryColor  string `json:"secondary_color"`   // 辅色
+	ButtonTextColor string `json:"button_text_color"` // 按钮文本颜色
 }
 
 // SetWebColors 设置网站主色和辅色
@@ -630,6 +631,15 @@ func SetWebColors(c *gin.Context) {
 			return
 		}
 	}
+
+	// 更新按钮文本颜色
+	if strings.TrimSpace(req.ButtonTextColor) != "" {
+		if err := model.UpdateOption("WebButtonTextColor", strings.TrimSpace(req.ButtonTextColor)); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+
 	common.ApiSuccess(c, nil)
 }
 

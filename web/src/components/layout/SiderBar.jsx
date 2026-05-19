@@ -56,6 +56,7 @@ const routerMap = {
   providerUsers: '/console/provider/users',
   providerProfits: '/console/provider/profits',
   providerLogs: '/console/provider/logs',
+  providerWithdraw: '/console/provider/withdraw',
   playground: '/console/playground',
   personal: '/console/personal',
   oauth: '/console/oauth',
@@ -244,6 +245,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/provider',
       },
       {
+        text: t('提现管理'),
+        itemKey: 'providerWithdraw',
+        to: '/provider/withdraw',
+      },
+      {
         text: t('奖励设置'),
         itemKey: 'providerReward',
         to: '/provider/reward',
@@ -306,6 +312,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('服务商管理'),
         itemKey: 'provider',
         to: '/provider',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('提现审核'),
+        itemKey: 'providerWithdraw',
+        to: '/provider/withdraw',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

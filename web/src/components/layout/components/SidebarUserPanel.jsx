@@ -24,7 +24,7 @@ import { Avatar, Button, Dropdown } from '@douyinfe/semi-ui';
 import { IconExit, IconUserSetting } from '@douyinfe/semi-icons';
 import { API, renderQuota, showSuccess, stringToColor, formatDisplayMoney } from '../../../helpers';
 import { UserContext } from '../../../context/User';
-import defaultAvatar from '../../../../public/avatar.svg';
+import defaultAvatar from '../../../../public/logo-white.svg';
 
 const SidebarUserPanel = ({ collapsed }) => {
   const { t } = useTranslation();

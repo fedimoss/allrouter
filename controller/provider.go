@@ -7,10 +7,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -767,4 +769,254 @@ func DeleteProviderModelPricing(c *gin.Context) {
 		return
 	}
 	deleteProviderModelPricing(c, provider.Id, "id")
+}
+
+// AddProviderWithdrawRequest 添加提现申请
+func AddProviderWithdrawRequest(c *gin.Context) {
+	// 解析请求参数
+	amount, err := strconv.ParseFloat(c.Query("amount"), 64)
+	if err != nil || amount <= 0 {
+		common.ApiErrorMsg(c, "amount must be greater than 0")
+		return
+	}
+
+	// 根据用户ID获取Provider信息
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+
+	// 根据用户时区确定币种，并校验可用余额
+	userId := c.GetInt("id")
+	var user model.User
+	timezone := "America/New_York"
+	if err := model.DB.Select("quota, reward_quota, timezone").Where("id = ?", userId).First(&user).Error; err == nil && user.Timezone != "" {
+		timezone = user.Timezone
+	}
+	currencyCode := model.GetCurrencyByTimezoneWithFallback(timezone, "usd")
+
+	// 获取美元人民币汇率
+	usdToCnyRate := operation_setting.USDExchangeRate
+
+	// 计算可用余额并与提现金额比较
+	availableBalance := float64(user.Quota-user.RewardQuota) / common.QuotaPerUnit
+
+	// 如果用户币种是 CNY，availableBalance 转为人民币
+	if strings.ToLower(currencyCode) == "cny" {
+		availableBalance = availableBalance * usdToCnyRate
+	}
+
+	// 此时 amount 和 availableBalance 已经是同一币种，直接比较
+	if amount > availableBalance {
+		common.ApiErrorMsg(c, "insufficient balance")
+		return
+	}
+
+	// 根据币种计算 USD/CNY 金额并转换为符号
+	currencyCode = strings.ToLower(currencyCode)
+	var currency string
+	var usdAmount, cnyAmount float64
+	switch currencyCode {
+	case "cny":
+		currency = "￥"
+		cnyAmount = amount
+		usdAmount = amount / usdToCnyRate
+	default:
+		currency = "$"
+		usdAmount = amount
+		cnyAmount = amount * usdToCnyRate
+	}
+
+	// 构建提现申请
+	withdraw := model.ProviderWithdraw{
+		ProviderId:   provider.Id,                         // 服务商ID
+		Amount:       amount,                              // 提现金额
+		Currency:     currency,                            // 提现币种(符号)
+		UsdAmount:    usdAmount,                           // 提现金额(美元)
+		CnyAmount:    cnyAmount,                           // 提现金额(人民币)
+		UsdToCnyRate: usdToCnyRate,                        // 美元人民币汇率
+		Status:       model.ProviderWithdrawStatusPending, // 待审核
+		CreatedAt:    common.GetTimestamp(),               // 创建时间
+		UpdatedAt:    common.GetTimestamp(),               // 更新时间
+	}
+
+	// 创建提现申请
+	if err := model.CreateProviderWithdraw(&withdraw); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 返回提现申请
+	common.ApiSuccess(c, withdraw)
+}
+
+// 提现申请列表
+func GetProviderWithdrawList(c *gin.Context) {
+	// 根据用户ID获取Provider信息
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+
+	// 分页查询
+	pageInfo := common.GetPageQuery(c)
+
+	// 提现申请状态
+	status, _ := strconv.Atoi(c.Query("status"))
+
+	// 查询提现申请列表
+	records, total, err := model.GetProviderWithdraws(provider.Id, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 返回提现申请列表
+	pageInfo.SetItems(records)
+	pageInfo.SetTotal(int(total))
+	common.ApiSuccess(c, pageInfo)
+}
+
+// 提现申请数据概览
+func GetProviderWithdrawDashboard(c *gin.Context) {
+	if _, ok := getOwnedProvider(c); !ok {
+		return
+	}
+
+	// 获取当前用户ID
+	userId := c.GetInt("id")
+
+	// 根据用户ID查询User表
+	var user model.User
+	if err := model.DB.Select("quota, reward_quota, timezone").Where("id = ?", userId).First(&user).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 计算可用余额（美元），保留尽可能多的小数位
+	availableBalance := float64(user.Quota-user.RewardQuota) / common.QuotaPerUnit
+
+	// 根据用户时区确定币种
+	timezone := user.Timezone
+	if timezone == "" {
+		timezone = "America/New_York"
+	}
+
+	// 获取时区对应的币种，默认使用美元
+	currency := model.GetCurrencyByTimezoneWithFallback(timezone, "usd")
+
+	// 如果币种为 CNY，根据汇率转换为人民币
+	if strings.ToLower(currency) == "cny" {
+		availableBalance = availableBalance * operation_setting.USDExchangeRate
+	}
+
+	if strings.ToLower(currency) == "usd" {
+		currency = "$"
+	} else {
+		currency = "￥"
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"available_balance": availableBalance,
+		"currency":          currency,
+	})
+}
+
+// 提现申请列表 (管理员接口)
+func AdminGetProviderWithdrawList(c *gin.Context) {
+	// 分页查询
+	pageInfo := common.GetPageQuery(c)
+
+	// 可选筛选参数
+	providerId, _ := strconv.Atoi(c.Query("provider_id")) // 服务商ID
+	providerName := c.Query("provider_name")              // 服务商名称
+	status, _ := strconv.Atoi(c.Query("status"))          // 提现申请状态
+
+	// 查询提现申请列表（JOIN providers 表以支持供应商名称筛选）
+	records, total, err := model.SearchProviderWithdraws(providerId, providerName, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 返回提现申请列表
+	pageInfo.SetItems(records)
+	pageInfo.SetTotal(int(total))
+	common.ApiSuccess(c, pageInfo)
+}
+
+// 提现申请审核 (管理员接口)
+func AdminApproveProviderWithdrawRequest(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Query("id")) // 获取提现申请ID
+	action := c.Query("action")          // 获取提现申请操作
+
+	// 查询提现申请记录
+	var withdraw model.ProviderWithdraw
+	if err := model.DB.Where("id = ?", id).First(&withdraw).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 根据操作处理
+	var status int
+	switch action {
+	case "approve":
+		status = model.ProviderWithdrawStatusApproved
+
+		// 查询服务商对应的用户
+		var provider model.Provider
+		if err := model.DB.Select("owner_user_id").Where("id = ?", withdraw.ProviderId).First(&provider).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+
+		// 计算需要扣除的美元金额
+		var usdAmount float64
+		if withdraw.Currency == "￥" {
+			usdAmount = withdraw.Amount / withdraw.UsdToCnyRate
+		} else {
+			usdAmount = withdraw.Amount
+		}
+
+		// 转换为内部额度并扣除
+		deduction := int(usdAmount * common.QuotaPerUnit)
+		if err := model.DB.Model(&model.User{}).Where("id = ? AND quota >= ?", provider.OwnerUserId, deduction).
+			UpdateColumn("quota", gorm.Expr("quota - ?", deduction)).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+
+	case "reject":
+		status = model.ProviderWithdrawStatusRejected
+	default:
+		common.ApiErrorMsg(c, "invalid action")
+		return
+	}
+
+	// 修改提现申请状态
+	if err := model.UpdateProviderWithdrawStatus(id, status); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 返回成功
+	common.ApiSuccess(c, gin.H{
+		"message": "success",
+	})
+}
+
+// 提现申请数据概览 (管理员接口)
+func AdminGetProviderWithdrawDashboard(c *gin.Context) {
+	var totalCount, todayCount int64
+
+	model.DB.Model(&model.ProviderWithdraw{}).Count(&totalCount)
+
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
+	model.DB.Model(&model.ProviderWithdraw{}).Where("created_at >= ?", todayStart).Count(&todayCount)
+
+	common.ApiSuccess(c, gin.H{
+		"total_count": totalCount,
+		"today_count": todayCount,
+	})
 }

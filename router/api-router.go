@@ -376,6 +376,10 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.POST("/model_pricing", controller.UpsertProviderModelPricing)
 			providerRoute.PUT("/model_pricing", controller.UpsertProviderModelPricing)
 			providerRoute.DELETE("/model_pricing/:id", controller.DeleteProviderModelPricing)
+			providerRoute.POST("/withdraw/request", controller.AddProviderWithdrawRequest)    // 添加提现申请
+			providerRoute.GET("/withdraw/list", controller.GetProviderWithdrawList)           // 提现申请列表
+			providerRoute.GET("/withdraw/dashboard", controller.GetProviderWithdrawDashboard) // 提现申请数据概览
+
 		}
 		providerAdminRoute := apiRouter.Group("/provider/admin")
 		providerAdminRoute.Use(middleware.AdminAuth())
@@ -400,6 +404,9 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.POST("/:id/model_pricing", controller.AdminUpsertProviderModelPricing)
 			providerAdminRoute.PUT("/:id/model_pricing", controller.AdminUpsertProviderModelPricing)
 			providerAdminRoute.DELETE("/:id/model_pricing/:pricing_id", controller.AdminDeleteProviderModelPricing)
+			providerAdminRoute.GET("/withdraw/list", controller.AdminGetProviderWithdrawList)            // 提现申请列表
+			providerAdminRoute.GET("/withdraw/dashboard", controller.AdminGetProviderWithdrawDashboard)  // 提现申请数据概览
+			providerAdminRoute.POST("/withdraw/approve", controller.AdminApproveProviderWithdrawRequest) // 提现申请审核
 		}
 
 		operationRoute := apiRouter.Group("/operation")
