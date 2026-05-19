@@ -56,6 +56,7 @@ const OtherSetting = () => {
     Logo: '',
     WebPrimaryColor: '#09FEF7',
     WebSecondaryColor: '#BAFF29',
+    WebButtonTextColor: '#FFFFFF',
     Footer: '',
     About: '',
     HomePageContent: '',
@@ -295,10 +296,11 @@ const OtherSetting = () => {
       const res = await API.post('/api/option/web_colors', {
         primary_color: inputs.WebPrimaryColor || '',
         secondary_color: inputs.WebSecondaryColor || '',
+        button_text_color: inputs.WebButtonTextColor || ''
       });
       const { success, message } = res.data || {};
       if (success) {
-        applyThemeColors(inputs.WebPrimaryColor, inputs.WebSecondaryColor);
+        applyThemeColors(inputs.WebPrimaryColor, inputs.WebSecondaryColor, inputs.WebButtonTextColor);
         showSuccess(t('主题色设置已更新'));
       } else {
         showError(message || t('主题色设置更新失败'));
@@ -763,6 +765,38 @@ const OtherSetting = () => {
                         label={t('辅助色')}
                         placeholder='#B7F400'
                         field={'WebSecondaryColor'}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className='flex-1 min-w-[220px]'>
+                  <div className='flex items-end gap-2'>
+                    <input
+                      aria-label={t('选择按钮字体颜色')}
+                      type='color'
+                      value={getColorInputValue(inputs.WebButtonTextColor)}
+                      onChange={(event) =>
+                        handleColorPickerChange(
+                          'WebButtonTextColor',
+                          event.target.value,
+                        )
+                      }
+                      style={{
+                        width: 30,
+                        height: 32,
+                        padding: 0,
+                        border: 0,
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        marginBottom: 12,
+                      }}
+                    />
+                    <div className='flex-1'>
+                      <Form.Input
+                        label={t('按钮字体颜色')}
+                        placeholder='#FFFFFF'
+                        field={'WebButtonTextColor'}
                         onChange={handleInputChange}
                       />
                     </div>
