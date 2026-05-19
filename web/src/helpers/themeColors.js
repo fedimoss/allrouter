@@ -19,9 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 
 export const DEFAULT_THEME_PRIMARY_COLOR = '#09FEF7';
 export const DEFAULT_THEME_SECONDARY_COLOR = '#BAFF29';
+export const DEFAULT_BUTTON_TEXT_COLOR = '#ffffff';
 
 const WEB_PRIMARY_COLOR_KEY = 'web_primary_color';
 const WEB_SECONDARY_COLOR_KEY = 'web_secondary_color';
+const WEB_BUTTON_TEXT_COLOR_KEY = 'web_button_text_color';
+
 
 const normalizeHexColor = (value) => {
   if (typeof value !== 'string') {
@@ -57,7 +60,7 @@ const hexToRgb = (hex) => {
 const getColorWithFallback = (value, fallback) =>
   normalizeHexColor(value) || fallback;
 
-export const applyThemeColors = (primaryColor, secondaryColor) => {
+export const applyThemeColors = (primaryColor, secondaryColor, buttonTextColor) => {
   const primary = getColorWithFallback(
     primaryColor,
     DEFAULT_THEME_PRIMARY_COLOR,
@@ -66,12 +69,17 @@ export const applyThemeColors = (primaryColor, secondaryColor) => {
     secondaryColor,
     DEFAULT_THEME_SECONDARY_COLOR,
   );
+  const buttonColor = getColorWithFallback(
+    buttonTextColor,
+    DEFAULT_BUTTON_TEXT_COLOR,
+  );
   const primaryRgb = hexToRgb(primary);
   const secondaryRgb = hexToRgb(secondary);
   const rootStyle = document.documentElement.style;
 
   rootStyle.setProperty('--theme-primary', primary);
   rootStyle.setProperty('--theme-secondary', secondary);
+  rootStyle.setProperty('--theme-primary-btn-color', buttonColor);
   rootStyle.setProperty(
     '--theme-gradient',
     `linear-gradient(97.63deg, ${primary} 0%, ${secondary} 100%)`,
@@ -146,12 +154,14 @@ export const applyThemeColors = (primaryColor, secondaryColor) => {
 
   localStorage.setItem(WEB_PRIMARY_COLOR_KEY, primary);
   localStorage.setItem(WEB_SECONDARY_COLOR_KEY, secondary);
+  localStorage.setItem(WEB_BUTTON_TEXT_COLOR_KEY, buttonColor);
 };
 
 export const applyStoredThemeColors = () => {
   applyThemeColors(
     localStorage.getItem(WEB_PRIMARY_COLOR_KEY),
     localStorage.getItem(WEB_SECONDARY_COLOR_KEY),
+    localStorage.getItem(WEB_BUTTON_TEXT_COLOR_KEY),
   );
 };
 
@@ -161,6 +171,9 @@ export const getStoredThemeColors = () => ({
   secondaryColor:
     localStorage.getItem(WEB_SECONDARY_COLOR_KEY) ||
     DEFAULT_THEME_SECONDARY_COLOR,
+  buttonTextColor:
+    localStorage.getItem(WEB_BUTTON_TEXT_COLOR_KEY) ||
+    DEFAULT_BUTTON_TEXT_COLOR,
 });
 
 export const extractThemeColors = (payload) => {
@@ -182,6 +195,10 @@ export const extractThemeColors = (payload) => {
         colorMap.secondary_color ||
         colorMap.WebSecondaryColor ||
         colorMap.web_secondary_color,
+      buttonTextColor:
+        colorMap.button_text_color ||
+        colorMap.WebButtonTextColor ||
+        colorMap.web_button_text_color,
     };
   }
   return {
@@ -194,5 +211,9 @@ export const extractThemeColors = (payload) => {
       data.secondary_color ||
       data.WebSecondaryColor ||
       data.web_secondary_color,
+    buttonTextColor:
+      data.button_text_color ||
+      data.WebButtonTextColor ||
+      data.web_button_text_color,
   };
 };
