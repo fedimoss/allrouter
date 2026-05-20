@@ -272,6 +272,7 @@ const ProviderProfitsPage = () => {
         title: t('明细'),
         dataIndex: 'detail',
         fixed: 'right',
+        width: 120,
         render: (_, record) => (
           <Button
             size='small'
@@ -367,19 +368,19 @@ const ProviderProfitsPage = () => {
             </section>
 
             <section className='usage-logs-v2-stats'>
-              <div className='usage-logs-v2-stat-grid'>
+              <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3'>
                 {summaryCards.map((item) => (
                   <div
                     key={item.key}
-                    className='usage-logs-v2-stat-card usage-logs-v2-stat-accent-quota'
+                    className='rounded-xl border border-[var(--lg-border)] bg-[var(--lg-surface)] p-4'
                   >
-                    <div className='usage-logs-v2-stat-head'>
-                      <div className='usage-logs-v2-stat-label'>{item.label}</div>
-                      <div className='usage-logs-v2-stat-icon usage-logs-v2-stat-icon-quota'>
-                        <Coins size={16} />
+                    <div className='flex items-center justify-between mb-2'>
+                      <div className='text-xs text-[var(--lg-text-muted)] font-medium'>{item.label}</div>
+                      <div className='text-[var(--lg-text-soft)]'>
+                        <Coins size={14} />
                       </div>
                     </div>
-                    <div className='usage-logs-v2-stat-value'>
+                    <div className='text-lg font-bold text-[var(--lg-text)] tracking-tight'>
                       {quotaText(summary[item.key])}
                     </div>
                   </div>
@@ -417,9 +418,9 @@ const ProviderProfitsPage = () => {
                     </Button>
                   </div>
                 </div>
-                <div className='usage-logs-v2-filter-grid'>
-                  <div className='usage-logs-v2-filter-item usage-logs-v2-filter-item-wide'>
-                    <div className='usage-logs-v2-filter-label'>{t('时间范围')}</div>
+                <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3'>
+                  <div className='sm:col-span-2 lg:col-span-1'>
+                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>{t('时间范围')}</div>
                     <Form.DatePicker
                       field='dateRange'
                       type='dateTimeRange'
@@ -434,8 +435,8 @@ const ProviderProfitsPage = () => {
                       }))}
                     />
                   </div>
-                  <div className='usage-logs-v2-filter-item'>
-                    <div className='usage-logs-v2-filter-label'>{t('服务商用户 ID')}</div>
+                  <div>
+                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>{t('服务商用户 ID')}</div>
                     <Form.Input
                       field='provider_user_id'
                       prefix={<IconSearch />}
@@ -445,8 +446,8 @@ const ProviderProfitsPage = () => {
                       className='usage-logs-v2-control'
                     />
                   </div>
-                  <div className='usage-logs-v2-filter-item'>
-                    <div className='usage-logs-v2-filter-label'>{t('模型名称')}</div>
+                  <div>
+                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>{t('模型名称')}</div>
                     <Form.Input
                       field='model_name'
                       prefix={<IconSearch />}
@@ -456,8 +457,8 @@ const ProviderProfitsPage = () => {
                       className='usage-logs-v2-control'
                     />
                   </div>
-                  <div className='usage-logs-v2-filter-item'>
-                    <div className='usage-logs-v2-filter-label'>Request ID</div>
+                  <div>
+                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>Request ID</div>
                     <Form.Input
                       field='request_id'
                       prefix={<IconSearch />}
@@ -471,7 +472,7 @@ const ProviderProfitsPage = () => {
               </Form>
             </section>
 
-            <section className='log-v2-table-card usage-logs-v2-table-card'>
+            <section className='log-v2-table-card'>
               <div className='usage-logs-v2-table-wrap'>
                 <CardTable
                   columns={columns}

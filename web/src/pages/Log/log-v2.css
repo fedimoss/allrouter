@@ -1354,3 +1354,15 @@ html.dark .usage-logs-v2-stat-icon-tpm {
     padding: 16px 18px 20px;
   }
 }
+
+/* Fix fixed-right column overlap in scrollable tables */
+.semi-table td.semi-table-cell-fixed-right,
+.semi-table th.semi-table-cell-fixed-right {
+  background: inherit;
+  background-color: var(--semi-color-bg-0, #fff);
+  z-index: 2;
+}
+html.dark .semi-table td.semi-table-cell-fixed-right,
+html.dark .semi-table th.semi-table-cell-fixed-right {
+  background-color: var(--semi-color-bg-0, #1a1f2e);
+}

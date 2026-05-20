@@ -68,6 +68,7 @@ const CardTable = ({
         dataSource={dataSource}
         loading={loading}
         rowKey={rowKey}
+        scroll={{ x: 'max-content' }}
         {...finalTableProps}
       />
     );
