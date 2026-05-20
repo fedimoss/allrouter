@@ -40,23 +40,24 @@ type ProviderDomain struct {
 }
 
 type ProviderConfig struct {
-	Id              int    `json:"id"`
-	ProviderId      int    `json:"provider_id" gorm:"uniqueIndex;not null"`
-	SiteName        string `json:"site_name" gorm:"type:varchar(128)"`
-	Logo            string `json:"logo" gorm:"type:text"`
-	ThemeColor      string `json:"theme_color" gorm:"type:varchar(32);default:''"`
-	SecondaryColor  string `json:"secondary_color" gorm:"type:varchar(32);default:''"`
-	LoginBackground string `json:"login_background" gorm:"type:text"`
-	HomeModules     string `json:"home_modules" gorm:"type:text"`
-	NavModules      string `json:"nav_modules" gorm:"type:text"`
-	PricingDisplay  string `json:"pricing_display" gorm:"type:text"`
-	Announcement    string `json:"announcement" gorm:"type:text"`
-	FooterText      string `json:"footer_text" gorm:"type:text"`
-	SupportUrl      string `json:"support_url" gorm:"type:text"`
-	CreatedAt       int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt       int64  `json:"updated_at" gorm:"bigint"`
-	WechatSupport   string `json:"wechat_support" gorm:"type:text"`
-	QQSupport       string `json:"qq_support" gorm:"type:text"`
+	Id               int     `json:"id"`
+	ProviderId       int     `json:"provider_id" gorm:"uniqueIndex;not null"`
+	SiteName         string  `json:"site_name" gorm:"type:varchar(128)"`
+	Logo             string  `json:"logo" gorm:"type:text"`
+	ThemeColor       string  `json:"theme_color" gorm:"type:varchar(32);default:''"`
+	SecondaryColor   string  `json:"secondary_color" gorm:"type:varchar(32);default:''"`
+	LoginBackground  string  `json:"login_background" gorm:"type:text"`
+	HomeModules      string  `json:"home_modules" gorm:"type:text"`
+	NavModules       string  `json:"nav_modules" gorm:"type:text"`
+	PricingDisplay   string  `json:"pricing_display" gorm:"type:text"`
+	Announcement     string  `json:"announcement" gorm:"type:text"`
+	FooterText       string  `json:"footer_text" gorm:"type:text"`
+	SupportUrl       string  `json:"support_url" gorm:"type:text"`
+	ImportPriceRatio float64 `json:"import_price_ratio" gorm:"type:decimal(10,6);not null;default:1"`
+	CreatedAt        int64   `json:"created_at" gorm:"bigint"`
+	UpdatedAt        int64   `json:"updated_at" gorm:"bigint"`
+	WechatSupport    string  `json:"wechat_support" gorm:"type:text"`
+	QQSupport        string  `json:"qq_support" gorm:"type:text"`
 }
 
 type ProviderModelPricing struct {

@@ -72,6 +72,7 @@ const emptyProvider = {
   owner_user_id: undefined,
   name: '',
   status: 1,
+  import_price_ratio: 1,
 };
 
 const emptyConfig = {
@@ -113,6 +114,11 @@ const markupPercentToRatio = (percent) => {
   return Number((1 + value / 100).toFixed(6));
 };
 
+const formatRatioPercent = (ratio) => {
+  const value = Number(ratio || 1) * 100;
+  return `${Number(value.toFixed(6))}%`;
+};
+
 const getColorInputValue = (value, fallback = '#000000') => {
   if (typeof value !== 'string') {
     return fallback;
@@ -139,6 +145,12 @@ const getConfigFormValues = (config) => {
     secondary_color: values.secondary_color || DEFAULT_THEME_SECONDARY_COLOR,
   };
 };
+
+const getProviderFormValues = (provider) => ({
+  ...emptyProvider,
+  ...(provider || {}),
+  import_price_ratio: Number(provider?.config?.import_price_ratio || 1),
+});
 
 const getPricingFormValues = (pricing) => {
   const values = pricing || emptyPricing;
@@ -299,7 +311,7 @@ const ProviderPage = () => {
 
   useEffect(() => {
     if (!providerModalVisible || !providerFormRef.current) return;
-    providerFormRef.current.setValues(editingProvider || emptyProvider);
+    providerFormRef.current.setValues(getProviderFormValues(editingProvider));
   }, [providerModalVisible, editingProvider]);
 
   useEffect(() => {
@@ -519,6 +531,7 @@ const ProviderPage = () => {
           ...values,
           owner_user_id: Number(values.owner_user_id),
           status: Number(values.status),
+          import_price_ratio: Number(values.import_price_ratio || 1),
         }
       : { name: values.name };
     const res =
@@ -538,7 +551,7 @@ const ProviderPage = () => {
 
   const submitDomain = async () => {
     const values = domainFormRef.current?.getValues?.() || {};
-    if (!values.domain) {
+    if (!editingDomain && !values.domain) {
       showError(t('域名不能为空'));
       return;
     }
@@ -696,6 +709,12 @@ const ProviderPage = () => {
         ),
       },
       {
+        title: t('成本价比例'),
+        dataIndex: 'config',
+        width: 120,
+        render: (config) => formatRatioPercent(config?.import_price_ratio),
+      },
+      {
         title: t('域名'),
         dataIndex: 'domains',
         render: (domains, provider) => {
@@ -708,7 +727,13 @@ const ProviderPage = () => {
               {domainRows.map((domain) => (
                 <Tag
                   key={domain.id}
-                  color={domain.status === 1 ? 'green' : 'orange'}
+                  color={
+                    !domain.domain
+                      ? 'grey'
+                      : domain.status === 1
+                        ? 'green'
+                        : 'orange'
+                  }
                   closable
                   style={{ cursor: 'pointer' }}
                   onClick={() => openDomainModal(provider, domain)}
@@ -717,7 +742,7 @@ const ProviderPage = () => {
                     deleteDomain(provider, domain);
                   }}
                 >
-                  {domain.domain}
+                  {domain.domain || t('未配置')}
                 </Tag>
               ))}
             </Space>
@@ -790,7 +815,7 @@ const ProviderPage = () => {
           </Space>
         ),
       },
-    ],
+    ].filter(Boolean),
     [adminMode, t],
   );
 
@@ -929,7 +954,7 @@ const ProviderPage = () => {
       >
         <Form
           key={editingProvider?.id || 'new-provider'}
-          initValues={editingProvider || emptyProvider}
+          initValues={getProviderFormValues(editingProvider)}
           getFormApi={(api) => (providerFormRef.current = api)}
         >
           <Form.Input field='name' label={t('服务商名称')} />
@@ -954,6 +979,19 @@ const ProviderPage = () => {
                   label: t(option.label),
                 }))}
               />
+              <Form.InputNumber
+                field='import_price_ratio'
+                label={t('模型进口价比例')}
+                min={0.000001}
+                max={1}
+                step={0.01}
+                precision={6}
+              />
+              <Text type='tertiary' size='small'>
+                {t(
+                  '填 0.3 表示服务商进口价为主站原价的 30%；服务商用户售价会在进口价基础上继续按服务商模型定价加价。',
+                )}
+              </Text>
             </>
           ) : null}
         </Form>
@@ -1230,6 +1268,11 @@ const ProviderPage = () => {
           />
           {pricingType === 'ratio' ? (
             <>
+              <Text type='tertiary' size='small'>
+                {t(
+                  '这里的加价基于服务商成本价计算，不是基于主站原价。最终售价 = 主站原价 × 成本价比例 × (1 + 加价比例)',
+                )}
+              </Text>
               <Form.InputNumber
                 field='markup_percent'
                 label={t('加价比例')}
@@ -1237,14 +1280,14 @@ const ProviderPage = () => {
                 step={1}
                 suffix='%'
               />
-              <Text type='tertiary' size='small'>
-                {t(
-                  '填 20 表示在主站成本价基础上加价 20%，系统保存时会自动换算为 1.2 倍；填 0 表示不加价。',
-                )}
-              </Text>
             </>
           ) : (
             <>
+              <Text type='tertiary' size='small'>
+                {t(
+                  '固定加价是在服务商成本价基础上额外增加固定金额。最终售价 = 服务商成本价 + 固定加价。',
+                )}
+              </Text>
               <Form.InputNumber
                 field='delta_model_ratio'
                 label={t('Token 模型加价倍率')}

@@ -4990,3 +4990,34 @@ ALTER TABLE provider_profits
 COMMENT ON COLUMN provider_profits.gross_profit_quota IS '分佣前毛利润';
 COMMENT ON COLUMN provider_profits.rebate_quota IS '一级 + 二级总分佣';
 COMMIT;
+
+
+ALTER TABLE provider_configs
+    ADD COLUMN IF NOT EXISTS import_price_ratio numeric(10,6);
+COMMENT ON COLUMN provider_configs.import_price_ratio IS '进口价比例';
+
+UPDATE provider_configs
+SET import_price_ratio = 1
+WHERE import_price_ratio IS NULL
+   OR import_price_ratio <= 0
+   OR import_price_ratio > 1;
+
+ALTER TABLE provider_configs
+    ALTER COLUMN import_price_ratio SET DEFAULT 1;
+
+ALTER TABLE provider_configs
+    ALTER COLUMN import_price_ratio SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'chk_provider_configs_import_price_ratio'
+  ) THEN
+ALTER TABLE provider_configs
+    ADD CONSTRAINT chk_provider_configs_import_price_ratio
+        CHECK (import_price_ratio > 0 AND import_price_ratio <= 1);
+END IF;
+END $$;
+

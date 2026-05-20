@@ -299,6 +299,16 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	quota := calculateAudioQuota(quotaInfo)
 
 	totalTokens := usage.TotalTokens
+	baseQuota := quota
+	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
+	providerOwnerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
+	if totalTokens != 0 {
+		if providerQuota, importCostQuota, applied := ApplyProviderPricingQuota(ctx, baseQuota, usePrice, groupRatio, totalTokens); applied {
+			quota = providerQuota
+			common.SetContextKey(ctx, constant.ContextKeyProviderBaseQuota, importCostQuota)
+			common.SetContextKey(ctx, constant.ContextKeyProviderUserQuota, quota)
+		}
+	}
 	var logContent string
 	if !usePrice {
 		logContent = fmt.Sprintf("模型倍率 %.2f，补全倍率 %.2f，音频倍率 %.2f，音频补全倍率 %.2f，分组倍率 %.2f",
@@ -321,19 +331,38 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		} else {
 			model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		}
-		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+		channelQuota := quota
+		if providerId > 0 {
+			channelQuota = baseQuota
+		}
+		model.UpdateChannelUsedQuota(relayInfo.ChannelId, channelQuota)
 	}
 
 	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
 		logger.LogError(ctx, "error settling billing: "+err.Error())
+	}
+	providerOwnerCostQuota := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerCost)
+	if providerId > 0 && providerOwnerUserId > 0 && providerOwnerCostQuota > 0 && totalTokens > 0 {
+		model.UpdateUserUsedQuotaAndRequestCount(providerOwnerUserId, providerOwnerCostQuota)
 	}
 
 	logModel := relayInfo.OriginModelName
 	if extraContent != "" {
 		logContent += ", " + extraContent
 	}
-	other := GenerateAudioOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
-		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+	displayModelRatio := modelRatio
+	displayModelPrice := modelPrice
+	if providerId > 0 && common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel) != "" {
+		displayModelRatio, displayModelPrice, _ = ApplyProviderPricingDisplay(ctx, modelRatio, modelPrice)
+	}
+	other := GenerateAudioOtherInfo(ctx, relayInfo, usage, displayModelRatio, groupRatio,
+		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), displayModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+	if providerId > 0 {
+		other["provider_import_price_ratio"] = common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderImportPriceRatio)
+		other["provider_pricing_type"] = common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
+		other["provider_base_model_ratio"] = modelRatio
+		other["provider_base_model_price"] = modelPrice
+	}
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     usage.PromptTokens,
