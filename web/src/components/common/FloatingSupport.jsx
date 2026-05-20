@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { Popover } from '@douyinfe/semi-ui';
 import qqLogo from '../../../public/qq.png';
 
 const normalizeQQ = (qqSupport = '') => String(qqSupport).replace(/\D/g, '');
@@ -36,30 +37,56 @@ const FloatingSupport = ({ wechatQRCode, qqSupport }) => {
     ? `tencent://message/?uin=${qqNumber}&Site=&Menu=yes`
     : undefined;
 
+  const qqPopoverContent = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <img src={qqLogo} alt='QQ客服' style={{ width: 20 }} />
+      <a
+        href={qqHref}
+        style={{
+          color: 'var(--semi-color-text-0)',
+          textDecoration: 'none',
+          fontWeight: 600,
+          fontSize: 14,
+        }}
+      >
+        {qqNumber}
+      </a>
+    </div>
+  );
+
+  const wechatPopoverContent = displayWechatQRCode ? (
+    <img
+      src={displayWechatQRCode}
+      alt='微信客服二维码'
+      style={{ width: 140, height: 140, objectFit: 'contain', borderRadius: 6, display: 'block' }}
+    />
+  ) : null;
+
   return (
     <div className='floating-support' aria-label='customer support'>
       {displayWechatQRCode ? (
-        <div className='floating-support-item floating-support-wechat'>
-          <button
-            className='floating-support-icon floating-support-icon-wechat'
-            type='button'
-            aria-label='微信客服'
-          >
+        <Popover
+          content={wechatPopoverContent}
+          position='left'
+          showArrow
+          trigger='hover'
+        >
+          <div className='floating-support-icon floating-support-icon-wechat'>
             <i className='fab fa-weixin' />
-          </button>
-          <div className='floating-support-qrcode'>
-            <img src={displayWechatQRCode} alt='微信客服二维码' />
           </div>
-        </div>
+        </Popover>
       ) : null}
       {qqNumber ? (
-        <a
-          className='floating-support-icon floating-support-icon-qq'
-          href={qqHref}
-          aria-label='QQ客服'
+        <Popover
+          content={qqPopoverContent}
+          position='left'
+          showArrow
+          trigger='hover'
         >
-          <img src={qqLogo} alt='QQ客服' />
-        </a>
+          <div className='floating-support-icon floating-support-icon-qq'>
+            <img src={qqLogo} alt='QQ客服' />
+          </div>
+        </Popover>
       ) : null}
     </div>
   );

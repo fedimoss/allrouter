@@ -2269,10 +2269,6 @@ html.dark .landing-home.landing-v2 .landing-v2-cta-box {
   box-shadow: 0px 0px 10px 0px #0000001A;
 }
 
-.floating-support-item {
-  position: relative;
-}
-
 .floating-support-icon {
   display: flex;
   align-items: center;
@@ -2312,51 +2308,6 @@ html.dark .landing-home.landing-v2 .landing-v2-cta-box {
   box-shadow: 0 2px 5px rgba(15, 23, 42, 0.1);
 }
 
-.floating-support-qrcode {
-  position: absolute;
-  right: calc(100% + 14px);
-  top: 50%;
-  width: 146px;
-  padding: 10px;
-  background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 10px;
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.2);
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(8px, -50%);
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
-}
-
-.floating-support-qrcode::after {
-  content: '';
-  position: absolute;
-  right: -7px;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  background: #ffffff;
-  border-top: 1px solid rgba(15, 23, 42, 0.1);
-  border-right: 1px solid rgba(15, 23, 42, 0.1);
-  transform: translateY(-50%) rotate(45deg);
-}
-
-.floating-support-qrcode img {
-  display: block;
-  width: 126px;
-  height: 126px;
-  object-fit: contain;
-  border-radius: 6px;
-}
-
-.floating-support-wechat:hover .floating-support-qrcode {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translate(0, -50%);
-}
-
 html.dark .floating-support {
   background: #111827;
   border-color: rgba(255, 255, 255, 0.1);
@@ -2368,11 +2319,6 @@ html.dark .floating-support {
 html.dark .floating-support-icon-qq {
   background: #ffffff;
   color: #111827;
-}
-
-html.dark .floating-support-qrcode,
-html.dark .floating-support-qrcode::after {
-  background: #ffffff;
 }
 
 @media (max-width: 1100px) {
@@ -2410,16 +2356,6 @@ html.dark .floating-support-qrcode::after {
   .floating-support-icon {
     width: 40px;
     height: 40px;
-  }
-
-  .floating-support-qrcode {
-    right: calc(100% + 10px);
-    width: 126px;
-  }
-
-  .floating-support-qrcode img {
-    width: 106px;
-    height: 106px;
   }
 
   .landing-v2-nav {
