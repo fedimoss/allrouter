@@ -4243,7 +4243,7 @@
     "立即邀请": "Mời ngay",
     "去关注": "Theo dõi",
     "了解详情": "Xem chi tiết",
-    "V2.0 现已上线": "Phiên bản 2.0 đã ra mắt",
+    "现已上线": "Đã ra mắt",
     "一套 API，畅连所有 AI": "Một bộ API, kết nối liền mạch với tất cả AI",
     "支持全球主流开源模型": "Hỗ trợ các mô hình mở nguồn",
     "为什么选择": "Tại sao chọn chúng tôi",
@@ -4855,6 +4855,17 @@
     "微信客服": "Hỗ trợ WeChat",
     "微信客服二维码": "Mã QR hỗ trợ WeChat",
     "扫码添加客服微信": "Scan để thêm Hỗ trợ WeChat",
-    "QQ客服": "Hỗ trợ QQ"
+    "QQ客服": "Hỗ trợ QQ",
+    "例如：v1.0.0": "VD: v1.0.0",
+    "新增版本日志": "Thêm nhật ký phiên bản",
+    "暂无版本日志": "Chưa có nhật ký phiên bản",
+    "更新内容": "Nội dung cập nhật",
+    "更新版本日志": "Nhật ký phiên bản",
+    "确认删除该版本日志？": "Bạn có chắc xóa nhật ký này?",
+    "编辑版本日志": "Sửa nhật ký phiên bản",
+    "获取版本日志失败": "Lấy nhật ký phiên bản thất bại",
+    "请输入更新内容": "Vui lòng nhập nội dung cập nhật",
+    "请输入版本号": "Vui lòng nhập phiên bản",
+    "暂无更新日志": "Chưa có nhật ký cập nhật"
   }
 }

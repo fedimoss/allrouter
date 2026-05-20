@@ -3773,7 +3773,7 @@
     "立即邀请": "Invite Now",
     "去关注": "Follow",
     "了解详情": "Learn More",
-    "V2.0 现已上线": "V2.0 is now live",
+    "现已上线": "Is now live",
     "一套 API，畅连所有 AI": "One set of APIs, connect to all AI",
     "支持全球主流开源模型": "Supports mainstream global open-source models",
     "为什么选择": "Why choose us",
@@ -4399,6 +4399,18 @@
     "微信客服": "WeChat Support",
     "微信客服二维码": "WeChat Support QR Code",
     "扫码添加客服微信": "Scan to Add WeChat Support",
-    "QQ客服": "QQ Support"
+    "QQ客服": "QQ Support",
+    "例如：v1.0.0": "e.g. v1.0.0",
+    "新增版本日志": "Add Version Log",
+    "暂无版本日志": "No version logs yet",
+    "更新内容": "Update Content",
+    "更新版本日志": "Version Changelog",
+    "版本号": "Version",
+    "确认删除该版本日志？": "Are you sure to delete this version log?",
+    "编辑版本日志": "Edit Version Log",
+    "获取版本日志失败": "Failed to get version logs",
+    "请输入更新内容": "Please enter update content",
+    "请输入版本号": "Please enter version number",
+    "暂无更新日志": "No changelog available"
   }
 }

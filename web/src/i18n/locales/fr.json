@@ -3704,7 +3704,7 @@
     "立即邀请": "Invitez dès maintenant",
     "去关注": "Suivez",
     "了解详情": "En savoir plus",
-    "V2.0 现已上线": "La version 2.0 est maintenant en ligne",
+    "现已上线": "Est en ligne",
     "一套 API，畅连所有 AI": "Une suite d'API, connectez tous les AI",
     "支持全球主流开源模型": "Supporte les principaux modèles open source mondiaux",
     "为什么选择": "Pourquoi choisir",
@@ -4331,6 +4331,18 @@
     "微信客服": "Support WeChat",
     "微信客服二维码": "QR code du support WeChat",
     "扫码添加客服微信": "Scannez le code QR pour ajouter le service client sur WeChat",
-    "QQ客服": "Service client QQ"
+    "QQ客服": "Service client QQ",
+    "例如：v1.0.0": "ex : v1.0.0",
+    "新增版本日志": "Ajouter un journal de version",
+    "暂无版本日志": "Aucun journal de version",
+    "更新内容": "Contenu de la mise à jour",
+    "更新版本日志": "Journal des versions",
+    "版本号": "Version",
+    "确认删除该版本日志？": "Voulez-vous supprimer ce journal de version ?",
+    "编辑版本日志": "Modifier le journal de version",
+    "获取版本日志失败": "Échec de récupération des journaux de version",
+    "请输入更新内容": "Veuillez entrer le contenu de la mise à jour",
+    "请输入版本号": "Veuillez entrer le numéro de version",
+    "暂无更新日志": "Aucun journal de mise à jour"
   }
 }

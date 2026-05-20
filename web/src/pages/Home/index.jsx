@@ -36,6 +36,7 @@ import { UserContext } from '../../context/User';
 import { useActualTheme, useSetTheme, useTheme } from '../../context/Theme';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { marked } from 'marked';
+import { Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import NoticeModal from '../../components/layout/NoticeModal';
@@ -149,8 +150,9 @@ const Home = () => {
   const [homePageContent, setHomePageContent] = useState('');
   const [noticeVisible, setNoticeVisible] = useState(false);
   const [typedCodeLines, setTypedCodeLines] = useState([]);
+  const [versionLogVisible, setVersionLogVisible] = useState(false);
   const isMobile = useIsMobile();
-
+  
   const docsLink = statusState?.status?.docs_link || '';
   const serverAddress = `${window.location.origin}`;
   const showDefaultHome = homePageContentLoaded && homePageContent === '';
@@ -465,6 +467,17 @@ const Home = () => {
         wechatQRCode={supportConfig.wechatQRCode}
         qqSupport={supportConfig.qqSupport}
       />
+      <Modal
+        title={`${statusState?.status?.version?.version || ''} ${t('更新日志')}`}
+        visible={versionLogVisible}
+        onCancel={() => setVersionLogVisible(false)}
+        footer={null}
+        width={520}
+      >
+        <div className='pb-20' style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
+          {statusState?.status?.version?.log || t('暂无更新日志')}
+        </div>
+      </Modal>
       {showDefaultHome ? (
         <>
           <nav
@@ -534,9 +547,12 @@ const Home = () => {
           <main className='landing-v2-main'>
             <section className='landing-v2-hero'>
               <div className='landing-v2-hero-content'>
-                <div className='landing-v2-hero-badge'>
+                <div
+                  className='landing-v2-hero-badge'
+                  onClick={() => setVersionLogVisible(true)}
+                >
                   <span className='landing-v2-hero-badge-dot' />
-                  {t('V2.0 现已上线')}
+                  {statusState?.status?.version?.version || ''} {t('现已上线')}
                 </div>
                 <div className='landing-v2-hero-title'>
                   {t('一套 API，畅连所有 AI')}

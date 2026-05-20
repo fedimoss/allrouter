@@ -28,8 +28,12 @@ import {
   Space,
   Card,
   Upload,
+  Table,
+  Tag,
+  Input,
+  TextArea,
 } from '@douyinfe/semi-ui';
-import { IconUpload } from '@douyinfe/semi-icons';
+import { IconUpload, IconPlus } from '@douyinfe/semi-icons';
 import {
   API,
   applyThemeColors,
@@ -101,6 +105,95 @@ const OtherSetting = () => {
     WeChatQRCodeUpload: false,
     WebSupport: false,
   });
+  const [versionLogs, setVersionLogs] = useState([]);
+  const [versionLogModalVisible, setVersionLogModalVisible] = useState(false);
+  const [editingVersionLog, setEditingVersionLog] = useState(null);
+  const [versionLogForm, setVersionLogForm] = useState({ version: '', log: '' });
+  const [versionLogLoading, setVersionLogLoading] = useState(false);
+  const [versionLogSubmitting, setVersionLogSubmitting] = useState(false);
+
+  const fetchVersionLogs = async () => {
+    setVersionLogLoading(true);
+    try {
+      const res = await API.get('/api/option/get_version_log');
+      const { success, message, data } = res.data;
+      if (success) {
+        setVersionLogs(data || []);
+      } else {
+        showError(message || t('获取版本日志失败'));
+      }
+    } catch (error) {
+      showError(t('获取版本日志失败'));
+    } finally {
+      setVersionLogLoading(false);
+    }
+  };
+
+  const handleAddVersionLog = () => {
+    setEditingVersionLog(null);
+    setVersionLogForm({ version: '', log: '' });
+    setVersionLogModalVisible(true);
+  };
+
+  const handleEditVersionLog = async (record) => {
+    try {
+      const res = await API.get(`/api/option/get_version_log/${record.id}`);
+      const { success, message, data } = res.data;
+      if (success && data) {
+        setEditingVersionLog(data);
+        setVersionLogForm({ version: data.version, log: data.log });
+        setVersionLogModalVisible(true);
+      } else {
+        showError(message || t('获取版本日志失败'));
+      }
+    } catch (error) {
+      showError(t('获取版本日志失败'));
+    }
+  };
+
+  const handleDeleteVersionLog = async (id) => {
+    try {
+      const res = await API.delete(`/api/option/delete_version_log/${id}`);
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('删除成功'));
+        fetchVersionLogs();
+      } else {
+        showError(message || t('删除失败'));
+      }
+    } catch (error) {
+      showError(t('删除失败'));
+    }
+  };
+
+  const handleSubmitVersionLog = async () => {
+    if (!versionLogForm.version.trim()) {
+      showError(t('请输入版本号'));
+      return;
+    }
+    setVersionLogSubmitting(true);
+    try {
+      let res;
+      if (editingVersionLog) {
+        res = await API.put(`/api/option/update_version_log/${editingVersionLog.id}`, versionLogForm);
+      } else {
+        res = await API.post('/api/option/add_version_log', versionLogForm);
+      }
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(editingVersionLog ? t('更新成功') : t('添加成功'));
+        setVersionLogModalVisible(false);
+        fetchVersionLogs();
+      } else {
+        showError(message || t('操作失败'));
+      }
+    } catch (error) {
+      showError(t('操作失败'));
+    } finally {
+      setVersionLogSubmitting(false);
+    }
+  };
+
   const handleInputChange = async (value, e) => {
     const name = e.target.id;
     setInputs((inputs) => ({ ...inputs, [name]: value }));
@@ -535,6 +628,7 @@ const OtherSetting = () => {
 
   useEffect(() => {
     getOptions();
+    fetchVersionLogs();
   }, []);
 
   // Function to open GitHub release page
@@ -592,6 +686,102 @@ const OtherSetting = () => {
             </Form.Section>
           </Card>
         </Form>
+
+        {/* 更新版本日志 */}
+        <Card>
+          <div className='flex items-center justify-between mb-4'>
+            <Text style={{ fontWeight: 600, fontSize: 18 }}>{t('更新版本日志')}</Text>
+            <Button theme='solid' icon={<IconPlus />} onClick={handleAddVersionLog}>
+              {t('新增版本日志')}
+            </Button>
+          </div>
+          <Table
+            dataSource={versionLogs}
+            loading={versionLogLoading}
+            rowKey='id'
+            pagination={{ pageSize: 10 }}
+            columns={[
+              {
+                title: t('版本号'),
+                dataIndex: 'version',
+                width: 140,
+                render: (text) => <Tag>{text}</Tag>,
+              },
+              {
+                title: t('更新内容'),
+                dataIndex: 'log',
+              },
+              {
+                title: t('创建时间'),
+                dataIndex: 'created_at',
+                width: 180,
+                render: (text) => text ? (typeof text === 'number' ? timestamp2string(text) : text) : '-',
+              },
+              {
+                title: t('操作'),
+                width: 140,
+                fixed: 'right',
+                render: (_, record) => (
+                  <Space>
+                    <Button
+                      size='small'
+                      onClick={() => handleEditVersionLog(record)}
+                    >
+                      {t('编辑')}
+                    </Button>
+                    <Button
+                      size='small'
+                      type='danger'
+                      onClick={() => {
+                        Modal.error({
+                          title: t('确认删除'),
+                          content: t('确认删除该版本日志？'),
+                          okText: t('确定'),
+                          cancelText: t('取消'),
+                          onOk: () => handleDeleteVersionLog(record.id),
+                        });
+                      }}
+                    >
+                      {t('删除')}
+                    </Button>
+                  </Space>
+                ),
+              },
+            ]}
+            empty={<div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--semi-color-text-2)' }}>{t('暂无版本日志')}</div>}
+          />
+        </Card>
+
+        <Modal
+          title={editingVersionLog ? t('编辑版本日志') : t('新增版本日志')}
+          visible={versionLogModalVisible}
+          onCancel={() => setVersionLogModalVisible(false)}
+          onOk={handleSubmitVersionLog}
+          confirmLoading={versionLogSubmitting}
+          okText={t('确定')}
+          cancelText={t('取消')}
+        >
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 4, fontWeight: 500 }}>{t('版本号')}</div>
+            <Input
+              placeholder={t('例如：v1.0.0')}
+              value={versionLogForm.version}
+              onChange={(value) => setVersionLogForm((f) => ({ ...f, version: value }))}
+            />
+          </div>
+          <div>
+            <div style={{ marginBottom: 4, fontWeight: 500 }}>{t('更新内容')}</div>
+            <TextArea
+              placeholder={t('请输入更新内容')}
+              value={versionLogForm.log}
+              onChange={(value) => setVersionLogForm((f) => ({ ...f, log: value }))}
+              autosize
+            />
+          </div>
+        </Modal>
+
+
+
         {/* 通用设置 */}
         <Form
           values={inputs}
