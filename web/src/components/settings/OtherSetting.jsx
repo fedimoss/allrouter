@@ -889,19 +889,47 @@ const OtherSetting = () => {
                     {t('上传微信二维码')}
                   </Button>
                 </Upload>
-                {inputs.WechatSupport ? (
-                  <img
-                    src={inputs.WechatSupport}
-                    alt={t('微信二维码')}
-                    style={{
-                      width: 96,
-                      height: 96,
-                      objectFit: 'contain',
-                      border: '1px solid var(--semi-color-border)',
-                      borderRadius: 6,
-                    }}
-                  />
-                ) : null}
+                {inputs.WechatSupport && (
+                  <div style={{ position: 'relative', display: 'inline-block', marginBottom: 12 }}>
+                    <img
+                      src={inputs.WechatSupport}
+                      alt={t('微信二维码')}
+                      style={{
+                        width: 96,
+                        height: 96,
+                        objectFit: 'contain',
+                        border: '1px solid var(--semi-color-border)',
+                        borderRadius: 6,
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        setInputs((prev) => ({ ...prev, WechatSupport: '' }));
+                        formAPIWebSupport.current?.setValue?.('WechatSupport', '');
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: -6,
+                        right: -6,
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: 'var(--semi-color-danger)',
+                        color: '#fff',
+                        fontSize: 12,
+                        lineHeight: '18px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
               </div>
               <Form.Input
                 label={t('QQ号')}

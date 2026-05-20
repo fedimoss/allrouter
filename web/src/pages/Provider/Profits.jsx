@@ -272,6 +272,7 @@ const ProviderProfitsPage = () => {
         title: t('明细'),
         dataIndex: 'detail',
         fixed: 'right',
+        width: 120,
         render: (_, record) => (
           <Button
             size='small'
