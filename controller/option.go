@@ -784,3 +784,202 @@ func SetWebSupport(c *gin.Context) {
 	}
 	common.ApiSuccess(c, nil)
 }
+
+type addVersionLogRequest struct {
+	Version string `json:"version"` // 版本号
+	Log     string `json:"log"`     // 日志
+}
+
+// AddVersionLog 添加版本日志
+func AddVersionLog(c *gin.Context) {
+	// 接收前端参数:"版本号"和"版本日志"
+	var req addVersionLogRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+
+	// 参数校验
+	if req.Version == "" || req.Log == "" {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+
+	// 提取版本号
+	version := req.Version
+
+	// 事务写入: 更新版本号 + 插入更新日志
+	tx := model.DB.Begin()
+	if tx.Error != nil {
+		common.ApiError(c, tx.Error)
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 更新options表中的版本号
+	option := model.Option{Key: "Version"}
+	tx.FirstOrCreate(&option, model.Option{Key: "Version"})
+	option.Value = version
+	if err := tx.Save(&option).Error; err != nil {
+		tx.Rollback()
+		common.ApiError(c, err)
+		return
+	}
+
+	// 插入版本日志
+	if err := model.InsertVersionLog(tx, version, req.Log); err != nil {
+		tx.Rollback()
+		common.ApiError(c, err)
+		return
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 更新内存中的OptionMap
+	common.OptionMapRWMutex.Lock()
+	common.OptionMap["Version"] = version
+	common.OptionMapRWMutex.Unlock()
+
+	common.ApiSuccess(c, nil)
+}
+
+// GetAllVersionLog 获取所有版本日志
+func GetAllVersionLog(c *gin.Context) {
+	// 从数据库查询所有版本日志
+	logs, err := model.GetAllVersionLogs()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, logs)
+}
+
+// GetVersionLogById 获取版本日志详情
+func GetVersionLogById(c *gin.Context) {
+	// 从URL参数中获取ID
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// 从数据库查询版本日志
+	log, err := model.GetVersionLogById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// 返回版本日志
+	common.ApiSuccess(c, log)
+}
+
+// UpdateVersionLogById 更新版本日志详情
+func UpdateVersionLogById(c *gin.Context) {
+	// 从URL参数中获取ID
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 接收前端参数
+	var req addVersionLogRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgInvalidParams))
+		return
+	}
+	if req.Version == "" || req.Log == "" {
+		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgInvalidParams))
+		return
+	}
+
+	// 事务: 查询 + 更新
+	tx := model.DB.Begin()
+	if tx.Error != nil {
+		common.ApiError(c, tx.Error)
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 从数据库查询版本日志
+	var log model.VersionLog
+	if err := tx.Where("id = ?", id).First(&log).Error; err != nil {
+		tx.Rollback()
+		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgVersionLogNotFound))
+		return
+	}
+
+	// 更新版本日志
+	log.Version = req.Version
+	log.Log = req.Log
+	log.UpdatedAt = common.GetTimestamp()
+	if err := tx.Model(&log).Updates(map[string]interface{}{
+		"version":    log.Version,
+		"log":        log.Log,
+		"updated_at": log.UpdatedAt,
+	}).Error; err != nil {
+		tx.Rollback()
+		common.ApiError(c, err)
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+// DeleteVersionLogById 删除版本日志
+func DeleteVersionLogById(c *gin.Context) {
+	// 获取URL参数中的ID
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 事务: 查询 + 删除
+	tx := model.DB.Begin()
+	if tx.Error != nil {
+		common.ApiError(c, tx.Error)
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 先检查是否存在
+	var log model.VersionLog
+	if err := tx.Where("id = ?", id).First(&log).Error; err != nil {
+		tx.Rollback()
+		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgVersionLogNotFound))
+		return
+	}
+
+	// 删除版本日志
+	if err := model.DeleteVersionLogById(tx, id); err != nil {
+		tx.Rollback()
+		common.ApiError(c, err)
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}

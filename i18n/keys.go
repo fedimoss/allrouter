@@ -347,3 +347,8 @@ const (
 	MsgProviderWithdrawNotYours            = "provider.withdraw_not_yours"
 	MsgProviderWithdrawCannotCancel        = "provider.withdraw_cannot_cancel"
 )
+
+// VersionLog related messages
+const (
+	MsgVersionLogNotFound = "version_log.not_found"
+)

@@ -289,3 +289,6 @@ custom_oauth.provider_id_field_invalid: "无法从提供商响应中提取用户
 provider.withdraw_insufficient_balance: "服务商余额不足，无法完成提现审核"
 provider.withdraw_not_yours: "无法操作其他服务商的提现申请"
 provider.withdraw_cannot_cancel: "只能取消待审核状态的提现申请"
+
+# VersionLog messages
+version_log.not_found: "版本日志不存在"
