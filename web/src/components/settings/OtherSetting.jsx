@@ -664,7 +664,7 @@ const OtherSetting = () => {
                   <Space>
                     <Text>
                       {t('当前版本')}：
-                      {statusState?.status?.version || t('未知')}
+                      {typeof statusState?.status?.version === 'object' ? statusState?.status?.version?.version : statusState?.status?.version || t('未知')}
                     </Text>
                     <Button
                       type='primary'
