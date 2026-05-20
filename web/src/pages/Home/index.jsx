@@ -552,7 +552,7 @@ const Home = () => {
                   onClick={() => setVersionLogVisible(true)}
                 >
                   <span className='landing-v2-hero-badge-dot' />
-                  {statusState?.status?.version?.version || ''} {t('现已上线')}
+                  {statusState?.status?.version?.version || 'v2.0'} {t('现已上线')}
                 </div>
                 <div className='landing-v2-hero-title'>
                   {t('一套 API，畅连所有 AI')}
