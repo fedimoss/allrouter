@@ -741,7 +741,7 @@ const Home = () => {
             </div>
 
             <div className='landing-v2-footer-bottom'>
-              <span>© 2025 {systemName}. All rights reserved.</span>
+              <span>© {new Date().getFullYear()} {systemName}. All rights reserved.</span>
             </div>
           </footer>
         </>
