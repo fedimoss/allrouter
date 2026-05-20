@@ -48,8 +48,20 @@ func GetStatus(c *gin.Context) {
 	passkeySetting := system_setting.GetPasskeySettings()
 	legalSetting := system_setting.GetLegalSettings()
 
+	// 组装版本信息结构体
+	versionInfo := gin.H{
+		"version": "",
+		"log":     "",
+	}
+
+	// 获取最新版本日志
+	if latest, err := model.GetLatestVersionLog(); err == nil && latest != nil {
+		versionInfo["version"] = latest.Version
+		versionInfo["log"] = latest.Log
+	}
+
 	data := gin.H{
-		"version":                     common.Version,
+		"version":                     versionInfo,
 		"start_time":                  common.StartTime,
 		"email_verification":          common.EmailVerificationEnabled,
 		"github_oauth":                common.GitHubOAuthEnabled,

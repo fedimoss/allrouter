@@ -64,6 +64,13 @@ func GetVersionLogById(id int64) (*VersionLog, error) {
 	return &log, err
 }
 
+// GetLatestVersionLog 获取最新一条版本日志
+func GetLatestVersionLog() (*VersionLog, error) {
+	var log VersionLog
+	err := DB.Order("created_at DESC").First(&log).Error
+	return &log, err
+}
+
 // DeleteVersionLogById 根据ID删除版本日志
 func DeleteVersionLogById(db *gorm.DB, id int64) error {
 	return db.Where("id = ?", id).Delete(&VersionLog{}).Error
