@@ -191,7 +191,13 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/update_crypto_chain_config", controller.UpdateCryptoChainConfig) // 更新加密货币链配置
 			optionRoute.POST("/update_crypto_rate", controller.UpdateCryptoRate)                // 更新加密货币汇率
 			optionRoute.POST("/web_support", controller.SetWebSupport)                          // 设置网站客服
+			optionRoute.POST("/add_version_log", controller.AddVersionLog)                      // 添加版本日志
+			optionRoute.GET("/get_version_log", controller.GetAllVersionLog)                    // 获取所有版本日志
+			optionRoute.GET("/get_version_log/:id", controller.GetVersionLogById)               // 获取版本日志详情
+			optionRoute.PUT("/update_version_log/:id", controller.UpdateVersionLogById)         // 更新版本日志详情
+			optionRoute.DELETE("/delete_version_log/:id", controller.DeleteVersionLogById)      // 删除版本日志
 		}
+
 		// 加密货币公开读取接口（普通用户登录即可调用）
 		optionReadRoute := apiRouter.Group("/option")
 		optionReadRoute.Use(middleware.UserAuth())
