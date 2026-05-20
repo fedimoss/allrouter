@@ -468,7 +468,7 @@ const Home = () => {
         qqSupport={supportConfig.qqSupport}
       />
       <Modal
-        title={`${statusState?.status?.version?.version || ''} ${t('更新日志')}`}
+        title={`${statusState?.status?.version?.version || 'v2.0'} ${t('更新日志')}`}
         visible={versionLogVisible}
         onCancel={() => setVersionLogVisible(false)}
         footer={null}
