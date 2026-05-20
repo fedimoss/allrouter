@@ -26,9 +26,26 @@ type providerAdminResponse struct {
 }
 
 type providerAdminRequest struct {
-	OwnerUserId int    `json:"owner_user_id"`
-	Name        string `json:"name"`
-	Status      int    `json:"status"`
+	OwnerUserId      int      `json:"owner_user_id"`
+	Name             string   `json:"name"`
+	Status           int      `json:"status"`
+	ImportPriceRatio *float64 `json:"import_price_ratio"`
+}
+
+type providerConfigRequest struct {
+	SiteName        string `json:"site_name"`
+	Logo            string `json:"logo"`
+	ThemeColor      string `json:"theme_color"`
+	SecondaryColor  string `json:"secondary_color"`
+	LoginBackground string `json:"login_background"`
+	HomeModules     string `json:"home_modules"`
+	NavModules      string `json:"nav_modules"`
+	PricingDisplay  string `json:"pricing_display"`
+	Announcement    string `json:"announcement"`
+	FooterText      string `json:"footer_text"`
+	SupportUrl      string `json:"support_url"`
+	WechatSupport   string `json:"wechat_support"`
+	QQSupport       string `json:"qq_support"`
 }
 
 type providerOwnerCandidate struct {
@@ -121,6 +138,42 @@ func normalizeProviderDomainStatus(status int) int {
 
 func validateProviderRebateRatio(ratio float64) bool {
 	return ratio >= 0 && ratio <= 100
+}
+
+func validateProviderImportPriceRatio(ratio float64) bool {
+	return ratio > 0 && ratio <= 1
+}
+
+func providerImportPriceRatioOrDefault(ratio *float64) (float64, bool) {
+	if ratio == nil {
+		return 1, true
+	}
+	if !validateProviderImportPriceRatio(*ratio) {
+		return 0, false
+	}
+	return *ratio, true
+}
+
+func upsertProviderImportPriceRatio(providerId int, ratio float64) error {
+	var cfg model.ProviderConfig
+	err := model.DB.Where("provider_id = ?", providerId).First(&cfg).Error
+	now := common.GetTimestamp()
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		cfg = model.ProviderConfig{
+			ProviderId:       providerId,
+			ImportPriceRatio: ratio,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		}
+		return model.DB.Create(&cfg).Error
+	}
+	if err != nil {
+		return err
+	}
+	return model.DB.Model(&cfg).Updates(map[string]interface{}{
+		"import_price_ratio": ratio,
+		"updated_at":         now,
+	}).Error
 }
 
 func buildProviderAdminResponses(providers []model.Provider, withPricing bool) ([]providerAdminResponse, error) {
@@ -270,6 +323,11 @@ func AdminCreateProvider(c *gin.Context) {
 		common.ApiErrorMsg(c, "owner user is not eligible")
 		return
 	}
+	importPriceRatio, ok := providerImportPriceRatioOrDefault(req.ImportPriceRatio)
+	if !ok {
+		common.ApiErrorMsg(c, "import price ratio must be greater than 0 and less than or equal to 1")
+		return
+	}
 	now := common.GetTimestamp()
 	provider := model.Provider{
 		OwnerUserId: req.OwnerUserId,
@@ -279,6 +337,10 @@ func AdminCreateProvider(c *gin.Context) {
 		UpdatedAt:   now,
 	}
 	if err := model.DB.Create(&provider).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := upsertProviderImportPriceRatio(provider.Id, importPriceRatio); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -304,12 +366,21 @@ func AdminUpdateProvider(c *gin.Context) {
 		common.ApiErrorMsg(c, "owner user is not eligible")
 		return
 	}
+	importPriceRatio, ok := providerImportPriceRatioOrDefault(req.ImportPriceRatio)
+	if !ok {
+		common.ApiErrorMsg(c, "import price ratio must be greater than 0 and less than or equal to 1")
+		return
+	}
 	if err := model.DB.Model(&model.Provider{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"owner_user_id": req.OwnerUserId,
 		"name":          req.Name,
 		"status":        normalizeProviderStatus(req.Status),
 		"updated_at":    common.GetTimestamp(),
 	}).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := upsertProviderImportPriceRatio(id, importPriceRatio); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -332,12 +403,11 @@ func AdminDisableProvider(c *gin.Context) {
 }
 
 func upsertProviderConfig(c *gin.Context, providerId int) {
-	var req model.ProviderConfig
+	var req providerConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	req.ProviderId = providerId
 	themeColor, ok := normalizeProviderHexColor(req.ThemeColor)
 	if !ok {
 		common.ApiErrorMsg(c, "invalid theme color")
@@ -369,14 +439,32 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 	var cfg model.ProviderConfig
 	err := model.DB.Where("provider_id = ?", providerId).First(&cfg).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		req.Id = 0
-		req.CreatedAt = common.GetTimestamp()
-		req.UpdatedAt = req.CreatedAt
-		if err := model.DB.Create(&req).Error; err != nil {
+		importPriceRatio := 1.0
+		now := common.GetTimestamp()
+		cfg = model.ProviderConfig{
+			ProviderId:       providerId,
+			SiteName:         strings.TrimSpace(req.SiteName),
+			Logo:             strings.TrimSpace(req.Logo),
+			ThemeColor:       req.ThemeColor,
+			SecondaryColor:   req.SecondaryColor,
+			LoginBackground:  strings.TrimSpace(req.LoginBackground),
+			HomeModules:      req.HomeModules,
+			NavModules:       req.NavModules,
+			PricingDisplay:   req.PricingDisplay,
+			Announcement:     strings.TrimSpace(req.Announcement),
+			FooterText:       strings.TrimSpace(req.FooterText),
+			SupportUrl:       strings.TrimSpace(req.SupportUrl),
+			CreatedAt:        now,
+			UpdatedAt:        now,
+			WechatSupport:    strings.TrimSpace(req.WechatSupport),
+			QQSupport:        strings.TrimSpace(req.QQSupport),
+			ImportPriceRatio: importPriceRatio,
+		}
+		if err := model.DB.Create(&cfg).Error; err != nil {
 			common.ApiError(c, err)
 			return
 		}
-		common.ApiSuccess(c, req)
+		common.ApiSuccess(c, cfg)
 		return
 	}
 	if err != nil {
@@ -450,7 +538,11 @@ func updateProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 	}
 	req.Domain = strings.TrimSpace(strings.ToLower(req.Domain))
 	if req.Domain == "" {
-		common.ApiErrorMsg(c, "domain is required")
+		if err := model.DB.Where("id = ? AND provider_id = ?", domainId, providerId).Delete(&model.ProviderDomain{}).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, nil)
 		return
 	}
 	status := model.ProviderDomainStatusPending

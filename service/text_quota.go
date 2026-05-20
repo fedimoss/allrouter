@@ -64,6 +64,87 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 	return summary.CacheCreationTokens
 }
 
+func ApplyProviderPricingQuota(ctx *gin.Context, baseQuota int, usePrice bool, groupRatio float64, unitCount int) (providerQuota int, importCostQuota int, applied bool) {
+	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
+	providerPublicModel := common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel)
+	if providerId <= 0 || providerPublicModel == "" {
+		return baseQuota, baseQuota, false
+	}
+	importPriceRatio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderImportPriceRatio)
+	if importPriceRatio <= 0 {
+		importPriceRatio = 1
+	}
+	importCostQuota = int(decimal.NewFromInt(int64(baseQuota)).Mul(decimal.NewFromFloat(importPriceRatio)).Round(0).IntPart())
+	if baseQuota > 0 && importCostQuota == 0 {
+		importCostQuota = 1
+	}
+	providerQuota = importCostQuota
+	pricingType := common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
+	if pricingType == model.ProviderPricingTypeDelta {
+		if usePrice {
+			providerQuota += int(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaPrice)).
+				Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+				Mul(decimal.NewFromFloat(groupRatio)).
+				Round(0).IntPart())
+		} else {
+			providerQuota += int(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaRatio)).
+				Mul(decimal.NewFromInt(int64(unitCount))).
+				Mul(decimal.NewFromFloat(groupRatio)).
+				Round(0).IntPart())
+		}
+	} else {
+		ratio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderPricingRatio)
+		if ratio == 0 {
+			ratio = 1
+		}
+		providerQuota = int(decimal.NewFromInt(int64(importCostQuota)).Mul(decimal.NewFromFloat(ratio)).Round(0).IntPart())
+	}
+	if providerQuota < 0 {
+		providerQuota = 0
+	}
+	return providerQuota, importCostQuota, true
+}
+
+func ApplyProviderPricingDisplay(ctx *gin.Context, modelRatio float64, modelPrice float64) (displayModelRatio float64, displayModelPrice float64, applied bool) {
+	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
+	providerPublicModel := common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel)
+	if providerId <= 0 || providerPublicModel == "" {
+		return modelRatio, modelPrice, false
+	}
+	importPriceRatio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderImportPriceRatio)
+	if importPriceRatio <= 0 {
+		importPriceRatio = 1
+	}
+	displayModelRatio = modelRatio * importPriceRatio
+	displayModelPrice = modelPrice
+	if modelPrice > 0 {
+		displayModelPrice = modelPrice * importPriceRatio
+	}
+	pricingType := common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
+	if pricingType == model.ProviderPricingTypeDelta {
+		displayModelRatio += common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaRatio)
+		if displayModelPrice >= 0 {
+			displayModelPrice += common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaPrice)
+		}
+	} else {
+		ratio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderPricingRatio)
+		if ratio == 0 {
+			ratio = 1
+		}
+		displayModelRatio *= ratio
+		if displayModelPrice > 0 {
+			displayModelPrice *= ratio
+		}
+	}
+	if displayModelRatio < 0 {
+		displayModelRatio = 0
+	}
+	if displayModelPrice < 0 && modelPrice >= 0 {
+		displayModelPrice = 0
+	}
+	return displayModelRatio, displayModelPrice, true
+}
+
 func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) bool {
 	if relayInfo == nil || usage == nil {
 		return false
@@ -308,30 +389,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	providerOwnerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
 	providerPublicModel := common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel)
 	if providerId > 0 && providerPublicModel != "" {
-		pricingType := common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
-		if pricingType == model.ProviderPricingTypeDelta {
-			if relayInfo.PriceData.UsePrice {
-				summary.Quota += int(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaPrice)).
-					Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
-					Mul(decimal.NewFromFloat(summary.GroupRatio)).
-					Round(0).IntPart())
-			} else {
-				summary.Quota += int(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaRatio)).
-					Mul(decimal.NewFromInt(int64(summary.TotalTokens))).
-					Mul(decimal.NewFromFloat(summary.GroupRatio)).
-					Round(0).IntPart())
-			}
-		} else {
-			ratio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderPricingRatio)
-			if ratio == 0 {
-				ratio = 1
-			}
-			summary.Quota = int(decimal.NewFromInt(int64(summary.Quota)).Mul(decimal.NewFromFloat(ratio)).Round(0).IntPart())
-		}
+		providerQuota, importCostQuota, _ := ApplyProviderPricingQuota(ctx, baseQuota, relayInfo.PriceData.UsePrice, summary.GroupRatio, summary.TotalTokens)
+		summary.Quota = providerQuota
 		if summary.Quota < 0 {
 			summary.Quota = 0
 		}
-		common.SetContextKey(ctx, constant.ContextKeyProviderBaseQuota, baseQuota)
+		common.SetContextKey(ctx, constant.ContextKeyProviderBaseQuota, importCostQuota)
 		common.SetContextKey(ctx, constant.ContextKeyProviderUserQuota, summary.Quota)
 	}
 
@@ -386,28 +449,38 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 
 	logContent := strings.Join(extraContent, ", ")
+	displayModelRatio := summary.ModelRatio
+	displayModelPrice := summary.ModelPrice
+	if providerId > 0 && providerPublicModel != "" {
+		displayModelRatio, displayModelPrice, _ = ApplyProviderPricingDisplay(ctx, summary.ModelRatio, summary.ModelPrice)
+	}
 	var other map[string]interface{}
 	if summary.IsClaudeUsageSemantic {
 		other = GenerateClaudeOtherInfo(ctx, relayInfo,
-			summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio,
+			displayModelRatio, summary.GroupRatio, summary.CompletionRatio,
 			summary.CacheTokens, summary.CacheRatio,
 			summary.CacheCreationTokens, summary.CacheCreationRatio,
 			summary.CacheCreationTokens5m, summary.CacheCreationRatio5m,
 			summary.CacheCreationTokens1h, summary.CacheCreationRatio1h,
-			summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+			displayModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 		other["usage_semantic"] = "anthropic"
 	} else {
-		other = GenerateTextOtherInfo(ctx, relayInfo, summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+		other = GenerateTextOtherInfo(ctx, relayInfo, displayModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, displayModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason
 	}
 	if providerId > 0 {
+		providerBaseQuota := common.GetContextKeyInt(ctx, constant.ContextKeyProviderBaseQuota)
 		other["provider_id"] = providerId
 		other["provider_public_model"] = providerPublicModel
 		other["provider_base_model"] = relayInfo.OriginModelName
-		other["provider_base_quota"] = baseQuota
+		other["provider_base_quota"] = providerBaseQuota
 		other["provider_user_quota"] = summary.Quota
+		other["provider_import_price_ratio"] = common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderImportPriceRatio)
+		other["provider_pricing_type"] = common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
+		other["provider_base_model_ratio"] = summary.ModelRatio
+		other["provider_base_model_price"] = summary.ModelPrice
 		other["provider_paid_quota"] = common.GetContextKeyInt(ctx, constant.ContextKeyProviderPaidQuota)
 		other["provider_covered_cost_quota"] = common.GetContextKeyInt(ctx, constant.ContextKeyProviderCoveredCost)
 		other["provider_owner_cost_quota"] = providerOwnerCostQuota
@@ -490,7 +563,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			"provider_public_model":       providerPublicModel,
 			"provider_user_id":            relayInfo.UserId,
 			"provider_user_quota":         summary.Quota,
-			"provider_base_quota":         baseQuota,
+			"provider_base_quota":         common.GetContextKeyInt(ctx, constant.ContextKeyProviderBaseQuota),
 			"provider_paid_quota":         common.GetContextKeyInt(ctx, constant.ContextKeyProviderPaidQuota),
 			"provider_covered_cost_quota": common.GetContextKeyInt(ctx, constant.ContextKeyProviderCoveredCost),
 			"provider_owner_cost_quota":   providerOwnerCostQuota,

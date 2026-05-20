@@ -29,6 +29,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/shopspring/decimal"
 )
 
 func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
@@ -84,9 +85,60 @@ func applyProviderRelayModel(c *gin.Context, request dto.Request) *types.NewAPIE
 	common.SetContextKey(c, constant.ContextKeyProviderPricingRatio, rule.Ratio)
 	common.SetContextKey(c, constant.ContextKeyProviderDeltaRatio, rule.DeltaModelRatio)
 	common.SetContextKey(c, constant.ContextKeyProviderDeltaPrice, rule.DeltaModelPrice)
+	importPriceRatio := 1.0
+	var cfg model.ProviderConfig
+	if err := model.DB.Select("import_price_ratio").Where("provider_id = ?", providerId).First(&cfg).Error; err == nil && cfg.ImportPriceRatio > 0 {
+		importPriceRatio = cfg.ImportPriceRatio
+	}
+	common.SetContextKey(c, constant.ContextKeyProviderImportPriceRatio, importPriceRatio)
 	common.SetContextKey(c, constant.ContextKeyOriginalModel, rule.BaseModelName)
 	request.SetModelName(rule.BaseModelName)
 	return nil
+}
+
+func providerImportPriceRatio(c *gin.Context) float64 {
+	ratio := common.GetContextKeyFloat64(c, constant.ContextKeyProviderImportPriceRatio)
+	if ratio <= 0 {
+		return 1
+	}
+	return ratio
+}
+
+func calculateProviderPreConsumeQuota(c *gin.Context, priceData types.PriceData, preConsumedTokens int) (providerUserQuota int, importCostQuota int) {
+	importCostQuota = int(decimal.NewFromInt(int64(priceData.QuotaToPreConsume)).
+		Mul(decimal.NewFromFloat(providerImportPriceRatio(c))).
+		Round(0).IntPart())
+	if priceData.QuotaToPreConsume > 0 && importCostQuota == 0 {
+		importCostQuota = 1
+	}
+	providerUserQuota = importCostQuota
+	pricingType := common.GetContextKeyString(c, constant.ContextKeyProviderPricingType)
+	if pricingType == model.ProviderPricingTypeDelta {
+		if priceData.UsePrice {
+			providerUserQuota += int(decimal.NewFromFloat(common.GetContextKeyFloat64(c, constant.ContextKeyProviderDeltaPrice)).
+				Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+				Mul(decimal.NewFromFloat(priceData.GroupRatioInfo.GroupRatio)).
+				Round(0).IntPart())
+		} else {
+			providerUserQuota += int(decimal.NewFromFloat(common.GetContextKeyFloat64(c, constant.ContextKeyProviderDeltaRatio)).
+				Mul(decimal.NewFromInt(int64(preConsumedTokens))).
+				Mul(decimal.NewFromFloat(priceData.GroupRatioInfo.GroupRatio)).
+				Round(0).IntPart())
+		}
+	} else {
+		ratio := common.GetContextKeyFloat64(c, constant.ContextKeyProviderPricingRatio)
+		if ratio == 0 {
+			ratio = 1
+		}
+		providerUserQuota = int(decimal.NewFromInt(int64(importCostQuota)).Mul(decimal.NewFromFloat(ratio)).Round(0).IntPart())
+	}
+	if providerUserQuota < 0 {
+		providerUserQuota = 0
+	}
+	if importCostQuota < 0 {
+		importCostQuota = 0
+	}
+	return providerUserQuota, importCostQuota
 }
 
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
@@ -189,18 +241,24 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	if priceData.FreeModel {
 		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
 	} else {
+		preConsumeQuota := priceData.QuotaToPreConsume
+		providerImportCostPreConsume := 0
+		if common.GetContextKeyInt(c, constant.ContextKeyProviderId) > 0 &&
+			common.GetContextKeyString(c, constant.ContextKeyProviderPublicModel) != "" {
+			preConsumeQuota, providerImportCostPreConsume = calculateProviderPreConsumeQuota(c, priceData, tokens)
+		}
 		if ownerUserId := common.GetContextKeyInt(c, constant.ContextKeyProviderOwnerUserId); ownerUserId > 0 {
 			ownerQuota, quotaErr := model.GetUserQuota(ownerUserId, false)
 			if quotaErr != nil {
 				newAPIError = types.NewError(quotaErr, types.ErrorCodeQueryDataError, types.ErrOptionWithStatusCode(http.StatusInternalServerError))
 				return
 			}
-			if ownerQuota < priceData.QuotaToPreConsume {
+			if ownerQuota < providerImportCostPreConsume {
 				newAPIError = types.NewError(fmt.Errorf("provider quota is not enough"), types.ErrorCodeInsufficientUserQuota, types.ErrOptionWithStatusCode(http.StatusForbidden))
 				return
 			}
 		}
-		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
+		newAPIError = service.PreConsumeBilling(c, preConsumeQuota, relayInfo)
 		if newAPIError != nil {
 			return
 		}
@@ -605,6 +663,13 @@ func RelayTask(c *gin.Context) {
 
 	// ── 成功：结算 + 日志 + 插入任务 ──
 	if taskErr == nil {
+		baseQuota := result.Quota
+		if providerQuota, importCostQuota, applied := service.ApplyProviderPricingQuota(c, baseQuota, relayInfo.PriceData.UsePrice, relayInfo.PriceData.GroupRatioInfo.GroupRatio, relayInfo.GetEstimatePromptTokens()); applied {
+			result.Quota = providerQuota
+			relayInfo.PriceData.Quota = providerQuota
+			common.SetContextKey(c, constant.ContextKeyProviderBaseQuota, importCostQuota)
+			common.SetContextKey(c, constant.ContextKeyProviderUserQuota, providerQuota)
+		}
 		if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
 			common.SysError("settle task billing error: " + settleErr.Error())
 		}

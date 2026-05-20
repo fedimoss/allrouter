@@ -23,6 +23,11 @@ func applyProviderPricingView(providerId int, pricing []model.Pricing) []model.P
 		common.SysLog("failed to get provider pricing: " + err.Error())
 		return []model.Pricing{}
 	}
+	importPriceRatio := 1.0
+	var cfg model.ProviderConfig
+	if err := model.DB.Select("import_price_ratio").Where("provider_id = ?", providerId).First(&cfg).Error; err == nil && cfg.ImportPriceRatio > 0 {
+		importPriceRatio = cfg.ImportPriceRatio
+	}
 	result := make([]model.Pricing, 0, len(rules))
 	for _, rule := range rules {
 		item, ok := base[rule.BaseModelName]
@@ -30,6 +35,8 @@ func applyProviderPricingView(providerId int, pricing []model.Pricing) []model.P
 			continue
 		}
 		item.ModelName = rule.PublicModelName
+		item.ModelRatio *= importPriceRatio
+		item.ModelPrice *= importPriceRatio
 		if rule.PricingType == model.ProviderPricingTypeDelta {
 			item.ModelRatio += rule.DeltaModelRatio
 			item.ModelPrice += rule.DeltaModelPrice
