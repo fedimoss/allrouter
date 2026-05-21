@@ -44,7 +44,9 @@ func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	// 计算使用量（基于 UsageMetadata）
 	usage := buildUsageFromGeminiMetadata(geminiResponse.UsageMetadata, info.GetEstimatePromptTokens())
 
-	service.SetModelContentAuditResponseText(c, geminiChatResponseText(&geminiResponse))
+	responseText, reasoningText := geminiChatResponseParts(&geminiResponse)
+	service.SetModelContentAuditResponseText(c, responseText)
+	service.SetModelContentAuditReasoningText(c, reasoningText)
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 

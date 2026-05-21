@@ -75,9 +75,18 @@ func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 }
 
 func ProcessStreamResponse(streamResponse dto.ChatCompletionsStreamResponse, responseTextBuilder *strings.Builder, toolCount *int) error {
+	var reasoningTextBuilder strings.Builder
+	if err := ProcessStreamResponseParts(streamResponse, responseTextBuilder, &reasoningTextBuilder, toolCount); err != nil {
+		return err
+	}
+	responseTextBuilder.WriteString(reasoningTextBuilder.String())
+	return nil
+}
+
+func ProcessStreamResponseParts(streamResponse dto.ChatCompletionsStreamResponse, responseTextBuilder *strings.Builder, reasoningTextBuilder *strings.Builder, toolCount *int) error {
 	for _, choice := range streamResponse.Choices {
 		responseTextBuilder.WriteString(choice.Delta.GetContentString())
-		responseTextBuilder.WriteString(choice.Delta.GetReasoningContent())
+		reasoningTextBuilder.WriteString(choice.Delta.GetReasoningContent())
 		if choice.Delta.ToolCalls != nil {
 			if len(choice.Delta.ToolCalls) > *toolCount {
 				*toolCount = len(choice.Delta.ToolCalls)
@@ -91,7 +100,7 @@ func ProcessStreamResponse(streamResponse dto.ChatCompletionsStreamResponse, res
 	return nil
 }
 
-func processTokens(info *relaycommon.RelayInfo, streamItems []string, responseTextBuilder *strings.Builder, toolCount *int) error {
+func processTokens(info *relaycommon.RelayInfo, streamItems []string, responseTextBuilder *strings.Builder, reasoningTextBuilder *strings.Builder, toolCount *int) error {
 	streamResp := "[" + strings.Join(streamItems, ",") + "]"
 	relayMode := relayconstant.RelayModeUnknown
 	if info != nil {
@@ -100,17 +109,17 @@ func processTokens(info *relaycommon.RelayInfo, streamItems []string, responseTe
 
 	switch relayMode {
 	case relayconstant.RelayModeChatCompletions:
-		return processChatCompletions(streamResp, streamItems, responseTextBuilder, toolCount)
+		return processChatCompletions(streamResp, streamItems, responseTextBuilder, reasoningTextBuilder, toolCount)
 	case relayconstant.RelayModeCompletions:
 		return processCompletions(streamResp, streamItems, responseTextBuilder)
 	}
 	if info != nil && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
-		return processChatCompletions(streamResp, streamItems, responseTextBuilder, toolCount)
+		return processChatCompletions(streamResp, streamItems, responseTextBuilder, reasoningTextBuilder, toolCount)
 	}
 	return nil
 }
 
-func processChatCompletions(streamResp string, streamItems []string, responseTextBuilder *strings.Builder, toolCount *int) error {
+func processChatCompletions(streamResp string, streamItems []string, responseTextBuilder *strings.Builder, reasoningTextBuilder *strings.Builder, toolCount *int) error {
 	var streamResponses []dto.ChatCompletionsStreamResponse
 	if err := common.Unmarshal(common.StringToByteSlice(streamResp), &streamResponses); err != nil {
 		// 一次性解析失败，逐个解析
@@ -120,7 +129,7 @@ func processChatCompletions(streamResp string, streamItems []string, responseTex
 			if err := common.Unmarshal(common.StringToByteSlice(item), &streamResponse); err != nil {
 				return err
 			}
-			if err := ProcessStreamResponse(streamResponse, responseTextBuilder, toolCount); err != nil {
+			if err := ProcessStreamResponseParts(streamResponse, responseTextBuilder, reasoningTextBuilder, toolCount); err != nil {
 				common.SysLog("error processing stream response: " + err.Error())
 			}
 		}
@@ -131,7 +140,7 @@ func processChatCompletions(streamResp string, streamItems []string, responseTex
 	for _, streamResponse := range streamResponses {
 		for _, choice := range streamResponse.Choices {
 			responseTextBuilder.WriteString(choice.Delta.GetContentString())
-			responseTextBuilder.WriteString(choice.Delta.GetReasoningContent())
+			reasoningTextBuilder.WriteString(choice.Delta.GetReasoningContent())
 			if choice.Delta.ToolCalls != nil {
 				if len(choice.Delta.ToolCalls) > *toolCount {
 					*toolCount = len(choice.Delta.ToolCalls)

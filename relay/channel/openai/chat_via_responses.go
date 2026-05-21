@@ -70,7 +70,9 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		usage = service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
 		chatResp.Usage = *usage
 	}
-	service.SetModelContentAuditResponseText(c, service.ModelContentAuditOpenAIResponseText(chatResp))
+	auditResponseText, auditReasoningText := service.ModelContentAuditOpenAIResponseParts(chatResp)
+	service.SetModelContentAuditResponseText(c, auditResponseText)
+	service.SetModelContentAuditReasoningText(c, auditReasoningText)
 
 	var responseBody []byte
 	switch info.RelayFormat {
@@ -210,7 +212,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		}
 
 		usageText.WriteString(delta)
-		service.AppendModelContentAuditResponseText(c, delta)
+		service.AppendModelContentAuditReasoningText(c, delta)
 		chunk := &dto.ChatCompletionsStreamResponse{
 			Id:      responseId,
 			Object:  "chat.completion.chunk",
@@ -551,10 +553,6 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	if info.RelayFormat == types.RelayFormatOpenAI {
 		helper.Done(c)
 	}
-	auditResponseText := outputText.String()
-	if auditResponseText == "" {
-		auditResponseText = usageText.String()
-	}
-	service.SetModelContentAuditResponseText(c, auditResponseText)
+	service.SetModelContentAuditResponseText(c, outputText.String())
 	return usage, nil
 }

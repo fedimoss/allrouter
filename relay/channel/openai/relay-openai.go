@@ -117,6 +117,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var systemFingerprint string
 	var containStreamUsage bool
 	var responseTextBuilder strings.Builder
+	var reasoningTextBuilder strings.Builder
 	var toolCount int
 	var usage = &dto.Usage{}
 	var streamItems []string // store stream items
@@ -176,15 +177,17 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	}
 
 	// 处理token计算
-	if err := processTokens(info, streamItems, &responseTextBuilder, &toolCount); err != nil {
+	if err := processTokens(info, streamItems, &responseTextBuilder, &reasoningTextBuilder, &toolCount); err != nil {
 		logger.LogError(c, "error processing tokens: "+err.Error())
 	}
 
 	if !containStreamUsage {
-		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		usageText := responseTextBuilder.String() + reasoningTextBuilder.String()
+		usage = service.ResponseText2Usage(c, usageText, info.UpstreamModelName, info.GetEstimatePromptTokens())
 		usage.CompletionTokens += toolCount * 7
 	}
 	service.SetModelContentAuditResponseText(c, responseTextBuilder.String())
+	service.SetModelContentAuditReasoningText(c, reasoningTextBuilder.String())
 
 	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
 
@@ -235,7 +238,9 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			break
 		}
 	}
-	service.SetModelContentAuditResponseText(c, service.ModelContentAuditOpenAIResponseText(&simpleResponse))
+	auditResponseText, auditReasoningText := service.ModelContentAuditOpenAIResponseParts(&simpleResponse)
+	service.SetModelContentAuditResponseText(c, auditResponseText)
+	service.SetModelContentAuditReasoningText(c, auditReasoningText)
 
 	forceFormat := false
 	if info.ChannelSetting.ForceFormat {

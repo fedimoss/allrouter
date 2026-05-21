@@ -45,25 +45,31 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 }
 
 func claudeResponseText(response *dto.ClaudeResponse) string {
+	responseText, _ := claudeResponseParts(response)
+	return responseText
+}
+
+func claudeResponseParts(response *dto.ClaudeResponse) (string, string) {
 	if response == nil {
-		return ""
+		return "", ""
 	}
-	var builder strings.Builder
+	var responseBuilder strings.Builder
+	var reasoningBuilder strings.Builder
 	for _, message := range response.Content {
 		if text := message.GetText(); text != "" {
-			builder.WriteString(text)
+			responseBuilder.WriteString(text)
 		}
 		if message.Thinking != nil {
-			builder.WriteString(*message.Thinking)
+			reasoningBuilder.WriteString(*message.Thinking)
 		}
 		if message.Type == "tool_use" {
-			builder.WriteString(message.Name)
+			responseBuilder.WriteString(message.Name)
 			if data, err := common.Marshal(message.Input); err == nil {
-				builder.Write(data)
+				responseBuilder.Write(data)
 			}
 		}
 	}
-	return builder.String()
+	return responseBuilder.String(), reasoningBuilder.String()
 }
 
 func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
@@ -594,7 +600,9 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 	if len(tools) > 0 {
 		choice.Message.SetToolCalls(tools)
 	}
-	choice.Message.ReasoningContent = thinkingContent
+	if thinkingContent != "" {
+		choice.Message.ReasoningContent = thinkingContent
+	}
 	fullTextResponse.Model = claudeResponse.Model
 	choices = append(choices, choice)
 	fullTextResponse.Choices = choices
@@ -602,12 +610,13 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 }
 
 type ClaudeResponseInfo struct {
-	ResponseId   string
-	Created      int64
-	Model        string
-	ResponseText strings.Builder
-	Usage        *dto.Usage
-	Done         bool
+	ResponseId    string
+	Created       int64
+	Model         string
+	ResponseText  strings.Builder
+	ReasoningText strings.Builder
+	Usage         *dto.Usage
+	Done          bool
 }
 
 func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
@@ -760,7 +769,7 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Text)
 			}
 			if claudeResponse.Delta.Thinking != nil {
-				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Thinking)
+				claudeInfo.ReasoningText.WriteString(*claudeResponse.Delta.Thinking)
 			}
 		}
 	} else if claudeResponse.Type == "message_delta" {
@@ -819,7 +828,9 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if claudeResponse.Delta != nil && claudeResponse.Delta.StopReason != nil {
 		maybeMarkClaudeRefusal(c, *claudeResponse.Delta.StopReason)
 	}
-	service.AppendModelContentAuditResponseText(c, service.ModelContentAuditResponseTextFromJSON([]byte(data)))
+	responseText, reasoningText := service.ModelContentAuditResponsePartsFromJSON([]byte(data))
+	service.AppendModelContentAuditResponseText(c, responseText)
+	service.AppendModelContentAuditReasoningText(c, reasoningText)
 	if info.RelayFormat == types.RelayFormatClaude {
 		FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
 
@@ -860,7 +871,8 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 			common.SysLog("claude response usage is not complete, maybe upstream error")
 		}
 		// 只补缺失字段，不整份覆盖——保留 message_start 已拿到的 cache 字段
-		fallback := service.ResponseText2Usage(c, claudeInfo.ResponseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		fallbackText := claudeInfo.ResponseText.String() + claudeInfo.ReasoningText.String()
+		fallback := service.ResponseText2Usage(c, fallbackText, info.UpstreamModelName, info.GetEstimatePromptTokens())
 		if claudeInfo.Usage.CompletionTokens == 0 ||
 			(!claudeInfo.Done && fallback.CompletionTokens > claudeInfo.Usage.CompletionTokens) {
 			claudeInfo.Usage.CompletionTokens = fallback.CompletionTokens
@@ -888,15 +900,17 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 		helper.Done(c)
 	}
 	service.SetModelContentAuditResponseText(c, claudeInfo.ResponseText.String())
+	service.SetModelContentAuditReasoningText(c, claudeInfo.ReasoningText.String())
 }
 
 func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	claudeInfo := &ClaudeResponseInfo{
-		ResponseId:   helper.GetResponseID(c),
-		Created:      common.GetTimestamp(),
-		Model:        info.UpstreamModelName,
-		ResponseText: strings.Builder{},
-		Usage:        &dto.Usage{},
+		ResponseId:    helper.GetResponseID(c),
+		Created:       common.GetTimestamp(),
+		Model:         info.UpstreamModelName,
+		ResponseText:  strings.Builder{},
+		ReasoningText: strings.Builder{},
+		Usage:         &dto.Usage{},
 	}
 	var err *types.NewAPIError
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
@@ -922,7 +936,9 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
 		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
-	service.SetModelContentAuditResponseText(c, claudeResponseText(&claudeResponse))
+	responseText, reasoningText := claudeResponseParts(&claudeResponse)
+	service.SetModelContentAuditResponseText(c, responseText)
+	service.SetModelContentAuditReasoningText(c, reasoningText)
 	maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
 	if claudeInfo.Usage == nil {
 		claudeInfo.Usage = &dto.Usage{}
@@ -962,11 +978,12 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	defer service.CloseResponseBodyGracefully(resp)
 
 	claudeInfo := &ClaudeResponseInfo{
-		ResponseId:   helper.GetResponseID(c),
-		Created:      common.GetTimestamp(),
-		Model:        info.UpstreamModelName,
-		ResponseText: strings.Builder{},
-		Usage:        &dto.Usage{},
+		ResponseId:    helper.GetResponseID(c),
+		Created:       common.GetTimestamp(),
+		Model:         info.UpstreamModelName,
+		ResponseText:  strings.Builder{},
+		ReasoningText: strings.Builder{},
+		Usage:         &dto.Usage{},
 	}
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
