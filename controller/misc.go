@@ -55,7 +55,7 @@ func GetStatus(c *gin.Context) {
 	}
 
 	// 获取最新版本日志
-	if latest, err := model.GetLatestVersionLog(); err == nil && latest != nil {
+	if latest, err := model.GetLatestVersionLogCached(); err == nil && latest != nil {
 		versionInfo["version"] = latest.Version
 		versionInfo["log"] = latest.Log
 	}
