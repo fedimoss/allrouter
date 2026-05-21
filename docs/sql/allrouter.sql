@@ -5021,3 +5021,25 @@ ALTER TABLE provider_configs
 END IF;
 END $$;
 
+
+-- 版本更新日志表------------------------------------
+
+DROP TABLE IF EXISTS "version_log";
+
+CREATE SEQUENCE IF NOT EXISTS "version_log_id_seq";
+
+CREATE TABLE "version_log" (
+  "id"                    int8          NOT NULL DEFAULT nextval('version_log_id_seq'::regclass),
+  "version"               varchar(64),
+  "log"                   text,
+  "created_at"            int8          NOT NULL DEFAULT 0,
+  "updated_at"            int8          NOT NULL DEFAULT 0  
+);
+
+COMMENT ON TABLE "version_log" IS '更新日志表';
+
+COMMENT ON COLUMN "version_log"."id"                      IS '主键';
+COMMENT ON COLUMN "version_log"."version"                 IS '版本号';
+COMMENT ON COLUMN "version_log"."log"                     IS '日志内容';
+COMMENT ON COLUMN "version_log"."created_at"              IS '创建时间';
+COMMENT ON COLUMN "version_log"."updated_at"              IS '更新时间';
