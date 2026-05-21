@@ -35,6 +35,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
+	auditRequestMessages := service.ModelContentAuditOpenAIRequestMessages(request)
+	defer func() {
+		service.EnqueueModelContentAuditFromRelay(c, info, auditRequestMessages, newAPIError)
+	}()
 
 	if request.WebSearchOptions != nil {
 		c.Set("chat_completion_web_search_context_size", request.WebSearchOptions.SearchContextSize)

@@ -41,6 +41,16 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	}
 
 	// 写入新的 response body
+	var responseTextBuilder strings.Builder
+	for _, output := range responsesResponse.Output {
+		for _, content := range output.Content {
+			if content.Text != "" {
+				responseTextBuilder.WriteString(content.Text)
+			}
+		}
+	}
+	service.SetModelContentAuditResponseText(c, responseTextBuilder.String())
+
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	// compute usage
@@ -145,6 +155,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	}
 
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	service.SetModelContentAuditResponseText(c, responseTextBuilder.String())
 
 	return usage, nil
 }

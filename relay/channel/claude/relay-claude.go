@@ -44,6 +44,28 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 	}
 }
 
+func claudeResponseText(response *dto.ClaudeResponse) string {
+	if response == nil {
+		return ""
+	}
+	var builder strings.Builder
+	for _, message := range response.Content {
+		if text := message.GetText(); text != "" {
+			builder.WriteString(text)
+		}
+		if message.Thinking != nil {
+			builder.WriteString(*message.Thinking)
+		}
+		if message.Type == "tool_use" {
+			builder.WriteString(message.Name)
+			if data, err := common.Marshal(message.Input); err == nil {
+				builder.Write(data)
+			}
+		}
+	}
+	return builder.String()
+}
+
 func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
 	claudeTools := make([]any, 0, len(textRequest.Tools))
 
@@ -797,6 +819,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if claudeResponse.Delta != nil && claudeResponse.Delta.StopReason != nil {
 		maybeMarkClaudeRefusal(c, *claudeResponse.Delta.StopReason)
 	}
+	service.AppendModelContentAuditResponseText(c, service.ModelContentAuditResponseTextFromJSON([]byte(data)))
 	if info.RelayFormat == types.RelayFormatClaude {
 		FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
 
@@ -864,6 +887,7 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 		}
 		helper.Done(c)
 	}
+	service.SetModelContentAuditResponseText(c, claudeInfo.ResponseText.String())
 }
 
 func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
@@ -898,6 +922,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
 		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
+	service.SetModelContentAuditResponseText(c, claudeResponseText(&claudeResponse))
 	maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
 	if claudeInfo.Usage == nil {
 		claudeInfo.Usage = &dto.Usage{}

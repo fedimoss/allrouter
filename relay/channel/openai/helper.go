@@ -1,7 +1,6 @@
 package openai
 
 import (
-	"encoding/json"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -92,8 +91,12 @@ func ProcessStreamResponse(streamResponse dto.ChatCompletionsStreamResponse, res
 	return nil
 }
 
-func processTokens(relayMode int, streamItems []string, responseTextBuilder *strings.Builder, toolCount *int) error {
+func processTokens(info *relaycommon.RelayInfo, streamItems []string, responseTextBuilder *strings.Builder, toolCount *int) error {
 	streamResp := "[" + strings.Join(streamItems, ",") + "]"
+	relayMode := relayconstant.RelayModeUnknown
+	if info != nil {
+		relayMode = info.RelayMode
+	}
 
 	switch relayMode {
 	case relayconstant.RelayModeChatCompletions:
@@ -101,17 +104,20 @@ func processTokens(relayMode int, streamItems []string, responseTextBuilder *str
 	case relayconstant.RelayModeCompletions:
 		return processCompletions(streamResp, streamItems, responseTextBuilder)
 	}
+	if info != nil && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
+		return processChatCompletions(streamResp, streamItems, responseTextBuilder, toolCount)
+	}
 	return nil
 }
 
 func processChatCompletions(streamResp string, streamItems []string, responseTextBuilder *strings.Builder, toolCount *int) error {
 	var streamResponses []dto.ChatCompletionsStreamResponse
-	if err := json.Unmarshal(common.StringToByteSlice(streamResp), &streamResponses); err != nil {
+	if err := common.Unmarshal(common.StringToByteSlice(streamResp), &streamResponses); err != nil {
 		// 一次性解析失败，逐个解析
 		common.SysLog("error unmarshalling stream response: " + err.Error())
 		for _, item := range streamItems {
 			var streamResponse dto.ChatCompletionsStreamResponse
-			if err := json.Unmarshal(common.StringToByteSlice(item), &streamResponse); err != nil {
+			if err := common.Unmarshal(common.StringToByteSlice(item), &streamResponse); err != nil {
 				return err
 			}
 			if err := ProcessStreamResponse(streamResponse, responseTextBuilder, toolCount); err != nil {
@@ -142,12 +148,12 @@ func processChatCompletions(streamResp string, streamItems []string, responseTex
 
 func processCompletions(streamResp string, streamItems []string, responseTextBuilder *strings.Builder) error {
 	var streamResponses []dto.CompletionsStreamResponse
-	if err := json.Unmarshal(common.StringToByteSlice(streamResp), &streamResponses); err != nil {
+	if err := common.Unmarshal(common.StringToByteSlice(streamResp), &streamResponses); err != nil {
 		// 一次性解析失败，逐个解析
 		common.SysLog("error unmarshalling stream response: " + err.Error())
 		for _, item := range streamItems {
 			var streamResponse dto.CompletionsStreamResponse
-			if err := json.Unmarshal(common.StringToByteSlice(item), &streamResponse); err != nil {
+			if err := common.Unmarshal(common.StringToByteSlice(item), &streamResponse); err != nil {
 				continue
 			}
 			for _, choice := range streamResponse.Choices {

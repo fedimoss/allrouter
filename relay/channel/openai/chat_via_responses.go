@@ -70,6 +70,7 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		usage = service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
 		chatResp.Usage = *usage
 	}
+	service.SetModelContentAuditResponseText(c, service.ModelContentAuditOpenAIResponseText(chatResp))
 
 	var responseBody []byte
 	switch info.RelayFormat {
@@ -209,6 +210,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		}
 
 		usageText.WriteString(delta)
+		service.AppendModelContentAuditResponseText(c, delta)
 		chunk := &dto.ChatCompletionsStreamResponse{
 			Id:      responseId,
 			Object:  "chat.completion.chunk",
@@ -289,9 +291,11 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		// Include tool call data in the local builder for fallback token estimation.
 		if tool.Function.Name != "" {
 			usageText.WriteString(tool.Function.Name)
+			service.AppendModelContentAuditResponseText(c, tool.Function.Name)
 		}
 		if argsDelta != "" {
 			usageText.WriteString(argsDelta)
+			service.AppendModelContentAuditResponseText(c, argsDelta)
 		}
 		return true
 	}
@@ -366,6 +370,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			if streamResp.Delta != "" {
 				outputText.WriteString(streamResp.Delta)
 				usageText.WriteString(streamResp.Delta)
+				service.AppendModelContentAuditResponseText(c, streamResp.Delta)
 				delta := streamResp.Delta
 				chunk := &dto.ChatCompletionsStreamResponse{
 					Id:      responseId,
@@ -546,5 +551,10 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	if info.RelayFormat == types.RelayFormatOpenAI {
 		helper.Done(c)
 	}
+	auditResponseText := outputText.String()
+	if auditResponseText == "" {
+		auditResponseText = usageText.String()
+	}
+	service.SetModelContentAuditResponseText(c, auditResponseText)
 	return usage, nil
 }

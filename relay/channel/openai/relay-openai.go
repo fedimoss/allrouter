@@ -176,7 +176,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	}
 
 	// 处理token计算
-	if err := processTokens(info.RelayMode, streamItems, &responseTextBuilder, &toolCount); err != nil {
+	if err := processTokens(info, streamItems, &responseTextBuilder, &toolCount); err != nil {
 		logger.LogError(c, "error processing tokens: "+err.Error())
 	}
 
@@ -184,6 +184,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		usage.CompletionTokens += toolCount * 7
 	}
+	service.SetModelContentAuditResponseText(c, responseTextBuilder.String())
 
 	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
 
@@ -234,6 +235,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			break
 		}
 	}
+	service.SetModelContentAuditResponseText(c, service.ModelContentAuditOpenAIResponseText(&simpleResponse))
 
 	forceFormat := false
 	if info.ChannelSetting.ForceFormat {

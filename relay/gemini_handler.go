@@ -64,6 +64,10 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeminiChatRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
+	auditRequestMessages := service.ModelContentAuditGeminiRequestMessages(request)
+	defer func() {
+		service.EnqueueModelContentAuditFromRelay(c, info, auditRequestMessages, newAPIError)
+	}()
 
 	// model mapped 模型映射
 	err = helper.ModelMappedHelper(c, info, request)

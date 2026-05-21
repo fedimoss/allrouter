@@ -28,6 +28,8 @@ func OaiResponsesCompactionHandler(c *gin.Context, resp *http.Response) (*dto.Us
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
+	service.SetModelContentAuditResponseText(c, service.ModelContentAuditResponseTextFromJSON(compactResp.Output))
+
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	usage := dto.Usage{}
