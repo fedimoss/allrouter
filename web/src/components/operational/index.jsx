@@ -27,7 +27,6 @@ import {
   BarChart3,
   CalendarDays,
   ChevronDown,
-  Eye,
   Coins,
   Gift,
   Search,
@@ -246,8 +245,7 @@ function ColumnMenu({ columns, visibleColumnKeys, onToggle }) {
   );
 }
 
-function renderCell (column, row, displaySymbol) {
-  const { t } = useTranslation();
+function renderCell (column, row, displaySymbol, t) {
   const displayName = row.userId || '--';
   const subTitle = row.nickname || '';
 
@@ -300,6 +298,7 @@ function renderCell (column, row, displaySymbol) {
   }
 }
 function DesktopTable({ columns, rows, sortState, displaySymbol, onSortChange }) {
+  const { t } = useTranslation();
   return (
     <div className='overflow-x-auto'>
       <table className='min-w-full'>
@@ -340,7 +339,7 @@ function DesktopTable({ columns, rows, sortState, displaySymbol, onSortChange })
               {columns.map((column) => (
                 <td key={column.key} className='px-4 py-5 align-middle'>
                   <div className='text-sm font-medium text-slate-700 dark:text-slate-200'>
-                    {renderCell(column, row, displaySymbol)}
+                    {renderCell(column, row, displaySymbol, t)}
                   </div>
                 </td>
               ))}
@@ -353,6 +352,7 @@ function DesktopTable({ columns, rows, sortState, displaySymbol, onSortChange })
 }
 
 function MobileCards({ columns, rows, displaySymbol }) {
+  const { t } = useTranslation();
   return (
     <div className='space-y-4'>
       {rows.map((row) => {
@@ -378,7 +378,7 @@ function MobileCards({ columns, rows, displaySymbol }) {
                       {column.title}
                     </p>
                     <div className='text-sm font-medium text-slate-700 dark:text-slate-200'>
-                      {renderCell(column, row, displaySymbol)}
+                      {renderCell(column, row, displaySymbol, t)}
                     </div>
                   </div>
                 ))}
@@ -749,7 +749,7 @@ export default function Operational () {
   };
 
   return (
-    <div className='min-h-screen bg-[#f4f7fb] px-3 py-4 dark:bg-slate-950 sm:px-5 lg:px-6'>
+    <div className='min-h-scree'>
       <div className='mx-auto flex w-full max-w-[1520px] flex-col gap-6'>
         <section className='px-1 py-2 sm:px-0'>
           <div>
