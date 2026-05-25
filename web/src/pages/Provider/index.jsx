@@ -21,8 +21,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Form,
+  Input,
   Modal,
   Popconfirm,
+  Select,
   Space,
   Table,
   Tag,
@@ -68,11 +70,21 @@ const PRICING_TYPE_OPTIONS = [
   { label: '按固定差价', value: 'delta' },
 ];
 
+const OWNER_SEARCH_FIELD_OPTIONS = [
+  { label: '全部', value: '' },
+  { label: '用户名', value: 'username' },
+  { label: '显示名', value: 'display_name' },
+  { label: '邮箱', value: 'email' },
+  { label: '用户 ID', value: 'id' },
+];
+
+const OWNER_PAGE_SIZE = 10;
+
 const emptyProvider = {
   owner_user_id: undefined,
   name: '',
   status: 1,
-  import_price_ratio: 1,
+  import_price_ratio: 10,
 };
 
 const emptyConfig = {
@@ -114,9 +126,30 @@ const markupPercentToRatio = (percent) => {
   return Number((1 + value / 100).toFixed(6));
 };
 
-const formatRatioPercent = (ratio) => {
-  const value = Number(ratio || 1) * 100;
-  return `${Number(value.toFixed(6))}%`;
+const ratioToDiscount = (ratio) => {
+  const value = Number(ratio || 1);
+  return Number((value * 10).toFixed(6));
+};
+
+const discountToRatio = (discount) => {
+  const value = Number(discount || 10);
+  return Number((value / 10).toFixed(6));
+};
+
+const formatProviderDiscount = (ratio, t) => {
+  const discount = ratioToDiscount(ratio);
+  if (discount >= 10) {
+    return t('原价');
+  }
+  return t('{{discount}}折', { discount });
+};
+
+const formatPriceNumber = (value) => {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) {
+    return '-';
+  }
+  return Number(numberValue.toFixed(6)).toString();
 };
 
 const getColorInputValue = (value, fallback = '#000000') => {
@@ -149,7 +182,9 @@ const getConfigFormValues = (config) => {
 const getProviderFormValues = (provider) => ({
   ...emptyProvider,
   ...(provider || {}),
-  import_price_ratio: Number(provider?.config?.import_price_ratio || 1),
+  import_price_ratio: ratioToDiscount(
+    provider?.config?.import_price_ratio || 1,
+  ),
 });
 
 const getPricingFormValues = (pricing) => {
@@ -192,13 +227,25 @@ const ProviderPage = () => {
   const [logoUploading, setLogoUploading] = useState(false);
   const [wechatQRCodeUploading, setWechatQRCodeUploading] = useState(false);
   const [baseModels, setBaseModels] = useState([]);
+  const [baseModelPrices, setBaseModelPrices] = useState([]);
+  const [baseModelPriceProviderId, setBaseModelPriceProviderId] =
+    useState(null);
+  const [selectedBaseModel, setSelectedBaseModel] = useState('');
   const [baseModelsLoading, setBaseModelsLoading] = useState(false);
   const [pricingType, setPricingType] = useState(emptyPricing.pricing_type);
   const [configColors, setConfigColors] = useState({
     theme_color: DEFAULT_THEME_PRIMARY_COLOR,
     secondary_color: DEFAULT_THEME_SECONDARY_COLOR,
   });
-  const [ownerOptions, setOwnerOptions] = useState([]);
+  const [ownerModalVisible, setOwnerModalVisible] = useState(false);
+  const [ownerCandidates, setOwnerCandidates] = useState([]);
+  const [ownerCandidatesLoading, setOwnerCandidatesLoading] = useState(false);
+  const [ownerKeyword, setOwnerKeyword] = useState('');
+  const [ownerSearchField, setOwnerSearchField] = useState('');
+  const [ownerPage, setOwnerPage] = useState(1);
+  const [ownerTotal, setOwnerTotal] = useState(0);
+  const [selectedOwnerId, setSelectedOwnerId] = useState(undefined);
+  const [selectedOwner, setSelectedOwner] = useState(null);
 
   const providerFormRef = useRef(null);
   const domainFormRef = useRef(null);
@@ -233,27 +280,37 @@ const ProviderPage = () => {
     setLoading(false);
   };
 
-  const fetchOwnerCandidates = async (keyword = '', provider = null) => {
+  const fetchOwnerCandidates = async ({
+    keyword = ownerKeyword,
+    field = ownerSearchField,
+    page = ownerPage,
+    provider = editingProvider,
+  } = {}) => {
     if (!adminMode) return;
+    setOwnerCandidatesLoading(true);
     try {
       const res = await API.get('/api/provider/admin/owner_candidates', {
         params: {
           keyword,
+          field,
+          page,
+          size: OWNER_PAGE_SIZE,
           current_provider_id: provider?.id || undefined,
         },
       });
       if (res.data.success) {
-        setOwnerOptions(
-          (res.data.data || []).map((user) => ({
-            label: getOwnerLabel(user),
-            value: user.id,
-          })),
-        );
+        const data = res.data.data || {};
+        const items = Array.isArray(data) ? data : data.items || [];
+        setOwnerCandidates(items);
+        setOwnerTotal(Array.isArray(data) ? items.length : data.total || 0);
+        setOwnerPage(Array.isArray(data) ? 1 : data.page || page);
       } else {
         showError(res.data.message);
       }
     } catch (error) {
       showError(error);
+    } finally {
+      setOwnerCandidatesLoading(false);
     }
   };
 
@@ -276,16 +333,34 @@ const ProviderPage = () => {
     setPricingLoading(false);
   };
 
-  const fetchBaseModels = async () => {
-    if (baseModelsLoading || baseModels.length > 0) return;
+  const fetchBaseModels = async (provider = currentProvider) => {
+    const providerId = provider?.id || 0;
+    if (
+      baseModelsLoading ||
+      (baseModels.length > 0 && baseModelPriceProviderId === providerId)
+    )
+      return;
     setBaseModelsLoading(true);
     try {
       const url = adminMode
         ? '/api/provider/admin/base_models'
         : '/api/provider/base_models';
-      const res = await API.get(url);
+      const res = await API.get(url, {
+        params: {
+          with_price: true,
+          provider_id: adminMode ? providerId : undefined,
+        },
+      });
       if (res.data.success) {
-        setBaseModels(res.data.data || []);
+        const data = res.data.data || [];
+        if (Array.isArray(data)) {
+          setBaseModels(data);
+          setBaseModelPrices([]);
+        } else {
+          setBaseModels(data.models || []);
+          setBaseModelPrices(data.items || []);
+        }
+        setBaseModelPriceProviderId(providerId);
       } else {
         showError(res.data.message);
       }
@@ -312,6 +387,8 @@ const ProviderPage = () => {
   useEffect(() => {
     if (!providerModalVisible || !providerFormRef.current) return;
     providerFormRef.current.setValues(getProviderFormValues(editingProvider));
+    setSelectedOwnerId(editingProvider?.owner_user_id);
+    setSelectedOwner(editingProvider?.owner || null);
   }, [providerModalVisible, editingProvider]);
 
   useEffect(() => {
@@ -332,17 +409,17 @@ const ProviderPage = () => {
   useEffect(() => {
     if (!pricingModalVisible || !pricingFormRef.current) return;
     pricingFormRef.current.setValues(getPricingFormValues(editingPricing));
+    setSelectedBaseModel(editingPricing?.base_model_name || '');
     setPricingType(editingPricing?.pricing_type || emptyPricing.pricing_type);
-    fetchBaseModels();
+    fetchBaseModels(currentProvider);
   }, [pricingModalVisible, editingPricing]);
 
   const openProviderModal = (provider = null) => {
     if (!adminMode && !provider) return;
     setEditingProvider(provider);
+    setSelectedOwnerId(provider?.owner_user_id);
+    setSelectedOwner(provider?.owner || null);
     setProviderModalVisible(true);
-    if (adminMode) {
-      fetchOwnerCandidates('', provider);
-    }
   };
 
   const openDomainModal = (provider, domain = null) => {
@@ -373,9 +450,34 @@ const ProviderPage = () => {
 
   const openPricingModal = (pricing = null) => {
     setEditingPricing(pricing);
+    setSelectedBaseModel(pricing?.base_model_name || '');
     setPricingType(pricing?.pricing_type || emptyPricing.pricing_type);
     setPricingModalVisible(true);
-    fetchBaseModels();
+    fetchBaseModels(currentProvider);
+  };
+
+  const openOwnerModal = () => {
+    setOwnerModalVisible(true);
+    setOwnerPage(1);
+    fetchOwnerCandidates({ page: 1 });
+  };
+
+  const searchOwnerCandidates = () => {
+    setOwnerPage(1);
+    fetchOwnerCandidates({ page: 1 });
+  };
+
+  const confirmOwnerSelection = () => {
+    if (!selectedOwnerId) {
+      showError(t('请选择主账号'));
+      return;
+    }
+    providerFormRef.current?.setValue?.('owner_user_id', selectedOwnerId);
+    const owner =
+      ownerCandidates.find((candidate) => candidate.id === selectedOwnerId) ||
+      selectedOwner;
+    setSelectedOwner(owner || null);
+    setOwnerModalVisible(false);
   };
 
   const refreshAfterMutation = async () => {
@@ -392,7 +494,16 @@ const ProviderPage = () => {
       .map((name) => ({ label: name, value: name }));
   }, [baseModels, editingPricing]);
 
+  const selectedBaseModelPrices = useMemo(
+    () =>
+      (baseModelPrices || []).filter(
+        (item) => item.model_name === selectedBaseModel,
+      ),
+    [baseModelPrices, selectedBaseModel],
+  );
+
   const handleBaseModelChange = (value) => {
+    setSelectedBaseModel(value || '');
     const values = pricingFormRef.current?.getValues?.() || {};
     if (!values.public_model_name) {
       pricingFormRef.current?.setValue?.('public_model_name', value);
@@ -526,12 +637,25 @@ const ProviderPage = () => {
       showError(t('请选择主账号'));
       return;
     }
+    const discountValue =
+      values.import_price_ratio === undefined ||
+      values.import_price_ratio === null ||
+      values.import_price_ratio === ''
+        ? 10
+        : Number(values.import_price_ratio);
+    if (
+      adminMode &&
+      (Number.isNaN(discountValue) || discountValue < 1 || discountValue > 10)
+    ) {
+      showError(t('折扣必须在 1 到 10 之间'));
+      return;
+    }
     const payload = adminMode
       ? {
           ...values,
           owner_user_id: Number(values.owner_user_id),
           status: Number(values.status),
-          import_price_ratio: Number(values.import_price_ratio || 1),
+          import_price_ratio: discountToRatio(discountValue),
         }
       : { name: values.name };
     const res =
@@ -682,140 +806,142 @@ const ProviderPage = () => {
   };
 
   const columns = useMemo(
-    () => [
-      { title: 'ID', dataIndex: 'id', width: 80 },
-      {
-        title: t('服务商'),
-        dataIndex: 'name',
-        render: (name, record) => (
-          <Space vertical align='start' spacing={2}>
-            <Text strong>{name}</Text>
-            {adminMode ? (
-              <Text type='secondary'>
-                Owner User ID: {record.owner_user_id}
-              </Text>
-            ) : null}
-          </Space>
-        ),
-      },
-      {
-        title: t('状态'),
-        dataIndex: 'status',
-        width: 90,
-        render: (status) => (
-          <Tag color={status === 1 ? 'green' : 'grey'}>
-            {status === 1 ? t('启用') : t('禁用')}
-          </Tag>
-        ),
-      },
-      {
-        title: t('成本价比例'),
-        dataIndex: 'config',
-        width: 120,
-        render: (config) => formatRatioPercent(config?.import_price_ratio),
-      },
-      {
-        title: t('域名'),
-        dataIndex: 'domains',
-        render: (domains, provider) => {
-          const domainRows = Array.isArray(domains) ? domains : [];
-          return (
-            <Space wrap>
-              {domainRows.length === 0 ? (
-                <Text type='tertiary'>{t('未配置')}</Text>
+    () =>
+      [
+        { title: 'ID', dataIndex: 'id', width: 80 },
+        {
+          title: t('服务商'),
+          dataIndex: 'name',
+          render: (name, record) => (
+            <Space vertical align='start' spacing={2}>
+              <Text strong>{name}</Text>
+              {adminMode ? (
+                <Text type='secondary'>
+                  Owner User ID: {record.owner_user_id}
+                </Text>
               ) : null}
-              {domainRows.map((domain) => (
-                <Tag
-                  key={domain.id}
-                  color={
-                    !domain.domain
-                      ? 'grey'
-                      : domain.status === 1
-                        ? 'green'
-                        : 'orange'
-                  }
-                  closable
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => openDomainModal(provider, domain)}
-                  onClose={(e) => {
-                    e?.stopPropagation?.();
-                    deleteDomain(provider, domain);
-                  }}
-                >
-                  {domain.domain || t('未配置')}
-                </Tag>
-              ))}
             </Space>
-          );
+          ),
         },
-      },
-      {
-        title: t('页面配置'),
-        dataIndex: 'config',
-        render: (config) => (
-          <Text>
-            {config?.site_name ||
-            config?.logo ||
-            config?.theme_color ||
-            config?.secondary_color ||
-            config?.wechat_support ||
-            config?.qq_support
-              ? t('已配置')
-              : t('未配置')}
-          </Text>
-        ),
-      },
-      {
-        title: t('更新时间'),
-        dataIndex: 'updated_at',
-        width: 170,
-        render: (time) => (time ? timestamp2string(time) : '-'),
-      },
-      {
-        title: t('操作'),
-        width: adminMode ? 360 : 300,
-        render: (_, record) => (
-          <Space wrap>
-            <Button
-              size='small'
-              icon={<IconEdit />}
-              onClick={() => openProviderModal(record)}
-            >
-              {t('编辑')}
-            </Button>
-            <Button size='small' onClick={() => openDomainModal(record)}>
-              {t('添加域名')}
-            </Button>
-            <Button size='small' onClick={() => openConfigModal(record)}>
-              {t('页面配置')}
-            </Button>
-            <Button size='small' onClick={() => openPricingList(record)}>
-              {t('模型定价')}
-            </Button>
-            <Button
-              size='small'
-              icon={<IconGiftStroked />}
-              onClick={() => openRewardModal(record)}
-            >
-              {t('奖励配置')}
-            </Button>
-            {adminMode ? (
-              <Popconfirm
-                title={t('确认禁用该服务商？')}
-                content={t(
-                  '禁用后该域名不会再解析成服务商站点，历史数据会保留。',
-                )}
-                onConfirm={() => disableProvider(record)}
+        {
+          title: t('状态'),
+          dataIndex: 'status',
+          width: 90,
+          render: (status) => (
+            <Tag color={status === 1 ? 'green' : 'grey'}>
+              {status === 1 ? t('启用') : t('禁用')}
+            </Tag>
+          ),
+        },
+        {
+          title: t('折扣'),
+          dataIndex: 'config',
+          width: 120,
+          render: (config) =>
+            formatProviderDiscount(config?.import_price_ratio, t),
+        },
+        {
+          title: t('域名'),
+          dataIndex: 'domains',
+          render: (domains, provider) => {
+            const domainRows = Array.isArray(domains) ? domains : [];
+            return (
+              <Space wrap>
+                {domainRows.length === 0 ? (
+                  <Text type='tertiary'>{t('未配置')}</Text>
+                ) : null}
+                {domainRows.map((domain) => (
+                  <Tag
+                    key={domain.id}
+                    color={
+                      !domain.domain
+                        ? 'grey'
+                        : domain.status === 1
+                          ? 'green'
+                          : 'orange'
+                    }
+                    closable
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => openDomainModal(provider, domain)}
+                    onClose={(e) => {
+                      e?.stopPropagation?.();
+                      deleteDomain(provider, domain);
+                    }}
+                  >
+                    {domain.domain || t('未配置')}
+                  </Tag>
+                ))}
+              </Space>
+            );
+          },
+        },
+        {
+          title: t('页面配置'),
+          dataIndex: 'config',
+          render: (config) => (
+            <Text>
+              {config?.site_name ||
+              config?.logo ||
+              config?.theme_color ||
+              config?.secondary_color ||
+              config?.wechat_support ||
+              config?.qq_support
+                ? t('已配置')
+                : t('未配置')}
+            </Text>
+          ),
+        },
+        {
+          title: t('更新时间'),
+          dataIndex: 'updated_at',
+          width: 170,
+          render: (time) => (time ? timestamp2string(time) : '-'),
+        },
+        {
+          title: t('操作'),
+          width: adminMode ? 360 : 300,
+          render: (_, record) => (
+            <Space wrap>
+              <Button
+                size='small'
+                icon={<IconEdit />}
+                onClick={() => openProviderModal(record)}
               >
-                <Button size='small' type='danger' icon={<IconDelete />}>
-                  {t('禁用')}
-                </Button>
-              </Popconfirm>
-            ) : null}
-          </Space>
-        ),
-      },
-    ].filter(Boolean),
+                {t('编辑')}
+              </Button>
+              <Button size='small' onClick={() => openDomainModal(record)}>
+                {t('添加域名')}
+              </Button>
+              <Button size='small' onClick={() => openConfigModal(record)}>
+                {t('页面配置')}
+              </Button>
+              <Button size='small' onClick={() => openPricingList(record)}>
+                {t('模型定价')}
+              </Button>
+              <Button
+                size='small'
+                icon={<IconGiftStroked />}
+                onClick={() => openRewardModal(record)}
+              >
+                {t('奖励配置')}
+              </Button>
+              {adminMode ? (
+                <Popconfirm
+                  title={t('确认禁用该服务商？')}
+                  content={t(
+                    '禁用后该域名不会再解析成服务商站点，历史数据会保留。',
+                  )}
+                  onConfirm={() => disableProvider(record)}
+                >
+                  <Button size='small' type='danger' icon={<IconDelete />}>
+                    {t('禁用')}
+                  </Button>
+                </Popconfirm>
+              ) : null}
+            </Space>
+          ),
+        },
+      ].filter(Boolean),
     [adminMode, t],
   );
 
@@ -891,6 +1017,84 @@ const ProviderPage = () => {
     },
   ];
 
+  const ownerCandidateColumns = [
+    {
+      title: t('用户'),
+      dataIndex: 'username',
+      render: (_, record) => (
+        <Space vertical align='start' spacing={1}>
+          <Text strong>{record.display_name || record.username || '-'}</Text>
+          <Text type='tertiary' size='small'>
+            {record.email || '-'} · ID {record.id}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: t('用户名'),
+      dataIndex: 'username',
+      width: 180,
+      render: (username) => username || '-',
+    },
+  ];
+
+  const ownerCandidateRowSelection = {
+    selectedRowKeys: selectedOwnerId ? [selectedOwnerId] : [],
+    onChange: (selectedRowKeys, selectedRows) => {
+      const nextKey = (selectedRowKeys || []).find(
+        (key) => key !== selectedOwnerId,
+      );
+      const owner =
+        (selectedRows || []).find((row) => row.id === nextKey) ||
+        selectedRows?.[selectedRows.length - 1];
+      setSelectedOwnerId(owner?.id);
+      setSelectedOwner(owner || null);
+    },
+    onSelect: (record, selected) => {
+      if (selected) {
+        setSelectedOwnerId(record?.id);
+        setSelectedOwner(record || null);
+      } else if (record?.id === selectedOwnerId) {
+        setSelectedOwnerId(undefined);
+        setSelectedOwner(null);
+      }
+    },
+  };
+
+  const baseModelPriceColumns = [
+    {
+      title: t('渠道'),
+      dataIndex: 'channel_name',
+      render: (name, record) => name || `#${record.channel_id}`,
+    },
+    {
+      title: t('分组'),
+      dataIndex: 'group',
+      render: (group) => group || '-',
+    },
+    {
+      title: t('计费类型'),
+      dataIndex: 'quota_type',
+      render: (quotaType) =>
+        quotaType === 1 ? t('按次价格') : t('Token 倍率'),
+    },
+    {
+      title: t('主站原价'),
+      dataIndex: 'original_price',
+      render: (value) => formatPriceNumber(value),
+    },
+    {
+      title: t('服务商折扣'),
+      dataIndex: 'import_price_ratio',
+      render: (value) => formatProviderDiscount(value, t),
+    },
+    {
+      title: t('服务商成本价'),
+      dataIndex: 'cost_price',
+      render: (value) => formatPriceNumber(value),
+    },
+  ];
+
   if (!adminMode && !ownerMode) {
     return (
       <div className='px-2'>
@@ -960,17 +1164,40 @@ const ProviderPage = () => {
           <Form.Input field='name' label={t('服务商名称')} />
           {adminMode ? (
             <>
-              <Form.Select
-                field='owner_user_id'
-                label={t('主账号')}
-                optionList={ownerOptions}
-                filter
-                remote
-                onSearch={(keyword) =>
-                  fetchOwnerCandidates(keyword, editingProvider)
-                }
-                placeholder={t('搜索用户名、显示名、邮箱或用户 ID')}
-              />
+              <Form.Input field='owner_user_id' style={{ display: 'none' }} />
+              <div style={{ marginBottom: 12 }}>
+                <Text strong>{t('主账号')}</Text>
+                <div
+                  style={{
+                    marginTop: 6,
+                    padding: '10px 12px',
+                    border: '1px solid var(--semi-color-border)',
+                    borderRadius: 6,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    {selectedOwner ? (
+                      <Space vertical align='start' spacing={1}>
+                        <Text strong>
+                          {selectedOwner.display_name ||
+                            selectedOwner.username ||
+                            `ID ${selectedOwner.id}`}
+                        </Text>
+                        <Text type='tertiary' size='small'>
+                          {selectedOwner.email || '-'} · ID {selectedOwner.id}
+                        </Text>
+                      </Space>
+                    ) : (
+                      <Text type='tertiary'>{t('尚未选择主账号')}</Text>
+                    )}
+                  </div>
+                  <Button onClick={openOwnerModal}>{t('选择用户')}</Button>
+                </div>
+              </div>
               <Form.Select
                 field='status'
                 label={t('状态')}
@@ -981,20 +1208,89 @@ const ProviderPage = () => {
               />
               <Form.InputNumber
                 field='import_price_ratio'
-                label={t('模型进口价比例')}
-                min={0.000001}
-                max={1}
-                step={0.01}
-                precision={6}
+                label={t('模型成本折扣')}
+                min={1}
+                max={10}
+                step={0.1}
+                precision={1}
+                suffix={t('折')}
               />
               <Text type='tertiary' size='small'>
                 {t(
-                  '填 0.3 表示服务商进口价为主站原价的 30%；服务商用户售价会在进口价基础上继续按服务商模型定价加价。',
+                  '填 1 表示 1 折优惠，填 10 表示原价不优惠；折扣只能填写 1 到 10。服务商用户售价会在折扣价基础上继续按服务商模型定价加价。',
                 )}
               </Text>
             </>
           ) : null}
         </Form>
+      </Modal>
+
+      <Modal
+        title={t('选择主账号')}
+        visible={ownerModalVisible}
+        onCancel={() => setOwnerModalVisible(false)}
+        onOk={confirmOwnerSelection}
+        okText={t('确认选择')}
+        width={760}
+      >
+        <Space vertical align='start' style={{ width: '100%' }}>
+          <Space wrap>
+            <Select
+              value={ownerSearchField}
+              optionList={OWNER_SEARCH_FIELD_OPTIONS.map((option) => ({
+                ...option,
+                label: t(option.label),
+              }))}
+              onChange={(value) => setOwnerSearchField(value || '')}
+              style={{ width: 140 }}
+            />
+            <Input
+              value={ownerKeyword}
+              onChange={(value) => setOwnerKeyword(value)}
+              placeholder={t('搜索用户名、显示名、邮箱或用户 ID')}
+              showClear
+              style={{ width: 280 }}
+              onEnterPress={searchOwnerCandidates}
+            />
+            <Button type='primary' onClick={searchOwnerCandidates}>
+              {t('搜索')}
+            </Button>
+          </Space>
+          <Text type='tertiary' size='small'>
+            {t(
+              '只能选择普通主站用户。管理员、服务商子用户、已绑定其他服务商的用户不能选择。',
+            )}
+          </Text>
+          <Table
+            rowKey='id'
+            columns={ownerCandidateColumns}
+            dataSource={ownerCandidates}
+            loading={ownerCandidatesLoading}
+            rowSelection={ownerCandidateRowSelection}
+            style={{ width: '100%' }}
+            pagination={{
+              currentPage: ownerPage,
+              pageSize: OWNER_PAGE_SIZE,
+              total: ownerTotal,
+              onPageChange: (page) =>
+                fetchOwnerCandidates({
+                  page,
+                  keyword: ownerKeyword,
+                  field: ownerSearchField,
+                  provider: editingProvider,
+                }),
+              showTotal: true,
+              showSizeChanger: false,
+            }}
+            onRow={(record) => ({
+              onClick: () => {
+                setSelectedOwnerId(record.id);
+                setSelectedOwner(record);
+              },
+              style: { cursor: 'pointer' },
+            })}
+          />
+        </Space>
       </Modal>
 
       <Modal
@@ -1246,6 +1542,39 @@ const ProviderPage = () => {
               '这里只能选择主站当前已启用渠道支持的模型，避免手动填写错误导致服务商用户调用失败。',
             )}
           </Text>
+          <div style={{ marginTop: 12, marginBottom: 12 }}>
+            {selectedBaseModel ? (
+              selectedBaseModelPrices.length > 0 ? (
+                <>
+                  <Text type='secondary' size='small'>
+                    {t(
+                      '下面是这个模型在主站不同渠道里的原价和你的成本价。同一个模型如果有多个渠道，会分别计算；例如主站原价 100，服务商折扣 3 折，那么服务商成本价就是 30。你设置的加价，会在这个成本价基础上继续计算。',
+                    )}
+                  </Text>
+                  <Table
+                    size='small'
+                    style={{ marginTop: 8 }}
+                    rowKey={(record) =>
+                      `${record.model_name}-${record.channel_id}-${record.group}`
+                    }
+                    columns={baseModelPriceColumns}
+                    dataSource={selectedBaseModelPrices}
+                    pagination={false}
+                  />
+                </>
+              ) : (
+                <Text type='tertiary' size='small'>
+                  {t(
+                    '暂时没有读到这个模型的渠道价格，请确认主站渠道已启用，并且模型价格配置已保存。',
+                  )}
+                </Text>
+              )
+            ) : (
+              <Text type='tertiary' size='small'>
+                {t('先选择一个实际调用的主站模型，这里会显示服务商成本价。')}
+              </Text>
+            )}
+          </div>
           <Form.Switch field='enabled' label={t('启用')} />
           <Form.Select
             field='pricing_type'
@@ -1270,7 +1599,7 @@ const ProviderPage = () => {
             <>
               <Text type='tertiary' size='small'>
                 {t(
-                  '这里的加价基于服务商成本价计算，不是基于主站原价。最终售价 = 主站原价 × 成本价比例 × (1 + 加价比例)',
+                  '这里的加价基于服务商折扣价计算，不是基于主站原价。最终售价 = 主站原价 × 折扣 / 10 × (1 + 加价比例)',
                 )}
               </Text>
               <Form.InputNumber
@@ -1285,7 +1614,7 @@ const ProviderPage = () => {
             <>
               <Text type='tertiary' size='small'>
                 {t(
-                  '固定加价是在服务商成本价基础上额外增加固定金额。最终售价 = 服务商成本价 + 固定加价。',
+                  '固定加价是在服务商折扣价基础上额外增加固定金额。最终售价 = 服务商折扣价 + 固定加价。',
                 )}
               </Text>
               <Form.InputNumber

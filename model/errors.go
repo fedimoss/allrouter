@@ -9,8 +9,9 @@ var (
 
 // User auth errors
 var (
-	ErrInvalidCredentials   = errors.New("invalid credentials")
-	ErrUserEmptyCredentials = errors.New("empty credentials")
+	ErrInvalidCredentials    = errors.New("invalid credentials")
+	ErrUserEmptyCredentials  = errors.New("empty credentials")
+	ErrProviderLoginConflict = errors.New("provider login conflict")
 )
 
 // Token auth errors
