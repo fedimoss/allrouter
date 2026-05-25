@@ -831,7 +831,8 @@ func AddVersionLog(c *gin.Context) {
 	}
 
 	// 插入版本日志
-	if err := model.InsertVersionLog(tx, version, req.Log); err != nil {
+	versionLog, err := model.InsertVersionLog(tx, version, req.Log)
+	if err != nil {
 		tx.Rollback()
 		common.ApiError(c, err)
 		return
@@ -847,6 +848,11 @@ func AddVersionLog(c *gin.Context) {
 	common.OptionMapRWMutex.Lock()
 	common.OptionMap["Version"] = version
 	common.OptionMapRWMutex.Unlock()
+
+	// 更新缓存中的最新版本日志
+	if err := model.SetLatestVersionLogCache(versionLog); err != nil {
+		common.SysLog("failed to update latest version log cache: " + err.Error())
+	}
 
 	common.ApiSuccess(c, nil)
 }
@@ -938,6 +944,11 @@ func UpdateVersionLogById(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 更新缓存中的最新版本日志
+	if err := model.RefreshLatestVersionLogCacheFromDB(); err != nil {
+		common.SysLog("failed to refresh latest version log cache: " + err.Error())
+	}
 	common.ApiSuccess(c, nil)
 }
 
@@ -980,6 +991,11 @@ func DeleteVersionLogById(c *gin.Context) {
 	if err := tx.Commit().Error; err != nil {
 		common.ApiError(c, err)
 		return
+	}
+
+	// 更新缓存中的最新版本日志
+	if err := model.RefreshLatestVersionLogCacheFromDB(); err != nil {
+		common.SysLog("failed to refresh latest version log cache: " + err.Error())
 	}
 	common.ApiSuccess(c, nil)
 }

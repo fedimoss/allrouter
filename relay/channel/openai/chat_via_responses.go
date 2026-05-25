@@ -70,6 +70,9 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		usage = service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
 		chatResp.Usage = *usage
 	}
+	auditResponseText, auditReasoningText := service.ModelContentAuditOpenAIResponseParts(chatResp)
+	service.SetModelContentAuditResponseText(c, auditResponseText)
+	service.SetModelContentAuditReasoningText(c, auditReasoningText)
 
 	var responseBody []byte
 	switch info.RelayFormat {
@@ -209,6 +212,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		}
 
 		usageText.WriteString(delta)
+		service.AppendModelContentAuditReasoningText(c, delta)
 		chunk := &dto.ChatCompletionsStreamResponse{
 			Id:      responseId,
 			Object:  "chat.completion.chunk",
@@ -289,9 +293,11 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		// Include tool call data in the local builder for fallback token estimation.
 		if tool.Function.Name != "" {
 			usageText.WriteString(tool.Function.Name)
+			service.AppendModelContentAuditResponseText(c, tool.Function.Name)
 		}
 		if argsDelta != "" {
 			usageText.WriteString(argsDelta)
+			service.AppendModelContentAuditResponseText(c, argsDelta)
 		}
 		return true
 	}
@@ -366,6 +372,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			if streamResp.Delta != "" {
 				outputText.WriteString(streamResp.Delta)
 				usageText.WriteString(streamResp.Delta)
+				service.AppendModelContentAuditResponseText(c, streamResp.Delta)
 				delta := streamResp.Delta
 				chunk := &dto.ChatCompletionsStreamResponse{
 					Id:      responseId,
@@ -408,7 +415,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				toolCallNameByID[callID] = name
 			}
 
-			newArgs := streamResp.Item.Arguments
+			newArgs := streamResp.Item.ArgumentsString()
 			prevArgs := toolCallArgsByID[callID]
 			argsDelta := ""
 			if newArgs != "" {
@@ -546,5 +553,6 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	if info.RelayFormat == types.RelayFormatOpenAI {
 		helper.Done(c)
 	}
+	service.SetModelContentAuditResponseText(c, outputText.String())
 	return usage, nil
 }

@@ -1039,6 +1039,16 @@ func buildUsageFromGeminiMetadata(metadata dto.GeminiUsageMetadata, fallbackProm
 			usage.PromptTokensDetails.TextTokens += detail.TokenCount
 		}
 	}
+	for _, detail := range metadata.CandidatesTokensDetails {
+		switch detail.Modality {
+		case "IMAGE":
+			usage.CompletionTokenDetails.ImageTokens += detail.TokenCount
+		case "AUDIO":
+			usage.CompletionTokenDetails.AudioTokens += detail.TokenCount
+		case "TEXT":
+			usage.CompletionTokenDetails.TextTokens += detail.TokenCount
+		}
+	}
 
 	if usage.TotalTokens > 0 && usage.CompletionTokens <= 0 {
 		usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
@@ -1087,7 +1097,7 @@ func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse)
 						toolCalls = append(toolCalls, *call)
 					}
 				} else if part.Thought {
-					choice.Message.ReasoningContent = part.Text
+					choice.Message.ReasoningContent = &part.Text
 				} else {
 					if part.ExecutableCode != nil {
 						texts = append(texts, "```"+part.ExecutableCode.Language+"\n"+part.ExecutableCode.Code+"\n```")
@@ -1143,6 +1153,37 @@ func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse)
 		fullTextResponse.Choices = append(fullTextResponse.Choices, choice)
 	}
 	return &fullTextResponse
+}
+
+func geminiChatResponseText(response *dto.GeminiChatResponse) string {
+	responseText, _ := geminiChatResponseParts(response)
+	return responseText
+}
+
+func geminiChatResponseParts(response *dto.GeminiChatResponse) (string, string) {
+	if response == nil {
+		return "", ""
+	}
+	var responseBuilder strings.Builder
+	var reasoningBuilder strings.Builder
+	for _, candidate := range response.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.Text != "" {
+				if part.Thought {
+					reasoningBuilder.WriteString(part.Text)
+				} else {
+					responseBuilder.WriteString(part.Text)
+				}
+			}
+			if part.FunctionCall != nil {
+				responseBuilder.WriteString(part.FunctionCall.FunctionName)
+				if data, err := common.Marshal(part.FunctionCall.Arguments); err == nil {
+					responseBuilder.Write(data)
+				}
+			}
+		}
+	}
+	return responseBuilder.String(), reasoningBuilder.String()
 }
 
 func streamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*dto.ChatCompletionsStreamResponse, bool) {
@@ -1264,6 +1305,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	var usage = &dto.Usage{}
 	var imageCount int
 	responseText := strings.Builder{}
+	reasoningText := strings.Builder{}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		var geminiResponse dto.GeminiChatResponse
@@ -1283,7 +1325,11 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 					imageCount++
 				}
 				if part.Text != "" {
-					responseText.WriteString(part.Text)
+					if part.Thought {
+						reasoningText.WriteString(part.Text)
+					} else {
+						responseText.WriteString(part.Text)
+					}
 				}
 			}
 		}
@@ -1307,11 +1353,14 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 
 	if usage.CompletionTokens <= 0 {
 		if info.ReceivedResponseCount > 0 {
-			usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+			usageText := responseText.String() + reasoningText.String()
+			usage = service.ResponseText2Usage(c, usageText, info.UpstreamModelName, info.GetEstimatePromptTokens())
 		} else {
 			usage = &dto.Usage{}
 		}
 	}
+	service.SetModelContentAuditResponseText(c, responseText.String())
+	service.SetModelContentAuditReasoningText(c, reasoningText.String())
 
 	return usage, nil
 }
@@ -1352,7 +1401,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 			}
 		}
 
-		logger.LogDebug(c, fmt.Sprintf("info.SendResponseCount = %d", info.SendResponseCount))
+		logger.LogDebug(c, "info.SendResponseCount = %d", info.SendResponseCount)
 		if info.SendResponseCount == 0 {
 			// send first response
 			emptyResponse := helper.GenerateStartEmptyResponse(id, createAt, info.UpstreamModelName, nil)
@@ -1412,9 +1461,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	service.CloseResponseBodyGracefully(resp)
-	if common.DebugEnabled {
-		println(string(responseBody))
-	}
+	logger.LogDebug(c, "Gemini response body: %s", responseBody)
 	var geminiResponse dto.GeminiChatResponse
 	err = common.Unmarshal(responseBody, &geminiResponse)
 	if err != nil {
@@ -1457,6 +1504,9 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	}
 	fullTextResponse := responseGeminiChat2OpenAI(c, &geminiResponse)
 	fullTextResponse.Model = info.UpstreamModelName
+	auditResponseText, auditReasoningText := service.ModelContentAuditOpenAIResponseParts(fullTextResponse)
+	service.SetModelContentAuditResponseText(c, auditResponseText)
+	service.SetModelContentAuditReasoningText(c, auditReasoningText)
 	usage := buildUsageFromGeminiMetadata(geminiResponse.UsageMetadata, info.GetEstimatePromptTokens())
 
 	fullTextResponse.Usage = usage

@@ -186,6 +186,10 @@ func clearLegacySessionCookies(c *gin.Context) {
 	}
 }
 
+func canManageTargetRole(myRole int, targetRole int) bool {
+	return myRole == common.RoleRootUser || myRole > targetRole
+}
+
 func Register(c *gin.Context) {
 	if !common.RegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)

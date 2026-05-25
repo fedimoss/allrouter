@@ -64,6 +64,10 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeminiChatRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
+	auditRequestMessages := service.ModelContentAuditGeminiRequestMessages(request)
+	defer func() {
+		service.EnqueueModelContentAuditFromRelay(c, info, auditRequestMessages, newAPIError)
+	}()
 
 	// model mapped 模型映射
 	err = helper.ModelMappedHelper(c, info, request)
@@ -77,7 +81,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			if !strings.Contains(info.OriginModelName, "-nothinking") {
 				// try to get no thinking model price
 				noThinkingModelName := info.OriginModelName + "-nothinking"
-				containPrice := helper.ContainPriceOrRatio(noThinkingModelName)
+				containPrice := helper.HasModelBillingConfig(noThinkingModelName)
 				if containPrice {
 					info.OriginModelName = noThinkingModelName
 					info.UpstreamModelName = noThinkingModelName
@@ -163,7 +167,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			}
 		}
 
-		logger.LogDebug(c, "Gemini request body: "+string(jsonData))
+		logger.LogDebug(c, "Gemini request body: %s", jsonData)
 
 		requestBody = bytes.NewReader(jsonData)
 	}
@@ -262,7 +266,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 			return newAPIErrorFromParamOverride(err)
 		}
 	}
-	logger.LogDebug(c, "Gemini embedding request body: "+string(jsonData))
+	logger.LogDebug(c, "Gemini embedding request body: %s", jsonData)
 	requestBody = bytes.NewReader(jsonData)
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)

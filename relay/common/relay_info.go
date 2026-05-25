@@ -11,12 +11,14 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/tidwall/gjson"
 )
 
 type ThinkingContentInfo struct {
@@ -157,6 +159,11 @@ type RelayInfo struct {
 	ParamOverrideAudit                    []string
 
 	PriceData types.PriceData
+
+	// TieredBillingSnapshot is a frozen snapshot of tiered billing rules
+	// captured at pre-consume time. Non-nil only when billing mode is "tiered_expr".
+	TieredBillingSnapshot *billingexpr.BillingSnapshot
+	BillingRequestInput   *billingexpr.RequestInput
 
 	Request dto.Request
 
@@ -787,6 +794,9 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || channelPassThroughEnabled {
 		return jsonData, nil
 	}
+	if !hasRemovableDisabledField(jsonData, channelOtherSettings) {
+		return jsonData, nil
+	}
 
 	var data map[string]interface{}
 	if err := common.Unmarshal(jsonData, &data); err != nil {
@@ -851,6 +861,25 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 		return jsonData, nil
 	}
 	return jsonDataAfter, nil
+}
+
+func hasRemovableDisabledField(jsonData []byte, channelOtherSettings dto.ChannelOtherSettings) bool {
+	values := gjson.GetManyBytes(
+		jsonData,
+		"service_tier",
+		"inference_geo",
+		"speed",
+		"store",
+		"safety_identifier",
+		"stream_options.include_obfuscation",
+	)
+
+	return (!channelOtherSettings.AllowServiceTier && values[0].Exists()) ||
+		(!channelOtherSettings.AllowInferenceGeo && values[1].Exists()) ||
+		(!channelOtherSettings.AllowSpeed && values[2].Exists()) ||
+		(channelOtherSettings.DisableStore && values[3].Exists()) ||
+		(!channelOtherSettings.AllowSafetyIdentifier && values[4].Exists()) ||
+		(!channelOtherSettings.AllowIncludeObfuscation && values[5].Exists())
 }
 
 // RemoveGeminiDisabledFields removes disabled fields from Gemini request JSON data

@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -59,6 +60,10 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
+	auditRequestMessages := service.ModelContentAuditJSONString(request.Input)
+	defer func() {
+		service.EnqueueModelContentAuditFromRelay(c, info, auditRequestMessages, newAPIError)
+	}()
 
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
@@ -102,9 +107,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 			}
 		}
 
-		if common.DebugEnabled {
-			println("requestBody: ", string(jsonData))
-		}
+		logger.LogDebug(c, "requestBody: %s", jsonData)
 		requestBody = bytes.NewBuffer(jsonData)
 	}
 
