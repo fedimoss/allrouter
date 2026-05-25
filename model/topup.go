@@ -28,6 +28,7 @@ type TopUp struct {
 	Money           float64 `json:"money"`                                                  // 支付金额（美元）
 	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`         // 交易号（唯一索引）
 	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`                 // 支付方式（stripe/creem/waffo/epay等）
+	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`    // 支付服务商，用于区分同类支付方式的回调
 	BizType         string  `json:"biz_type" gorm:"type:varchar(32);default:payment;index"` // 业务类型（payment/subscription/redemption）
 	SourceID        int     `json:"source_id" gorm:"default:0;index"`                       // 关联源ID（订阅ID/兑换码ID等）
 	CreateTime      int64   `json:"create_time"`                                            // 创建时间（Unix时间戳）
@@ -53,6 +54,21 @@ const (
 )
 
 const TopUpPaymentMethodProviderProfit = "provider_profit"
+
+const (
+	PaymentMethodStripe       = "stripe"
+	PaymentMethodCreem        = "creem"
+	PaymentMethodWaffo        = "waffo"
+	PaymentMethodWaffoPancake = "waffo_pancake"
+)
+
+const (
+	PaymentProviderEpay         = "epay"
+	PaymentProviderStripe       = "stripe"
+	PaymentProviderCreem        = "creem"
+	PaymentProviderWaffo        = "waffo"
+	PaymentProviderWaffoPancake = "waffo_pancake"
+)
 
 // normalizeTopUpBizType 规范化业务类型
 // 如果未指定业务类型，默认返回 payment 类型
@@ -419,7 +435,11 @@ func formatStripeTopUpSuccessLog(topUp *TopUp) string {
 	return fmt.Sprintf("使用在线充值成功，充值金额: ￥%.6f，支付金额：%.2f", rechargeAmount, payAmount)
 }
 
-var ErrPaymentMethodMismatch = errors.New("payment method mismatch")
+var (
+	ErrPaymentMethodMismatch = errors.New("payment method mismatch")
+	ErrTopUpNotFound         = errors.New("topup not found")
+	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
+)
 
 func (topUp *TopUp) Insert() error {
 	topUp.applyDefaults()
@@ -459,6 +479,33 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 	}
 	topUp.BizType = topUp.GetBizType()
 	return topUp
+}
+
+func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, targetStatus string) error {
+	if tradeNo == "" {
+		return errors.New("未提供支付单号")
+	}
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		topUp := &TopUp{}
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return ErrTopUpNotFound
+		}
+		if expectedPaymentProvider != "" && topUp.PaymentProvider != expectedPaymentProvider {
+			return ErrPaymentMethodMismatch
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return ErrTopUpStatusInvalid
+		}
+
+		topUp.Status = targetStatus
+		return tx.Save(topUp).Error
+	})
 }
 
 // Recharge 处理 Stripe 支付回调的充值成功逻辑
@@ -1170,6 +1217,66 @@ func RechargeWaffo(tradeNo string) (err error) {
 //   - payerAddress: 付款方地址
 //   - blockNumber: 区块号
 //   - confirmations: 确认数
+func RechargeWaffoPancake(tradeNo string) (err error) {
+	if tradeNo == "" {
+		return errors.New("未提供支付单号")
+	}
+
+	var quotaToAdd int
+	topUp := &TopUp{}
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error
+		if err != nil {
+			return errors.New("充值订单不存在")
+		}
+
+		if topUp.PaymentProvider != PaymentProviderWaffoPancake {
+			return ErrPaymentMethodMismatch
+		}
+
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+
+		if topUp.Status != common.TopUpStatusPending {
+			return errors.New("充值订单状态错误")
+		}
+
+		quotaToAdd, err = topUp.GetQuotaToAdd()
+		if err != nil {
+			return err
+		}
+		if quotaToAdd <= 0 {
+			return errors.New("无效的充值额度")
+		}
+
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+
+		return tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error
+	})
+
+	if err != nil {
+		common.SysError("waffo pancake topup failed: " + err.Error())
+		return errors.New("充值失败，请稍后重试")
+	}
+
+	if quotaToAdd > 0 {
+		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+	}
+
+	return nil
+}
+
 func RechargeCrypto(tradeNo string, txHash string, payerAddress string, blockNumber uint64, confirmations int) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供订单号")

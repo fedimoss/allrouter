@@ -165,6 +165,8 @@ type SubscriptionPlan struct {
 	StripePriceCnyId string `json:"stripe_price_cny_id" gorm:"type:varchar(128);default:''"` // Stripe 人民币（CNY）价格 ID，用于人民币区订阅支付
 	CreemProductId   string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
 
+	WaffoPancakeProductId string `json:"waffo_pancake_product_id" gorm:"type:varchar(128);default:''"`
+
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
 
@@ -203,11 +205,12 @@ type SubscriptionOrder struct {
 	Currency      string  `json:"currency" gorm:"type:varchar(10);default:''"`        // 币种符号（￥/$）
 	OriginalMoney float64 `json:"original_money" gorm:"type:decimal(18,6);default:0"` // 用户实际支付的原始金额（用户币种）
 
-	TradeNo       string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod string `json:"payment_method" gorm:"type:varchar(50)"`
-	Status        string `json:"status"`
-	CreateTime    int64  `json:"create_time"`
-	CompleteTime  int64  `json:"complete_time"`
+	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider string `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	Status          string `json:"status"`
+	CreateTime      int64  `json:"create_time"`
+	CompleteTime    int64  `json:"complete_time"`
 
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 }
@@ -514,7 +517,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 
 // 订阅成功后处理逻辑
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.
-func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentMethod string) error {
+func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentMethod string, expectedPaymentProvider ...string) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
@@ -534,6 +537,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		}
 		// 关键防线：订阅补单/回调处理时，必须确认“当前回调网关”和“本地订单支付方式”一致。
 		if expectedPaymentMethod != "" && order.PaymentMethod != expectedPaymentMethod {
+			return ErrPaymentMethodMismatch
+		}
+		if len(expectedPaymentProvider) > 0 && expectedPaymentProvider[0] != "" && order.PaymentProvider != expectedPaymentProvider[0] {
 			return ErrPaymentMethodMismatch
 		}
 		if order.Status == common.TopUpStatusSuccess {
@@ -600,18 +606,19 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			topup = TopUp{
-				UserId:        order.UserId,
-				Amount:        0,
-				Money:         order.Money,
-				TradeNo:       order.TradeNo,
-				PaymentMethod: order.PaymentMethod,
-				BizType:       TopUpBizTypeSubscription,
-				SourceID:      order.Id,
-				CreateTime:    order.CreateTime,
-				CompleteTime:  now,
-				Status:        common.TopUpStatusSuccess,
-				Currency:      order.Currency,      // 传递币种符号
-				OriginalMoney: order.OriginalMoney, // 传递实际支付金额
+				UserId:          order.UserId,
+				Amount:          0,
+				Money:           order.Money,
+				TradeNo:         order.TradeNo,
+				PaymentMethod:   order.PaymentMethod,
+				PaymentProvider: order.PaymentProvider,
+				BizType:         TopUpBizTypeSubscription,
+				SourceID:        order.Id,
+				CreateTime:      order.CreateTime,
+				CompleteTime:    now,
+				Status:          common.TopUpStatusSuccess,
+				Currency:        order.Currency,      // 传递币种符号
+				OriginalMoney:   order.OriginalMoney, // 传递实际支付金额
 			}
 			return tx.Create(&topup).Error
 		}
@@ -628,6 +635,9 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	}
 	if topup.PaymentMethod == "" {
 		topup.PaymentMethod = order.PaymentMethod
+	}
+	if topup.PaymentProvider == "" {
+		topup.PaymentProvider = order.PaymentProvider
 	}
 	if topup.BizType == "" {
 		topup.BizType = TopUpBizTypeSubscription

@@ -206,11 +206,11 @@ func ModelContentAuditOpenAIResponseParts(response *dto.OpenAITextResponse) (str
 		if content := choice.Message.StringContent(); content != "" {
 			responseBuilder.WriteString(content)
 		}
-		if choice.Message.ReasoningContent != "" {
-			reasoningBuilder.WriteString(choice.Message.ReasoningContent)
+		if choice.Message.ReasoningContent != nil && *choice.Message.ReasoningContent != "" {
+			reasoningBuilder.WriteString(*choice.Message.ReasoningContent)
 		}
-		if choice.Message.Reasoning != "" {
-			reasoningBuilder.WriteString(choice.Message.Reasoning)
+		if choice.Message.Reasoning != nil && *choice.Message.Reasoning != "" {
+			reasoningBuilder.WriteString(*choice.Message.Reasoning)
 		}
 		for _, tool := range choice.Message.ParseToolCalls() {
 			responseBuilder.WriteString(tool.Function.Name)
