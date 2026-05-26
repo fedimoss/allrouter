@@ -1121,9 +1121,23 @@ const ProviderPage = () => {
         quotaType === 1 ? t('按次价格') : t('Token 倍率'),
     },
     {
-      title: t('主站原价'),
+      title: t('输入价格'),
       dataIndex: 'original_price',
       render: (value) => formatPriceNumber(value),
+    },
+    {
+      title: t('补全价格'),
+      dataIndex: 'completion_price',
+      render: (value, record) =>
+        record.quota_type === 0 ? formatPriceNumber(value) : '-',
+    },
+    {
+      title: t('缓存读取价格'),
+      dataIndex: 'cache_price',
+      render: (value, record) =>
+        record.quota_type === 0 && value !== undefined && value !== null
+          ? formatPriceNumber(value)
+          : '-',
     },
     {
       title: t('服务商折扣'),
@@ -1131,9 +1145,23 @@ const ProviderPage = () => {
       render: (value) => formatProviderDiscount(value, t),
     },
     {
-      title: t('服务商成本价'),
+      title: `${t('输入')} ${t('服务商成本价')}`,
       dataIndex: 'cost_price',
       render: (value) => formatPriceNumber(value),
+    },
+    {
+      title: `${t('补全价格')} ${t('服务商成本价')}`,
+      dataIndex: 'cost_completion_price',
+      render: (value, record) =>
+        record.quota_type === 0 ? formatPriceNumber(value) : '-',
+    },
+    {
+      title: `${t('缓存读取价格')} ${t('服务商成本价')}`,
+      dataIndex: 'cost_cache_price',
+      render: (value, record) =>
+        record.quota_type === 0 && value !== undefined && value !== null
+          ? formatPriceNumber(value)
+          : '-',
     },
   ];
 
