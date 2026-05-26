@@ -805,6 +805,16 @@ const ProviderPage = () => {
     }
   };
 
+  const enableProvider = async (provider) => {
+    const res = await API.put(`/api/provider/admin/${provider.id}/enable`);
+    if (res.data.success) {
+      showSuccess(t('已启用服务商'));
+      fetchProviders();
+    } else {
+      showError(res.data.message);
+    }
+  };
+
   const columns = useMemo(
     () =>
       [
@@ -934,17 +944,27 @@ const ProviderPage = () => {
                 {t('奖励配置')}
               </Button>
               {adminMode ? (
-                <Popconfirm
-                  title={t('确认禁用该服务商？')}
-                  content={t(
-                    '禁用后该域名不会再解析成服务商站点，历史数据会保留。',
-                  )}
-                  onConfirm={() => disableProvider(record)}
-                >
-                  <Button size='small' type='danger' icon={<IconDelete />}>
-                    {t('禁用')}
-                  </Button>
-                </Popconfirm>
+                record.status === 1 ? (
+                  <Popconfirm
+                    title={t('确认禁用该服务商？')}
+                    content={t(
+                      '禁用后该域名不会再解析成服务商站点，历史数据会保留。',
+                    )}
+                    onConfirm={() => disableProvider(record)}
+                  >
+                    <Button size='small' type='danger' icon={<IconDelete />}>
+                      {t('禁用')}
+                    </Button>
+                  </Popconfirm>
+                ) : (
+                  <Popconfirm
+                    title={t('确认启用该服务商？')}
+                    content={t('启用后该服务商域名会恢复访问。')}
+                    onConfirm={() => enableProvider(record)}
+                  >
+                    <Button size='small'>{t('启用')}</Button>
+                  </Popconfirm>
+                )
               ) : null}
             </Space>
           ),

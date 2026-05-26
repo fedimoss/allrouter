@@ -510,6 +510,21 @@ func AdminDisableProvider(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
+func AdminEnableProvider(c *gin.Context) {
+	id, ok := parseProviderAdminId(c)
+	if !ok {
+		return
+	}
+	if err := model.DB.Model(&model.Provider{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"status":     model.ProviderStatusEnabled,
+		"updated_at": common.GetTimestamp(),
+	}).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
 func upsertProviderConfig(c *gin.Context, providerId int) {
 	var req providerConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
