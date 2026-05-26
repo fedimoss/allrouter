@@ -817,7 +817,15 @@ const ProviderPage = () => {
               <Text strong>{name}</Text>
               {adminMode ? (
                 <Text type='secondary'>
-                  Owner User ID: {record.owner_user_id}
+                  {t('主账号')}：
+                  {record.owner?.username || record.owner?.display_name ? (
+                    <>
+                      {record.owner?.username || record.owner?.display_name}
+                      （ID: {record.owner_user_id}）
+                    </>
+                  ) : (
+                    <>ID: {record.owner_user_id}</>
+                  )}
                 </Text>
               ) : null}
             </Space>
@@ -1183,9 +1191,7 @@ const ProviderPage = () => {
                     {selectedOwner ? (
                       <Space vertical align='start' spacing={1}>
                         <Text strong>
-                          {selectedOwner.display_name ||
-                            selectedOwner.username ||
-                            `ID ${selectedOwner.id}`}
+                          {selectedOwner.username || `ID ${selectedOwner.id}`}
                         </Text>
                         <Text type='tertiary' size='small'>
                           {selectedOwner.email || '-'} · ID {selectedOwner.id}
