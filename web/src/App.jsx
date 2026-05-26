@@ -60,6 +60,7 @@ import ProviderProfitsPage from './pages/Provider/Profits';
 import ProviderLogsPage from './pages/Provider/Logs';
 import ProviderUsersPage from './pages/Provider/Users';
 import ProviderWithdrawPage from './pages/Provider/Withdraw';
+import ProviderSettingPage from './pages/Provider/Setting';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
@@ -209,6 +210,14 @@ function App () {
           element={
             <PrivateRoute>
               <ProviderWithdrawPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/provider/setting'
+          element={
+            <PrivateRoute>
+              <ProviderSettingPage />
             </PrivateRoute>
           }
         />

@@ -5033,7 +5033,7 @@ CREATE TABLE "version_log" (
   "version"               varchar(64),
   "log"                   text,
   "created_at"            int8          NOT NULL DEFAULT 0,
-  "updated_at"            int8          NOT NULL DEFAULT 0  
+  "updated_at"            int8          NOT NULL DEFAULT 0
 );
 
 COMMENT ON TABLE "version_log" IS '更新日志表';
@@ -5043,3 +5043,26 @@ COMMENT ON COLUMN "version_log"."version"                 IS '版本号';
 COMMENT ON COLUMN "version_log"."log"                     IS '日志内容';
 COMMENT ON COLUMN "version_log"."created_at"              IS '创建时间';
 COMMENT ON COLUMN "version_log"."updated_at"              IS '更新时间';
+
+
+
+
+-- 服务商配置表----------------
+
+DROP TABLE IF EXISTS "provider_options";
+
+CREATE SEQUENCE IF NOT EXISTS "provider_options_id_seq";
+
+CREATE TABLE "provider_options" (
+                                    "id"                    int8          NOT NULL DEFAULT nextval('provider_options_id_seq'::regclass),
+                                    "provider_id"           int8,
+                                    "key"                   text          NOT NULL,
+                                    "value"                 text
+);
+
+COMMENT ON TABLE "provider_options" IS '服务商配置表';
+
+COMMENT ON COLUMN "provider_options"."id"                    IS '主键';
+COMMENT ON COLUMN "provider_options"."provider_id"           IS '服务商id';
+COMMENT ON COLUMN "provider_options"."key"                   IS '键';
+COMMENT ON COLUMN "provider_options"."value"                 IS '值';

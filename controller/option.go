@@ -316,6 +316,7 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	// 系统公告
 	case "console_setting.announcements":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "Announcements")
 		if err != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -23,6 +24,7 @@ type providerAdminResponse struct {
 	Domains      []model.ProviderDomain       `json:"domains"`
 	Config       *model.ProviderConfig        `json:"config,omitempty"`
 	ModelPricing []model.ProviderModelPricing `json:"model_pricing,omitempty"`
+	Owner        *providerOwnerCandidate      `json:"owner,omitempty"`
 }
 
 type providerAdminRequest struct {
@@ -53,6 +55,35 @@ type providerOwnerCandidate struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	Email       string `json:"email"`
+}
+
+type providerOwnerCandidatePage struct {
+	Items []providerOwnerCandidate `json:"items"`
+	Total int64                    `json:"total"`
+	Page  int                      `json:"page"`
+	Size  int                      `json:"size"`
+}
+
+type providerBaseModelChannelPrice struct {
+	ModelName        string  `json:"model_name"`
+	ChannelId        int     `json:"channel_id"`
+	ChannelName      string  `json:"channel_name"`
+	ChannelType      int     `json:"channel_type"`
+	Group            string  `json:"group"`
+	QuotaType        int     `json:"quota_type"`
+	ModelRatio       float64 `json:"model_ratio"`
+	ModelPrice       float64 `json:"model_price"`
+	CompletionRatio  float64 `json:"completion_ratio"`
+	GroupRatio       float64 `json:"group_ratio"`
+	ImportPriceRatio float64 `json:"import_price_ratio"`
+	OriginalPrice    float64 `json:"original_price"`
+	CostPrice        float64 `json:"cost_price"`
+}
+
+type providerBaseModelPriceAbility struct {
+	model.Ability
+	ChannelName string `json:"channel_name"`
+	ChannelType int    `json:"channel_type"`
 }
 
 const (
@@ -204,6 +235,23 @@ func buildProviderAdminResponses(providers []model.Provider, withPricing bool) (
 		configMap[cfg.ProviderId] = cfg
 	}
 
+	ownerIds := make([]int, 0, len(providers))
+	for _, provider := range providers {
+		if provider.OwnerUserId > 0 {
+			ownerIds = append(ownerIds, provider.OwnerUserId)
+		}
+	}
+	ownerMap := make(map[int]providerOwnerCandidate)
+	if len(ownerIds) > 0 {
+		var owners []providerOwnerCandidate
+		if err := model.DB.Model(&model.User{}).Select("id, username, display_name, email").Where("id IN ?", ownerIds).Find(&owners).Error; err != nil {
+			return nil, err
+		}
+		for _, owner := range owners {
+			ownerMap[owner.Id] = owner
+		}
+	}
+
 	pricingMap := make(map[int][]model.ProviderModelPricing)
 	if withPricing {
 		var pricing []model.ProviderModelPricing
@@ -230,6 +278,9 @@ func buildProviderAdminResponses(providers []model.Provider, withPricing bool) (
 		if cfg, ok := configMap[provider.Id]; ok {
 			resp.Config = &cfg
 		}
+		if owner, ok := ownerMap[provider.OwnerUserId]; ok {
+			resp.Owner = &owner
+		}
 		responses = append(responses, resp)
 	}
 	return responses, nil
@@ -251,7 +302,20 @@ func AdminListProviders(c *gin.Context) {
 
 func AdminListProviderOwnerCandidates(c *gin.Context) {
 	keyword := strings.TrimSpace(c.Query("keyword"))
+	searchField := strings.TrimSpace(c.Query("field"))
 	currentProviderId, _ := strconv.Atoi(c.Query("current_provider_id"))
+	page, _ := strconv.Atoi(c.Query("page"))
+	size, _ := strconv.Atoi(c.Query("size"))
+	paged := page > 0 || size > 0
+	if page <= 0 {
+		page = 1
+	}
+	if size <= 0 {
+		size = 30
+	}
+	if size > 100 {
+		size = 100
+	}
 
 	var providers []model.Provider
 	if err := model.DB.Select("id, owner_user_id").Find(&providers).Error; err != nil {
@@ -275,15 +339,53 @@ func AdminListProviderOwnerCandidates(c *gin.Context) {
 	if keyword != "" {
 		like := "%" + strings.ToLower(keyword) + "%"
 		if idKeyword, err := strconv.Atoi(keyword); err == nil && idKeyword > 0 {
-			query = query.Where("LOWER(username) LIKE ? OR LOWER(display_name) LIKE ? OR LOWER(email) LIKE ? OR id = ?", like, like, like, idKeyword)
+			switch searchField {
+			case "id":
+				query = query.Where("id = ?", idKeyword)
+			case "username":
+				query = query.Where("LOWER(username) LIKE ?", like)
+			case "display_name":
+				query = query.Where("LOWER(display_name) LIKE ?", like)
+			case "email":
+				query = query.Where("LOWER(email) LIKE ?", like)
+			default:
+				query = query.Where("LOWER(username) LIKE ? OR LOWER(display_name) LIKE ? OR LOWER(email) LIKE ? OR id = ?", like, like, like, idKeyword)
+			}
 		} else {
-			query = query.Where("LOWER(username) LIKE ? OR LOWER(display_name) LIKE ? OR LOWER(email) LIKE ?", like, like, like)
+			switch searchField {
+			case "username":
+				query = query.Where("LOWER(username) LIKE ?", like)
+			case "display_name":
+				query = query.Where("LOWER(display_name) LIKE ?", like)
+			case "email":
+				query = query.Where("LOWER(email) LIKE ?", like)
+			case "id":
+				query = query.Where("1 = 0")
+			default:
+				query = query.Where("LOWER(username) LIKE ? OR LOWER(display_name) LIKE ? OR LOWER(email) LIKE ?", like, like, like)
+			}
 		}
 	}
 
+	var total int64
+	if paged {
+		if err := query.Count(&total).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	var users []providerOwnerCandidate
-	if err := query.Order("id desc").Limit(30).Find(&users).Error; err != nil {
+	if err := query.Order("id desc").Limit(size).Offset((page - 1) * size).Find(&users).Error; err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if paged {
+		common.ApiSuccess(c, providerOwnerCandidatePage{
+			Items: users,
+			Total: total,
+			Page:  page,
+			Size:  size,
+		})
 		return
 	}
 	common.ApiSuccess(c, users)
@@ -291,11 +393,17 @@ func AdminListProviderOwnerCandidates(c *gin.Context) {
 
 func validateProviderOwnerCandidate(userId int, currentProviderId int) bool {
 	var user model.User
-	if err := model.DB.Select("id, provider_id, role").Where("id = ?", userId).First(&user).Error; err != nil {
+	if err := model.DB.Select("id, provider_id, role, username").Where("id = ?", userId).First(&user).Error; err != nil {
 		return false
 	}
 	if user.ProviderId != 0 || user.Role >= common.RoleAdminUser {
 		return false
+	}
+	if currentProviderId > 0 {
+		conflicts, err := model.UsernameConflictsWithProviderLoginScope(currentProviderId, user.Username, user.Id)
+		if err != nil || conflicts {
+			return false
+		}
 	}
 	var count int64
 	query := model.DB.Model(&model.Provider{}).Where("owner_user_id = ?", userId)
@@ -394,6 +502,21 @@ func AdminDisableProvider(c *gin.Context) {
 	}
 	if err := model.DB.Model(&model.Provider{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status":     model.ProviderStatusDisabled,
+		"updated_at": common.GetTimestamp(),
+	}).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+func AdminEnableProvider(c *gin.Context) {
+	id, ok := parseProviderAdminId(c)
+	if !ok {
+		return
+	}
+	if err := model.DB.Model(&model.Provider{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"status":     model.ProviderStatusEnabled,
 		"updated_at": common.GetTimestamp(),
 	}).Error; err != nil {
 		common.ApiError(c, err)
@@ -609,9 +732,102 @@ func listProviderModelPricing(c *gin.Context, providerId int) {
 	common.ApiSuccess(c, rows)
 }
 
-func listProviderBaseModels(c *gin.Context) {
+func getProviderImportPriceRatio(providerId int) float64 {
+	if providerId <= 0 {
+		return 1
+	}
+	var cfg model.ProviderConfig
+	if err := model.DB.Select("import_price_ratio").Where("provider_id = ?", providerId).First(&cfg).Error; err == nil && cfg.ImportPriceRatio > 0 {
+		return cfg.ImportPriceRatio
+	}
+	return 1
+}
+
+func getPricingByModelName() map[string]model.Pricing {
+	pricing := model.GetPricing()
+	pricingMap := make(map[string]model.Pricing, len(pricing))
+	for _, item := range pricing {
+		pricingMap[item.ModelName] = item
+	}
+	return pricingMap
+}
+
+func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelChannelPrice, error) {
+	importPriceRatio := getProviderImportPriceRatio(providerId)
+	pricingMap := getPricingByModelName()
+	var abilities []providerBaseModelPriceAbility
+	if err := model.DB.Table("abilities").
+		Select("abilities.*, channels.name AS channel_name, channels.type AS channel_type").
+		Joins("LEFT JOIN channels ON channels.id = abilities.channel_id").
+		Where("abilities.enabled = ? AND channels.status = ?", true, common.ChannelStatusEnabled).
+		Order("abilities.model ASC, abilities.channel_id ASC").
+		Scan(&abilities).Error; err != nil {
+		return nil, err
+	}
+	result := make([]providerBaseModelChannelPrice, 0, len(abilities))
+	for _, ability := range abilities {
+		modelName := strings.TrimSpace(ability.Model)
+		if modelName == "" {
+			continue
+		}
+		groupRatio := ratio_setting.GetGroupRatio(ability.Group)
+		if groupRatio <= 0 {
+			groupRatio = 1
+		}
+		quotaType := 0
+		modelRatio := 0.0
+		modelPrice := 0.0
+		completionRatio := 0.0
+		if pricing, ok := pricingMap[modelName]; ok {
+			quotaType = pricing.QuotaType
+			modelRatio = pricing.ModelRatio
+			modelPrice = pricing.ModelPrice
+			completionRatio = pricing.CompletionRatio
+		} else if price, ok := ratio_setting.GetModelPrice(modelName, false); ok {
+			quotaType = 1
+			modelPrice = price
+		} else {
+			modelRatio, _, _ = ratio_setting.GetModelRatio(modelName)
+			completionRatio = ratio_setting.GetCompletionRatio(modelName)
+		}
+		originalPrice := modelPrice * groupRatio
+		if quotaType == 0 {
+			originalPrice = modelRatio * groupRatio
+		}
+		result = append(result, providerBaseModelChannelPrice{
+			ModelName:        modelName,
+			ChannelId:        ability.ChannelId,
+			ChannelName:      ability.ChannelName,
+			ChannelType:      ability.ChannelType,
+			Group:            ability.Group,
+			QuotaType:        quotaType,
+			ModelRatio:       modelRatio,
+			ModelPrice:       modelPrice,
+			CompletionRatio:  completionRatio,
+			GroupRatio:       groupRatio,
+			ImportPriceRatio: importPriceRatio,
+			OriginalPrice:    originalPrice,
+			CostPrice:        originalPrice * importPriceRatio,
+		})
+	}
+	return result, nil
+}
+
+func listProviderBaseModels(c *gin.Context, providerId int) {
 	models := model.GetEnabledModels()
 	sort.Strings(models)
+	if c.Query("with_price") == "true" || c.Query("with_price") == "1" {
+		items, err := buildProviderBaseModelChannelPrices(providerId)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, gin.H{
+			"models": models,
+			"items":  items,
+		})
+		return
+	}
 	common.ApiSuccess(c, models)
 }
 
@@ -688,7 +904,8 @@ func AdminListProviderModelPricing(c *gin.Context) {
 }
 
 func AdminListProviderBaseModels(c *gin.Context) {
-	listProviderBaseModels(c)
+	providerId, _ := strconv.Atoi(c.Query("provider_id"))
+	listProviderBaseModels(c, providerId)
 }
 
 func AdminUpsertProviderModelPricing(c *gin.Context) {
@@ -842,10 +1059,11 @@ func ListProviderModelPricing(c *gin.Context) {
 }
 
 func ListProviderBaseModels(c *gin.Context) {
-	if _, ok := getOwnedProvider(c); !ok {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
 		return
 	}
-	listProviderBaseModels(c)
+	listProviderBaseModels(c, provider.Id)
 }
 
 func UpsertProviderModelPricing(c *gin.Context) {

@@ -229,13 +229,14 @@ func UpdateProviderUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
+	req.Username = strings.TrimSpace(req.Username)
 	if req.Username != "" && req.Username != originUser.Username {
-		var count int64
-		if err := model.DB.Unscoped().Model(&model.User{}).Where("provider_id = ? AND username = ? AND id <> ?", provider.Id, req.Username, req.Id).Count(&count).Error; err != nil {
+		exists, err := model.UsernameConflictsWithProviderLoginScope(provider.Id, req.Username, req.Id)
+		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-		if count > 0 {
+		if exists {
 			common.ApiErrorI18n(c, i18n.MsgUserExists)
 			return
 		}
