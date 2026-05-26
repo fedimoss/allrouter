@@ -448,6 +448,12 @@ const ProviderPage = () => {
     navigate('/console/provider/reward');
   };
 
+  const openProviderProfits = (provider) => {
+    navigate(
+      `/console/provider/profits?provider_id=${provider.id}&provider_name=${encodeURIComponent(provider.name || '')}`,
+    );
+  };
+
   const openPricingModal = (pricing = null) => {
     setEditingPricing(pricing);
     setSelectedBaseModel(pricing?.base_model_name || '');
@@ -917,7 +923,7 @@ const ProviderPage = () => {
         },
         {
           title: t('操作'),
-          width: adminMode ? 360 : 300,
+          width: adminMode ? 420 : 300,
           render: (_, record) => (
             <Space wrap>
               <Button
@@ -936,6 +942,14 @@ const ProviderPage = () => {
               <Button size='small' onClick={() => openPricingList(record)}>
                 {t('模型定价')}
               </Button>
+              {adminMode ? (
+                <Button
+                  size='small'
+                  onClick={() => openProviderProfits(record)}
+                >
+                  {t('利润')}
+                </Button>
+              ) : null}
               <Button
                 size='small'
                 icon={<IconGiftStroked />}
