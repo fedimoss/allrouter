@@ -223,7 +223,7 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	}()
 
 	// Get total count within transaction
-	err = tx.Unscoped().Model(&User{}).Count(&total).Error
+	err = tx.Unscoped().Model(&User{}).Count(&total).Error //包括软删除的数据
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err

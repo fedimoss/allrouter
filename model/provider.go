@@ -84,6 +84,20 @@ type ProviderContext struct {
 	Config      *ProviderConfig
 }
 
+type TreeProvider struct {
+	*User
+
+	Children []*TreeProvider `json:"children"`
+
+	// 分页信息（关键）
+	HasMoreChildren bool `json:"has_more_children"`
+}
+
+type childCountRow struct {
+	InviterId int
+	Count     int64
+}
+
 func normalizeProviderDomain(domain string) string {
 	domain = strings.TrimSpace(strings.ToLower(domain))
 	if idx := strings.Index(domain, ":"); idx > -1 {
@@ -156,6 +170,15 @@ func GetProviderByOwnerUserId(ownerUserId int) (*Provider, error) {
 	return &provider, err
 }
 
+func GetProviderById(id int) (*Provider, error) {
+	if id == 0 {
+		return nil, errors.New("provider id is empty")
+	}
+	var provider Provider
+	err := DB.Where("id = ?", id).First(&provider).Error
+	return &provider, err
+}
+
 func IsProviderOwner(userId int) bool {
 	if userId == 0 {
 		return false
@@ -193,4 +216,107 @@ func (p *ProviderModelPricing) BeforeCreate(tx *gorm.DB) error {
 func (p *ProviderModelPricing) BeforeUpdate(tx *gorm.DB) error {
 	p.UpdatedAt = time.Now().Unix()
 	return nil
+}
+
+func GetTreeChilendUsers(userId int, parentId int, pageInfo *common.PageInfo) ([]*TreeProvider, error) {
+	if parentId == 0 && userId != 1 { // userId为1是根超级管理员（目前仅限定根超级管理员能查看各个服务商）
+		return nil, errors.New("Insufficient permissions")
+	}
+	provider, err := GetProviderByOwnerUserId(userId)
+	if err != nil {
+		return nil, err
+	}
+	if provider == nil {
+		return nil, errors.New("current user is not provider")
+	}
+	//查看parentId的归属在哪个服务商下
+	root, err := GetProviderRoot(parentId, userId)
+	if err != nil {
+		return nil, err
+	}
+	if root.Status != 1 {
+		return nil, errors.New("provider is not enabled")
+	}
+	if root.OwnerUserId != userId {
+		return nil, errors.New("current user is not provider root") //非法请求
+	}
+	// TODO: 查询当前节点的子节点
+	ups, total, err := GetChilendsProvide(parentId, root, pageInfo)
+	if pageInfo != nil {
+		pageInfo.SetTotal(total)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	return ups, nil
+}
+
+// 查询当前用户归属哪个服务商（为了各个服务商数据隔离）
+func GetProviderRoot(userId int, providerId int) (*Provider, error) {
+
+	var currnode *User
+	err := DB.Model(&User{}).Where(" id = ?", userId).First(&currnode).Error
+	if err != nil {
+		return nil, err
+	}
+	if userId == providerId { //当前用户是服务商本人
+		return GetProviderByOwnerUserId(currnode.Id)
+	}
+	p, err := GetProviderById(currnode.ProviderId)
+
+	return p, nil
+}
+
+func GetChilendsProvide(parentId int, provider *Provider, pageInfo *common.PageInfo) ([]*TreeProvider, int, error) {
+	var us []*User
+	var tree []*TreeProvider
+	var err error
+	var total int64
+	if pageInfo == nil {
+		pageInfo = &common.PageInfo{Page: 1, PageSize: common.ItemsPerPage}
+	}
+	query := DB.Model(&User{})
+	if parentId == provider.OwnerUserId {
+		query = query.Where("provider_id = ? and inviter_id IN (0,?)  ", provider.Id, parentId)
+	} else {
+		query = query.Where("provider_id = ? AND inviter_id = ?", provider.Id, parentId)
+	}
+
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err = query.
+		Order("id asc").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&us).Error; err != nil {
+		return nil, 0, err
+	}
+
+	//当前层userids
+	userids := make([]int, 0, len(us))
+	for _, u := range us {
+		userids = append(userids, u.Id)
+	}
+	var childCounts []childCountRow
+	if len(userids) > 0 {
+		//查询是否有下一层
+		err = DB.Model(&User{}).Select("inviter_id, COUNT(*) as count").Where("provider_id = ? AND inviter_id IN ?", provider.Id, userids).Group("inviter_id").Scan(&childCounts).Error
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	childRows := make(map[int]int64, len(childCounts))
+	for _, row := range childCounts {
+		childRows[row.InviterId] = row.Count
+	}
+	for _, u := range us {
+		tree = append(tree, &TreeProvider{
+			User:            u,
+			HasMoreChildren: childRows[u.Id] > 0,
+		})
+	}
+	return tree, int(total), nil
 }

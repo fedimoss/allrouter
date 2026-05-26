@@ -371,6 +371,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.GET("/logs", controller.GetProviderUserLogs)
 			providerRoute.GET("/logs/stat", controller.GetProviderUserLogsStat)
 			providerRoute.GET("/users", controller.GetProviderUsers)
+			providerRoute.GET("/tree/users", controller.GetTreeProviderUsers) //服务商用户管理---tree型结构
 			providerRoute.GET("/users/search", controller.SearchProviderUsers)
 			providerRoute.GET("/users/:id", controller.GetProviderUser)
 			providerRoute.POST("/users", controller.CreateProviderUser)
