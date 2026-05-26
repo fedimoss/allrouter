@@ -33,3 +33,6 @@ data/
 .gotmp_diag/
 .gotmp/
 .gocache_diag/
+.gocache_test/
+.gotmp_test/
+

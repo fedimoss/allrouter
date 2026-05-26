@@ -48,7 +48,7 @@ import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
-const SettingsAnnouncements = ({ options, refresh }) => {
+const SettingsAnnouncements = ({ options, refresh, onSave, onToggleEnabled }) => {
   const { t } = useTranslation();
 
   const [announcementsList, setAnnouncementsList] = useState([]);
@@ -198,10 +198,15 @@ const SettingsAnnouncements = ({ options, refresh }) => {
   ];
 
   const updateOption = async (key, value) => {
-    const res = await API.put('/api/option/', {
-      key,
-      value,
-    });
+    let res;
+    if (onSave) {
+      res = await onSave(key, value);
+    } else {
+      res = await API.put('/api/option/', {
+        key,
+        value,
+      });
+    }
     const { success, message } = res.data;
     if (success) {
       showSuccess('系统公告已更新');
@@ -353,10 +358,15 @@ const SettingsAnnouncements = ({ options, refresh }) => {
   const handleToggleEnabled = async (checked) => {
     const newValue = checked ? 'true' : 'false';
     try {
-      const res = await API.put('/api/option/', {
-        key: 'console_setting.announcements_enabled',
-        value: newValue,
-      });
+      let res;
+      if (onToggleEnabled) {
+        res = await onToggleEnabled('console_setting.announcements_enabled', newValue);
+      } else {
+        res = await API.put('/api/option/', {
+          key: 'console_setting.announcements_enabled',
+          value: newValue,
+        });
+      }
       if (res.data.success) {
         setPanelEnabled(checked);
         showSuccess(t('设置已保存'));

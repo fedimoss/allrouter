@@ -371,6 +371,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.GET("/logs", controller.GetProviderUserLogs)
 			providerRoute.GET("/logs/stat", controller.GetProviderUserLogsStat)
 			providerRoute.GET("/users", controller.GetProviderUsers)
+			providerRoute.GET("/tree/users", controller.GetTreeProviderUsers) //服务商用户管理---tree型结构
 			providerRoute.GET("/users/search", controller.SearchProviderUsers)
 			providerRoute.GET("/users/:id", controller.GetProviderUser)
 			providerRoute.POST("/users", controller.CreateProviderUser)
@@ -386,7 +387,8 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.GET("/withdraw/list", controller.GetProviderWithdrawList)           // 提现申请列表
 			providerRoute.GET("/withdraw/dashboard", controller.GetProviderWithdrawDashboard) // 提现申请数据概览
 			providerRoute.POST("/withdraw/cancel", controller.CancelProviderWithdrawRequest)  // 取消提现申请
-
+			providerRoute.GET("/options/:id", controller.GetProviderOptions)                  // 获取服务商配置
+			providerRoute.PUT("/options/:id", controller.UpdateProviderOption)                // 更新服务商配置
 		}
 		providerAdminRoute := apiRouter.Group("/provider/admin")
 		providerAdminRoute.Use(middleware.AdminAuth())
@@ -398,11 +400,13 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.POST("/", controller.AdminCreateProvider)
 			providerAdminRoute.PUT("/:id", controller.AdminUpdateProvider)
 			providerAdminRoute.DELETE("/:id", controller.AdminDisableProvider)
+			providerAdminRoute.PUT("/:id/enable", controller.AdminEnableProvider)
 			providerAdminRoute.POST("/logo", controller.AdminUploadProviderLogo)
 			providerAdminRoute.PUT("/:id/config", controller.AdminUpsertProviderConfig)
 			providerAdminRoute.GET("/:id/reward/config", controller.AdminGetProviderRewardConfig)
 			providerAdminRoute.PUT("/:id/reward/config", controller.AdminUpsertProviderRewardConfig)
 			providerAdminRoute.GET("/:id/reward/summary", controller.AdminGetProviderRewardSummary)
+			providerAdminRoute.GET("/:id/profits", controller.AdminGetProviderProfits)
 			providerAdminRoute.POST("/:id/domains", controller.AdminCreateProviderDomain)
 			providerAdminRoute.PUT("/:id/domains/:domain_id", controller.AdminUpdateProviderDomain)
 			providerAdminRoute.DELETE("/:id/domains/:domain_id", controller.AdminDeleteProviderDomain)

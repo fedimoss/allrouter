@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -17,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -135,7 +138,8 @@ func GetStatus(c *gin.Context) {
 		"checkin_enabled":             getStatusCheckinEnabled(c),
 	}
 
-	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	// 解析服务商ID
+	providerId := resolveProviderId(c)
 	if providerId > 0 {
 		primaryColor, secondaryColor := providerThemeColors(nil)
 		data["primary_color"] = primaryColor
@@ -166,8 +170,23 @@ func GetStatus(c *gin.Context) {
 	if cs.ApiInfoEnabled {
 		data["api_info"] = console_setting.GetApiInfo()
 	}
+	// 系统公告：合并全局公告（管理员发布）与服务商公告，按发布时间降序排列
 	if cs.AnnouncementsEnabled {
-		data["announcements"] = console_setting.GetAnnouncements()
+		// 获取全局公告（options 表中 console_setting.announcements），管理员发布，所有用户可见
+		announcements := console_setting.GetAnnouncements()
+		// 如果当前请求关联了某个服务商，追加该服务商在 provider_options 表中配置的公告
+		if providerId > 0 {
+			if providerAnnouncements := model.GetProviderAnnouncements(providerId); len(providerAnnouncements) > 0 {
+				announcements = append(announcements, providerAnnouncements...)
+			}
+		}
+		// 合并后统一按发布时间（publishDate）倒序排列，保证新旧公告混排而非分组展示
+		sort.SliceStable(announcements, func(i, j int) bool {
+			ti, _ := time.Parse(time.RFC3339, getStringField(announcements[i], "publishDate"))
+			tj, _ := time.Parse(time.RFC3339, getStringField(announcements[j], "publishDate"))
+			return ti.After(tj)
+		})
+		data["announcements"] = announcements
 	}
 	if cs.FAQEnabled {
 		data["faq"] = console_setting.GetFAQ()
@@ -409,6 +428,45 @@ func ResetPassword(c *gin.Context) {
 		"data":    password,
 	})
 	return
+}
+
+// resolveProviderId 解析服务商ID
+// resolveProviderId 解析当前请求对应的服务商ID，采用两级查找策略：
+//  1. 域名解析：通过 TenantResolver 中间件，从请求域名匹配已认证的服务商域名，获取 providerId。
+//     适用于用户通过服务商独立域名访问的场景，无需登录即可获取。
+//  2. Session 回退：如果域名解析未命中（主域名访问），则从用户 Session 中读取已登录用户ID，
+//     再依次检查该用户的 ProviderId 字段（通过服务商注册的用户）或 OwnerUserId 关联
+//     （服务商所有者），获取对应的服务商ID。
+//
+// 返回：服务商ID；若用户无服务商关联则返回 0。
+func resolveProviderId(c *gin.Context) int {
+	// 第一级：从域名上下文获取（TenantResolver 中间件设置）
+	if id := common.GetContextKeyInt(c, constant.ContextKeyProviderId); id > 0 {
+		return id
+	}
+	// 第二级：从已登录用户的 Session 中获取用户关联的服务商ID
+	session := sessions.Default(c)
+	if userId, ok := session.Get("id").(int); ok && userId > 0 {
+		// 检查用户是否属于某个服务商（通过服务商域名注册的用户）
+		var user model.User
+		if err := model.DB.Select("id", "provider_id").First(&user, userId).Error; err == nil && user.ProviderId > 0 {
+			return user.ProviderId
+		}
+		// 检查用户是否为服务商所有者
+		if provider, err := model.GetProviderByOwnerUserId(userId); err == nil {
+			return provider.Id
+		}
+	}
+	return 0
+}
+
+// getStringField 从 map[string]interface{} 中安全提取指定 key 的字符串值。
+// 若 key 不存在或值类型不是 string，返回空字符串。
+func getStringField(m map[string]interface{}, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
 }
 
 func getStatusCheckinEnabled(c *gin.Context) bool {

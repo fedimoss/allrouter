@@ -84,6 +84,37 @@ func GetProviderUsers(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+// 服务商用户管理的树形型结构
+func GetTreeProviderUsers(c *gin.Context) {
+	userId := c.GetInt("id")
+
+	if userId == 0 {
+		common.ApiError(c, errors.New("invalid user id"))
+		return
+	}
+	parentIdstr := c.Query("parent_id")
+	if parentIdstr == "" {
+		parentIdstr = c.Query("parentId")
+	}
+	if parentIdstr == "" {
+		parentIdstr = strconv.Itoa(userId)
+	}
+	parentId, err := strconv.Atoi(parentIdstr)
+	if err != nil {
+		common.ApiError(c, errors.New("format parent id"))
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+
+	users, err := model.GetTreeChilendUsers(userId, parentId, pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetItems(users)
+	common.ApiSuccess(c, pageInfo)
+}
+
 func SearchProviderUsers(c *gin.Context) {
 	provider, ok := getOwnedProvider(c)
 	if !ok {
@@ -198,13 +229,14 @@ func UpdateProviderUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
+	req.Username = strings.TrimSpace(req.Username)
 	if req.Username != "" && req.Username != originUser.Username {
-		var count int64
-		if err := model.DB.Unscoped().Model(&model.User{}).Where("provider_id = ? AND username = ? AND id <> ?", provider.Id, req.Username, req.Id).Count(&count).Error; err != nil {
+		exists, err := model.UsernameConflictsWithProviderLoginScope(provider.Id, req.Username, req.Id)
+		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-		if count > 0 {
+		if exists {
 			common.ApiErrorI18n(c, i18n.MsgUserExists)
 			return
 		}

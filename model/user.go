@@ -194,14 +194,98 @@ func CheckUserExistOrDeletedInProvider(providerId int, username string, email st
 	}
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// not exist, return false, nil
-			return false, nil
+			if providerId <= 0 {
+				return false, nil
+			}
+			ownerUserId, ownerErr := providerOwnerUserId(providerId)
+			if ownerErr != nil {
+				return false, ownerErr
+			}
+			if ownerUserId <= 0 {
+				return false, nil
+			}
+			ownerQuery := DB.Unscoped().Model(&User{}).Where("id = ? AND username = ?", ownerUserId, username)
+			if email != "" {
+				ownerQuery = DB.Unscoped().Model(&User{}).Where("id = ? AND (username = ? OR email = ?)", ownerUserId, username, email)
+			}
+			var count int64
+			if countErr := ownerQuery.Count(&count).Error; countErr != nil {
+				return false, countErr
+			}
+			return count > 0, nil
 		}
 		// other error, return false, err
 		return false, err
 	}
 	// exist, return true, nil
 	return true, nil
+}
+
+func providerOwnerUserId(providerId int) (int, error) {
+	if providerId <= 0 {
+		return 0, nil
+	}
+	var provider Provider
+	if err := DB.Select("owner_user_id").Where("id = ?", providerId).First(&provider).Error; err != nil {
+		return 0, err
+	}
+	return provider.OwnerUserId, nil
+}
+
+func UsernameConflictsWithProviderLoginScope(providerId int, username string, excludeUserId int) (bool, error) {
+	username = strings.TrimSpace(username)
+	if providerId <= 0 || username == "" {
+		return false, nil
+	}
+	var count int64
+	query := DB.Unscoped().Model(&User{}).Where("provider_id = ? AND username = ?", providerId, username)
+	if excludeUserId > 0 {
+		query = query.Where("id <> ?", excludeUserId)
+	}
+	if err := query.Count(&count).Error; err != nil {
+		return false, err
+	}
+	if count > 0 {
+		return true, nil
+	}
+	ownerUserId, err := providerOwnerUserId(providerId)
+	if err != nil {
+		return false, err
+	}
+	if ownerUserId <= 0 || ownerUserId == excludeUserId {
+		return false, nil
+	}
+	count = 0
+	if err := DB.Unscoped().Model(&User{}).Where("id = ? AND username = ?", ownerUserId, username).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func UsernameConflictsWithOwnedProviderUsers(ownerUserId int, username string) (bool, error) {
+	username = strings.TrimSpace(username)
+	if ownerUserId <= 0 || username == "" {
+		return false, nil
+	}
+	var providerIds []int
+	if err := DB.Model(&Provider{}).Where("owner_user_id = ?", ownerUserId).Pluck("id", &providerIds).Error; err != nil {
+		return false, err
+	}
+	if len(providerIds) == 0 {
+		return false, nil
+	}
+	var count int64
+	if err := DB.Unscoped().Model(&User{}).Where("provider_id IN ? AND username = ?", providerIds, username).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func UsernameConflictsForUserLoginScope(userId int, providerId int, username string) (bool, error) {
+	if providerId > 0 {
+		return UsernameConflictsWithProviderLoginScope(providerId, username, userId)
+	}
+	return UsernameConflictsWithOwnedProviderUsers(userId, username)
 }
 
 func GetMaxUserId() int {
@@ -223,7 +307,7 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	}()
 
 	// Get total count within transaction
-	err = tx.Unscoped().Model(&User{}).Count(&total).Error
+	err = tx.Unscoped().Model(&User{}).Count(&total).Error //包括软删除的数据
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
@@ -978,6 +1062,44 @@ func (user *User) ValidateAndFillInProvider(providerId int) (err error) {
 	username := strings.TrimSpace(user.Username)
 	if username == "" || password == "" {
 		return ErrUserEmptyCredentials
+	}
+	if providerId > 0 {
+		matches := make(map[int]User, 2)
+		var providerUsers []User
+		if err = DB.Where("provider_id = ? AND (username = ? OR email = ?)", providerId, username, username).Find(&providerUsers).Error; err != nil {
+			return fmt.Errorf("%w: %v", ErrDatabase, err)
+		}
+		for _, matchedUser := range providerUsers {
+			matches[matchedUser.Id] = matchedUser
+		}
+		ownerUserId, ownerErr := providerOwnerUserId(providerId)
+		if ownerErr != nil {
+			return fmt.Errorf("%w: %v", ErrDatabase, ownerErr)
+		}
+		if ownerUserId > 0 {
+			var owner User
+			ownerErr = DB.Where("id = ? AND (username = ? OR email = ?)", ownerUserId, username, username).First(&owner).Error
+			if ownerErr != nil && !errors.Is(ownerErr, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("%w: %v", ErrDatabase, ownerErr)
+			}
+			if ownerErr == nil {
+				matches[owner.Id] = owner
+			}
+		}
+		if len(matches) == 0 {
+			return ErrInvalidCredentials
+		}
+		if len(matches) > 1 {
+			return ErrProviderLoginConflict
+		}
+		for _, matchedUser := range matches {
+			*user = matchedUser
+		}
+		okay := common.ValidatePasswordAndHash(password, user.Password)
+		if !okay || user.Status != common.UserStatusEnabled {
+			return ErrInvalidCredentials
+		}
+		return nil
 	}
 	// find by username or email
 	err = DB.Where("provider_id = ? AND (username = ? OR email = ?)", providerId, username, username).First(user).Error

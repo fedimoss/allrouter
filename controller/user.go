@@ -67,6 +67,8 @@ func Login(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		case errors.Is(err, model.ErrUserEmptyCredentials):
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		case errors.Is(err, model.ErrProviderLoginConflict):
+			common.ApiErrorMsg(c, "账号名冲突，请联系管理员处理")
 		default:
 			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
 		}
@@ -899,6 +901,7 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	updatedUser.Username = strings.TrimSpace(updatedUser.Username)
 	myRole := c.GetInt("role")
 	if myRole <= originUser.Role && myRole != common.RoleRootUser {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
@@ -910,6 +913,17 @@ func UpdateUser(c *gin.Context) {
 	}
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be
+	}
+	if updatedUser.Username != "" && updatedUser.Username != originUser.Username {
+		exists, err := model.UsernameConflictsForUserLoginScope(updatedUser.Id, originUser.ProviderId, updatedUser.Username)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if exists {
+			common.ApiErrorI18n(c, i18n.MsgUserExists)
+			return
+		}
 	}
 	updatePassword := updatedUser.Password != ""
 	if err := updatedUser.Edit(updatePassword); err != nil {
@@ -1059,16 +1073,12 @@ func UpdateSelf(c *gin.Context) {
 					return
 				}
 				if username != currentUser.Username {
-					var count int64
-					err = model.DB.Unscoped().
-						Model(&model.User{}).
-						Where("provider_id = ? AND username = ? AND id <> ?", currentUser.ProviderId, username, userId).
-						Count(&count).Error
+					exists, err := model.UsernameConflictsForUserLoginScope(userId, currentUser.ProviderId, username)
 					if err != nil {
 						common.ApiError(c, err)
 						return
 					}
-					if count > 0 {
+					if exists {
 						common.ApiErrorI18n(c, i18n.MsgUserExists)
 						return
 					}
@@ -1131,9 +1141,25 @@ func UpdateSelf(c *gin.Context) {
 
 	cleanUser := model.User{
 		Id:          c.GetInt("id"),
-		Username:    user.Username,
+		Username:    strings.TrimSpace(user.Username),
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
+	}
+	currentUser, err := model.GetUserById(cleanUser.Id, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if cleanUser.Username != "" && cleanUser.Username != currentUser.Username {
+		exists, err := model.UsernameConflictsForUserLoginScope(cleanUser.Id, currentUser.ProviderId, cleanUser.Username)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if exists {
+			common.ApiErrorI18n(c, i18n.MsgUserExists)
+			return
+		}
 	}
 	if user.Password == "$I_LOVE_U" {
 		user.Password = "" // rollback to what it should be
