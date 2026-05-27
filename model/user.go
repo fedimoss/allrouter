@@ -86,6 +86,48 @@ func (user *User) SetAccessToken(token string) {
 	user.AccessToken = &token
 }
 
+func GetInvitedUsersByInviterId(inviterId int, pageInfo *common.PageInfo) (users []*User, total int64, err error) {
+	if inviterId <= 0 {
+		return nil, 0, errors.New("invalid inviter id")
+	}
+	if pageInfo == nil {
+		pageInfo = &common.PageInfo{Page: 1, PageSize: common.ItemsPerPage}
+	}
+	query := DB.Unscoped().Model(&User{}).Where("inviter_id = ?", inviterId)
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err = query.
+		Omit("password").
+		Order("created_at desc").
+		Order("id desc").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&users).Error
+	return users, total, err
+}
+
+func GetInvitedUsersByInviterIdInProvider(providerId int, inviterId int, pageInfo *common.PageInfo) (users []*User, total int64, err error) {
+	if providerId <= 0 || inviterId <= 0 {
+		return nil, 0, errors.New("invalid provider or inviter id")
+	}
+	if pageInfo == nil {
+		pageInfo = &common.PageInfo{Page: 1, PageSize: common.ItemsPerPage}
+	}
+	query := DB.Unscoped().Model(&User{}).Where("provider_id = ? AND inviter_id = ?", providerId, inviterId)
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err = query.
+		Omit("password").
+		Order("created_at desc").
+		Order("id desc").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&users).Error
+	return users, total, err
+}
+
 func (user *User) GetSetting() dto.UserSetting {
 	setting := dto.UserSetting{}
 	if user.Setting != "" {
@@ -632,24 +674,26 @@ func recordRewardAndIncreaseQuotaTx(tx *gorm.DB, providerId int, userId int, quo
 }
 
 func grantInviterRewardTx(tx *gorm.DB, inviterId int, inviteeId int, rewardQuota int) error {
-	if tx == nil || inviterId <= 0 || inviteeId <= 0 || rewardQuota <= 0 {
+	if tx == nil || inviterId <= 0 || inviteeId <= 0 {
 		return nil
 	}
 	var inviter User
-	if err := tx.Select("id", "provider_id", "aff_count", "aff_quota", "aff_history").Where("id = ?", inviterId).Take(&inviter).Error; err != nil {
+	if err := tx.Select("id", "provider_id").Where("id = ?", inviterId).Take(&inviter).Error; err != nil {
 		return err
 	}
-	inviter.AffCount++
-	inviter.AffQuota += rewardQuota
-	inviter.AffHistoryQuota += rewardQuota
-	if err := tx.Model(&User{}).Where("id = ?", inviterId).Updates(map[string]interface{}{
-		"aff_count":   inviter.AffCount,
-		"aff_quota":   inviter.AffQuota,
-		"aff_history": inviter.AffHistoryQuota,
-	}).Error; err != nil {
+	updates := map[string]interface{}{
+		"aff_count": gorm.Expr("aff_count + ?", 1),
+	}
+	if rewardQuota > 0 {
+		updates["aff_quota"] = gorm.Expr("aff_quota + ?", rewardQuota)
+		updates["aff_history"] = gorm.Expr("aff_history + ?", rewardQuota)
+	}
+	//上级用户记录邀请人数，邀请历史（如果有的话），邀请额度 （如果有的话）
+	if err := tx.Model(&User{}).Where("id = ?", inviterId).Updates(updates).Error; err != nil {
 		return err
 	}
-	if inviter.ProviderId <= 0 {
+	//有邀请奖励时在进行奖励发放。避免有邀请人没设置邀请奖励不记录邀请人数
+	if rewardQuota <= 0 || inviter.ProviderId <= 0 {
 		return nil
 	}
 	return CreateRewardRecordTx(tx, &RewardRecord{

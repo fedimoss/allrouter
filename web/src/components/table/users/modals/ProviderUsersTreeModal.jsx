@@ -19,10 +19,20 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  FreeLayoutEditor,
+  LineType,
+  WorkflowNodeRenderer,
+  useNodeRender,
+  usePlaygroundTools,
+} from '@flowgram.ai/free-layout-editor';
+import '@flowgram.ai/free-layout-editor/index.css';
+import {
   Avatar,
   Banner,
   Button,
   Empty,
+  Radio,
+  RadioGroup,
   SideSheet,
   Space,
   Spin,
@@ -31,10 +41,12 @@ import {
 } from '@douyinfe/semi-ui';
 import {
   IconClose,
+  IconMinus,
+  IconPlus,
   IconRefresh,
   IconTreeTriangleDown,
 } from '@douyinfe/semi-icons';
-import { UserRound } from 'lucide-react';
+import { GitBranch, UserRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { API, getUserIdFromLocalStorage, showError } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
@@ -42,6 +54,16 @@ import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 const { Text, Title } = Typography;
 
 const DEFAULT_TREE_PAGE_SIZE = 50;
+const FLOWGRAM_NODE_TYPE = 'provider-user-tree-node';
+const FLOWGRAM_NODE_RENDER_KEY = 'provider-user-tree-node-render';
+const FLOWGRAM_NODE_WIDTH = 260;
+const FLOWGRAM_NODE_HEIGHT = 86;
+const FLOWGRAM_LEVEL_GAP = 360;
+const FLOWGRAM_SIBLING_GAP = 42;
+const FLOWGRAM_CANVAS_PADDING = 80;
+const FLOWGRAM_INPUT_PORT_ID = 'in';
+const FLOWGRAM_OUTPUT_PORT_ID = 'out';
+const FLOWGRAM_LINE_COLOR = '#22c55e';
 
 const sortById = (a, b) => (a?.id || 0) - (b?.id || 0);
 
@@ -116,6 +138,168 @@ const mergeChildrenById = (oldChildren = [], newChildren = []) => {
   return Array.from(childMap.values()).sort(sortById);
 };
 
+const getNodeTitle = (node) => node?.display_name || node?.username || '-';
+
+const getNodeRelationText = (node, t) => {
+  if (node?.isRoot) {
+    return t('服务商主账号');
+  }
+  return node?.inviter_id ? `${t('邀请人')}: #${node.inviter_id}` : '';
+};
+
+const getFlowgramNodeId = (node) => `provider-user-${node.id}`;
+
+const getNodeDepth = (node) => {
+  if (!node || !Array.isArray(node.children) || node.children.length === 0) {
+    return 1;
+  }
+  return 1 + Math.max(...node.children.map((child) => getNodeDepth(child)));
+};
+
+const getNodeLeafCount = (node) => {
+  if (!node || !Array.isArray(node.children) || node.children.length === 0) {
+    return 1;
+  }
+  return node.children.reduce((sum, child) => sum + getNodeLeafCount(child), 0);
+};
+
+const getFlowgramNodePositionMap = (nodes = []) => {
+  return nodes.reduce((positionMap, node) => {
+    if (node?.id && node?.meta?.position) {
+      positionMap[node.id] = node.meta.position;
+    }
+    return positionMap;
+  }, {});
+};
+
+const getFlowgramEdgePath = (sourcePosition, targetPosition) => {
+  const sourceX = sourcePosition.x + FLOWGRAM_NODE_WIDTH;
+  const sourceY = sourcePosition.y + FLOWGRAM_NODE_HEIGHT / 2;
+  const targetX = targetPosition.x;
+  const targetY = targetPosition.y + FLOWGRAM_NODE_HEIGHT / 2;
+  const midX = sourceX + Math.max((targetX - sourceX) / 2, 48);
+
+  return `M ${sourceX} ${sourceY} C ${midX} ${sourceY}, ${midX} ${targetY}, ${targetX} ${targetY}`;
+};
+
+const FLOWGRAM_DEFAULT_PORTS = [
+  {
+    portID: FLOWGRAM_INPUT_PORT_ID,
+    type: 'input',
+    location: 'left',
+    disabled: true,
+  },
+  {
+    portID: FLOWGRAM_OUTPUT_PORT_ID,
+    type: 'output',
+    location: 'right',
+    disabled: true,
+  },
+];
+
+const convertTreeToFlowgramData = (treeNode, t) => {
+  if (!treeNode) {
+    return { nodes: [], edges: [] };
+  }
+
+  const nodes = [];
+  const edges = [];
+  let nextLeafIndex = 0;
+
+  const walk = (node, depth = 0, parent = null) => {
+    const children = Array.isArray(node.children) ? node.children : [];
+    let currentLeafIndex;
+
+    if (children.length === 0) {
+      currentLeafIndex = nextLeafIndex;
+      nextLeafIndex += 1;
+    } else {
+      const childLeafIndexes = children.map((child) => walk(child, depth + 1, node));
+      currentLeafIndex =
+        childLeafIndexes.reduce((sum, leafIndex) => sum + leafIndex, 0) /
+        childLeafIndexes.length;
+    }
+
+    const nodeId = getFlowgramNodeId(node);
+    nodes.push({
+      id: nodeId,
+      type: FLOWGRAM_NODE_TYPE,
+      data: {
+        id: node.id,
+        username: node.username,
+        display_name: node.display_name,
+        title: getNodeTitle(node),
+        relationText: getNodeRelationText(node, t),
+        inviter_id: node.inviter_id,
+        status: node.status,
+        isRoot: Boolean(node.isRoot),
+        hasMoreChildren: Boolean(node.has_more_children || node.pagination?.hasMore),
+        loadedChildrenCount: Array.isArray(node.children) ? node.children.length : 0,
+      },
+      meta: {
+        renderKey: FLOWGRAM_NODE_RENDER_KEY,
+        draggable: false,
+        selectable: false,
+        copyDisable: true,
+        deleteDisable: true,
+        inputDisable: true,
+        outputDisable: true,
+        autoResizeDisable: true,
+        size: {
+          width: FLOWGRAM_NODE_WIDTH,
+          height: FLOWGRAM_NODE_HEIGHT,
+        },
+        position: {
+          x: FLOWGRAM_CANVAS_PADDING + depth * FLOWGRAM_LEVEL_GAP,
+          y:
+            FLOWGRAM_CANVAS_PADDING +
+            currentLeafIndex * (FLOWGRAM_NODE_HEIGHT + FLOWGRAM_SIBLING_GAP),
+        },
+        defaultPorts: FLOWGRAM_DEFAULT_PORTS,
+      },
+    });
+
+    if (parent) {
+      edges.push({
+        sourceNodeID: getFlowgramNodeId(parent),
+        targetNodeID: nodeId,
+        sourcePortID: FLOWGRAM_OUTPUT_PORT_ID,
+        targetPortID: FLOWGRAM_INPUT_PORT_ID,
+        data: {
+          relation: 'inviter',
+        },
+      });
+    }
+
+    return currentLeafIndex;
+  };
+
+  walk(treeNode);
+
+  return { nodes, edges };
+};
+
+const flowgramNodeRegistries = [
+  {
+    type: FLOWGRAM_NODE_TYPE,
+    meta: {
+      renderKey: FLOWGRAM_NODE_RENDER_KEY,
+      draggable: false,
+      selectable: false,
+      copyDisable: true,
+      deleteDisable: true,
+      inputDisable: true,
+      outputDisable: true,
+      autoResizeDisable: true,
+      size: {
+        width: FLOWGRAM_NODE_WIDTH,
+        height: FLOWGRAM_NODE_HEIGHT,
+      },
+      defaultPorts: FLOWGRAM_DEFAULT_PORTS,
+    },
+  },
+];
+
 const normalizeTreeResponse = (data, page, pageSize) => {
   if (Array.isArray(data)) {
     return {
@@ -167,12 +351,8 @@ const TreeLoadingPlaceholder = ({ t }) => {
 };
 
 const DependencyTreeNodeBox = ({ node, hasChildren, isExpanded, isLoading, onToggle, t }) => {
-  const relationText = node.isRoot
-    ? t('服务商主账号')
-    : node.inviter_id
-      ? `${t('邀请人')}: #${node.inviter_id}`
-      : '';
-  const title = node.display_name || node.username || '-';
+  const relationText = getNodeRelationText(node, t);
+  const title = getNodeTitle(node);
 
   return (
     <div
@@ -261,6 +441,307 @@ const DependencyTreeNodeBox = ({ node, hasChildren, isExpanded, isLoading, onTog
           {node.status === 1 ? t('启用') : t('禁用')}
         </Tag>
       )}
+    </div>
+  );
+};
+
+const ProviderFlowgramNode = () => {
+  const { t } = useTranslation();
+  const { data, node } = useNodeRender();
+  const relationText = data?.relationText || '';
+  const title = data?.title || data?.display_name || data?.username || '-';
+
+  return (
+    <WorkflowNodeRenderer
+      node={node}
+      style={{ cursor: 'default' }}
+      portStyle={{ opacity: 0, pointerEvents: 'none' }}
+    >
+      <div
+        className='provider-flowgram-node flow-canvas-not-draggable'
+        data-flow-editor-selectable='false'
+        style={{
+          width: FLOWGRAM_NODE_WIDTH,
+          minHeight: FLOWGRAM_NODE_HEIGHT,
+          border: data?.isRoot
+            ? '2px solid var(--semi-color-primary)'
+            : '1px solid var(--semi-color-border)',
+          borderRadius: 8,
+          background: data?.isRoot
+            ? 'var(--semi-color-primary-light-default)'
+            : 'var(--semi-color-bg-0)',
+          boxShadow: data?.isRoot
+            ? '0 0 0 3px var(--semi-color-primary-light-hover), 0 10px 24px rgba(15, 23, 42, 0.12)'
+            : '0 8px 18px rgba(15, 23, 42, 0.08)',
+          color: 'var(--semi-color-text-0)',
+          padding: 12,
+          cursor: 'default',
+          pointerEvents: 'auto',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+          <Avatar size='small' color={data?.isRoot ? 'blue' : 'green'}>
+            <UserRound size={15} />
+          </Avatar>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 148 }}>
+                {title}
+              </Text>
+              {!data?.isRoot && (
+                <Tag color={data?.status === 1 ? 'green' : 'red'} size='small'>
+                  {data?.status === 1 ? t('启用') : t('禁用')}
+                </Tag>
+              )}
+            </div>
+            {data?.username && data?.display_name && data.display_name !== data.username && (
+              <Text
+                type='secondary'
+                size='small'
+                ellipsis={{ showTooltip: true }}
+                style={{ maxWidth: 190 }}
+              >
+                @{data.username}
+              </Text>
+            )}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+                marginTop: 6,
+              }}
+            >
+              <Text type='secondary' size='small'>
+                ID #{data?.id}
+              </Text>
+              {relationText && (
+                <Text type='secondary' size='small'>
+                  {relationText}
+                </Text>
+              )}
+            </div>
+            {data?.hasMoreChildren && (
+              <Text type='tertiary' size='small' style={{ marginTop: 4, display: 'block' }}>
+                {t('已加载')} {data.loadedChildrenCount || 0}
+              </Text>
+            )}
+          </div>
+        </div>
+      </div>
+    </WorkflowNodeRenderer>
+  );
+};
+
+const FlowgramToolbar = () => {
+  const { t } = useTranslation();
+  const { zoomin, zoomout, fitView, zoom } = usePlaygroundTools({
+    minZoom: 0.25,
+    maxZoom: 1.6,
+  });
+
+  return (
+    <Space
+      style={{
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        zIndex: 30,
+        padding: 8,
+        border: '1px solid var(--semi-color-border)',
+        borderRadius: 10,
+        background: 'var(--semi-color-bg-0)',
+        boxShadow: '0 8px 20px rgba(15, 23, 42, 0.1)',
+      }}
+    >
+      <Button size='small' icon={<IconMinus />} onClick={() => zoomout(true)} />
+      <Text type='secondary' size='small' style={{ minWidth: 42, textAlign: 'center' }}>
+        {Math.round(zoom * 100)}%
+      </Text>
+      <Button size='small' icon={<IconPlus />} onClick={() => zoomin(true)} />
+      <Button size='small' theme='outline' onClick={() => fitView(true, 300, 48)}>
+        {t('适应画布')}
+      </Button>
+    </Space>
+  );
+};
+
+const FlowgramAutoFit = () => {
+  const { fitView } = usePlaygroundTools({
+    minZoom: 0.25,
+    maxZoom: 1.6,
+  });
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => fitView(true), 120);
+    return () => window.clearTimeout(timer);
+  }, [fitView]);
+
+  return null;
+};
+
+const FlowgramReadonlyEdges = ({ initialData, width, height }) => {
+  const nodePositionMap = useMemo(
+    () => getFlowgramNodePositionMap(initialData.nodes),
+    [initialData.nodes],
+  );
+
+  const edgePaths = useMemo(() => {
+    return (initialData.edges || [])
+      .map((edge) => {
+        const sourcePosition = nodePositionMap[edge.sourceNodeID];
+        const targetPosition = nodePositionMap[edge.targetNodeID];
+        if (!sourcePosition || !targetPosition) {
+          return null;
+        }
+        return {
+          id: `${edge.sourceNodeID}-${edge.targetNodeID}`,
+          path: getFlowgramEdgePath(sourcePosition, targetPosition),
+        };
+      })
+      .filter(Boolean);
+  }, [initialData.edges, nodePositionMap]);
+
+  if (edgePaths.length === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 8,
+        pointerEvents: 'none',
+        overflow: 'visible',
+      }}
+    >
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          overflow: 'visible',
+        }}
+      >
+        <defs>
+          <marker
+            id='provider-flowgram-edge-arrow'
+            markerWidth='10'
+            markerHeight='10'
+            refX='9'
+            refY='5'
+            orient='auto'
+            markerUnits='strokeWidth'
+          >
+            <path d='M 0 0 L 10 5 L 0 10 z' fill={FLOWGRAM_LINE_COLOR} />
+          </marker>
+        </defs>
+        {edgePaths.map((edge) => (
+          <path
+            key={edge.id}
+            d={edge.path}
+            fill='none'
+            stroke={FLOWGRAM_LINE_COLOR}
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            markerEnd='url(#provider-flowgram-edge-arrow)'
+            opacity='0.9'
+          />
+        ))}
+      </svg>
+    </div>
+  );
+};
+
+const ProviderUsersFlowgramView = ({ treeData, t }) => {
+  const initialData = useMemo(
+    () => convertTreeToFlowgramData(treeData, t),
+    [treeData, t],
+  );
+  const flowgramWidth = Math.max(
+    760,
+    FLOWGRAM_CANVAS_PADDING * 2 + getNodeDepth(treeData) * FLOWGRAM_LEVEL_GAP,
+  );
+  const flowgramHeight = Math.max(
+    420,
+    FLOWGRAM_CANVAS_PADDING * 2 +
+      getNodeLeafCount(treeData) * (FLOWGRAM_NODE_HEIGHT + FLOWGRAM_SIBLING_GAP),
+  );
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        height: 620,
+        minHeight: 420,
+        border: '1px solid var(--semi-color-border)',
+        borderRadius: 8,
+        overflow: 'hidden',
+        background: 'var(--semi-color-bg-1)',
+      }}
+    >
+      <FreeLayoutEditor
+        key={`provider-flowgram-${treeData?.id || 'empty'}-${countNodes(treeData)}`}
+        initialData={initialData}
+        readonly
+        enableReadonlyNodeDragging={false}
+        nodeRegistries={flowgramNodeRegistries}
+        materials={{
+          renderDefaultNode: ProviderFlowgramNode,
+          renderNodes: {
+            [FLOWGRAM_NODE_RENDER_KEY]: ProviderFlowgramNode,
+          },
+        }}
+        history={{ enable: false, disableShortcuts: true }}
+        selectBox={{
+          enable: false,
+          canSelect: () => false,
+        }}
+        scroll={{
+          enableScrollLimit: false,
+          disableScrollBar: false,
+          disableScroll: false,
+        }}
+        playground={{
+          width: flowgramWidth,
+          height: flowgramHeight,
+          autoResize: true,
+          zoomEnable: true,
+        }}
+        background={{
+          backgroundColor: 'var(--semi-color-bg-1)',
+          dotColor: 'var(--semi-color-border)',
+          dotOpacity: 0.35,
+        }}
+        lineColor={{
+          default: FLOWGRAM_LINE_COLOR,
+          hovered: FLOWGRAM_LINE_COLOR,
+          selected: FLOWGRAM_LINE_COLOR,
+          flowing: FLOWGRAM_LINE_COLOR,
+        }}
+        twoWayConnection={false}
+        isDisabledPort={() => true}
+        isDisabledLine={() => false}
+        canAddLine={() => false}
+        canDeleteNode={() => false}
+        canDeleteLine={() => false}
+        canResetLine={() => false}
+        setLineRenderType={() => LineType.LINE_CHART}
+      >
+        <FlowgramReadonlyEdges
+          initialData={initialData}
+          width={flowgramWidth}
+          height={flowgramHeight}
+        />
+        <FlowgramAutoFit />
+        <FlowgramToolbar />
+      </FreeLayoutEditor>
     </div>
   );
 };
@@ -412,6 +893,7 @@ const ProviderUsersTreeModal = ({ visible, handleClose, rootUser }) => {
   const [loading, setLoading] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
   const [treeData, setTreeData] = useState(null);
+  const [viewMode, setViewMode] = useState('simple');
   const [expandedKeys, setExpandedKeys] = useState({});
   const [loadingNodeIds, setLoadingNodeIds] = useState({});
   const [loadingMoreNodeIds, setLoadingMoreNodeIds] = useState({});
@@ -423,6 +905,7 @@ const ProviderUsersTreeModal = ({ visible, handleClose, rootUser }) => {
     setLoading(false);
     setInitialLoaded(false);
     setTreeData(null);
+    setViewMode('simple');
     setExpandedKeys({});
     setLoadingNodeIds({});
     setLoadingMoreNodeIds({});
@@ -634,6 +1117,17 @@ const ProviderUsersTreeModal = ({ visible, handleClose, rootUser }) => {
             {t('已加载节点')}：{userNodeCount}
           </Text>
           <Space>
+            {treeData && (
+              <RadioGroup
+                type='button'
+                buttonSize='middle'
+                value={viewMode}
+                onChange={(e) => setViewMode(e.target.value)}
+              >
+                <Radio value='simple'>{t('简略模式')}</Radio>
+                <Radio value='flowgram'>{t('FlowGram视图')}</Radio>
+              </RadioGroup>
+            )}
             <Button
               icon={<IconRefresh />}
               onClick={loadRootTree}
@@ -658,7 +1152,32 @@ const ProviderUsersTreeModal = ({ visible, handleClose, rootUser }) => {
             background: 'var(--semi-color-fill-0)',
           }}
         >
-          <Text>{t('点击节点左侧箭头可展开下级用户，查看服务商与用户之间的邀请关系。')}</Text>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: isMobile ? 'flex-start' : 'center',
+              gap: 12,
+              flexDirection: isMobile ? 'column' : 'row',
+            }}
+          >
+            <Text>
+              {viewMode === 'flowgram'
+                ? t('FlowGram视图为只读画布，可拖动画布、缩放查看已加载的用户关系。')
+                : t('点击节点左侧箭头可展开下级用户，查看服务商与用户之间的邀请关系。')}
+            </Text>
+            {treeData && (
+              <Button
+                icon={<GitBranch size={15} />}
+                theme='outline'
+                onClick={() =>
+                  setViewMode((current) => (current === 'flowgram' ? 'simple' : 'flowgram'))
+                }
+              >
+                {viewMode === 'flowgram' ? t('返回简略模式') : t('使用FlowGram渲染')}
+              </Button>
+            )}
+          </div>
         </div>
 
         {errorMessage && (
@@ -706,15 +1225,19 @@ const ProviderUsersTreeModal = ({ visible, handleClose, rootUser }) => {
                   </Text>
                 </div>
               )}
-              <ProviderUsersTreeNode
-                node={treeData}
-                expandedKeys={expandedKeys}
-                loadingNodeIds={loadingNodeIds}
-                loadingMoreNodeIds={loadingMoreNodeIds}
-                onToggle={handleToggleNode}
-                onLoadMore={loadMoreChildren}
-                t={t}
-              />
+              {viewMode === 'flowgram' ? (
+                <ProviderUsersFlowgramView treeData={treeData} t={t} />
+              ) : (
+                <ProviderUsersTreeNode
+                  node={treeData}
+                  expandedKeys={expandedKeys}
+                  loadingNodeIds={loadingNodeIds}
+                  loadingMoreNodeIds={loadingMoreNodeIds}
+                  onToggle={handleToggleNode}
+                  onLoadMore={loadMoreChildren}
+                  t={t}
+                />
+              )}
             </div>
           </Spin>
         )}

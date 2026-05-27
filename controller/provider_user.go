@@ -149,6 +149,44 @@ func GetProviderUser(c *gin.Context) {
 	common.ApiSuccess(c, user)
 }
 
+func GetProviderUserInvitees(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	inviterId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || inviterId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	var inviter model.User
+	if err := model.DB.Unscoped().Omit("password").Where("id = ? AND provider_id = ?", inviterId, provider.Id).First(&inviter).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	users, total, err := model.GetInvitedUsersByInviterIdInProvider(provider.Id, inviterId, pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(users)
+	common.ApiSuccess(c, gin.H{
+		"inviter": gin.H{
+			"id":           inviter.Id,
+			"username":     inviter.Username,
+			"display_name": inviter.DisplayName,
+			"role":         inviter.Role,
+			"aff_count":    inviter.AffCount,
+		},
+		"page":      pageInfo.Page,
+		"page_size": pageInfo.PageSize,
+		"total":     pageInfo.Total,
+		"items":     pageInfo.Items,
+	})
+}
+
 func CreateProviderUser(c *gin.Context) {
 	provider, ok := getOwnedProvider(c)
 	if !ok {

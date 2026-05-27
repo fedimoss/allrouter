@@ -472,6 +472,44 @@ func GetUserAffRecords(c *gin.Context) {
 	})
 }
 
+// 指定用户邀请来的用户列表（管理员）
+func GetUserInvitees(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	userId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || userId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	var inviter model.User
+	if err := model.DB.Unscoped().Omit("password").Where("id = ?", userId).First(&inviter).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	users, total, err := model.GetInvitedUsersByInviterId(userId, pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(users)
+	common.ApiSuccess(c, gin.H{
+		"inviter": gin.H{
+			"id":           inviter.Id,
+			"username":     inviter.Username,
+			"display_name": inviter.DisplayName,
+			"role":         inviter.Role,
+			"aff_count":    inviter.AffCount,
+		},
+		"page":      pageInfo.Page,
+		"page_size": pageInfo.PageSize,
+		"total":     pageInfo.Total,
+		"items":     pageInfo.Items,
+	})
+}
+
 // 邀请记录列表(用户)
 func GetSelfAffRecords(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c) // 分页信息

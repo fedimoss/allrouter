@@ -517,7 +517,6 @@ const WithdrawPage = () => {
                   </div>
                 </div>
                 <div className='flex items-start gap-2 text-xs text-slate-400'>
-                  <span className='mt-0.5 shrink-0'>·</span>
                   <span>{t('提现金额不能超过可用余额')}</span>
                 </div>
               </div>

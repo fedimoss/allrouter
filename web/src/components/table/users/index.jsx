@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useMemo, useState } from 'react';
+import React from 'react';
 import CardPro from '../../common/ui/CardPro';
 import UsersTable from './UsersTable';
 import UsersActions from './UsersActions';
@@ -25,17 +25,13 @@ import UsersFilters from './UsersFilters';
 import UsersDescription from './UsersDescription';
 import AddUserModal from './modals/AddUserModal';
 import EditUserModal from './modals/EditUserModal';
-import ProviderUsersTreeModal from './modals/ProviderUsersTreeModal';
 import { useUsersData } from '../../../hooks/users/useUsersData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
-import { UserContext } from '../../../context/User';
 
 const UsersPage = ({ apiPrefix = '/api/user', providerMode = false }) => {
   const usersData = useUsersData({ apiPrefix, providerMode });
   const isMobile = useIsMobile();
-  const [userState] = useContext(UserContext);
-  const [showTreeModal, setShowTreeModal] = useState(false);
 
   const {
     // Modal state
@@ -66,28 +62,8 @@ const UsersPage = ({ apiPrefix = '/api/user', providerMode = false }) => {
     t,
   } = usersData;
 
-  const currentUser = useMemo(() => {
-    if (userState?.user) {
-      return userState.user;
-    }
-    try {
-      const storedUser = localStorage.getItem('user');
-      return storedUser ? JSON.parse(storedUser) : null;
-    } catch (error) {
-      return null;
-    }
-  }, [userState?.user]);
-
   return (
     <>
-      {providerMode && (
-        <ProviderUsersTreeModal
-          visible={showTreeModal}
-          handleClose={() => setShowTreeModal(false)}
-          rootUser={currentUser}
-        />
-      )}
-
       <AddUserModal
         refresh={refresh}
         visible={showAddUser}
@@ -118,8 +94,6 @@ const UsersPage = ({ apiPrefix = '/api/user', providerMode = false }) => {
             <UsersActions
               setShowAddUser={setShowAddUser}
               t={t}
-              providerMode={providerMode}
-              onViewTree={() => setShowTreeModal(true)}
             />
 
             <UsersFilters

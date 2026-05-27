@@ -173,11 +173,28 @@ const renderQuotaUsage = (text, record, t) => {
 /**
  * Render invite information
  */
-const renderInviteInfo = (text, record, t) => {
+const renderInviteInfo = (text, record, t, showInviteUsersModal) => {
+  const inviteCount = Number(record.aff_count) || 0;
+  const canViewInvitees = inviteCount > 0 && typeof showInviteUsersModal === 'function';
+
   return (
     <div>
       <Space spacing={1}>
-        <Tag color='white' shape='circle' className='!text-xs'>
+        <Tag
+          color='white'
+          shape='circle'
+          className='!text-xs'
+          onClick={canViewInvitees ? () => showInviteUsersModal(record) : undefined}
+          style={
+            canViewInvitees
+              ? {
+                  cursor: 'pointer',
+                  color: 'var(--semi-color-primary)',
+                  borderColor: 'var(--semi-color-primary-light-default)',
+                }
+              : undefined
+          }
+        >
           {t('邀请')}: {renderNumber(record.aff_count)}
         </Tag>
         <Tag color='white' shape='circle' className='!text-xs'>
@@ -322,10 +339,11 @@ export const getUsersColumns = ({
   showDemoteModal,
   showEnableDisableModal,
   showDeleteModal,
-  showResetPasskeyModal,
-  showResetTwoFAModal,
-  showUserSubscriptionsModal,
-  providerMode = false,
+    showResetPasskeyModal,
+    showResetTwoFAModal,
+    showUserSubscriptionsModal,
+    showInviteUsersModal,
+    providerMode = false,
 }) => {
   return [
     {
@@ -365,7 +383,8 @@ export const getUsersColumns = ({
     {
       title: t('邀请信息'),
       dataIndex: 'invite',
-      render: (text, record, index) => renderInviteInfo(text, record, t),
+      render: (text, record, index) =>
+        renderInviteInfo(text, record, t, showInviteUsersModal),
     },
     {
       title: '',
