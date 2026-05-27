@@ -23,8 +23,6 @@ import { Button } from '@douyinfe/semi-ui';
 const UsersActions = ({
   setShowAddUser,
   t,
-  providerMode = false,
-  onViewTree = () => {},
 }) => {
   // Add new user
   const handleAddUser = () => {
@@ -33,16 +31,6 @@ const UsersActions = ({
 
   return (
     <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>
-      {providerMode && (
-        <Button
-          className='w-full md:w-auto'
-          onClick={onViewTree}
-          size='small'
-          theme='outline'
-        >
-          {t('查看树形结构')}
-        </Button>
-      )}
       <Button className='w-full md:w-auto' onClick={handleAddUser} size='small'>
         {t('添加用户')}
       </Button>

@@ -86,6 +86,48 @@ func (user *User) SetAccessToken(token string) {
 	user.AccessToken = &token
 }
 
+func GetInvitedUsersByInviterId(inviterId int, pageInfo *common.PageInfo) (users []*User, total int64, err error) {
+	if inviterId <= 0 {
+		return nil, 0, errors.New("invalid inviter id")
+	}
+	if pageInfo == nil {
+		pageInfo = &common.PageInfo{Page: 1, PageSize: common.ItemsPerPage}
+	}
+	query := DB.Unscoped().Model(&User{}).Where("inviter_id = ?", inviterId)
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err = query.
+		Omit("password").
+		Order("created_at desc").
+		Order("id desc").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&users).Error
+	return users, total, err
+}
+
+func GetInvitedUsersByInviterIdInProvider(providerId int, inviterId int, pageInfo *common.PageInfo) (users []*User, total int64, err error) {
+	if providerId <= 0 || inviterId <= 0 {
+		return nil, 0, errors.New("invalid provider or inviter id")
+	}
+	if pageInfo == nil {
+		pageInfo = &common.PageInfo{Page: 1, PageSize: common.ItemsPerPage}
+	}
+	query := DB.Unscoped().Model(&User{}).Where("provider_id = ? AND inviter_id = ?", providerId, inviterId)
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err = query.
+		Omit("password").
+		Order("created_at desc").
+		Order("id desc").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&users).Error
+	return users, total, err
+}
+
 func (user *User) GetSetting() dto.UserSetting {
 	setting := dto.UserSetting{}
 	if user.Setting != "" {

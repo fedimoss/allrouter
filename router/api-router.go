@@ -130,6 +130,7 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
 				adminRoute.DELETE("/:id/oauth/bindings/:provider_id", controller.UnbindCustomOAuthByAdmin)
 				adminRoute.DELETE("/:id/bindings/:binding_type", controller.AdminClearUserBinding)
+				adminRoute.GET("/:id/invitees", controller.GetUserInvitees)
 				adminRoute.GET("/:id", controller.GetUser)
 				adminRoute.POST("/", controller.CreateUser)
 				adminRoute.POST("/manage", controller.ManageUser)
@@ -373,6 +374,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.GET("/users", controller.GetProviderUsers)
 			providerRoute.GET("/tree/users", controller.GetTreeProviderUsers) //服务商用户管理---tree型结构
 			providerRoute.GET("/users/search", controller.SearchProviderUsers)
+			providerRoute.GET("/users/:id/invitees", controller.GetProviderUserInvitees)
 			providerRoute.GET("/users/:id", controller.GetProviderUser)
 			providerRoute.POST("/users", controller.CreateProviderUser)
 			providerRoute.PUT("/users", controller.UpdateProviderUser)

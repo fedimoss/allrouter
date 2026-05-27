@@ -32,6 +32,7 @@ import DeleteUserModal from './modals/DeleteUserModal';
 import ResetPasskeyModal from './modals/ResetPasskeyModal';
 import ResetTwoFAModal from './modals/ResetTwoFAModal';
 import UserSubscriptionsModal from './modals/UserSubscriptionsModal';
+import InviteUsersDetailModal from './modals/InviteUsersDetailModal';
 
 const UsersTable = (usersData) => {
   const {
@@ -63,6 +64,7 @@ const UsersTable = (usersData) => {
   const [enableDisableAction, setEnableDisableAction] = useState('');
   const [showResetPasskeyModal, setShowResetPasskeyModal] = useState(false);
   const [showResetTwoFAModal, setShowResetTwoFAModal] = useState(false);
+  const [showInviteUsersModal, setShowInviteUsersModal] = useState(false);
   const [showUserSubscriptionsModal, setShowUserSubscriptionsModal] =
     useState(false);
 
@@ -101,6 +103,11 @@ const UsersTable = (usersData) => {
   const showUserSubscriptionsUserModal = (user) => {
     setModalUser(user);
     setShowUserSubscriptionsModal(true);
+  };
+
+  const showInviteUsersDetailModal = (user) => {
+    setModalUser(user);
+    setShowInviteUsersModal(true);
   };
 
   // Modal confirm handlers
@@ -142,6 +149,7 @@ const UsersTable = (usersData) => {
       showResetPasskeyModal: showResetPasskeyUserModal,
       showResetTwoFAModal: showResetTwoFAUserModal,
       showUserSubscriptionsModal: showUserSubscriptionsUserModal,
+      showInviteUsersModal: showInviteUsersDetailModal,
       providerMode,
     });
   }, [
@@ -155,6 +163,7 @@ const UsersTable = (usersData) => {
     showResetPasskeyUserModal,
     showResetTwoFAUserModal,
     showUserSubscriptionsUserModal,
+    showInviteUsersDetailModal,
     providerMode,
   ]);
 
@@ -241,6 +250,14 @@ const UsersTable = (usersData) => {
         activePage={activePage}
         refresh={refresh}
         manageUser={manageUser}
+        t={t}
+      />
+
+      <InviteUsersDetailModal
+        visible={showInviteUsersModal}
+        onClose={() => setShowInviteUsersModal(false)}
+        user={modalUser}
+        apiPrefix={usersData.apiPrefix}
         t={t}
       />
 
