@@ -65,19 +65,23 @@ type providerOwnerCandidatePage struct {
 }
 
 type providerBaseModelChannelPrice struct {
-	ModelName        string  `json:"model_name"`
-	ChannelId        int     `json:"channel_id"`
-	ChannelName      string  `json:"channel_name"`
-	ChannelType      int     `json:"channel_type"`
-	Group            string  `json:"group"`
-	QuotaType        int     `json:"quota_type"`
-	ModelRatio       float64 `json:"model_ratio"`
-	ModelPrice       float64 `json:"model_price"`
-	CompletionRatio  float64 `json:"completion_ratio"`
-	GroupRatio       float64 `json:"group_ratio"`
-	ImportPriceRatio float64 `json:"import_price_ratio"`
-	OriginalPrice    float64 `json:"original_price"`
-	CostPrice        float64 `json:"cost_price"`
+	ModelName        string   `json:"model_name"`
+	ChannelId        int      `json:"channel_id"`
+	ChannelName      string   `json:"channel_name"`
+	ChannelType      int      `json:"channel_type"`
+	Group            string   `json:"group"`
+	QuotaType        int      `json:"quota_type"`
+	ModelRatio       float64  `json:"model_ratio"`
+	ModelPrice       float64  `json:"model_price"`
+	CompletionRatio  float64  `json:"completion_ratio"`
+	GroupRatio       float64  `json:"group_ratio"`
+	ImportPriceRatio float64  `json:"import_price_ratio"`
+	OriginalPrice    float64  `json:"original_price"`
+	CompletionPrice  float64  `json:"completion_price"`
+	CachePrice       *float64 `json:"cache_price,omitempty"`
+	CostPrice        float64  `json:"cost_price"`
+	CostCompletion   float64  `json:"cost_completion_price"`
+	CostCache        *float64 `json:"cost_cache_price,omitempty"`
 }
 
 type providerBaseModelPriceAbility struct {
@@ -791,8 +795,18 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 			completionRatio = ratio_setting.GetCompletionRatio(modelName)
 		}
 		originalPrice := modelPrice * groupRatio
+		completionPrice := 0.0
+		var cachePrice *float64
+		var costCache *float64
 		if quotaType == 0 {
-			originalPrice = modelRatio * groupRatio
+			originalPrice = modelRatio * 2 * groupRatio
+			completionPrice = originalPrice * completionRatio
+			if cacheRatio, ok := ratio_setting.GetCacheRatio(modelName); ok {
+				price := originalPrice * cacheRatio
+				cost := price * importPriceRatio
+				cachePrice = &price
+				costCache = &cost
+			}
 		}
 		result = append(result, providerBaseModelChannelPrice{
 			ModelName:        modelName,
@@ -807,7 +821,11 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 			GroupRatio:       groupRatio,
 			ImportPriceRatio: importPriceRatio,
 			OriginalPrice:    originalPrice,
+			CompletionPrice:  completionPrice,
+			CachePrice:       cachePrice,
 			CostPrice:        originalPrice * importPriceRatio,
+			CostCompletion:   completionPrice * importPriceRatio,
+			CostCache:        costCache,
 		})
 	}
 	return result, nil

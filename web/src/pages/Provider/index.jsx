@@ -448,6 +448,12 @@ const ProviderPage = () => {
     navigate('/console/provider/reward');
   };
 
+  const openProviderProfits = (provider) => {
+    navigate(
+      `/console/provider/profits?provider_id=${provider.id}&provider_name=${encodeURIComponent(provider.name || '')}`,
+    );
+  };
+
   const openPricingModal = (pricing = null) => {
     setEditingPricing(pricing);
     setSelectedBaseModel(pricing?.base_model_name || '');
@@ -917,7 +923,7 @@ const ProviderPage = () => {
         },
         {
           title: t('操作'),
-          width: adminMode ? 360 : 300,
+          width: adminMode ? 420 : 300,
           render: (_, record) => (
             <Space wrap>
               <Button
@@ -936,6 +942,14 @@ const ProviderPage = () => {
               <Button size='small' onClick={() => openPricingList(record)}>
                 {t('模型定价')}
               </Button>
+              {adminMode ? (
+                <Button
+                  size='small'
+                  onClick={() => openProviderProfits(record)}
+                >
+                  {t('利润')}
+                </Button>
+              ) : null}
               <Button
                 size='small'
                 icon={<IconGiftStroked />}
@@ -1107,19 +1121,51 @@ const ProviderPage = () => {
         quotaType === 1 ? t('按次价格') : t('Token 倍率'),
     },
     {
-      title: t('主站原价'),
+      title: t('输入价格'),
       dataIndex: 'original_price',
-      render: (value) => formatPriceNumber(value),
+      render: (value, record) => (
+        <Space vertical align='start' spacing={1}>
+          <Text>{t('原价')}：{formatPriceNumber(value)}</Text>
+          <Text>
+            {t('服务商成本价')}：{formatPriceNumber(record.cost_price)}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: t('补全价格'),
+      dataIndex: 'completion_price',
+      render: (value, record) =>
+        record.quota_type === 0 ? (
+          <Space vertical align='start' spacing={1}>
+            <Text>{t('原价')}：{formatPriceNumber(value)}</Text>
+            <Text>
+              {t('服务商成本价')}：{formatPriceNumber(record.cost_completion_price)}
+            </Text>
+          </Space>
+        ) : (
+          '-'
+        ),
+    },
+    {
+      title: t('缓存读取价格'),
+      dataIndex: 'cache_price',
+      render: (value, record) =>
+        record.quota_type === 0 && value !== undefined && value !== null ? (
+          <Space vertical align='start' spacing={1}>
+            <Text>{t('原价')}：{formatPriceNumber(value)}</Text>
+            <Text>
+              {t('服务商成本价')}：{formatPriceNumber(record.cost_cache_price)}
+            </Text>
+          </Space>
+        ) : (
+          '-'
+        ),
     },
     {
       title: t('服务商折扣'),
       dataIndex: 'import_price_ratio',
       render: (value) => formatProviderDiscount(value, t),
-    },
-    {
-      title: t('服务商成本价'),
-      dataIndex: 'cost_price',
-      render: (value) => formatPriceNumber(value),
     },
   ];
 
@@ -1518,7 +1564,7 @@ const ProviderPage = () => {
             </Button>
           </Space>
         }
-        width={1100}
+        width={1200}
       >
         <Table
           rowKey='id'
@@ -1534,7 +1580,7 @@ const ProviderPage = () => {
         visible={pricingModalVisible}
         onCancel={() => setPricingModalVisible(false)}
         onOk={submitPricing}
-        width={780}
+        width={1200}
       >
         <Form
           key={editingPricing?.id || `${currentProvider?.id || 0}-new-pricing`}

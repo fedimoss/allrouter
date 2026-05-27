@@ -24,8 +24,6 @@ import {
   Space,
   Spin,
   Table,
-  TabPane,
-  Tabs,
   Tag,
   Typography,
 } from '@douyinfe/semi-ui';
@@ -104,7 +102,6 @@ const Metric = ({ label, value, strong }) => (
 const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
   const { t } = useTranslation();
   const formRef = useRef(null);
-  const [activeTab, setActiveTab] = useState('config');
   const [config, setConfig] = useState(emptyConfig);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(false);
@@ -145,7 +142,6 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
 
   useEffect(() => {
     if (!provider?.id) return;
-    setActiveTab(mode === 'summary' ? 'summary' : 'config');
     loadRewardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider?.id, baseUrl, mode]);
@@ -233,6 +229,9 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
     );
   }
 
+  const showConfig = mode !== 'summary';
+  const showSummary = mode !== 'config';
+
   return (
     <Spin spinning={loading}>
       <div
@@ -255,7 +254,7 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
           <Button icon={<IconRefresh />} onClick={loadRewardData}>
             {t('刷新')}
           </Button>
-          {mode !== 'summary' && activeTab === 'config' ? (
+          {showConfig ? (
             <Button type='primary' loading={saving} onClick={submitConfig}>
               {t('保存配置')}
             </Button>
@@ -263,28 +262,33 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
         </Space>
       </div>
 
-      <Tabs type='line' activeKey={activeTab} onChange={setActiveTab}>
-        {mode !== 'summary' && (
-          <TabPane
-            itemKey='config'
-            tab={
-              <Space>
-                <IconSettingStroked />
-                {t('奖励配置')}
-              </Space>
-            }
+      {showConfig && (
+        <>
+          <Form
+            key={`${provider?.id || 0}-${config?.id || 'default'}-reward-config`}
+            initValues={formValues}
+            getFormApi={(api) => (formRef.current = api)}
+            labelPosition='top'
           >
-            <Form
-              key={`${provider?.id || 0}-${config?.id || 'default'}-reward-config`}
-              initValues={formValues}
-              getFormApi={(api) => (formRef.current = api)}
-              labelPosition='left'
-              labelWidth={160}
+            <div
+              style={{
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 8,
+                padding: '16px 20px',
+                marginBottom: 16,
+                background: '#fff',
+              }}
             >
+              <div style={{ marginBottom: 12, fontWeight: 600 }}>
+                {t('注册与邀请奖励')}
+              </div>
+              <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 12 }}>
+                {t('新用户注册、邀请人及被邀请人获得的奖励额度。')}
+              </Text>
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
                   columnGap: 24,
                 }}
               >
@@ -309,10 +313,35 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
                   step={0.01}
                   precision={6}
                 />
-                <Form.Switch
-                  field='checkin_enabled'
-                  label={t('启用签到奖励')}
-                />
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 8,
+                padding: '16px 20px',
+                marginBottom: 16,
+                background: '#fff',
+              }}
+            >
+              <div style={{ marginBottom: 12, fontWeight: 600 }}>
+                {t('签到奖励')}
+              </div>
+              <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 12 }}>
+                {t('用户每日签到可随机获得的奖励额度范围。')}
+              </Text>
+              <Form.Switch
+                field='checkin_enabled'
+                label={t('启用签到奖励')}
+              />
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                  columnGap: 24,
+                }}
+              >
                 <Form.InputNumber
                   field='checkin_min_quota_amount'
                   label={t('签到最小奖励')}
@@ -328,71 +357,64 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
                   precision={6}
                 />
               </div>
-            </Form>
-            <Text type='secondary'>
+            </div>
+
+            <Text type='secondary' size='small'>
               {t('金额输入会按当前额度显示设置换算为系统原始 quota。')}
             </Text>
-          </TabPane>
-        )}
+          </Form>
+        </>
+      )}
 
-        {mode !== 'config' && (
-          <TabPane
-            itemKey='summary'
-            tab={
-              <Space>
-                <IconHistogram />
-                {t('奖励报表')}
-              </Space>
-            }
+      {showSummary && (
+        <>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: 12,
+              marginBottom: 16,
+            }}
           >
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: 12,
-                marginBottom: 16,
-              }}
-            >
-              <Metric
-                label={t('服务商 ID')}
-                value={
-                  <Tag color='blue'>
-                    {summary.provider_id || provider?.id || '-'}
-                  </Tag>
-                }
-              />
-              <Metric
-                label={t('累计奖励支出')}
-                value={renderQuota(summary.welfare_quota || 0)}
-                strong
-              />
-              <Metric
-                label={t('邀请体系奖励')}
-                value={renderQuota(
-                  (summary.inviter_quota || 0) +
-                    (summary.invitee_quota || 0) +
-                    (summary.consume_rebate_quota || 0) +
-                    (summary.topup_rebate_quota || 0),
-                )}
-              />
-              <Metric
-                label={t('运营活动奖励')}
-                value={renderQuota(
-                  (summary.new_user_quota || 0) +
-                    (summary.checkin_quota || 0) +
-                    (summary.redemption_quota || 0),
-                )}
-              />
-            </div>
-            <Table
-              rowKey='key'
-              columns={summaryColumns}
-              dataSource={summaryRows}
-              pagination={false}
+            <Metric
+              label={t('服务商 ID')}
+              value={
+                <Tag color='blue'>
+                  {summary.provider_id || provider?.id || '-'}
+                </Tag>
+              }
             />
-          </TabPane>
-        )}
-      </Tabs>
+            <Metric
+              label={t('累计奖励支出')}
+              value={renderQuota(summary.welfare_quota || 0)}
+              strong
+            />
+            <Metric
+              label={t('邀请体系奖励')}
+              value={renderQuota(
+                (summary.inviter_quota || 0) +
+                  (summary.invitee_quota || 0) +
+                  (summary.consume_rebate_quota || 0) +
+                  (summary.topup_rebate_quota || 0),
+              )}
+            />
+            <Metric
+              label={t('运营活动奖励')}
+              value={renderQuota(
+                (summary.new_user_quota || 0) +
+                  (summary.checkin_quota || 0) +
+                  (summary.redemption_quota || 0),
+              )}
+            />
+          </div>
+          <Table
+            rowKey='key'
+            columns={summaryColumns}
+            dataSource={summaryRows}
+            pagination={false}
+          />
+        </>
+      )}
     </Spin>
   );
 };

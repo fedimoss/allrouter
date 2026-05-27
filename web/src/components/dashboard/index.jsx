@@ -26,6 +26,7 @@ import DashboardHeader from './DashboardHeader';
 import StatsCards from './StatsCards';
 import ChartsPanel from './ChartsPanel';
 import ApiInfoPanel from './ApiInfoPanel';
+import ConfigurationTutorial from './ConfigurationTutorial';
 import ModelHeatRankingPanel from './ModelHeatRankingPanel';
 import ModelDataAnalysisPanel from './ModelDataAnalysisPanel';
 import AnnouncementsPanel from './AnnouncementsPanel';
@@ -222,7 +223,7 @@ const Dashboard = () => {
             <ModelHeatRankingPanel t={dashboardData.t} className='h-full' />
           </div>
 
-          {dashboardData.hasApiInfoPanel && (
+          {/* {dashboardData.hasApiInfoPanel && (
             <div className='dashboard-v2-overview-side-item dashboard-v2-overview-side-item--api'>
               <ApiInfoPanel
                 apiInfoData={apiInfoData}
@@ -231,7 +232,10 @@ const Dashboard = () => {
                 className='h-full'
               />
             </div>
-          )}
+          )} */}
+
+          {/* 配置教程卡片 */}
+          <ConfigurationTutorial className='h-full' />
         </aside>
       </section>
 

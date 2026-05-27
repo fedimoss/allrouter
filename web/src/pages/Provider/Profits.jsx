@@ -10,6 +10,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
   Coins,
@@ -27,6 +28,7 @@ import { DATE_RANGE_PRESETS } from '../../constants/console.constants';
 import {
   API,
   getTodayStartTimestamp,
+  isAdmin,
   renderQuota,
   showError,
   timestamp2string,
@@ -40,6 +42,11 @@ const { Text, Title } = Typography;
 const ProviderProfitsPage = () => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const providerId = Number(searchParams.get('provider_id') || 0);
+  const providerName = searchParams.get('provider_name') || '';
+  const adminProviderMode = isAdmin() && providerId > 0;
   const [formApi, setFormApi] = useState(null);
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
@@ -79,8 +86,11 @@ const ProviderProfitsPage = () => {
   const loadProfits = async (page = activePage, size = pageSize) => {
     setLoading(true);
     const query = getQueryValues();
+    const apiPath = adminProviderMode
+      ? `/api/provider/admin/${providerId}/profits`
+      : '/api/provider/profits';
     const url = encodeURI(
-      `/api/provider/profits?p=${page}&page_size=${size}&provider_user_id=${query.providerUserId}&model_name=${query.modelName}&request_id=${query.requestId}&start_timestamp=${query.startTimestamp}&end_timestamp=${query.endTimestamp}`,
+      `${apiPath}?p=${page}&page_size=${size}&provider_user_id=${query.providerUserId}&model_name=${query.modelName}&request_id=${query.requestId}&start_timestamp=${query.startTimestamp}&end_timestamp=${query.endTimestamp}`,
     );
     try {
       const res = await API.get(url);
@@ -104,7 +114,7 @@ const ProviderProfitsPage = () => {
 
   useEffect(() => {
     loadProfits(1, pageSize);
-  }, [formApi]);
+  }, [formApi, adminProviderMode, providerId]);
 
   const resetFilters = () => {
     formApi?.reset();
@@ -152,7 +162,9 @@ const ProviderProfitsPage = () => {
         cash,
         reward,
         ratio: '0%',
-        explanation: t('本次应扣金额为 0，系统无法根据金额判断用户使用了哪类余额。'),
+        explanation: t(
+          '本次应扣金额为 0，系统无法根据金额判断用户使用了哪类余额。',
+        ),
       };
     }
     if (cash <= 0) {
@@ -165,7 +177,9 @@ const ProviderProfitsPage = () => {
         cash,
         reward,
         ratio: '0%',
-        explanation: t('用户这次没有使用充值余额，而是用奖励、赠送或活动额度完成调用。这类额度不是用户真实充值产生的现金收入，所以不会直接给服务商结算利润；但调用主站模型仍然会产生真实成本，通常由服务商主账号承担。'),
+        explanation: t(
+          '用户这次没有使用充值余额，而是用奖励、赠送或活动额度完成调用。这类额度不是用户真实充值产生的现金收入，所以不会直接给服务商结算利润；但调用主站模型仍然会产生真实成本，通常由服务商主账号承担。',
+        ),
       };
     }
     if (cash >= total) {
@@ -178,7 +192,9 @@ const ProviderProfitsPage = () => {
         cash,
         reward,
         ratio: '100%',
-        explanation: t('用户这次全部使用充值余额支付。这部分属于真实充值余额消耗，所以如果服务商售价高于主站成本，差额可以完整参与利润结算。'),
+        explanation: t(
+          '用户这次全部使用充值余额支付。这部分属于真实充值余额消耗，所以如果服务商售价高于主站成本，差额可以完整参与利润结算。',
+        ),
       };
     }
     return {
@@ -190,7 +206,9 @@ const ProviderProfitsPage = () => {
       cash,
       reward,
       ratio: percentText(cash, total),
-      explanation: t('用户这次一部分用充值余额支付，一部分用奖励、赠送或活动额度抵扣。系统只按充值余额占比结算利润，奖励额度对应的部分不会产生可结算利润。'),
+      explanation: t(
+        '用户这次一部分用充值余额支付，一部分用奖励、赠送或活动额度抵扣。系统只按充值余额占比结算利润，奖励额度对应的部分不会产生可结算利润。',
+      ),
     };
   };
 
@@ -263,7 +281,11 @@ const ProviderProfitsPage = () => {
         title: 'Request ID',
         dataIndex: 'request_id',
         render: (value) => (
-          <Text copyable ellipsis={{ showTooltip: true }} style={{ maxWidth: 220 }}>
+          <Text
+            copyable
+            ellipsis={{ showTooltip: true }}
+            style={{ maxWidth: 220 }}
+          >
             {value}
           </Text>
         ),
@@ -348,7 +370,8 @@ const ProviderProfitsPage = () => {
   const paymentInfo = getPaymentInfo(detail);
   const paidRatio = paymentInfo.ratio;
   const theoreticalGrossProfit = Math.max(
-    Number(detail.provider_user_quota || 0) - Number(detail.base_cost_quota || 0),
+    Number(detail.provider_user_quota || 0) -
+      Number(detail.base_cost_quota || 0),
     0,
   );
   const grossProfit = getGrossProfitQuota(detail);
@@ -361,9 +384,20 @@ const ProviderProfitsPage = () => {
         <div className='log-v2-shell'>
           <div className='log-v2-stack'>
             <section className='usage-logs-v2-header'>
-              <div className='usage-logs-v2-title'>{t('服务商利润')}</div>
+              <div className='flex flex-wrap items-center justify-between gap-3'>
+                <div className='usage-logs-v2-title'>{t('服务商利润')}</div>
+                {adminProviderMode ? (
+                  <Button onClick={() => navigate('/console/provider')}>
+                    {t('返回服务商列表')}
+                  </Button>
+                ) : null}
+              </div>
               <p className='usage-logs-v2-description'>
-                {t('查看当前服务商下用户调用产生的收费、成本和利润流水。')}
+                {adminProviderMode && providerName
+                  ? t('正在查看服务商：{{name}}', {
+                      name: providerName,
+                    })
+                  : t('查看当前服务商下用户调用产生的收费、成本和利润流水。')}
               </p>
             </section>
 
@@ -375,7 +409,9 @@ const ProviderProfitsPage = () => {
                     className='rounded-xl border border-[var(--lg-border)] bg-[var(--lg-surface)] p-4'
                   >
                     <div className='flex items-center justify-between mb-2'>
-                      <div className='text-xs text-[var(--lg-text-muted)] font-medium'>{item.label}</div>
+                      <div className='text-xs text-[var(--lg-text-muted)] font-medium'>
+                        {item.label}
+                      </div>
                       <div className='text-[var(--lg-text-soft)]'>
                         <Coins size={14} />
                       </div>
@@ -398,7 +434,9 @@ const ProviderProfitsPage = () => {
                 className='usage-logs-v2-filter-form'
               >
                 <div className='usage-logs-v2-filter-header'>
-                  <div className='usage-logs-v2-filter-title'>{t('筛选条件')}</div>
+                  <div className='usage-logs-v2-filter-title'>
+                    {t('筛选条件')}
+                  </div>
                   <div className='usage-logs-v2-filter-actions'>
                     <Button
                       htmlType='submit'
@@ -420,7 +458,9 @@ const ProviderProfitsPage = () => {
                 </div>
                 <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3'>
                   <div className='sm:col-span-2 lg:col-span-1'>
-                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>{t('时间范围')}</div>
+                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>
+                      {t('时间范围')}
+                    </div>
                     <Form.DatePicker
                       field='dateRange'
                       type='dateTimeRange'
@@ -436,7 +476,9 @@ const ProviderProfitsPage = () => {
                     />
                   </div>
                   <div>
-                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>{t('服务商用户 ID')}</div>
+                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>
+                      {t('服务商用户 ID')}
+                    </div>
                     <Form.Input
                       field='provider_user_id'
                       prefix={<IconSearch />}
@@ -447,7 +489,9 @@ const ProviderProfitsPage = () => {
                     />
                   </div>
                   <div>
-                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>{t('模型名称')}</div>
+                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>
+                      {t('模型名称')}
+                    </div>
                     <Form.Input
                       field='model_name'
                       prefix={<IconSearch />}
@@ -458,7 +502,9 @@ const ProviderProfitsPage = () => {
                     />
                   </div>
                   <div>
-                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>Request ID</div>
+                    <div className='text-xs text-[var(--lg-text-muted)] font-medium mb-1'>
+                      Request ID
+                    </div>
                     <Form.Input
                       field='request_id'
                       prefix={<IconSearch />}
@@ -518,13 +564,18 @@ const ProviderProfitsPage = () => {
                 {detail.base_model_name || '-'}
               </Title>
               <Text type='secondary'>
-                {t('这条记录来自服务商用户的一次模型调用。系统会先按服务商售价向用户计费，再按主站真实模型成本计算服务商应承担的成本和可入账的利润。')}
+                {t(
+                  '这条记录来自服务商用户的一次模型调用。系统会先按服务商售价向用户计费，再按主站真实模型成本计算服务商应承担的成本和可入账的利润。',
+                )}
               </Text>
             </Space>
 
             <div style={{ marginTop: 20 }}>
               <Title heading={6}>{t('基础信息')}</Title>
-              {renderInfoRow(t('发生时间'), timestamp2string(detail.created_at))}
+              {renderInfoRow(
+                t('发生时间'),
+                timestamp2string(detail.created_at),
+              )}
               {renderInfoRow(t('服务商用户'), `#${detail.provider_user_id}`)}
               <div
                 style={{
@@ -567,18 +618,36 @@ const ProviderProfitsPage = () => {
                 }}
               >
                 <div>
-                  <Text type='secondary' size='small'>{t('本次应扣')}</Text>
-                  <div style={{ fontWeight: 700 }}>{quotaText(paymentInfo.total)}</div>
+                  <Text type='secondary' size='small'>
+                    {t('本次应扣')}
+                  </Text>
+                  <div style={{ fontWeight: 700 }}>
+                    {quotaText(paymentInfo.total)}
+                  </div>
                 </div>
                 <div>
-                  <Text type='secondary' size='small'>{t('充值余额支付')}</Text>
-                  <div style={{ fontWeight: 700, color: 'var(--semi-color-success)' }}>
+                  <Text type='secondary' size='small'>
+                    {t('充值余额支付')}
+                  </Text>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      color: 'var(--semi-color-success)',
+                    }}
+                  >
                     {quotaText(paymentInfo.cash)}
                   </div>
                 </div>
                 <div>
-                  <Text type='secondary' size='small'>{t('奖励/赠送抵扣')}</Text>
-                  <div style={{ fontWeight: 700, color: 'var(--semi-color-warning)' }}>
+                  <Text type='secondary' size='small'>
+                    {t('奖励/赠送抵扣')}
+                  </Text>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      color: 'var(--semi-color-warning)',
+                    }}
+                  >
                     {quotaText(paymentInfo.reward)}
                   </div>
                 </div>
@@ -593,23 +662,31 @@ const ProviderProfitsPage = () => {
               {renderMoneyRow(
                 t('用户收费'),
                 detail.provider_user_quota,
-                t('服务商用户看到并支付的价格，按服务商自己设置的模型售价计算。'),
+                t(
+                  '服务商用户看到并支付的价格，按服务商自己设置的模型售价计算。',
+                ),
               )}
               {renderMoneyRow(
                 t('主站成本'),
                 detail.base_cost_quota,
-                t('这次调用主站真实模型产生的成本，也就是服务商使用主站资源的成本。'),
+                t(
+                  '这次调用主站真实模型产生的成本，也就是服务商使用主站资源的成本。',
+                ),
                 'cost',
               )}
               {renderMoneyRow(
                 t('充值余额支付'),
                 detail.paid_quota,
-                t('这里只统计用户用充值余额实际支付的部分；奖励余额、赠送额度、活动额度不会直接形成可结算利润。'),
+                t(
+                  '这里只统计用户用充值余额实际支付的部分；奖励余额、赠送额度、活动额度不会直接形成可结算利润。',
+                ),
               )}
               {renderMoneyRow(
                 t('奖励/赠送抵扣'),
                 paymentInfo.reward,
-                t('这是用户本次应扣金额里，没有用充值余额支付的部分。它可以让用户完成调用，但不按现金收入结算利润。'),
+                t(
+                  '这是用户本次应扣金额里，没有用充值余额支付的部分。它可以让用户完成调用，但不按现金收入结算利润。',
+                ),
                 'cost',
               )}
               {renderMoneyRow(
@@ -620,19 +697,25 @@ const ProviderProfitsPage = () => {
               {renderMoneyRow(
                 t('服务商承担'),
                 detail.owner_cost_quota,
-                t('如果用户充值余额支付不足以覆盖主站成本，差额会由服务商主账号余额承担。'),
+                t(
+                  '如果用户充值余额支付不足以覆盖主站成本，差额会由服务商主账号余额承担。',
+                ),
                 'cost',
               )}
               {renderMoneyRow(
                 t('毛利润'),
                 grossProfit,
-                t('服务商售价扣除主站成本后，按充值余额支付占比折算出的分佣前利润。'),
+                t(
+                  '服务商售价扣除主站成本后，按充值余额支付占比折算出的分佣前利润。',
+                ),
                 'profit',
               )}
               {renderMoneyRow(
                 t('一级/二级分佣'),
                 rebateQuota,
-                t('按服务商模型配置的一级、二级分佣比例，从毛利润中扣除后发给邀请人。'),
+                t(
+                  '按服务商模型配置的一级、二级分佣比例，从毛利润中扣除后发给邀请人。',
+                ),
                 'cost',
               )}
               {renderMoneyRow(
@@ -658,7 +741,9 @@ const ProviderProfitsPage = () => {
                   <Text strong>{t('普通理解')}</Text>
                   <div style={{ marginTop: 8 }}>
                     <Text type='secondary'>
-                      {t('可以把它理解成：用户这次应扣多少钱，先看里面有多少是真正的充值余额支付。充值余额支付代表真实现金消耗，可以参与利润结算；奖励、赠送或活动额度只是平台给用户的使用权益，不会直接变成服务商利润。')}
+                      {t(
+                        '可以把它理解成：用户这次应扣多少钱，先看里面有多少是真正的充值余额支付。充值余额支付代表真实现金消耗，可以参与利润结算；奖励、赠送或活动额度只是平台给用户的使用权益，不会直接变成服务商利润。',
+                      )}
                     </Text>
                   </div>
                 </div>
