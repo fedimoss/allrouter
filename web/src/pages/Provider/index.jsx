@@ -1123,45 +1123,49 @@ const ProviderPage = () => {
     {
       title: t('输入价格'),
       dataIndex: 'original_price',
-      render: (value) => formatPriceNumber(value),
+      render: (value, record) => (
+        <Space vertical align='start' spacing={1}>
+          <Text>{t('原价')}：{formatPriceNumber(value)}</Text>
+          <Text>
+            {t('服务商成本价')}：{formatPriceNumber(record.cost_price)}
+          </Text>
+        </Space>
+      ),
     },
     {
       title: t('补全价格'),
       dataIndex: 'completion_price',
       render: (value, record) =>
-        record.quota_type === 0 ? formatPriceNumber(value) : '-',
+        record.quota_type === 0 ? (
+          <Space vertical align='start' spacing={1}>
+            <Text>{t('原价')}：{formatPriceNumber(value)}</Text>
+            <Text>
+              {t('服务商成本价')}：{formatPriceNumber(record.cost_completion_price)}
+            </Text>
+          </Space>
+        ) : (
+          '-'
+        ),
     },
     {
       title: t('缓存读取价格'),
       dataIndex: 'cache_price',
       render: (value, record) =>
-        record.quota_type === 0 && value !== undefined && value !== null
-          ? formatPriceNumber(value)
-          : '-',
+        record.quota_type === 0 && value !== undefined && value !== null ? (
+          <Space vertical align='start' spacing={1}>
+            <Text>{t('原价')}：{formatPriceNumber(value)}</Text>
+            <Text>
+              {t('服务商成本价')}：{formatPriceNumber(record.cost_cache_price)}
+            </Text>
+          </Space>
+        ) : (
+          '-'
+        ),
     },
     {
       title: t('服务商折扣'),
       dataIndex: 'import_price_ratio',
       render: (value) => formatProviderDiscount(value, t),
-    },
-    {
-      title: `${t('输入')} ${t('服务商成本价')}`,
-      dataIndex: 'cost_price',
-      render: (value) => formatPriceNumber(value),
-    },
-    {
-      title: `${t('补全价格')} ${t('服务商成本价')}`,
-      dataIndex: 'cost_completion_price',
-      render: (value, record) =>
-        record.quota_type === 0 ? formatPriceNumber(value) : '-',
-    },
-    {
-      title: `${t('缓存读取价格')} ${t('服务商成本价')}`,
-      dataIndex: 'cost_cache_price',
-      render: (value, record) =>
-        record.quota_type === 0 && value !== undefined && value !== null
-          ? formatPriceNumber(value)
-          : '-',
     },
   ];
 
@@ -1560,7 +1564,7 @@ const ProviderPage = () => {
             </Button>
           </Space>
         }
-        width={1100}
+        width={1200}
       >
         <Table
           rowKey='id'
@@ -1576,7 +1580,7 @@ const ProviderPage = () => {
         visible={pricingModalVisible}
         onCancel={() => setPricingModalVisible(false)}
         onOk={submitPricing}
-        width={780}
+        width={1200}
       >
         <Form
           key={editingPricing?.id || `${currentProvider?.id || 0}-new-pricing`}

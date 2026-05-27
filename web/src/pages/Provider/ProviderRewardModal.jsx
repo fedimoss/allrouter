@@ -25,15 +25,11 @@ import {
   Space,
   Spin,
   Table,
-  TabPane,
-  Tabs,
   Tag,
   Typography,
 } from '@douyinfe/semi-ui';
 import {
-  IconHistogram,
   IconRefresh,
-  IconSettingStroked,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, renderQuota, showError, showSuccess } from '../../helpers';
@@ -111,7 +107,6 @@ const ProviderRewardModal = ({
 }) => {
   const { t } = useTranslation();
   const formRef = useRef(null);
-  const [activeTab, setActiveTab] = useState('config');
   const [config, setConfig] = useState(emptyConfig);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(false);
@@ -153,7 +148,6 @@ const ProviderRewardModal = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    setActiveTab('config');
     loadRewardData();
   }, [isOpen, baseUrl]);
 
@@ -243,146 +237,161 @@ const ProviderRewardModal = ({
       footer={
         <Space>
           <Button onClick={onClose}>{t('关闭')}</Button>
-          {activeTab === 'config' ? (
-            <Button type='primary' loading={saving} onClick={submitConfig}>
-              {t('保存配置')}
-            </Button>
-          ) : (
-            <Button icon={<IconRefresh />} onClick={loadRewardData}>
-              {t('刷新')}
-            </Button>
-          )}
+          <Button type='primary' loading={saving} onClick={submitConfig}>
+            {t('保存配置')}
+          </Button>
         </Space>
       }
       width={980}
     >
       <Spin spinning={loading}>
-        <Tabs type='line' activeKey={activeTab} onChange={setActiveTab}>
-          <TabPane
-            itemKey='config'
-            tab={
-              <Space>
-                <IconSettingStroked />
-                {t('奖励配置')}
-              </Space>
-            }
+        <Form
+          key={`${provider?.id || 0}-${config?.id || 'default'}-reward-config`}
+          initValues={formValues}
+          getFormApi={(api) => (formRef.current = api)}
+          labelPosition='top'
+        >
+          <div
+            style={{
+              border: '1px solid var(--semi-color-border)',
+              borderRadius: 8,
+              padding: '16px 20px',
+              marginBottom: 16,
+              background: '#fff',
+            }}
           >
-            <Form
-              key={`${provider?.id || 0}-${config?.id || 'default'}-reward-config`}
-              initValues={formValues}
-              getFormApi={(api) => (formRef.current = api)}
-              labelPosition='left'
-              labelWidth={160}
-            >
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                  columnGap: 24,
-                }}
-              >
-                <Form.InputNumber
-                  field='quota_for_new_user_amount'
-                  label={t('注册赠送')}
-                  min={0}
-                  step={0.01}
-                  precision={6}
-                />
-                <Form.InputNumber
-                  field='quota_for_invitee_amount'
-                  label={t('被邀请人奖励')}
-                  min={0}
-                  step={0.01}
-                  precision={6}
-                />
-                <Form.InputNumber
-                  field='quota_for_inviter_amount'
-                  label={t('邀请人奖励')}
-                  min={0}
-                  step={0.01}
-                  precision={6}
-                />
-                <Form.Switch
-                  field='checkin_enabled'
-                  label={t('启用签到奖励')}
-                />
-                <Form.InputNumber
-                  field='checkin_min_quota_amount'
-                  label={t('签到最小奖励')}
-                  min={0}
-                  step={0.01}
-                  precision={6}
-                />
-                <Form.InputNumber
-                  field='checkin_max_quota_amount'
-                  label={t('签到最大奖励')}
-                  min={0}
-                  step={0.01}
-                  precision={6}
-                />
-              </div>
-            </Form>
-            <Text type='secondary'>
-              {t('金额输入会按当前额度显示设置换算为系统原始 quota。')}
+            <div style={{ marginBottom: 12, fontWeight: 600 }}>
+              {t('注册与邀请奖励')}
+            </div>
+            <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 12 }}>
+              {t('新用户注册、邀请人及被邀请人获得的奖励额度。')}
             </Text>
-          </TabPane>
-
-          <TabPane
-            itemKey='summary'
-            tab={
-              <Space>
-                <IconHistogram />
-                {t('奖励报表')}
-              </Space>
-            }
-          >
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: 12,
-                marginBottom: 16,
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                columnGap: 24,
               }}
             >
-              <Metric
-                label={t('服务商 ID')}
-                value={
-                  <Tag color='blue'>
-                    {summary.provider_id || provider?.id || '-'}
-                  </Tag>
-                }
+              <Form.InputNumber
+                field='quota_for_new_user_amount'
+                label={t('注册赠送')}
+                min={0}
+                step={0.01}
+                precision={6}
               />
-              <Metric
-                label={t('累计奖励支出')}
-                value={renderQuota(summary.welfare_quota || 0)}
-                strong
+              <Form.InputNumber
+                field='quota_for_invitee_amount'
+                label={t('被邀请人奖励')}
+                min={0}
+                step={0.01}
+                precision={6}
               />
-              <Metric
-                label={t('邀请体系奖励')}
-                value={renderQuota(
-                  (summary.inviter_quota || 0) +
-                    (summary.invitee_quota || 0) +
-                    (summary.consume_rebate_quota || 0) +
-                    (summary.topup_rebate_quota || 0),
-                )}
-              />
-              <Metric
-                label={t('运营活动奖励')}
-                value={renderQuota(
-                  (summary.new_user_quota || 0) +
-                    (summary.checkin_quota || 0) +
-                    (summary.redemption_quota || 0),
-                )}
+              <Form.InputNumber
+                field='quota_for_inviter_amount'
+                label={t('邀请人奖励')}
+                min={0}
+                step={0.01}
+                precision={6}
               />
             </div>
-            <Table
-              rowKey='key'
-              columns={summaryColumns}
-              dataSource={summaryRows}
-              pagination={false}
+          </div>
+
+          <div
+            style={{
+              border: '1px solid var(--semi-color-border)',
+              borderRadius: 8,
+              padding: '16px 20px',
+              marginBottom: 16,
+              background: '#fff',
+            }}
+          >
+            <div style={{ marginBottom: 12, fontWeight: 600 }}>
+              {t('签到奖励')}
+            </div>
+            <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 12 }}>
+              {t('用户每日签到可随机获得的奖励额度范围。')}
+            </Text>
+            <Form.Switch
+              field='checkin_enabled'
+              label={t('启用签到奖励')}
             />
-          </TabPane>
-        </Tabs>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                columnGap: 24,
+              }}
+            >
+              <Form.InputNumber
+                field='checkin_min_quota_amount'
+                label={t('签到最小奖励')}
+                min={0}
+                step={0.01}
+                precision={6}
+              />
+              <Form.InputNumber
+                field='checkin_max_quota_amount'
+                label={t('签到最大奖励')}
+                min={0}
+                step={0.01}
+                precision={6}
+              />
+            </div>
+          </div>
+
+          <Text type='secondary' size='small'>
+            {t('金额输入会按当前额度显示设置换算为系统原始 quota。')}
+          </Text>
+        </Form>
+
+        <div style={{ marginTop: 24 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: 12,
+              marginBottom: 16,
+            }}
+          >
+            <Metric
+              label={t('服务商 ID')}
+              value={
+                <Tag color='blue'>
+                  {summary.provider_id || provider?.id || '-'}
+                </Tag>
+              }
+            />
+            <Metric
+              label={t('累计奖励支出')}
+              value={renderQuota(summary.welfare_quota || 0)}
+              strong
+            />
+            <Metric
+              label={t('邀请体系奖励')}
+              value={renderQuota(
+                (summary.inviter_quota || 0) +
+                  (summary.invitee_quota || 0) +
+                  (summary.consume_rebate_quota || 0) +
+                  (summary.topup_rebate_quota || 0),
+              )}
+            />
+            <Metric
+              label={t('运营活动奖励')}
+              value={renderQuota(
+                (summary.new_user_quota || 0) +
+                  (summary.checkin_quota || 0) +
+                  (summary.redemption_quota || 0),
+              )}
+            />
+          </div>
+          <Table
+            rowKey='key'
+            columns={summaryColumns}
+            dataSource={summaryRows}
+            pagination={false}
+          />
+        </div>
       </Spin>
     </Modal>
   );
