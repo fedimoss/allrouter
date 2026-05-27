@@ -3809,7 +3809,7 @@
     "注册账号": "Register Account",
     "6 位验证码": "6-digit Verification Code",
     "点击注册即代表您同意我们的": "By clicking register, you agree to our",
-    "电子邮箱": "Email",
+    "电子邮箱 / 用户名": "Email / Username",
     "默认展示 {{range}} 内的数据。": " Default display data within {{range}}.",
     "搜索 API Key...": "Search API Key...",
     "响应正常": "Response normal",

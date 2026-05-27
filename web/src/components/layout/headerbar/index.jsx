@@ -145,18 +145,24 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
           <div
             className={`landing-v2-nav-links ${location.pathname === '/pricing' ? 'nav-left' : ''}`}
           >
-            <Link to='/'>{t('首页')}</Link>
-            <Link to={consoleNavTarget}>{t('控制台')}</Link>
-            <Link to={pricingNavTarget} className='landing-v2-nav-link-active'>
+            <Link to='/' className={location.pathname === '/' ? 'landing-v2-nav-link-active' : ''}>
+              {t('首页')}
+            </Link>
+            <Link to={consoleNavTarget} className={location.pathname === '/console' ? 'landing-v2-nav-link-active' : ''}>
+              {t('控制台')}
+            </Link>
+            <Link to={pricingNavTarget} className={location.pathname === '/pricing' ? 'landing-v2-nav-link-active' : ''}>
               {t('模型广场')}
             </Link>
-            <Link to='/agent-partner'>
+            <Link to='/agent-partner' className={location.pathname === '/agent-partner' ? 'landing-v2-nav-link-active' : ''}>
               {t('代理加盟')}
             </Link>
-            <a href={docsHref} target='_blank' rel='noreferrer'>
+            <a href={docsHref} target='_blank' rel='noreferrer' className={location.pathname === '/docs' ? 'landing-v2-nav-link-active' : ''}>
               {t('文档')}
             </a>
-            <Link to='/about'>{t('关于')}</Link>
+            <Link to='/about' className={location.pathname === '/about' ? 'landing-v2-nav-link-active' : ''}>
+              {t('关于')}
+            </Link>
           </div>
 
           <div className='landing-v2-nav-actions'>
