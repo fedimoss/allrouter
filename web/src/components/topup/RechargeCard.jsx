@@ -246,18 +246,31 @@ const RechargeCard = ({
     stripeCurrency,
   ]);
 
-  // 切换到 Stripe 支付时，若当前充值金额低于 Stripe 最低要求，自动修正为最低金额
+  const prevInputMinTopUpRef = useRef(inputMinTopUp);
+  // 支付方式切换时，根据最低充值金额自动修正当前输入值
   useEffect(() => {
-    if (fallbackInputPaymentType !== 'stripe') return;
+    const prevMin = prevInputMinTopUpRef.current;
     const currentValue = Number(topUpCount || 0);
-    if (!currentValue || currentValue >= inputMinTopUp) return;
 
-    setTopUpCount(inputMinTopUp);
-    setSelectedPreset(null);
-    onlineFormApiRef.current?.setValue('topUpCount', inputMinTopUp);
+    if (inputMinTopUp > prevMin) {
+      // 最低金额变大了（如切换到 Stripe CNY），当前值低于新下限则拉高
+      if (currentValue && currentValue < inputMinTopUp) {
+        setTopUpCount(inputMinTopUp);
+        setSelectedPreset(null);
+        onlineFormApiRef.current?.setValue('topUpCount', inputMinTopUp);
+      }
+    } else if (inputMinTopUp < prevMin) {
+      // 最低金额变小了（如从 Stripe 切换到微信），当前值恰好等于旧下限则重置到新下限
+      if (currentValue && currentValue === prevMin) {
+        setTopUpCount(inputMinTopUp);
+        setSelectedPreset(null);
+        onlineFormApiRef.current?.setValue('topUpCount', inputMinTopUp);
+      }
+    }
+
+    prevInputMinTopUpRef.current = inputMinTopUp;
   }, [
-    fallbackInputPaymentType,
-    inputMinTopUp,
+        inputMinTopUp,
     setSelectedPreset,
     setTopUpCount,
   ]);
