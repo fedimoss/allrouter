@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useRef } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Avatar, Button, Dropdown } from '@douyinfe/semi-ui';
@@ -31,6 +31,23 @@ const SidebarUserPanel = ({ collapsed }) => {
   const [userState, userDispatch] = useContext(UserContext);
   const navigate = useNavigate();
   const userMenuAnchorRef = useRef(null);
+  const avatarUrl = userState?.user?.avatar;
+  const [imgLoaded, setImgLoaded] = useState(false);
+
+  useEffect(() => {
+    if (avatarUrl) {
+      setImgLoaded(false);
+      const img = new Image();
+      img.onload = () => setImgLoaded(true);
+      img.onerror = () => setImgLoaded(true);
+      img.src = avatarUrl;
+    }
+  }, [avatarUrl]);
+
+  // 有自定义头像URL且已预加载完成 → 显示自定义头像
+  // 有自定义头像URL但未加载完 → 不设置src，Semi Avatar 会显示 children（用户名首字母）
+  // 没有自定义头像URL → 显示默认头像
+  const avatarSrc = avatarUrl ? (imgLoaded ? avatarUrl : undefined) : defaultAvatar;
 
   if (!userState?.user) {
     return null;
@@ -82,8 +99,10 @@ const SidebarUserPanel = ({ collapsed }) => {
             <Avatar
               size='small'
               className='sidebar-user-avatar'
-              src={userState.user.avatar || defaultAvatar}
-            />
+              src={avatarSrc}
+            >
+              {userState.user.username?.[0]?.toUpperCase()}
+            </Avatar>
             {!collapsed && (
               <div className='sidebar-user-meta'>
                 <div className='sidebar-user-name'>{userState.user.username}</div>
