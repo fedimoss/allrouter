@@ -937,6 +937,23 @@ const PersonalSetting = () => {
   };
 
   const displayName = currentUser?.username || profileInputs.username || '-';
+  const avatarUrl = profileInputs.avatar;
+  const isCustomAvatar = avatarUrl && avatarUrl !== defaultAvatar;
+  const [avatarImgLoaded, setAvatarImgLoaded] = useState(false);
+
+  useEffect(() => {
+    if (isCustomAvatar) {
+      setAvatarImgLoaded(false);
+      const img = new Image();
+      img.onload = () => setAvatarImgLoaded(true);
+      img.onerror = () => setAvatarImgLoaded(true);
+      img.src = avatarUrl;
+    } else {
+      setAvatarImgLoaded(false);
+    }
+  }, [avatarUrl, isCustomAvatar]);
+
+  const avatarSrc = isCustomAvatar && avatarImgLoaded ? avatarUrl : undefined;
   const localTimeLabel = useMemo(() => {
     if (typeof Intl === 'undefined') {
       return '-';
@@ -993,8 +1010,10 @@ const PersonalSetting = () => {
                         size='large'
                         shape='square'
                         hoverMask={hoverMask}
-                        src={profileInputs.avatar || defaultAvatar}
-                      />
+                        src={avatarSrc}
+                      >
+                        {displayName?.[0]?.toUpperCase()}
+                      </Avatar>
                     </Upload>
                     <div className='min-w-0'>
                       <div className='personal-v3-profile-name'>{displayName}</div>

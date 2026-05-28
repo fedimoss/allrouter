@@ -44,10 +44,7 @@ const SidebarUserPanel = ({ collapsed }) => {
     }
   }, [avatarUrl]);
 
-  // 有自定义头像URL且已预加载完成 → 显示自定义头像
-  // 有自定义头像URL但未加载完 → 不设置src，Semi Avatar 会显示 children（用户名首字母）
-  // 没有自定义头像URL → 显示默认头像
-  const avatarSrc = avatarUrl ? (imgLoaded ? avatarUrl : undefined) : defaultAvatar;
+  const avatarSrc = avatarUrl && imgLoaded ? avatarUrl : undefined;
 
   if (!userState?.user) {
     return null;
