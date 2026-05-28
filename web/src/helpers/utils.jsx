@@ -58,13 +58,13 @@ export function isProviderOwner() {
 
 export function getSystemName() {
   let system_name = localStorage.getItem('system_name');
-  if (!system_name) return 'All Router';
+  // if (!system_name) return 'All Router';
   return system_name;
 }
 
 export function getLogo() {
   let logo = localStorage.getItem('logo');
-  if (!logo) return '/logo-white.svg';
+  // if (!logo) return '/logo-white.svg';
   return logo;
 }
 
