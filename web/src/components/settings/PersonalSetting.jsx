@@ -1219,7 +1219,7 @@ const PersonalSetting = () => {
                   </div>
 
                   <div className='personal-v3-note-banner personal-v3-note-banner-compact'>
-                    <strong>{t('当前通知目标')}：</strong>
+                    <strong>{t('当前通知目标：')}：</strong>
                     {notificationTargetSummary}
                   </div>
 
@@ -1476,9 +1476,7 @@ const PersonalSetting = () => {
                       <div>
                         <h4>{t('已绑定方式')}</h4>
                         <p>
-                          {t('{{count}} 项登录或通知方式已绑定', {
-                            count: boundAccountCount,
-                          })}
+                          {boundAccountCount}{t('项登录或通知方式已绑定')}
                         </p>
                       </div>
                       <span className='personal-v3-session-badge'>
