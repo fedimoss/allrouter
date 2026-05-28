@@ -185,7 +185,7 @@ const PersonalSetting = () => {
   const [status, setStatus] = useState({});
   const [profileInputs, setProfileInputs] = useState({
     username: '',
-    avatar: logo,
+    avatar: '',
     phone_country_code: '+86',
     phone_number: '',
     timezone: '',
