@@ -118,8 +118,8 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     return {
       [COLUMN_KEYS.TIME]: true,
       [COLUMN_KEYS.CHANNEL]: false,
-      [COLUMN_KEYS.USERNAME]: false,
-      [COLUMN_KEYS.TOKEN]: true,
+      [COLUMN_KEYS.USERNAME]: true,
+      [COLUMN_KEYS.TOKEN]: false,
       [COLUMN_KEYS.GROUP]: true,
       [COLUMN_KEYS.TYPE]: true,
       [COLUMN_KEYS.MODEL]: true,
@@ -128,34 +128,9 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       [COLUMN_KEYS.COMPLETION]: true,
       [COLUMN_KEYS.COST]: true,
       [COLUMN_KEYS.RETRY]: false,
-      [COLUMN_KEYS.IP]: true,
+      [COLUMN_KEYS.IP]: false,
       [COLUMN_KEYS.DETAILS]: true,
     };
-  };
-
-  const getInitialVisibleColumns = () => {
-    const defaults = getDefaultColumnVisibility();
-    const savedColumns = localStorage.getItem(STORAGE_KEY);
-
-    if (!savedColumns) {
-      return defaults;
-    }
-
-    try {
-      const parsed = JSON.parse(savedColumns);
-      const merged = { ...defaults, ...parsed };
-
-      if (!isAdminUser && !isProviderScope) {
-        merged[COLUMN_KEYS.CHANNEL] = false;
-        merged[COLUMN_KEYS.USERNAME] = false;
-        merged[COLUMN_KEYS.RETRY] = false;
-      }
-
-      return merged;
-    } catch (e) {
-      console.error('Failed to parse saved column preferences', e);
-      return defaults;
-    }
   };
 
   const getInitialBillingDisplayMode = () => {
@@ -169,7 +144,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(getDefaultColumnVisibility);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -226,13 +201,6 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
 
     setVisibleColumns(updatedColumns);
   };
-
-  // Persist column settings to the role-specific STORAGE_KEY
-  useEffect(() => {
-    if (Object.keys(visibleColumns).length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleColumns));
-    }
-  }, [visibleColumns]);
 
   useEffect(() => {
     localStorage.setItem(BILLING_DISPLAY_MODE_STORAGE_KEY, billingDisplayMode);
