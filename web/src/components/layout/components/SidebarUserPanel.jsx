@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Avatar, Button, Dropdown } from '@douyinfe/semi-ui';
+import { Avatar, Button, Dropdown, Skeleton } from '@douyinfe/semi-ui';
 import { IconExit, IconUserSetting } from '@douyinfe/semi-icons';
 import { API, renderQuota, showSuccess, stringToColor, formatDisplayMoney } from '../../../helpers';
 import { UserContext } from '../../../context/User';
@@ -33,7 +33,13 @@ const SidebarUserPanel = ({ collapsed }) => {
   const userMenuAnchorRef = useRef(null);
 
   if (!userState?.user) {
-    return null;
+    return (
+      <div className='sidebar-user-section'>
+        <div className='sidebar-user-dropdown-anchor'>
+          <Skeleton.Title style={{ width: collapsed ? 32 : 160, height: 32 }} />
+        </div>
+      </div>
+    );
   }
 
   const handleLogout = async () => {
@@ -100,4 +106,3 @@ const SidebarUserPanel = ({ collapsed }) => {
 };
 
 export default SidebarUserPanel;
-
