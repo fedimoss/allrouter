@@ -821,6 +821,16 @@ const ProviderPage = () => {
     }
   };
 
+  const deleteProvider = async (provider) => {
+    const res = await API.delete(`/api/provider/admin/${provider.id}/permanent`);
+    if (res.data.success) {
+      showSuccess(t('已删除服务商'));
+      fetchProviders();
+    } else {
+      showError(res.data.message);
+    }
+  };
+
   const columns = useMemo(
     () =>
       [
@@ -923,7 +933,7 @@ const ProviderPage = () => {
         },
         {
           title: t('操作'),
-          width: adminMode ? 420 : 300,
+          width: adminMode ? 500 : 300,
           render: (_, record) => (
             <Space wrap>
               <Button
@@ -979,6 +989,19 @@ const ProviderPage = () => {
                     <Button size='small'>{t('启用')}</Button>
                   </Popconfirm>
                 )
+              ) : null}
+              {adminMode ? (
+                <Popconfirm
+                  title={t('确认删除该服务商？')}
+                  content={t(
+                    '删除后会移除服务商、域名、页面配置、模型定价和奖励配置。已有服务商用户时不能删除。',
+                  )}
+                  onConfirm={() => deleteProvider(record)}
+                >
+                  <Button size='small' type='danger' icon={<IconDelete />}>
+                    {t('删除')}
+                  </Button>
+                </Popconfirm>
               ) : null}
             </Space>
           ),
