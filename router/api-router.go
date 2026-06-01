@@ -402,6 +402,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.POST("/", controller.AdminCreateProvider)
 			providerAdminRoute.PUT("/:id", controller.AdminUpdateProvider)
 			providerAdminRoute.DELETE("/:id", controller.AdminDisableProvider)
+			providerAdminRoute.DELETE("/:id/permanent", controller.AdminDeleteProvider)
 			providerAdminRoute.PUT("/:id/enable", controller.AdminEnableProvider)
 			providerAdminRoute.POST("/logo", controller.AdminUploadProviderLogo)
 			providerAdminRoute.PUT("/:id/config", controller.AdminUpsertProviderConfig)
