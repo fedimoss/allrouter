@@ -137,6 +137,8 @@ const TopUp = () => {
           title: t('兑换成功！'),
           content: t('成功兑换额度：') + renderQuota(data),
           centered: true,
+          okText: t('确定'),
+          cancelText: t('取消'),
         });
         if (userState.user) {
           const updatedUser = {

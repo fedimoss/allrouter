@@ -457,6 +457,8 @@ const renderOperations = (
                 await refresh();
               })();
             },
+            okText: t('确定'),
+            cancelText: t('取消'),
           });
         }}
       >

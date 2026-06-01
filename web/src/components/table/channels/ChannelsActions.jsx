@@ -74,6 +74,8 @@ const ChannelsActions = ({
                 title: t('确定是否要删除所选通道？'),
                 content: t('此修改将不可逆'),
                 onOk: () => batchDeleteChannels(),
+                okText: t('确定'),
+                cancelText: t('取消'),
               });
             }}
           >
@@ -109,6 +111,8 @@ const ChannelsActions = ({
                         onOk: () => testAllChannels(),
                         size: 'small',
                         centered: true,
+                        okText: t('确定'),
+                        cancelText: t('取消'),
                       });
                     }}
                   >
@@ -126,6 +130,8 @@ const ChannelsActions = ({
                           '进行该操作时，可能导致渠道访问错误，请仅在数据库出现问题时使用',
                         ),
                         onOk: () => fixChannelsAbilities(),
+                        okText: t('确定'),
+                        cancelText: t('取消'),
                         size: 'sm',
                         centered: true,
                       });
@@ -146,6 +152,8 @@ const ChannelsActions = ({
                         onOk: () => updateAllChannelsBalance(),
                         size: 'sm',
                         centered: true,
+                        okText: t('确定'),
+                        cancelText: t('取消'),
                       });
                     }}
                   >
@@ -166,6 +174,8 @@ const ChannelsActions = ({
                         onOk: () => detectAllUpstreamUpdates(),
                         size: 'sm',
                         centered: true,
+                        okText: t('确定'),
+                        cancelText: t('取消'),
                       });
                     }}
                   >
@@ -186,6 +196,8 @@ const ChannelsActions = ({
                         onOk: () => applyAllUpstreamUpdates(),
                         size: 'sm',
                         centered: true,
+                        okText: t('确定'),
+                        cancelText: t('取消'),
                       });
                     }}
                   >
@@ -204,6 +216,8 @@ const ChannelsActions = ({
                         onOk: () => deleteAllDisabledChannels(),
                         size: 'sm',
                         centered: true,
+                        okText: t('确定'),
+                        cancelText: t('取消'),
                       });
                     }}
                   >

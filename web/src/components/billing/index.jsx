@@ -417,6 +417,8 @@ const Billing = () => {
     Modal.confirm({
       title: t('确认补单'),
       content: t('是否将该订单标记为成功并为用户入账？'),
+      okText: t('确定'),
+      cancelText: t('取消'),
       onOk: () => handleAdminComplete(tradeNo),
     });
   };

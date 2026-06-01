@@ -965,6 +965,8 @@ function TokensPage() {
         await tokensData.manageToken(record.id, 'delete', record);
         await refreshCurrentView();
       },
+      okText: t('确定'),
+      cancelText: t('取消'),
     });
   };
 

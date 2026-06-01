@@ -166,7 +166,7 @@ function ConfigRow({ label, value, field, copied, onCopy }) {
   );
 }
 
-function OsTabBar({ active, onChange }) {
+function OsTabBar({ active, onChange, t }) {
   return (
     <div className="flex gap-1 mb-4 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-fit">
       {OS_TABS.map((tab) => (
@@ -180,7 +180,7 @@ function OsTabBar({ active, onChange }) {
           }`}
           type="button"
         >
-          {tab.label}
+          {t ? t(tab.label) : tab.label}
         </button>
       ))}
     </div>
@@ -341,7 +341,7 @@ function ClaudeCodePanel() {
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
         <SectionTitle>{t('终端配置指南')}</SectionTitle>
-        <OsTabBar active={osTab} onChange={setOsTab} />
+        <OsTabBar active={osTab} onChange={setOsTab} t={t} />
         <div className="space-y-4">
           <CodeBlockInner
             label={t('临时设置（当前终端会话有效）')}
@@ -485,7 +485,7 @@ env_key = "PACKYCODE_API_KEY"`;
       {/* 设置环境变量 */}
       <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
         <SectionTitle>{t('设置环境变量')}</SectionTitle>
-        <OsTabBar active={osTab} onChange={setOsTab} />
+        <OsTabBar active={osTab} onChange={setOsTab} t={t} />
         <div className="space-y-4">
           <CodeBlockInner
             label={t('临时设置（当前终端会话有效）')}
@@ -602,7 +602,7 @@ export default function ConfigurationTutorial({ className }) {
               style={activeTab === tab.key ? { background: 'var(--theme-primary-10)', color: 'var(--theme-primary)' } : undefined}
               type="button"
             >
-              {tab.label}
+              {t(tab.label)}
             </button>
           ))}
         </div>
@@ -654,7 +654,7 @@ export default function ConfigurationTutorial({ className }) {
                     style={panelTab === tab.key ? { color: 'var(--theme-primary)' } : undefined}
                     type="button"
                   >
-                    {tab.label}
+                    {t(tab.label)}
                     {panelTab === tab.key && (
                       <span
                         className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
