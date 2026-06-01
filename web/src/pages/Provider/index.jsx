@@ -911,6 +911,7 @@ const ProviderPage = () => {
         },
         {
           title: t('页面配置'),
+          width: 120,
           dataIndex: 'config',
           render: (config) => (
             <Text>
@@ -933,7 +934,7 @@ const ProviderPage = () => {
         },
         {
           title: t('操作'),
-          width: adminMode ? 500 : 300,
+          width: 300,
           render: (_, record) => (
             <Space wrap>
               <Button
