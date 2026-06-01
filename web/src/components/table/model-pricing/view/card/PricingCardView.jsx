@@ -313,7 +313,7 @@ const PricingCardView = ({
                 </div>
 
                 <p className='pricing-market-desktop-card-description'>
-                  {model.description || `${model.vendor_name || t('通用')} ${t('最新模型，适合多轮对话、推理与生产环境调用。')}`}
+                  {t(model.description) || `${model.vendor_name || t('通用')} ${t('最新模型，适合多轮对话、推理与生产环境调用。')}`}
                 </p>
 
                 {/* <div className='pricing-market-desktop-card-tags'>
