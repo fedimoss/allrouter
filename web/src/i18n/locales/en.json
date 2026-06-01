@@ -4555,6 +4555,8 @@
     "适用于代码开发、高并发 AI 编程服务与轻量化开发 Agent 场景，重点优化低延迟与资源消耗。": "Suitable for code development, high-concurrency AI programming services, and lightweight development Agent scenarios. Focuses on optimizing low latency and resource consumption.",
     "适用于 AI 图片生成、广告设计、视觉创作与数字内容生产场景，可用于多模态创意工作流。": "Suitable for AI image generation, advertising design, visual creation, and digital content production scenarios. Can be used for multi-modal creative workflows.",
     "适用于中文 AI Agent、企业办公与智能客服场景，可结合飞书龙虾与 OpenClaw 构建中文自动化工作流。": "Suitable for Chinese AI Agents, enterprise office work, and intelligent customer service scenarios. Can be combined with Feishu Longxia and OpenClaw to build Chinese automated workflows.",
+    "适用于前端代码开发、实时聊天、AI 搜索与移动端 AI 应用场景，适合构建高并发轻量化 AI 服务。": "Suitable for front-end code development, real-time chat, AI search, and mobile AI application scenarios. Suitable for building high-concurrency lightweight AI services.",
+    "Google最新Gemma开源模型系列，Fedimoss推理优化支持Google Gemma Open Source Series Models, Inference Optimization Powered by Fedimoss AI": "Google's latest Gemma open-source model series, inference optimization supported by Fedimoss AI",
     "配置教程": "Configuration Tutorial",
     "查看更多": "View More",
     "基础配置": "Basic Configuration",
@@ -4624,6 +4626,9 @@
     "未使用": "Not Used",
     "注册与邀请奖励": "Registration and Invitation Bonuses",
     "新用户注册、邀请人及被邀请人获得的奖励额度。": "Reward amount for new user registration, inviter, and invitee.",
-    "用户每日签到可随机获得的奖励额度范围。": "Range of reward amounts users can randomly receive for daily check-ins."
+    "用户每日签到可随机获得的奖励额度范围。": "Range of reward amounts users can randomly receive for daily check-ins.",
+    "已兑换": "Exchanged",
+    "已到账": "Arrived",
+    "自定义(秒)": "Custom(seconds)"
   }
 }

@@ -413,7 +413,7 @@ const AddEditSubscriptionModal = ({
                       >
                         {durationUnitOptions.map((o) => (
                           <Select.Option key={o.value} value={o.value}>
-                            {o.label}
+                            {t(o.label)}
                           </Select.Option>
                         ))}
                       </Form.Select>
@@ -473,7 +473,7 @@ const AddEditSubscriptionModal = ({
                       >
                         {resetPeriodOptions.map((o) => (
                           <Select.Option key={o.value} value={o.value}>
-                            {o.label}
+                            {t(o.label)}
                           </Select.Option>
                         ))}
                       </Form.Select>

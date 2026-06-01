@@ -263,7 +263,8 @@ export const useMjLogsData = () => {
     } else {
       Modal.error({
         title: t('无法复制到剪贴板，请手动复制'),
-        content: text, okText: t('确定'),
+        content: text,
+        okText: t('确定'),
         cancelText: t('取消')
       });
     }

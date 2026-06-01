@@ -965,8 +965,8 @@ function TokensPage() {
         await tokensData.manageToken(record.id, 'delete', record);
         await refreshCurrentView();
       },
-      okText: t('确定'),
-      cancelText: t('取消'),
+      okText: tokensData.t('确定'),
+      cancelText: tokensData.t('取消'),
     });
   };
 
@@ -1217,7 +1217,7 @@ function TokensPage() {
                           </td>
                           <td className='token-v2-col-group'>
                             <span className='token-v2-group-chip'>
-                              {getGroupLabel(record, groupLabelMap, tokensData.t)}
+                              {tokensData.t(getGroupLabel(record, groupLabelMap, tokensData.t))}
                             </span>
                           </td>
                           <td className='token-v2-col-key'>

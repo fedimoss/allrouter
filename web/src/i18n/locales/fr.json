@@ -4479,6 +4479,7 @@
     "适用于代码开发、高并发 AI 编程服务与轻量化开发 Agent 场景，重点优化低延迟与资源消耗。": "Adapté aux scénarios de développement de code, services de programmation IA à haut débit et agents de développement légers. Se concentre sur l'optimisation de la latence faible et de la consommation des ressources.",
     "适用于 AI 图片生成、广告设计、视觉创作与数字内容生产场景，可用于多模态创意工作流。": "Adapté aux scénarios de génération d'images IA, conception publicitaire, création visuelle et production de contenu numérique. Peut être utilisé pour des flux de travail créatifs multi-modaux.",
     "适用于中文 AI Agent、企业办公与智能客服场景，可结合飞书龙虾与 OpenClaw 构建中文自动化工作流。": "Adapté aux scénarios d'agents IA chinois, bureau d'entreprise et service client intelligent. Peut être combiné avec Feishu Longxia et OpenClaw pour construire des flux de travail automatisés en chinois.",
+    "Google最新Gemma开源模型系列，Fedimoss推理优化支持Google Gemma Open Source Series Models, Inference Optimization Powered by Fedimoss AI": "Google Gemma Open Source Series Models, Inference Optimization Powered by Fedimoss AI",
     "配置教程": "Tutoriel de configuration",
     "查看更多": "Voir plus",
     "基础配置": "Configuration de base",
@@ -4548,6 +4549,11 @@
     "未使用": "Non utilisé",
     "注册与邀请奖励": "Récompenses de inscription et d'invitation",
     "新用户注册、邀请人及被邀请人获得的奖励额度。": "Montant de récompense pour la nouvelle inscription, l'invitant et l'invité.",
-    "用户每日签到可随机获得的奖励额度范围。": "Plage de montants de récompense que les utilisateurs peuvent recevoir aléatoirement pour leur check-in quotidien."
+    "用户每日签到可随机获得的奖励额度范围。": "Plage de montants de récompense que les utilisateurs peuvent recevoir aléatoirement pour leur check-in quotidien.",
+    "默认分组": "Groupe par défaut",
+    "已兑换": "Échangé",
+    "已到账": "Reçu",
+    "自定义(秒)": "Personnalisé (secondes)"
+
   }
 }

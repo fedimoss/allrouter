@@ -5009,6 +5009,7 @@
     "适用于代码开发、高并发 AI 编程服务与轻量化开发 Agent 场景，重点优化低延迟与资源消耗。": "Phương pháp áp dụng cho việc phát triển mã, dịch vụ lập trình AI cao độ và các kịch bản Agent phát triển nhẹ, tập trung vào tối ưu hóa độ trễ thấp và tiêu thụ tài nguyên.",
     "适用于 AI 图片生成、广告设计、视觉创作与数字内容生产场景，可用于多模态创意工作流。": "Phương pháp áp dụng cho việc sinh hình ảnh AI, thiết kế quảng cáo, sáng tạo thị giác và sản xuất nội dung kỹ thuật số, có thể được sử dụng cho quy trình sáng tạo đa mô thức.",
     "适用于中文 AI Agent、企业办公与智能客服场景，可结合飞书龙虾与 OpenClaw 构建中文自动化工作流。": "Phương pháp áp dụng cho việc sử dụng Agent AI tiếng Trung, văn phòng doanh nghiệp và các kịch bản dịch vụ khách hàng thông minh, có thể kết hợp với飞书龙虾 và OpenClaw để xây dựng quy trình tự động hóa tiếng Trung.",
+    "Google最新Gemma开源模型系列，Fedimoss推理优化支持Google Gemma Open Source Series Models, Inference Optimization Powered by Fedimoss AI": "Google mới nhất Gemma loạt mô hình nguồn mở, hỗ trợ tối ưu hóa suy luận Fedimoss AI",
     "配置教程": "Hướng dẫn cấu hình",
     "查看更多": "Xem thêm",
     "基础配置": "Cấu hình cơ bản",
@@ -5077,6 +5078,10 @@
     "未使用": "Chưa sử dụng",
     "注册与邀请奖励": "Phần thưởng đăng ký và mời gọi",
     "新用户注册、邀请人及被邀请人获得的奖励额度。": "Số lượng phần thưởng mà người dùng mới, người mời và người được mời có thể nhận được.",
-    "用户每日签到可随机获得的奖励额度范围。": "Khoảng số lượng phần thưởng mà người dùng có thể nhận được mỗi ngày."
+    "用户每日签到可随机获得的奖励额度范围。": "Khoảng số lượng phần thưởng mà người dùng có thể nhận được mỗi ngày.",
+    "默认分组": "Nhóm mặc định",
+    "已兑换": "Đã đổi",
+    "已到账": "Đã đến",
+    "自定义(秒)": "Tùy chỉnh (giây)"
   }
 }

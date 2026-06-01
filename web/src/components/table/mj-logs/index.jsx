@@ -18,13 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Empty, ImagePreview, Modal } from '@douyinfe/semi-ui';
+import { DatePicker, Empty, ImagePreview, Modal } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import {
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Columns3,
@@ -40,6 +39,7 @@ import {
 } from 'lucide-react';
 import { timestamp2string } from '../../../helpers';
 import { useMjLogsData } from '../../../hooks/mj-logs/useMjLogsData';
+import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
@@ -68,22 +68,6 @@ const createDefaultFilters = (formInitValues) =>
     mj_id: formInitValues?.mj_id || '',
     dateRange: Array.isArray(formInitValues?.dateRange) ? formInitValues.dateRange : ['', ''],
   });
-
-const toDateTimeLocalValue = (value) => (value ? String(value).replace(' ', 'T') : '');
-const fromDateTimeLocalValue = (value) => {
-  if (!value) return '';
-  const normalized = String(value).replace('T', ' ');
-  return normalized.length === 16 ? `${normalized}:00` : normalized;
-};
-
-const handleDateTimeInputClick = (event) => {
-  const input = event.currentTarget;
-  if (typeof input?.showPicker === 'function') {
-    try {
-      input.showPicker();
-    } catch (_) {}
-  }
-};
 
 const toSeconds = (value) => {
   const parsed = Number(value);
@@ -264,12 +248,19 @@ const MjLogsPage = () => {
     setFiltersAndSync({ ...filtersRef.current, [field]: value });
   };
 
-  const onDateChange = (index, value) => {
-    const nextRange = Array.isArray(filtersRef.current.dateRange)
-      ? [...filtersRef.current.dateRange]
-      : ['', ''];
-    nextRange[index] = fromDateTimeLocalValue(value);
-    setFiltersAndSync({ ...filtersRef.current, dateRange: nextRange });
+  const dateRangeToValue = (dateRange) => {
+    if (!Array.isArray(dateRange) || dateRange.length !== 2) return undefined;
+    const [start, end] = dateRange;
+    if (!start || !end) return undefined;
+    const startDate = new Date(start.replace(' ', 'T'));
+    const endDate = new Date(end.replace(' ', 'T'));
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return undefined;
+    return [startDate, endDate];
+  };
+
+  const formatDateToString = (date) => {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   };
 
   const openTextPreview = (title, content) => {
@@ -717,26 +708,23 @@ const MjLogsPage = () => {
               >
                 <div className='mjlog-v2-filter-row'>
                   <div className='mjlog-v2-filter-grid'>
-                    <label className='mjlog-v2-filter-field mjlog-v2-filter-field-range'>
-                      <CalendarDays size={16} />
-                      <div className='mjlog-v2-range-wrap'>
-                        <input
-                          type='datetime-local'
-                          step='1'
-                          value={toDateTimeLocalValue(filters.dateRange?.[0])}
-                          onClick={handleDateTimeInputClick}
-                          onChange={(event) => onDateChange(0, event.target.value)}
-                        />
-                        <span className='mjlog-v2-range-separator'>→</span>
-                        <input
-                          type='datetime-local'
-                          step='1'
-                          value={toDateTimeLocalValue(filters.dateRange?.[1])}
-                          onClick={handleDateTimeInputClick}
-                          onChange={(event) => onDateChange(1, event.target.value)}
-                        />
-                      </div>
-                    </label>
+                    <DatePicker
+                      type='dateTimeRange'
+                      className='mjlog-v2-filter-field mjlog-v2-filter-field-range'
+                      value={dateRangeToValue(filters.dateRange)}
+                      placeholder={[logsData.t('开始时间'), logsData.t('结束时间')]}
+                      showClear
+                      onChange={(dateArray) => {
+                        if (!dateArray || dateArray.length !== 2) {
+                          setFiltersAndSync({ ...filtersRef.current, dateRange: ['', ''] });
+                          return;
+                        }
+                        setFiltersAndSync({
+                          ...filtersRef.current,
+                          dateRange: [formatDateToString(dateArray[0]), formatDateToString(dateArray[1])],
+                        });
+                      }}
+                    />
                     <label className='mjlog-v2-filter-field mjlog-v2-filter-field-search'>
                       <Search size={16} />
                       <input
