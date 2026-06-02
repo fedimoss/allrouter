@@ -851,6 +851,8 @@ export function renderGroup(group) {
               Modal.error({
                 title: i18next.t('无法复制到剪贴板，请手动复制'),
                 content: group,
+                okText: i18next.t('确定'),
+                cancelText: i18next.t('取消'),
               });
             }
           }}

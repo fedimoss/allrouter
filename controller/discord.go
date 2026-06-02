@@ -151,6 +151,9 @@ func DiscordOAuth(c *gin.Context) {
 			} else {
 				user.DisplayName = "Discord User"
 			}
+			if !ensureGlobalUserIdentityAvailable(c, 0, user.Username, user.Email) {
+				return
+			}
 			err := user.Insert(0)
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{

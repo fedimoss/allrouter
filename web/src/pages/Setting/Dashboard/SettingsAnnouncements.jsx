@@ -494,12 +494,7 @@ const SettingsAnnouncements = ({ options, refresh, onSave, onToggleEnabled }) =>
           rowKey='id'
           scroll={{ x: 'max-content' }}
           pagination={{
-            currentPage: currentPage,
-            pageSize: pageSize,
             total: announcementsList.length,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            pageSizeOptions: ['5', '10', '20', '50'],
             onChange: (page, size) => {
               setCurrentPage(page);
               setPageSize(size);

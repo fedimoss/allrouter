@@ -43,7 +43,7 @@ import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
 
 export const useLogsData = ({ scope = 'default' } = {}) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isProviderScope = scope === 'provider';
 
   // Define column keys for selection
@@ -433,7 +433,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
         expandDataLocal.push({
           key: t('渠道信息'),
-          value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
+          value: `${logs[i].channel} - ${logs[i].channel_name || t('[未知]')}`,
         });
       }
       if (logs[i].request_id) {
@@ -817,9 +817,14 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
   const copyText = async (e, text) => {
     e.stopPropagation();
     if (await copy(text)) {
-      showSuccess('已复制：' + text);
+      showSuccess(t('已复制：') + text);
     } else {
-      Modal.error({ title: t('无法复制到剪贴板，请手动复制'), content: text });
+      Modal.error({
+        title: t('无法复制到剪贴板，请手动复制'),
+        content: text,
+        okText: t('确定'),
+        cancelText: t('取消')
+      });
     }
   };
 
@@ -841,6 +846,13 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       handleEyeClick();
     }
   }, [formApi]);
+
+  // Re-compute translations on language change
+  useEffect(() => {
+    if (logs.length > 0) {
+      setLogsFormat([...logs]);
+    }
+  }, [i18n.language]);
 
   // Check if any record has expandable content
   const hasExpandableRows = () => {

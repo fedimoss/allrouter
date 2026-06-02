@@ -418,12 +418,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
           rowKey='id'
           scroll={{ x: 'max-content' }}
           pagination={{
-            currentPage: currentPage,
-            pageSize: pageSize,
             total: uptimeGroupsList.length,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            pageSizeOptions: ['5', '10', '20', '50'],
             onChange: (page, size) => {
               setCurrentPage(page);
               setPageSize(size);

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Input, Popconfirm, Select,Progress } from '@douyinfe/semi-ui';
+import { Button, Input, Pagination, Popconfirm, Select, Progress } from '@douyinfe/semi-ui';
 import {
   TriangleAlert,
   CircleCheck,
@@ -514,26 +514,8 @@ const CertificationList = () => {
               </table>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--semi-color-border)', padding: '12px 16px', fontSize: 12, color: 'var(--semi-color-text-1)' }}>
-              <div>{`${t('显示第')} ${total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} ${t('条 - 第')} ${total === 0 ? 0 : (page - 1) * PAGE_SIZE + pagedRows.length} ${t('条，共')} ${total} ${t('条')}`}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Button
-                  size='small'
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  style={{ fontSize: 12,color:'var(--theme-primary)' }}
-                >
-                  {t('上一页')}
-                </Button>
-                <Button
-                  size='small'
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  style={{ fontSize: 12,color:'var(--theme-primary)' }}
-                >
-                  {t('下一页')}
-                </Button>
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', borderTop: '1px solid var(--semi-color-border)', padding: '12px 16px' }}>
+              <Pagination total={total} onPageChange={(p) => setPage(p)} hideOnSinglePage={true} />
             </div>
           </div>
         </div>

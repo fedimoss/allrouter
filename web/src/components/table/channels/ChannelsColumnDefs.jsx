@@ -616,6 +616,8 @@ export const getChannelsColumns = ({
                       priority: e.target.value,
                     });
                   },
+                  okText: t('确定'),
+                  cancelText: t('取消'),
                 });
               }}
               innerButtons
@@ -671,6 +673,8 @@ export const getChannelsColumns = ({
                       weight: e.target.value,
                     });
                   },
+                  okText: t('确定'),
+                  cancelText: t('取消'),
                 });
               }}
               innerButtons
@@ -710,6 +714,8 @@ export const getChannelsColumns = ({
                       }, 100);
                     })();
                   },
+                  okText: t('确定'),
+                  cancelText: t('取消'),
                 });
               },
             },
@@ -722,6 +728,8 @@ export const getChannelsColumns = ({
                   title: t('确定是否要复制此渠道？'),
                   content: t('复制渠道的所有信息'),
                   onOk: () => copySelectedChannel(record),
+                  okText: t('确定'),
+                  cancelText: t('取消'),
                 });
               },
             },

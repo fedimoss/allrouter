@@ -31,12 +31,12 @@ const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
 
     // 优先使用后端提供的描述
     if (modelData.description) {
-      return modelData.description;
+      return t(modelData.description);
     }
 
     // 如果没有描述但有供应商描述，显示供应商信息
     if (modelData.vendor_description) {
-      return t('供应商信息：') + modelData.vendor_description;
+      return t('供应商信息：') + t(modelData.vendor_description);
     }
 
     return t('暂无模型描述');

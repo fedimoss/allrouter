@@ -694,12 +694,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                 columns={columns}
                 dataSource={keyStatusList}
                 pagination={{
-                  currentPage: currentPage,
-                  pageSize: pageSize,
                   total: total,
-                  showSizeChanger: true,
-                  showQuickJumper: true,
-                  pageSizeOpts: [10, 20, 50, 100],
                   onChange: (page, size) => {
                     setCurrentPage(page);
                     loadKeyStatus(page, size);

@@ -37,6 +37,7 @@ import {
   Input,
   Empty,
   Toast,
+  Pagination,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -1096,16 +1097,7 @@ const RechargeCard = ({
           dataSource={topups}
           loading={historyLoading}
           rowKey='id'
-          // scroll={{ x: 920 }}
-          pagination={{
-            currentPage: historyPage,
-            pageSize: historyPageSize,
-            total: historyTotal,
-            showSizeChanger: true,
-            pageSizeOpts: [10, 20, 50, 100],
-            onPageChange: handleHistoryPageChange,
-            onPageSizeChange: handleHistoryPageSizeChange,
-          }}
+          pagination={false}
           size='small'
           empty={
             <Empty
@@ -1120,6 +1112,14 @@ const RechargeCard = ({
             />
           }
         />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+          <Pagination
+            total={historyTotal}
+            hideOnSinglePage
+            onPageChange={handleHistoryPageChange}
+            onPageSizeChange={handleHistoryPageSizeChange}
+          />
+        </div>
       </div>
 
       <CryptoPaymentDrawer

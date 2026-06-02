@@ -89,7 +89,7 @@ const Dashboard = () => {
   // ========== 数据处理 ==========
   const initChart = async () => {
     await dashboardData.loadQuotaData().then((data) => {
-      if (data && data.length > 0) {
+      if (data) {
         dashboardCharts.updateChartData(data);
       }
     });
@@ -98,7 +98,7 @@ const Dashboard = () => {
 
   const handleRefresh = async () => {
     const data = await dashboardData.refresh();
-    if (data && data.length > 0) {
+    if (data) {
       dashboardCharts.updateChartData(data);
     }
   };

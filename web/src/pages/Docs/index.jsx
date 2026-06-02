@@ -12,6 +12,8 @@ import docsEnMd from './docs_content.en.md?raw';
 // import docsViMd from './docs_content.vi.md?raw';
 import docsOpenClawMd from './docs_content.openclaw.md?raw';
 import docsOpenClawEnMd from './docs_content.openclaw.en.md?raw';
+import docsPlatformMd from './docs_content.platform.md?raw';
+import docsPlatformEnMd from './docs_content.platform.en.md?raw';
 import { marked } from 'marked';
 import {
   getSystemName,
@@ -54,6 +56,18 @@ const DOCS_SECTION_MAP = {
       default: 'Feishu Miaoda OpenClaw Manual',
     },
   },
+  platform: {
+    contentMap: {
+      'zh-CN': docsPlatformMd,
+      en: docsPlatformEnMd,
+      default: docsPlatformEnMd,
+    },
+    titles: {
+      'zh-CN': '平台常见操作',
+      en: 'Platform Common Operations',
+      default: 'Platform Common Operations',
+    },
+  },
 };
 
 const DOCS_UI_TEXT_MAP = {
@@ -61,6 +75,7 @@ const DOCS_UI_TEXT_MAP = {
     navTitle: '文档导航',
     usageLabel: 'AllRouter.AI使用文档',
     openclawLabel: '飞书妙搭openclaw手册',
+    platformLabel: '平台常见操作',
     tocTitle: '本文目录',
     updatedAtPrefix: '更新时间：',
   },
@@ -68,6 +83,7 @@ const DOCS_UI_TEXT_MAP = {
     navTitle: '文件導航',
     usageLabel: '使用文件',
     openclawLabel: '飛書妙搭openclaw手冊',
+    platformLabel: '平台常見操作',
     tocTitle: '本文目錄',
     updatedAtPrefix: '更新時間：',
   },
@@ -75,6 +91,7 @@ const DOCS_UI_TEXT_MAP = {
     navTitle: 'Documents',
     usageLabel: 'Usage Guide',
     openclawLabel: 'Feishu Miaoda OpenClaw Manual',
+    platformLabel: 'Platform Common Operations',
     tocTitle: 'On this page',
     updatedAtPrefix: 'Last updated: ',
   },
@@ -82,6 +99,7 @@ const DOCS_UI_TEXT_MAP = {
     navTitle: 'Documents',
     usageLabel: 'Usage Guide',
     openclawLabel: 'Feishu Miaoda OpenClaw Manual',
+    platformLabel: 'Platform Common Operations',
     tocTitle: 'On this page',
     updatedAtPrefix: 'Last updated: ',
   },
@@ -90,6 +108,7 @@ const DOCS_UI_TEXT_MAP = {
 const DOC_NAV_ITEMS = [
   { key: 'usage', labelKey: 'usageLabel' },
   { key: 'openclaw', labelKey: 'openclawLabel' },
+  { key: 'platform', labelKey: 'platformLabel' },
 ];
 
 const generateAnchorId = (rawText, anchorCountMap) => {
@@ -127,6 +146,13 @@ const Docs = () => {
         ...DOCS_SECTION_MAP.openclaw,
         titles: replaceAllRouterBrandName(
           DOCS_SECTION_MAP.openclaw.titles,
+          docsSystemName,
+        ),
+      },
+      platform: {
+        ...DOCS_SECTION_MAP.platform,
+        titles: replaceAllRouterBrandName(
+          DOCS_SECTION_MAP.platform.titles,
           docsSystemName,
         ),
       },

@@ -1084,7 +1084,7 @@ html.dark .usage-logs-v2-stat-icon-tpm {
 .usage-logs-v2-pagination {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
 }
 

@@ -133,6 +133,8 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         title: t('无法复制到剪贴板，请手动复制'),
         content: text,
         size: 'large',
+        okText: t('确定'),
+        cancelText: t('取消'),
       });
     }
   };

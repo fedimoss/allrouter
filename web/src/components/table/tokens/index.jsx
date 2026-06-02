@@ -27,6 +27,7 @@ import {
   Dropdown,
   Modal,
   Empty,
+  Pagination,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -48,8 +49,6 @@ import { useTokensData } from '../../../hooks/tokens/useTokensData';
 import {
   AlertCircle,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Copy,
   Eye,
   EyeOff,
@@ -66,7 +65,6 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_GROUP_FILTER = '__default__';
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 const buildSearchCriteria = (rawQuery) => {
   const query = rawQuery.trim();
@@ -229,38 +227,6 @@ const getGroupLabel = (record, groupLabelMap, t) => {
   }
 
   return groupLabelMap[record.group] || record.group;
-};
-
-const getPaginationItems = (currentPage, totalPages) => {
-  if (totalPages <= 1) {
-    return [1];
-  }
-
-  const items = [];
-  const start = Math.max(1, currentPage - 1);
-  const end = Math.min(totalPages, currentPage + 1);
-
-  if (start > 1) {
-    items.push(1);
-  }
-
-  if (start > 2) {
-    items.push('left-ellipsis');
-  }
-
-  for (let page = start; page <= end; page += 1) {
-    items.push(page);
-  }
-
-  if (end < totalPages - 1) {
-    items.push('right-ellipsis');
-  }
-
-  if (end < totalPages) {
-    items.push(totalPages);
-  }
-
-  return items;
 };
 
 function TokenDetailModal({ token, groupLabelMap, visible, onClose, t }) {
@@ -824,12 +790,6 @@ function TokensPage() {
     tokensData.activePage * tokensData.pageSize,
     tokensData.tokenCount,
   );
-  const totalPages = Math.max(
-    1,
-    Math.ceil(tokensData.tokenCount / tokensData.pageSize),
-  );
-  const paginationItems = getPaginationItems(tokensData.activePage, totalPages);
-
   const refreshCurrentView = async () => {
     const hasSearch =
       !!tokensData.searchCriteria?.searchKeyword ||
@@ -965,6 +925,8 @@ function TokensPage() {
         await tokensData.manageToken(record.id, 'delete', record);
         await refreshCurrentView();
       },
+      okText: tokensData.t('确定'),
+      cancelText: tokensData.t('取消'),
     });
   };
 
@@ -1215,7 +1177,7 @@ function TokensPage() {
                           </td>
                           <td className='token-v2-col-group'>
                             <span className='token-v2-group-chip'>
-                              {getGroupLabel(record, groupLabelMap, tokensData.t)}
+                              {tokensData.t(getGroupLabel(record, groupLabelMap, tokensData.t))}
                             </span>
                           </td>
                           <td className='token-v2-col-key'>
@@ -1409,74 +1371,11 @@ function TokensPage() {
           </div>
 
           <div className='token-v2-footer'>
-            <div className='token-v2-footer-summary'>
-              {tokensData.t('显示第 {{start}} 到 {{end}} 条，共 {{total}} 条结果', {
-                start: rangeStart,
-                end: rangeEnd,
-                total: tokensData.tokenCount,
-              })}
-            </div>
-
-            <div className='token-v2-footer-actions'>
-              <label className='token-v2-page-size'>
-                <span>{tokensData.t('每页')}</span>
-                <Select
-                  value={tokensData.pageSize}
-                  onChange={val =>
-                    tokensData.handlePageSizeChange(Number(val))
-                  }
-                >
-                  {PAGE_SIZE_OPTIONS.map((size) => (
-                    <Select.Option key={size} value={size}>
-                      {size}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </label>
-
-              <nav className='token-v2-pagination' aria-label='Pagination'>
-                <button
-                  type='button'
-                  className='token-v2-page-button'
-                  disabled={tokensData.activePage <= 1}
-                  onClick={() =>
-                    tokensData.handlePageChange(tokensData.activePage - 1)
-                  }
-                >
-                  <ChevronLeft size={14} />
-                </button>
-                {paginationItems.map((item) =>
-                  typeof item === 'number' ? (
-                    <button
-                      key={item}
-                      type='button'
-                      className={
-                        item === tokensData.activePage
-                          ? 'token-v2-page-button token-v2-page-current'
-                          : 'token-v2-page-button'
-                      }
-                      onClick={() => tokensData.handlePageChange(item)}
-                    >
-                      {item}
-                    </button>
-                  ) : (
-                    <span key={item} className='token-v2-page-ellipsis'>
-                      ...
-                    </span>
-                  ),
-                )}
-                <button
-                  type='button'
-                  className='token-v2-page-button'
-                  disabled={tokensData.activePage >= totalPages}
-                  onClick={() =>
-                    tokensData.handlePageChange(tokensData.activePage + 1)
-                  }
-                >
-                  <ChevronRight size={14} />
-                </button>
-              </nav>
-            </div>
+            <Pagination
+              total={tokensData.tokenCount}
+              onPageSizeChange={(pageSize) => tokensData.handlePageSizeChange(pageSize)}
+              onPageChange={(page) => tokensData.handlePageChange(page)}
+            />
           </div>
         </div>
       </div>

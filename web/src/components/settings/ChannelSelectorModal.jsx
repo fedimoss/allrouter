@@ -287,7 +287,6 @@ const ChannelSelectorModal = forwardRef(
               currentPage: currentPage,
               pageSize: pageSize,
               total: total,
-              showSizeChanger: true,
               showQuickJumper: true,
               pageSizeOptions: ['10', '20', '50', '100'],
               onChange: (page, size) => {

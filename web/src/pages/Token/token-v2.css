@@ -641,7 +641,7 @@ html.dark .token-v2-action-danger:hover {
 
 .token-v2-footer {
   flex-wrap: wrap;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   border-top: 1px solid var(--tk-border);
   padding: 14px 18px;

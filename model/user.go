@@ -223,6 +223,46 @@ func CheckUserExistOrDeleted(username string, email string) (bool, error) {
 	return CheckUserExistOrDeletedInProvider(0, username, email)
 }
 
+func CheckUserExistOrDeletedGlobally(username string, email string) (bool, error) {
+	return UserIdentityConflictsGlobally(0, username, email)
+}
+
+func UserIdentityConflictsGlobally(excludeUserId int, username string, email string) (bool, error) {
+	usernameConflict, emailConflict, err := UserIdentityConflictFieldsGlobally(excludeUserId, username, email)
+	return usernameConflict || emailConflict, err
+}
+
+func UserIdentityConflictFieldsGlobally(excludeUserId int, username string, email string) (usernameConflict bool, emailConflict bool, err error) {
+	username = strings.TrimSpace(username)
+	email = strings.TrimSpace(email)
+	if username == "" && email == "" {
+		return false, false, nil
+	}
+	if username != "" {
+		query := DB.Unscoped().Model(&User{}).Where("username = ?", username)
+		if excludeUserId > 0 {
+			query = query.Where("id <> ?", excludeUserId)
+		}
+		var count int64
+		if err := query.Count(&count).Error; err != nil {
+			return false, false, err
+		}
+		usernameConflict = count > 0
+	}
+	if email != "" {
+		query := DB.Unscoped().Model(&User{}).Where("email = ?", email)
+		if excludeUserId > 0 {
+			query = query.Where("id <> ?", excludeUserId)
+		}
+		var count int64
+		if err := query.Count(&count).Error; err != nil {
+			return false, false, err
+		}
+		emailConflict = count > 0
+	}
+	return usernameConflict, emailConflict, nil
+}
+
 func CheckUserExistOrDeletedInProvider(providerId int, username string, email string) (bool, error) {
 	var user User
 

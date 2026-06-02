@@ -34,8 +34,6 @@ const LogsPage = ({ scope = 'default', title, description }) => {
   const isMobile = useIsMobile();
 
   const paginationArea = createCardProPagination({
-    currentPage: logsData.activePage,
-    pageSize: logsData.pageSize,
     total: logsData.logCount,
     onPageChange: logsData.handlePageChange,
     onPageSizeChange: logsData.handlePageSizeChange,

@@ -263,11 +263,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         loading={loading}
         rowKey='id'
         pagination={{
-          currentPage: page,
-          pageSize: pageSize,
           total: total,
-          showSizeChanger: true,
-          pageSizeOpts: [10, 20, 50, 100],
           onPageChange: handlePageChange,
           onPageSizeChange: handlePageSizeChange,
         }}
