@@ -4553,7 +4553,9 @@
     "默认分组": "Groupe par défaut",
     "已兑换": "Échangé",
     "已到账": "Reçu",
-    "自定义(秒)": "Personnalisé (secondes)"
+    "自定义(秒)": "Personnalisé (secondes)",
+    "输入邮箱，我们将向您发送密码重置链接": "Nous vous enverrons un lien de réinitialisation de mot de passe à l'adresse email que vous avez entrée.",
+    "请使用您注册 {{systemName}} 的邮箱地址。": "Veuillez utiliser l'adresse email que vous avez inscrite avec {{systemName}} pour le réinitialisation de mot de passe."
 
   }
 }

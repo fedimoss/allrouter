@@ -69,6 +69,8 @@ const PageLayout = () => {
     '/pricing',
     '/login',
     '/register',
+    '/reset',
+    '/user/reset',
   ];
 
   const selfContainedPages = ['/agent-partner'];
@@ -86,7 +88,12 @@ const PageLayout = () => {
   const isDocsRoute =
     location.pathname === '/docs' || location.pathname.startsWith('/docs/');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
-  const authRoutesWithoutHeader = ['/login', '/register'];
+  const authRoutesWithoutHeader = [
+    '/login',
+    '/register',
+    '/reset',
+    '/user/reset',
+  ];
   const shouldShowHeader =
     location.pathname !== '/' &&
     !authRoutesWithoutHeader.includes(location.pathname) &&

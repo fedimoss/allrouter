@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   API,
   getLogo,
@@ -27,15 +28,36 @@ import {
   getSystemName,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
-import { Button, Card, Form, Typography } from '@douyinfe/semi-ui';
+import { Button, Input } from '@douyinfe/semi-ui';
 import { IconMail } from '@douyinfe/semi-icons';
-import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import channelImg from '../../../public/channel.svg';
+import modelImg from '../../../public/model.svg';
+import safeImg from '../../../public/safe.svg';
+import avatarImg from '../../../public/avatar.svg';
+import '../../pages/Login/auth-v2.css';
 
-const { Text, Title } = Typography;
+const brandFeatureItems = [
+  {
+    imgUrl: modelImg,
+    title: '50+ 模型，OpenAI 兼容接入',
+    description: '集成全球领先模型，通过单一接口实现智能路由。',
+  },
+  {
+    imgUrl: channelImg,
+    title: '多渠道比价，自动路由最优',
+    description: '毫秒级账单同步，深度优化您的 Token 使用效率。',
+  },
+  {
+    imgUrl: safeImg,
+    title: '自营品质保障，99.9% 可用性',
+    description: '端到端加密通信，确保您的核心业务数据隐私无虞。',
+  },
+];
 
 const PasswordResetForm = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [inputs, setInputs] = useState({
     email: '',
   });
@@ -80,7 +102,9 @@ const PasswordResetForm = () => {
   }
 
   async function handleSubmit(e) {
-    if (!email) {
+    e.preventDefault();
+    const trimmedEmail = String(email || '').trim();
+    if (!trimmedEmail) {
       showError(t('请输入邮箱地址'));
       return;
     }
@@ -90,100 +114,139 @@ const PasswordResetForm = () => {
     }
     setDisableButton(true);
     setLoading(true);
-    const res = await API.get(
-      `/api/reset_password?email=${email}&turnstile=${turnstileToken}`,
-    );
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(t('重置邮件发送成功，请检查邮箱！'));
-      setInputs({ ...inputs, email: '' });
-    } else {
-      showError(message);
+    try {
+      const res = await API.get(
+        `/api/reset_password?email=${encodeURIComponent(
+          trimmedEmail,
+        )}&turnstile=${turnstileToken}`,
+      );
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('重置邮件发送成功，请检查邮箱！'));
+        setInputs({ ...inputs, email: '' });
+      } else {
+        showError(message);
+      }
+    } catch {
+      showError('重置邮件发送失败，请重试');
     }
     setLoading(false);
   }
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
-      {/* 背景模糊晕染球 */}
-      <div
-        className='blur-ball blur-ball-indigo'
-        style={{ top: '-80px', right: '-80px', transform: 'none' }}
-      />
-      <div
-        className='blur-ball blur-ball-teal'
-        style={{ top: '50%', left: '-120px' }}
-      />
-      <div className='w-full max-w-sm mt-[60px]'>
-        <div className='flex flex-col items-center'>
-          <div className='w-full max-w-md'>
-            <div className='flex items-center justify-center mb-6 gap-2'>
-              <img src={logo} alt='Logo' className='h-10 rounded-full' />
-              <Title heading={3} className='!text-gray-800'>
-                {systemName}
-              </Title>
+    <div className='auth-v2 password-reset-page'>
+      <div className='brand-panel'>
+        <div className='floating-orb orb-1' />
+        <div className='floating-orb orb-2' />
+        <div className='floating-orb orb-3' />
+        <div className='floating-orb orb-4' />
+
+        <div className='brand-content'>
+          <div className='brand-logo' onClick={() => navigate('/')}>
+            <div className='logo-img'>
+              {logo ? <img src={logo} alt={systemName} /> : null}
             </div>
+            <span>{systemName}</span>
+          </div>
 
-            <Card className='border-0 !rounded-2xl overflow-hidden'>
-              <div className='flex justify-center pt-6 pb-2'>
-                <Title heading={3} className='text-gray-800 dark:text-gray-200'>
-                  {t('密码重置')}
-                </Title>
-              </div>
-              <div className='px-2 py-8'>
-                <Form className='space-y-3'>
-                  <Form.Input
-                    field='email'
-                    label={t('邮箱')}
-                    placeholder={t('请输入您的邮箱地址')}
-                    name='email'
-                    value={email}
-                    onChange={handleChange}
-                    prefix={<IconMail />}
-                  />
+          <h1 className='brand-tagline'>{t('智能API聚合')}</h1>
+          <p className='brand-desc'>
+            {t(
+              '一站式 AI 模型路由市场，自营渠道 + 第三方商家生态，为每次 API 调用找到最优路线。',
+            )}
+          </p>
 
-                  <div className='space-y-2 pt-2'>
-                    <Button
-                      theme='solid'
-                      className='w-full !rounded-full'
-                      type='primary'
-                      htmlType='submit'
-                      onClick={handleSubmit}
-                      loading={loading}
-                      disabled={disableButton}
-                    >
-                      {disableButton
-                        ? `${t('重试')} (${countdown})`
-                        : t('提交')}
-                    </Button>
+          <div className='brand-features'>
+            {brandFeatureItems.map((item) => (
+              <div key={item.title} className='brand-feature'>
+                <div className='brand-feature-icon'>
+                  <img src={item.imgUrl} alt={item.title} />
+                </div>
+                <div className='brand-feature-body'>
+                  <div className='brand-feature-title'>{t(item.title)}</div>
+                  <div className='brand-feature-desc'>
+                    {t(item.description)}
                   </div>
-                </Form>
-
-                <div className='mt-6 text-center text-sm'>
-                  <Text>
-                    {t('想起来了？')}{' '}
-                    <Link
-                      to='/login'
-                      className='text-blue-600 hover:text-blue-800 font-medium'
-                    >
-                      {t('登录')}
-                    </Link>
-                  </Text>
                 </div>
               </div>
-            </Card>
-
-            {turnstileEnabled && (
-              <div className='flex justify-center mt-6'>
-                <Turnstile
-                  sitekey={turnstileSiteKey}
-                  onVerify={(token) => {
-                    setTurnstileToken(token);
-                  }}
-                />
-              </div>
-            )}
+            ))}
           </div>
+        </div>
+
+        <div className='brand-quote-card'>
+          <p>
+            {systemName}&nbsp;
+            {t(
+              '彻底改变了我们团队调用多模型的方式。它不再是单纯的技术工具，而是我们决策流中的核心。',
+            )}
+          </p>
+          <div className='brand-quote-author'>
+            <span className='brand-quote-avatar'>
+              <img src={avatarImg} alt='Avatar' />
+            </span>
+            <span>{t('技术负责人')} @ Visionary Lab</span>
+          </div>
+        </div>
+      </div>
+
+      <div className='form-panel'>
+        <div className='form-container password-reset-container'>
+          <div className='mobile-copy'>
+            <h1>{t('密码重置')}</h1>
+            <p>{t('输入邮箱，我们将向您发送密码重置链接')}</p>
+          </div>
+
+          <div className='auth-heading password-reset-heading'>
+            <h2>{t('密码重置')}</h2>
+            <p>{t('输入邮箱，我们将向您发送密码重置链接')}</p>
+          </div>
+
+          <p className='password-reset-helper'>
+            {t('请使用您注册 {{systemName}} 的邮箱地址。', { systemName })}
+          </p>
+
+          <form className='password-reset-form' onSubmit={handleSubmit}>
+            <div className='form-group'>
+              <label className='form-label'>{t('邮箱')}</label>
+              <Input
+                className='form-input'
+                size='large'
+                prefix={<IconMail />}
+                placeholder={t('请输入您的邮箱地址')}
+                value={email}
+                onChange={handleChange}
+                autoComplete='email'
+              />
+            </div>
+
+            <Button
+              htmlType='submit'
+              type='primary'
+              theme='solid'
+              className='btn-submit password-reset-submit theme-btn-color'
+              size='large'
+              loading={loading}
+              disabled={disableButton}
+            >
+              {disableButton ? `${t('重试')} (${countdown})` : t('提交')}
+            </Button>
+          </form>
+
+          <div className='password-reset-login-link'>
+            <span>{t('想起来了？')}</span>
+            <Link to='/login'>{t('登录')}</Link>
+          </div>
+
+          {turnstileEnabled && (
+            <div className='turnstile-wrap'>
+              <Turnstile
+                sitekey={turnstileSiteKey}
+                onVerify={(token) => {
+                  setTurnstileToken(token);
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
