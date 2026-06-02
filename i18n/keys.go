@@ -80,6 +80,7 @@ const (
 	MsgUserUsernameOrPasswordError   = "user.username_or_password_error"
 	MsgUserEmailOrPasswordEmpty      = "user.email_or_password_empty"
 	MsgUserExists                    = "user.exists"
+	MsgUserEmailExists               = "user.email_exists"
 	MsgUserNotExists                 = "user.not_exists"
 	MsgUserDisabled                  = "user.disabled"
 	MsgUserSessionSaveFailed         = "user.session_save_failed"

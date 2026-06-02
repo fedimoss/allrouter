@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -87,6 +88,32 @@ func getUserQuotaForPaymentGuardTest(t *testing.T, userID int) int {
 	return user.Quota
 }
 
+func insertWechatTopUpForPaymentGuardTest(t *testing.T, tradeNo string, userID int, paymentProvider string) {
+	t.Helper()
+	insertPaymentTopUpForPaymentGuardTest(t, tradeNo, userID, "wxpay", paymentProvider)
+}
+
+func insertPaymentTopUpForPaymentGuardTest(t *testing.T, tradeNo string, userID int, paymentMethod string, paymentProvider string) {
+	t.Helper()
+	insertPaymentTopUpWithMoneyForPaymentGuardTest(t, tradeNo, userID, paymentMethod, paymentProvider, 2, 2)
+}
+
+func insertPaymentTopUpWithMoneyForPaymentGuardTest(t *testing.T, tradeNo string, userID int, paymentMethod string, paymentProvider string, amount int64, money float64) {
+	t.Helper()
+	topUp := &TopUp{
+		UserId:          userID,
+		Amount:          amount,
+		Money:           money,
+		TradeNo:         tradeNo,
+		PaymentMethod:   paymentMethod,
+		PaymentProvider: paymentProvider,
+		BizType:         TopUpBizTypePayment,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, topUp.Insert())
+}
+
 func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	truncateTables(t)
 
@@ -100,6 +127,55 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	require.NotNil(t, topUp)
 	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
+}
+
+func TestRechargeWechatTopUp_RejectsMismatchedPaymentProvider(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 110, 0)
+	insertWechatTopUpForPaymentGuardTest(t, "wechat-provider-guard", 110, PaymentProviderEpay)
+
+	err := RechargeWechatTopUp("wechat-provider-guard", "wxpay", PaymentProviderLakala)
+	require.ErrorIs(t, err, ErrPaymentMethodMismatch)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, "wechat-provider-guard"))
+	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 110))
+}
+
+func TestRechargeWechatTopUp_CompletesLakalaOrderOnce(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 111, 0)
+	insertPaymentTopUpForPaymentGuardTest(t, "lakala-once", 111, PaymentProviderLakala, PaymentProviderLakala)
+
+	require.NoError(t, RechargeWechatTopUp("lakala-once", PaymentProviderLakala, PaymentProviderLakala))
+	require.NoError(t, RechargeWechatTopUp("lakala-once", PaymentProviderLakala, PaymentProviderLakala))
+
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, "lakala-once"))
+	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 111))
+}
+
+func TestRechargeWechatTopUp_AllowsLegacyEpayOrderWithoutProvider(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 112, 0)
+	insertWechatTopUpForPaymentGuardTest(t, "legacy-epay-provider", 112, "")
+
+	require.NoError(t, RechargeWechatTopUp("legacy-epay-provider", "wxpay", PaymentProviderEpay))
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, "legacy-epay-provider"))
+	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 112))
+}
+
+func TestRechargeWechatTopUp_UsesUsdEquivalentMoneyForCNYGateways(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 113, 0)
+	money := decimal.NewFromInt(1).Div(decimal.NewFromFloat(7.3)).InexactFloat64()
+	insertPaymentTopUpWithMoneyForPaymentGuardTest(t, "cny-epay-money", 113, "wxpay", PaymentProviderEpay, 1, money)
+
+	require.NoError(t, RechargeWechatTopUp("cny-epay-money", "wxpay", PaymentProviderEpay))
+
+	expectedQuota := decimal.NewFromFloat(money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
+	assert.Equal(t, int(expectedQuota), getUserQuotaForPaymentGuardTest(t, 113))
 }
 
 func TestUpdatePendingTopUpStatus_RejectsMismatchedPaymentProvider(t *testing.T) {

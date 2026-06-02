@@ -64,6 +64,7 @@ const (
 
 const (
 	PaymentProviderEpay         = "epay"
+	PaymentProviderLakala       = "lakala"
 	PaymentProviderStripe       = "stripe"
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"
@@ -234,8 +235,9 @@ func (topUp *TopUp) GetQuotaToAdd() (int, error) {
 				return 0, errors.New("无效的服务商分账额度")
 			}
 			return int(topUp.Amount), nil
-		case "stripe":
-			// Stripe 的 Money 字段存储的是美元金额，直接按 Money × QuotaPerUnit 换算
+		case "stripe", "wxpay", "alipay", PaymentProviderLakala:
+			// Stripe 与人民币扫码网关的 Money 字段都存储美元等值金额，直接按 Money × QuotaPerUnit 换算。
+			// 人民币网关的实际扣款金额保存在 OriginalMoney 中，仅用于回调金额校验。
 			return int(decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()), nil
 		case "crypto":
 			// 加密货币充值：使用原始币种金额（OriginalMoney）换算，而非 USDT 金额（Money）
@@ -626,7 +628,11 @@ func Recharge(referenceId string, customerId string) (err error) {
 	return nil
 }
 
-func RechargeEpay(referenceId string, expectedPaymentMethod string) (err error) {
+func RechargeEpay(referenceId string, expectedPaymentMethod string) error {
+	return RechargeWechatTopUp(referenceId, expectedPaymentMethod, PaymentProviderEpay)
+}
+
+func RechargeWechatTopUp(referenceId string, expectedPaymentMethod string, expectedProvider string) (err error) {
 	if referenceId == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -653,6 +659,14 @@ func RechargeEpay(referenceId string, expectedPaymentMethod string) (err error) 
 		// 否则一律拒绝，避免其他网关的成功回调串用到该订单。
 		if expectedPaymentMethod == "" || topUp.PaymentMethod != expectedPaymentMethod {
 			return ErrPaymentMethodMismatch
+		}
+		// 校验支付服务商是否匹配。
+		// 兼容历史数据：当期望服务商为易支付且订单中PaymentProvider为空时放行，
+		// 因为早期订单未记录服务商字段，默认视为易支付。
+		if expectedProvider != "" && topUp.PaymentProvider != expectedProvider {
+			if !(expectedProvider == PaymentProviderEpay && topUp.PaymentProvider == "") {
+				return ErrPaymentMethodMismatch
+			}
 		}
 		if topUp.Status == common.TopUpStatusSuccess {
 			return nil
@@ -687,7 +701,11 @@ func RechargeEpay(referenceId string, expectedPaymentMethod string) (err error) 
 	})
 
 	if err != nil {
-		common.SysError("epay topup failed: " + err.Error())
+		// 支付方式/服务商不匹配是预期内的校验失败，直接返回原始错误便于调用方区分处理
+		if errors.Is(err, ErrPaymentMethodMismatch) {
+			return err
+		}
+		common.SysError("wechat topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
 	}
 	if !completedNow {

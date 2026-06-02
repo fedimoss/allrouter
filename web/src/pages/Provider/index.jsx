@@ -1363,7 +1363,7 @@ const ProviderPage = () => {
           </Space>
           <Text type='tertiary' size='small'>
             {t(
-              '只能选择普通主站用户。管理员、服务商子用户、已绑定其他服务商的用户不能选择。',
+              '可以选择普通主站用户或服务商用户。管理员、已绑定其他服务商主账号的用户不能选择。',
             )}
           </Text>
           <Table

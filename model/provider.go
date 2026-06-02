@@ -2,6 +2,8 @@ package model
 
 import (
 	"errors"
+	"net"
+	"net/url"
 	"strings"
 	"time"
 
@@ -98,16 +100,36 @@ type childCountRow struct {
 	Count     int64
 }
 
-func normalizeProviderDomain(domain string) string {
+func NormalizeProviderDomain(domain string) string {
 	domain = strings.TrimSpace(strings.ToLower(domain))
-	if idx := strings.Index(domain, ":"); idx > -1 {
+	if parsedURL, err := url.Parse(domain); err == nil && parsedURL.Host != "" {
+		domain = parsedURL.Host
+	}
+	if host, _, err := net.SplitHostPort(domain); err == nil {
+		domain = host
+	}
+	if idx := strings.Index(domain, "/"); idx > -1 {
 		domain = domain[:idx]
 	}
-	return domain
+	return strings.Trim(strings.TrimSuffix(domain, "."), "[]")
+}
+
+func ProviderDomainLookupCandidates(domain string) []string {
+	domain = NormalizeProviderDomain(domain)
+	if domain == "" {
+		return nil
+	}
+	candidates := []string{domain}
+	if strings.HasPrefix(domain, "www.") {
+		candidates = append(candidates, strings.TrimPrefix(domain, "www."))
+	} else {
+		candidates = append(candidates, "www."+domain)
+	}
+	return candidates
 }
 
 func GetProviderContextByDomain(domain string) (*ProviderContext, error) {
-	domain = normalizeProviderDomain(domain)
+	domain = NormalizeProviderDomain(domain)
 	if domain == "" {
 		return nil, nil
 	}
@@ -117,7 +139,21 @@ func GetProviderContextByDomain(domain string) (*ProviderContext, error) {
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
-		return nil, nil
+		for _, candidate := range ProviderDomainLookupCandidates(domain) {
+			if candidate == domain {
+				continue
+			}
+			result = DB.Where("domain = ? AND status = ?", candidate, ProviderDomainStatusVerified).Find(&providerDomain)
+			if result.Error != nil {
+				return nil, result.Error
+			}
+			if result.RowsAffected > 0 {
+				break
+			}
+		}
+		if result.RowsAffected == 0 {
+			return nil, nil
+		}
 	}
 	var provider Provider
 	if err := DB.Where("id = ? AND status = ?", providerDomain.ProviderId, ProviderStatusEnabled).First(&provider).Error; err != nil {
@@ -148,15 +184,16 @@ func GetProviderVerifiedDomains(providerId int) ([]string, error) {
 	verifiedDomains := make([]string, 0, len(domains))
 	seen := make(map[string]struct{}, len(domains))
 	for _, domain := range domains {
-		normalized := normalizeProviderDomain(domain.Domain)
-		if normalized == "" {
-			continue
+		for _, normalized := range ProviderDomainLookupCandidates(domain.Domain) {
+			if normalized == "" {
+				continue
+			}
+			if _, ok := seen[normalized]; ok {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			verifiedDomains = append(verifiedDomains, normalized)
 		}
-		if _, ok := seen[normalized]; ok {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		verifiedDomains = append(verifiedDomains, normalized)
 	}
 	return verifiedDomains, nil
 }

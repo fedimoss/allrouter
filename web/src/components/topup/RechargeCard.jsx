@@ -108,6 +108,7 @@ const PAYMENT_METHOD_MAP = {
   waffo: 'Waffo',
   alipay: '支付宝',
   wxpay: '微信',
+  lakala: '微信',
   crypto: '加密货币',
   redemptionCode: '兑换码',
   redemption_code: '兑换码',
@@ -270,11 +271,7 @@ const RechargeCard = ({
     }
 
     prevInputMinTopUpRef.current = inputMinTopUp;
-  }, [
-        inputMinTopUp,
-    setSelectedPreset,
-    setTopUpCount,
-  ]);
+  }, [inputMinTopUp, setSelectedPreset, setTopUpCount]);
 
   // 跳转邀请详情
   const toInvitationDetail = () => {

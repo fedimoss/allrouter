@@ -242,7 +242,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Username = provider.GetProviderPrefix() + strconv.Itoa(model.GetMaxUserId()+1)
 
 	if oauthUser.Username != "" {
-		if exists, err := model.CheckUserExistOrDeleted(oauthUser.Username, ""); err == nil && !exists {
+		if exists, err := model.CheckUserExistOrDeletedGlobally(oauthUser.Username, ""); err == nil && !exists {
 			// 防止索引退化
 			if len(oauthUser.Username) <= model.UserNameMaxLength {
 				user.Username = oauthUser.Username
@@ -262,6 +262,16 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
+	usernameConflict, emailConflict, err := model.UserIdentityConflictFieldsGlobally(0, user.Username, user.Email)
+	if err != nil {
+		return nil, err
+	}
+	if emailConflict {
+		return nil, fmt.Errorf("%s", i18n.T(c, i18n.MsgUserEmailExists))
+	}
+	if usernameConflict {
+		return nil, fmt.Errorf("%s", i18n.T(c, i18n.MsgUserExists))
+	}
 
 	// Handle affiliate code
 	affCode := session.Get("aff")

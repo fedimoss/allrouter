@@ -223,6 +223,46 @@ func CheckUserExistOrDeleted(username string, email string) (bool, error) {
 	return CheckUserExistOrDeletedInProvider(0, username, email)
 }
 
+func CheckUserExistOrDeletedGlobally(username string, email string) (bool, error) {
+	return UserIdentityConflictsGlobally(0, username, email)
+}
+
+func UserIdentityConflictsGlobally(excludeUserId int, username string, email string) (bool, error) {
+	usernameConflict, emailConflict, err := UserIdentityConflictFieldsGlobally(excludeUserId, username, email)
+	return usernameConflict || emailConflict, err
+}
+
+func UserIdentityConflictFieldsGlobally(excludeUserId int, username string, email string) (usernameConflict bool, emailConflict bool, err error) {
+	username = strings.TrimSpace(username)
+	email = strings.TrimSpace(email)
+	if username == "" && email == "" {
+		return false, false, nil
+	}
+	if username != "" {
+		query := DB.Unscoped().Model(&User{}).Where("username = ?", username)
+		if excludeUserId > 0 {
+			query = query.Where("id <> ?", excludeUserId)
+		}
+		var count int64
+		if err := query.Count(&count).Error; err != nil {
+			return false, false, err
+		}
+		usernameConflict = count > 0
+	}
+	if email != "" {
+		query := DB.Unscoped().Model(&User{}).Where("email = ?", email)
+		if excludeUserId > 0 {
+			query = query.Where("id <> ?", excludeUserId)
+		}
+		var count int64
+		if err := query.Count(&count).Error; err != nil {
+			return false, false, err
+		}
+		emailConflict = count > 0
+	}
+	return usernameConflict, emailConflict, nil
+}
+
 func CheckUserExistOrDeletedInProvider(providerId int, username string, email string) (bool, error) {
 	var user User
 
@@ -1392,7 +1432,16 @@ func GetUserGroup(id int, fromDB bool) (group string, err error) {
 		// Don't return error - fall through to DB
 	}
 	fromDB = true
-	err = DB.Model(&User{}).Where("id = ?", id).Select(commonGroupCol).Find(&group).Error
+	// group 是 SQL 保留字，查询时必须按数据库类型转义列名。
+	// commonGroupCol 通常在数据库初始化时设置；为空时按当前数据库类型兜底，避免测试或早期初始化阶段查询失败。
+	groupCol := commonGroupCol
+	if groupCol == "" {
+		groupCol = "`group`"
+		if common.UsingPostgreSQL {
+			groupCol = `"group"`
+		}
+	}
+	err = DB.Model(&User{}).Where("id = ?", id).Select(groupCol).Find(&group).Error
 	if err != nil {
 		return "", err
 	}

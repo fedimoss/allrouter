@@ -95,6 +95,9 @@ func WeChatAuth(c *gin.Context) {
 			user.DisplayName = "WeChat User"
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
+			if !ensureGlobalUserIdentityAvailable(c, 0, user.Username, user.Email) {
+				return
+			}
 
 			if err := user.Insert(0); err != nil {
 				c.JSON(http.StatusOK, gin.H{

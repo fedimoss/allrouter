@@ -1064,6 +1064,7 @@
     "只有当用户设置开启IP记录时，才会进行请求和错误类型日志的IP记录": "Chỉ khi người dùng đặt ghi IP, việc ghi IP của nhật ký yêu cầu và loại lỗi mới được thực hiện",
     "只有配置了规则的组合才会覆盖，未配置的组合仍使用令牌分组的基础倍率。": "Only configured combinations are overridden. Unconfigured combinations still use the token group's base ratio.",
     "只能选择普通主站用户。管理员、服务商子用户、已绑定其他服务商的用户不能选择。": "Chỉ có thể chọn người dùng thường của trang chính. Quản trị viên, người dùng con của nhà cung cấp và người dùng đã liên kết với nhà cung cấp khác không thể chọn.",
+    "可以选择普通主站用户或服务商用户。管理员、已绑定其他服务商主账号的用户不能选择。": "Có thể chọn người dùng thường của trang chính hoặc người dùng nhà cung cấp. Không thể chọn quản trị viên và người dùng đã được gán làm tài khoản chính của nhà cung cấp khác.",
     "只需替换 base_url 与 api_key": "Chỉ cần thay đổi base_url và api_key để sử dụng SDK chính thức.",
     "可以填写图片链接，也可以上传图片自动生成地址": "Logo URL",
     "可以把它理解成：用户这次应扣多少钱，先看里面有多少是真正的充值余额支付。充值余额支付代表真实现金消耗，可以参与利润结算；奖励、赠送或活动额度只是平台给用户的使用权益，不会直接变成服务商利润。": "Plain Explanation",
@@ -5084,6 +5085,9 @@
     "已到账": "Đã đến",
     "自定义(秒)": "Tùy chỉnh (giây)",
     "输入邮箱，我们将向您发送密码重置链接": "Vui lòng nhập email của bạn. Chúng tôi sẽ gửi liên kết reset mật khẩu đến email này.",
-    "请使用您注册 {{systemName}} 的邮箱地址。": "Vui lòng sử dụng địa chỉ email của bạn đã đăng ký với {{systemName}}."
+    "请使用您注册 {{systemName}} 的邮箱地址。": "Vui lòng sử dụng địa chỉ email của bạn đã đăng ký với {{systemName}}.",
+    "订单已超时，请重新发起充值": "Đơn hàng đã hết thời gian chờ. Vui lòng nạp lại.",
+    "订单已失效，请重新发起充值": "Đơn hàng không còn hiệu lực. Vui lòng nạp lại.",
+    "订单状态查询失败": "Không thể truy vấn trạng thái đơn hàng"
   }
 }
