@@ -715,15 +715,43 @@ func AdminUploadProviderLogo(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"url": logoURL})
 }
 
+func ensureProviderDomainAvailable(c *gin.Context, domain string, currentDomainId int) bool {
+	candidates := model.ProviderDomainLookupCandidates(domain)
+	if len(candidates) == 0 {
+		common.ApiErrorMsg(c, "domain is required")
+		return false
+	}
+
+	var existing model.ProviderDomain
+	query := model.DB.Where("domain IN ?", candidates)
+	if currentDomainId > 0 {
+		query = query.Where("id <> ?", currentDomainId)
+	}
+	err := query.First(&existing).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return true
+		}
+		common.ApiError(c, err)
+		return false
+	}
+
+	common.ApiErrorMsg(c, "domain or equivalent www/apex domain is already used")
+	return false
+}
+
 func createProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 	var req model.ProviderDomain
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	req.Domain = strings.TrimSpace(strings.ToLower(req.Domain))
+	req.Domain = model.NormalizeProviderDomain(req.Domain)
 	if req.Domain == "" {
 		common.ApiErrorMsg(c, "domain is required")
+		return
+	}
+	if !ensureProviderDomainAvailable(c, req.Domain, 0) {
 		return
 	}
 	status := model.ProviderDomainStatusPending
@@ -757,13 +785,16 @@ func updateProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 		common.ApiError(c, err)
 		return
 	}
-	req.Domain = strings.TrimSpace(strings.ToLower(req.Domain))
+	req.Domain = model.NormalizeProviderDomain(req.Domain)
 	if req.Domain == "" {
 		if err := model.DB.Where("id = ? AND provider_id = ?", domainId, providerId).Delete(&model.ProviderDomain{}).Error; err != nil {
 			common.ApiError(c, err)
 			return
 		}
 		common.ApiSuccess(c, nil)
+		return
+	}
+	if !ensureProviderDomainAvailable(c, req.Domain, domainId) {
 		return
 	}
 	status := model.ProviderDomainStatusPending
