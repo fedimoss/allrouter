@@ -373,7 +373,7 @@ func AdminListProviderOwnerCandidates(c *gin.Context) {
 
 	query := model.DB.Model(&model.User{}).
 		Select("id, username, display_name, email").
-		Where("provider_id = ? AND role < ?", 0, common.RoleAdminUser)
+		Where("role < ?", common.RoleAdminUser)
 	if len(usedOwnerIds) > 0 {
 		query = query.Where("id NOT IN ?", usedOwnerIds)
 	}
@@ -437,7 +437,7 @@ func validateProviderOwnerCandidate(userId int, currentProviderId int) bool {
 	if err := model.DB.Select("id, provider_id, role, username").Where("id = ?", userId).First(&user).Error; err != nil {
 		return false
 	}
-	if user.ProviderId != 0 || user.Role >= common.RoleAdminUser {
+	if user.Role >= common.RoleAdminUser {
 		return false
 	}
 	if currentProviderId > 0 {

@@ -1085,6 +1085,7 @@
     "只有当用户设置开启IP记录时，才会进行请求和错误类型日志的IP记录": "Only when the user sets IP recording, the IP recording of request and error type logs will be performed",
     "只有配置了规则的组合才会覆盖，未配置的组合仍使用令牌分组的基础倍率。": "Only configured combinations are overridden. Unconfigured combinations still use the token group's base ratio.",
     "只能选择普通主站用户。管理员、服务商子用户、已绑定其他服务商的用户不能选择。": "Only regular main-site users can be selected. Admins, provider sub-users, and users already bound to another provider cannot be selected.",
+    "可以选择普通主站用户或服务商用户。管理员、已绑定其他服务商主账号的用户不能选择。": "Regular main-site users or provider users can be selected. Admins and users already bound as another provider's main account cannot be selected.",
     "只需替换 base_url 与 api_key": "Replace base_url and api_key to use official official SDK",
     "可以填写图片链接，也可以上传图片自动生成地址": "Enter an image URL or upload an image to generate one automatically",
     "可以把它理解成：用户这次应扣多少钱，先看里面有多少是真正的充值余额支付。充值余额支付代表真实现金消耗，可以参与利润结算；奖励、赠送或活动额度只是平台给用户的使用权益，不会直接变成服务商利润。": "Think of it this way: first check how much of the amount due was truly paid with recharged balance. Recharged balance represents real cash consumption and can participate in profit settlement; reward, gifted, or campaign credits are usage benefits given to users by the platform and do not directly become provider profit.",
