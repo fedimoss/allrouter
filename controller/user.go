@@ -192,6 +192,23 @@ func canManageTargetRole(myRole int, targetRole int) bool {
 	return myRole == common.RoleRootUser || myRole > targetRole
 }
 
+func ensureGlobalUserIdentityAvailable(c *gin.Context, excludeUserId int, username string, email string) bool {
+	usernameConflict, emailConflict, err := model.UserIdentityConflictFieldsGlobally(excludeUserId, username, email)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if emailConflict {
+		common.ApiErrorI18n(c, i18n.MsgUserEmailExists)
+		return false
+	}
+	if usernameConflict {
+		common.ApiErrorI18n(c, i18n.MsgUserExists)
+		return false
+	}
+	return true
+}
+
 func Register(c *gin.Context) {
 	if !common.RegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
@@ -222,14 +239,7 @@ func Register(c *gin.Context) {
 		}
 	}
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
-	exist, err := model.CheckUserExistOrDeletedInProvider(providerId, user.Username, user.Email)
-	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
-		common.SysLog(fmt.Sprintf("CheckUserExistOrDeleted error: %v", err))
-		return
-	}
-	if exist {
-		common.ApiErrorI18n(c, i18n.MsgUserExists)
+	if !ensureGlobalUserIdentityAvailable(c, 0, user.Username, user.Email) {
 		return
 	}
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
@@ -238,12 +248,10 @@ func Register(c *gin.Context) {
 		ProviderId:  providerId,
 		Username:    user.Username,
 		Password:    user.Password,
+		Email:       strings.TrimSpace(user.Email),
 		DisplayName: user.Username,
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
-	}
-	if common.EmailVerificationEnabled {
-		cleanUser.Email = user.Email
 	}
 	cleanUser.SignupSource = strings.TrimSpace(user.SignupSource)
 	if err := cleanUser.Insert(inviterId); err != nil {
@@ -953,20 +961,27 @@ func UpdateUser(c *gin.Context) {
 		updatedUser.Password = "" // rollback to what it should be
 	}
 	if updatedUser.Username != "" && updatedUser.Username != originUser.Username {
-		exists, err := model.UsernameConflictsForUserLoginScope(updatedUser.Id, originUser.ProviderId, updatedUser.Username)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if exists {
-			common.ApiErrorI18n(c, i18n.MsgUserExists)
+		if !ensureGlobalUserIdentityAvailable(c, updatedUser.Id, updatedUser.Username, "") {
 			return
 		}
 	}
+	updatedUser.Email = strings.TrimSpace(updatedUser.Email)
+	if updatedUser.Email != "" && updatedUser.Email != originUser.Email {
+		if !ensureGlobalUserIdentityAvailable(c, updatedUser.Id, "", updatedUser.Email) {
+			return
+		}
+	}
+	updateEmail := updatedUser.Email != "" && updatedUser.Email != originUser.Email
 	updatePassword := updatedUser.Password != ""
 	if err := updatedUser.Edit(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if updateEmail {
+		if err := model.UpdateUserProfile(updatedUser.Id, map[string]interface{}{"email": updatedUser.Email}); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -1093,7 +1108,8 @@ func UpdateSelf(c *gin.Context) {
 	_, hasPhoneCountryCode := requestData["phone_country_code"]
 	_, hasPhoneNumber := requestData["phone_number"]
 	_, hasTimezone := requestData["timezone"]
-	if hasAvatar || hasPhoneCountryCode || hasPhoneNumber || hasTimezone {
+	_, hasEmail := requestData["email"]
+	if hasAvatar || hasPhoneCountryCode || hasPhoneNumber || hasTimezone || hasEmail {
 		updates := map[string]interface{}{}
 		// username 不作为拦截条件，但进入分支后作为更新字段
 		if hasUsername {
@@ -1111,13 +1127,7 @@ func UpdateSelf(c *gin.Context) {
 					return
 				}
 				if username != currentUser.Username {
-					exists, err := model.UsernameConflictsForUserLoginScope(userId, currentUser.ProviderId, username)
-					if err != nil {
-						common.ApiError(c, err)
-						return
-					}
-					if exists {
-						common.ApiErrorI18n(c, i18n.MsgUserExists)
+					if !ensureGlobalUserIdentityAvailable(c, userId, username, "") {
 						return
 					}
 				}
@@ -1143,6 +1153,21 @@ func UpdateSelf(c *gin.Context) {
 			if v, ok := requestData["timezone"].(string); ok {
 				updates["timezone"] = v
 			}
+		}
+		if v, ok := requestData["email"].(string); ok {
+			email := strings.TrimSpace(v)
+			userId := c.GetInt("id")
+			currentUser, err := model.GetUserById(userId, false)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			if email != "" && email != currentUser.Email {
+				if !ensureGlobalUserIdentityAvailable(c, userId, "", email) {
+					return
+				}
+			}
+			updates["email"] = email
 		}
 
 		userId := c.GetInt("id")
@@ -1189,13 +1214,7 @@ func UpdateSelf(c *gin.Context) {
 		return
 	}
 	if cleanUser.Username != "" && cleanUser.Username != currentUser.Username {
-		exists, err := model.UsernameConflictsForUserLoginScope(cleanUser.Id, currentUser.ProviderId, cleanUser.Username)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if exists {
-			common.ApiErrorI18n(c, i18n.MsgUserExists)
+		if !ensureGlobalUserIdentityAvailable(c, cleanUser.Id, cleanUser.Username, "") {
 			return
 		}
 	}
@@ -1302,6 +1321,10 @@ func CreateUser(c *gin.Context) {
 	if user.DisplayName == "" {
 		user.DisplayName = user.Username
 	}
+	user.Email = strings.TrimSpace(user.Email)
+	if !ensureGlobalUserIdentityAvailable(c, 0, user.Username, user.Email) {
+		return
+	}
 	myRole := c.GetInt("role")
 	if user.Role >= myRole {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
@@ -1311,6 +1334,7 @@ func CreateUser(c *gin.Context) {
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
+		Email:       user.Email,
 		DisplayName: user.DisplayName,
 		Role:        user.Role, // 保持管理员设置的角色
 	}
@@ -1468,7 +1492,7 @@ func EmailBind(c *gin.Context) {
 		common.ApiError(c, errors.New("invalid request body"))
 		return
 	}
-	email := req.Email
+	email := strings.TrimSpace(req.Email)
 	code := req.Code
 	if !common.VerifyCodeWithKey(email, code, common.EmailVerificationPurpose) {
 		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
@@ -1479,13 +1503,15 @@ func EmailBind(c *gin.Context) {
 	user := model.User{
 		Id: id.(int),
 	}
+	if !ensureGlobalUserIdentityAvailable(c, user.Id, "", email) {
+		return
+	}
 	err := user.FillUserById()
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	user.Email = email
-	// no need to check if this email already taken, because we have used verification code to check it
 	err = user.Update(false)
 	if err != nil {
 		common.ApiError(c, err)

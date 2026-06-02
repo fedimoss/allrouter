@@ -206,13 +206,8 @@ func CreateProviderUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
-	exist, err := model.CheckUserExistOrDeletedInProvider(provider.Id, user.Username, user.Email)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if exist {
-		common.ApiErrorI18n(c, i18n.MsgUserExists)
+	user.Email = strings.TrimSpace(user.Email)
+	if !ensureGlobalUserIdentityAvailable(c, 0, user.Username, user.Email) {
 		return
 	}
 	if user.DisplayName == "" {
@@ -222,6 +217,7 @@ func CreateProviderUser(c *gin.Context) {
 		ProviderId:   provider.Id,
 		Username:     user.Username,
 		Password:     user.Password,
+		Email:        user.Email,
 		DisplayName:  user.DisplayName,
 		Role:         common.RoleCommonUser,
 		Status:       common.UserStatusEnabled,
@@ -269,16 +265,17 @@ func UpdateProviderUser(c *gin.Context) {
 	}
 	req.Username = strings.TrimSpace(req.Username)
 	if req.Username != "" && req.Username != originUser.Username {
-		exists, err := model.UsernameConflictsWithProviderLoginScope(provider.Id, req.Username, req.Id)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if exists {
-			common.ApiErrorI18n(c, i18n.MsgUserExists)
+		if !ensureGlobalUserIdentityAvailable(c, req.Id, req.Username, "") {
 			return
 		}
 	}
+	req.Email = strings.TrimSpace(req.Email)
+	if req.Email != "" && req.Email != originUser.Email {
+		if !ensureGlobalUserIdentityAvailable(c, req.Id, "", req.Email) {
+			return
+		}
+	}
+	updateEmail := req.Email != "" && req.Email != originUser.Email
 	if req.Password == "$I_LOVE_U" {
 		req.Password = ""
 	}
@@ -303,6 +300,12 @@ func UpdateProviderUser(c *gin.Context) {
 	if err := cleanUser.Edit(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if updateEmail {
+		if err := model.UpdateUserProfile(req.Id, map[string]interface{}{"email": req.Email}); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	common.ApiSuccess(c, nil)
 }
