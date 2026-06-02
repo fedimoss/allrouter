@@ -181,14 +181,6 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
           unit_price: res.data.display_rate || 1,
         });
         setQuotaData(data);
-        if (data.length === 0) {
-          data.push({
-            count: 0,
-            model_name: '无数据',
-            quota: 0,
-            created_at: now.getTime() / 1000,
-          });
-        }
         data.sort((a, b) => a.created_at - b.created_at);
         return data;
       } else {
@@ -262,7 +254,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
       const data = await refresh();
-      if (data && data.length > 0 && updateChartDataCallback) {
+      if (data && updateChartDataCallback) {
         updateChartDataCallback(data);
       }
       setSearchModalVisible(false);

@@ -818,12 +818,7 @@ export default function UpstreamRatioSync(props) {
         columns={columns}
         dataSource={getCurrentPageData(filteredDataSource)}
         pagination={{
-          currentPage: currentPage,
-          pageSize: pageSize,
           total: filteredDataSource.length,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          pageSizeOptions: ['5', '10', '20', '50'],
           onChange: (page, size) => {
             setCurrentPage(page);
             setPageSize(size);

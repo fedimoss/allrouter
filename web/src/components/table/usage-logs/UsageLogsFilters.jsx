@@ -106,11 +106,6 @@ const LogsFilters = ({
             showClear
             pure
             size='large'
-            presets={DATE_RANGE_PRESETS.map((preset) => ({
-              text: t(preset.text),
-              start: preset.start(),
-              end: preset.end(),
-            }))}
           />
         </div>
 

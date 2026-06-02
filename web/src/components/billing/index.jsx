@@ -857,28 +857,9 @@ const Billing = () => {
           }
         />
 
-        <div className='billing-pagination flex flex-col gap-3 pt-3 lg:flex-row lg:items-center lg:justify-between'>
-          <Text type='tertiary'>
-            {t('显示第 {{start}} - {{end}} 条，共 {{total}} 条', {
-              start: startIndex,
-              end: endIndex,
-              total: historyTotal,
-            })}
-          </Text>
+        <div className='billing-pagination flex flex-col gap-3 pt-3 lg:flex-row lg:items-center lg:justify-end'>
+          
           <div className='flex items-center gap-3'>
-            <Select
-              value={historyPageSize}
-              onChange={(value) => {
-                setHistoryPageSize(value);
-                setActivePage(1);
-              }}
-              optionList={HISTORY_PAGE_SIZE_OPTIONS.map((value) => ({
-                label: t('{{count}} 条/页', { count: value }),
-                value,
-              }))}
-              insetLabel={t('每页')}
-              className='min-w-[120px]'
-            />
             <Pagination
               total={historyTotal}
               pageSize={historyPageSize}

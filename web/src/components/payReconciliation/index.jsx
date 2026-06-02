@@ -581,22 +581,11 @@ const PayReconciliationList = () => {
           </div>
         </div>
 
-        <div className='mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-          <Text type='tertiary'>
-            {t('显示第 {{start}} - {{end}} 条，共 {{total}} 条', {
-              start,
-              end,
-              total,
-            })}
-          </Text>
+        <div className='mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-end'>
           <Pagination
             total={total}
-            pageSize={pageSize}
-            currentPage={page}
+            hideOnSinglePage
             onPageChange={setPage}
-            size='small'
-            showQuickJumper
-            showSizeChanger={false}
           />
         </div>
       </div>

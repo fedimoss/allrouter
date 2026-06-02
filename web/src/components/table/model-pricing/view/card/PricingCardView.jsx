@@ -306,7 +306,7 @@ const PricingCardView = ({
                   </div>
 
                   <div className='pricing-market-desktop-card-actions'>
-                    <Button theme='borderless' type='tertiary' icon={<Heart size={16} />} onClick={(e) => { e.stopPropagation(); }} />
+                    {/* <Button theme='borderless' type='tertiary' icon={<Heart size={16} />} onClick={(e) => { e.stopPropagation(); }} /> */}
                     <Button theme='borderless' type='tertiary' icon={<Copy size={14} />} onClick={(e) => { e.stopPropagation(); copyText(model.model_name); }} />
                     {/* {rowSelection && <Checkbox checked={isSelected} onChange={(e) => handleCheckboxChange(model, e.target.checked)} />} */}
                   </div>
@@ -370,8 +370,6 @@ const PricingCardView = ({
             currentPage={currentPage}
             pageSize={pageSize}
             total={filteredModels.length}
-            showSizeChanger={true}
-            pageSizeOptions={[10, 20, 50, 100]}
             size={isMobile ? 'small' : 'default'}
             showQuickJumper={isMobile}
             onPageChange={(page) => setCurrentPage(page)}

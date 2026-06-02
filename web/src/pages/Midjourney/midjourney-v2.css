@@ -83,7 +83,7 @@ html.dark .mjlog-v2-text-trigger-fail{color:#fca5a5}
 .mjlog-v2-image-button{display:inline-flex;border:0;background:transparent;padding:0;cursor:pointer}
 .mjlog-v2-image-thumb{width:48px;height:48px;border:1px solid rgba(15,23,42,.08);border-radius:10px;object-fit:cover;box-shadow:0 8px 18px rgba(15,23,42,.08);transition:transform .2s ease,box-shadow .2s ease}
 .mjlog-v2-image-thumb:hover{transform:scale(1.08);box-shadow:0 12px 24px rgba(9,254,247,.18)}
-.mjlog-v2-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px;border-top:1px solid var(--mj-border)}
+.mjlog-v2-footer{display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:14px 18px;border-top:1px solid var(--mj-border)}
 .mjlog-v2-footer-actions{flex-wrap:wrap;justify-content:flex-end;gap:10px}
 .mjlog-v2-page-size{gap:8px}
 .mjlog-v2-page-size select{min-height:38px;border:1px solid var(--mj-border);border-radius:10px;background:var(--mj-surface);padding:0 12px;color:var(--mj-text);outline:none}

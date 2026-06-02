@@ -276,10 +276,6 @@ const InviteUsersDetailModal = ({
             gap: 12,
           }}
         >
-          <Text type='secondary' size='small'>
-            {t('显示第')} {start} {t('条')} - {t('第')} {end} {t('条')}，{t('共')} {total}{' '}
-            {t('条')}
-          </Text>
           <Space>
             <Pagination
               total={total}

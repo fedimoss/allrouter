@@ -578,27 +578,12 @@ const WithdrawPage = () => {
           empty={<Empty title={t('暂无记录')} />}
         />
 
-        <div className='flex items-center justify-between border-t border-slate-100 px-6 py-4 dark:border-slate-700'>
-          <Text type='tertiary' className='text-sm'>
-            {t('显示第 {{start}} - {{end}} 条，共 {{total}} 条', { start, end, total })}
-          </Text>
+        <div className='flex items-center justify-end border-t border-slate-100 px-6 py-4 dark:border-slate-700'>
           <div className='flex items-center gap-3'>
-            <Select
-              value={pageSize}
-              optionList={PAGE_SIZE_OPTIONS.map((v) => ({ value: v, label: `${v} ${t('条/页')}` }))}
-              onChange={(v) => {
-                setPageSize(v);
-                setPage(1);
-              }}
-              size='small'
-            />
             <Pagination
               total={total}
-              pageSize={pageSize}
-              currentPage={page}
               onPageChange={setPage}
-              showSizeChanger={false}
-              size='small'
+              hideOnSinglePage
             />
           </div>
         </div>

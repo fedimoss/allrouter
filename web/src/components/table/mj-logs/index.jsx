@@ -18,14 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { DatePicker, Empty, ImagePreview, Modal } from '@douyinfe/semi-ui';
+import { DatePicker, Empty, ImagePreview, Modal, Pagination } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import {
-  ChevronLeft,
-  ChevronRight,
   Columns3,
   Copy as CopyIcon,
   FileText,
@@ -42,19 +40,6 @@ import { useMjLogsData } from '../../../hooks/mj-logs/useMjLogsData';
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
-
-const getPaginationItems = (currentPage, totalPages) => {
-  if (totalPages <= 1) return [1];
-  const items = [];
-  const start = Math.max(1, currentPage - 1);
-  const end = Math.min(totalPages, currentPage + 1);
-  if (start > 1) items.push(1);
-  if (start > 2) items.push('left-ellipsis');
-  for (let page = start; page <= end; page += 1) items.push(page);
-  if (end < totalPages - 1) items.push('right-ellipsis');
-  if (end < totalPages) items.push(totalPages);
-  return items;
-};
 
 const cloneFilters = (filters) => ({
   channel_id: filters?.channel_id || '',
@@ -519,10 +504,6 @@ const MjLogsPage = () => {
   ];
 
   const visibleTableColumns = tableColumns.filter((column) => visibleColumns[column.key]);
-  const totalPages = Math.max(1, Math.ceil(logsData.logCount / Math.max(logsData.pageSize || 1, 1)));
-  const paginationItems = getPaginationItems(logsData.activePage, totalPages);
-  const rangeStart = logsData.logCount === 0 ? 0 : (logsData.activePage - 1) * logsData.pageSize + 1;
-  const rangeEnd = Math.min(logsData.logCount, logsData.activePage * logsData.pageSize);
   const hasActiveFilters =
     filters.mj_id ||
     (logsData.isAdminUser && filters.channel_id) ||
@@ -863,66 +844,12 @@ const MjLogsPage = () => {
                 )}
               </div>
               <div className='mjlog-v2-footer'>
-                <div className='mjlog-v2-footer-summary'>
-                  {logsData.t('显示第 {{start}} 到 {{end}} 条，共 {{total}} 条结果', {
-                    start: rangeStart,
-                    end: rangeEnd,
-                    total: logsData.logCount,
-                  })}
-                </div>
-                <div className='mjlog-v2-footer-actions'>
-                  <label className='mjlog-v2-page-size'>
-                    <span>{logsData.t('每页')}</span>
-                    <select
-                      value={logsData.pageSize}
-                      onChange={(event) => logsData.handlePageSizeChange(Number(event.target.value))}
-                    >
-                      {PAGE_SIZE_OPTIONS.map((size) => (
-                        <option key={size} value={size}>
-                          {size}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <nav className='mjlog-v2-pagination' aria-label='Pagination'>
-                    <button
-                      type='button'
-                      className='mjlog-v2-page-button'
-                      disabled={logsData.activePage <= 1}
-                      onClick={() => logsData.handlePageChange(logsData.activePage - 1)}
-                    >
-                      <ChevronLeft size={14} />
-                    </button>
-                    {paginationItems.map((item) =>
-                      typeof item === 'number' ? (
-                        <button
-                          key={item}
-                          type='button'
-                          className={
-                            item === logsData.activePage
-                              ? 'mjlog-v2-page-button mjlog-v2-page-current'
-                              : 'mjlog-v2-page-button'
-                          }
-                          onClick={() => logsData.handlePageChange(item)}
-                        >
-                          {item}
-                        </button>
-                      ) : (
-                        <span key={item} className='mjlog-v2-page-ellipsis'>
-                          ...
-                        </span>
-                      ),
-                    )}
-                    <button
-                      type='button'
-                      className='mjlog-v2-page-button'
-                      disabled={logsData.activePage >= totalPages}
-                      onClick={() => logsData.handlePageChange(logsData.activePage + 1)}
-                    >
-                      <ChevronRight size={14} />
-                    </button>
-                  </nav>
-                </div>
+                <Pagination
+                  total={logsData.logCount}
+                  hideOnSinglePage
+                  onPageSizeChange={(pageSize) => logsData.handlePageSizeChange(pageSize)}
+                  onPageChange={(page) => logsData.handlePageChange(page)}
+                />
               </div>
             </section>
           </div>

@@ -30,6 +30,7 @@ import {
   Tag,
   Typography,
   Upload,
+  Pagination,
 } from '@douyinfe/semi-ui';
 import {
   IconDelete,
@@ -211,6 +212,7 @@ const ProviderPage = () => {
   const pageTitle = adminMode ? t('服务商管理') : t('服务商设置');
 
   const [providers, setProviders] = useState([]);
+  const [providerPage, setProviderPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [currentProvider, setCurrentProvider] = useState(null);
   const [providerModalVisible, setProviderModalVisible] = useState(false);
@@ -1243,10 +1245,17 @@ const ProviderPage = () => {
       <Table
         rowKey='id'
         columns={columns}
-        dataSource={providers}
+        dataSource={providers.slice((providerPage - 1) * 10, providerPage * 10)}
         loading={loading}
-        pagination={{ pageSize: 10 }}
+        pagination={false}
       />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+        <Pagination
+          total={providers.length}
+          hideOnSinglePage
+          onPageChange={(p) => setProviderPage(p)}
+        />
+      </div>
 
       <Modal
         title={editingProvider ? t('编辑服务商') : t('新建服务商')}

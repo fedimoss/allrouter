@@ -76,7 +76,7 @@ html.dark .tasklog-v2-pill-violet{background:rgba(124,58,237,.18);color:#c4b5fd}
 .tasklog-v2-text-trigger{display:block;max-width:100%;overflow:hidden;text-align:left;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--task-text)}
 .tasklog-v2-text-trigger-error{color:#dc2626;font-weight:500}
 html.dark .tasklog-v2-text-trigger-error{color:#fca5a5}
-.tasklog-v2-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px;border-top:1px solid var(--task-border)}
+.tasklog-v2-footer{display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:14px 18px;border-top:1px solid var(--task-border)}
 .tasklog-v2-footer-actions{flex-wrap:wrap;justify-content:flex-end;gap:10px}
 .tasklog-v2-page-size{gap:8px}
 .tasklog-v2-page-size select{min-height:38px;border:1px solid var(--task-border);border-radius:10px;background:var(--task-surface);padding:0 12px;color:var(--task-text);outline:none}
