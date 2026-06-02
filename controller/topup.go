@@ -140,8 +140,15 @@ func GetTopUpInfo(c *gin.Context) {
 		enableStripeTopup = stripeCurrency != nil
 	}
 
+	// enableEpayTopUp: 易支付是否可用 —— 需同时配置支付地址、商户ID和商户密钥
+	enableEpayTopUp := operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != ""
+	// enableLakalaTopUp: 拉卡拉是否可用 —— 需在支付方式列表中启用且拉卡拉配置完整
+	enableLakalaTopUp := operation_setting.ContainsPayMethod(model.PaymentProviderLakala) && isLakalaConfigured()
+	// enableOnlineTopUp: 在线充值总开关 —— 易支付或拉卡拉任一可用即开启
+	enableOnlineTopUp := enableEpayTopUp || enableLakalaTopUp
+
 	data := gin.H{
-		"enable_online_topup": operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != "",
+		"enable_online_topup": enableOnlineTopUp,
 		"enable_stripe_topup": enableStripeTopup,
 		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
 		"enable_waffo_topup":  enableWaffo,
@@ -296,6 +303,19 @@ func RequestEpay(c *gin.Context) {
 	notifyUrl, _ := url.Parse(callBackAddress + "/api/user/epay/notify")
 	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
 	tradeNo = fmt.Sprintf("USR%dNO%s", id, tradeNo)
+
+	amount := req.Amount
+	// Token 展示模式下，前端传入的是 token 数量；入库时仍按基础充值额度记录。
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		dAmount := decimal.NewFromInt(int64(amount))
+		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		amount = dAmount.Div(dQuotaPerUnit).IntPart()
+	}
+	// 拉卡拉作为独立支付方式配置在“充值方式设置”中，命中后走拉卡拉预下单；其他方式继续走易支付。
+	if req.PaymentMethod == model.PaymentProviderLakala {
+		requestLakalaWechatPay(c, req, amount, usdMoney, epayChargeMoney, tradeNo)
+		return
+	}
 	client := GetEpayClient()
 	if client == nil {
 		c.JSON(200, gin.H{"message": "error", "data": "当前管理员未配置支付信息"})
@@ -314,24 +334,19 @@ func RequestEpay(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
-	amount := req.Amount
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		dAmount := decimal.NewFromInt(int64(amount))
-		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-		amount = dAmount.Div(dQuotaPerUnit).IntPart()
-	}
 	topUp := &model.TopUp{
-		ProviderId:    c.GetInt("provider_id"),
-		UserId:        id,
-		Amount:        amount,
-		Money:         usdMoney,
-		TradeNo:       tradeNo,
-		PaymentMethod: req.PaymentMethod,
-		BizType:       model.TopUpBizTypePayment,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
-		Currency:      "￥", // 默认为人民币(微信)
-		OriginalMoney: epayChargeMoney,
+		ProviderId:      c.GetInt("provider_id"),
+		UserId:          id,
+		Amount:          amount,
+		Money:           usdMoney,
+		TradeNo:         tradeNo,
+		PaymentMethod:   req.PaymentMethod,
+		PaymentProvider: model.PaymentProviderEpay,
+		BizType:         model.TopUpBizTypePayment,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
+		Currency:        "￥", // 默认为人民币(微信)
+		OriginalMoney:   epayChargeMoney,
 	}
 	err = topUp.Insert()
 	if err != nil {

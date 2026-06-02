@@ -4471,7 +4471,7 @@
     "适用于大型代码工程、复杂开发任务与 AI 编程助手场景，支持长上下文代码理解与多工具协同。": "Adapté aux scénarios de grands projets de code, tâches de développement complexes et assistants de programmation par IA. Supporte la compréhension du contexte long et la collaboration multi-outils.",
     "适用于复杂代码架构设计、长链路开发任务与自主编程 Agent 场景，可实现持续代码推理与任务规划。": "Adapté aux scénarios de conception d'architecture de code complexe, tâches de développement en chaîne longue et scénarios d'agents de programmation autonomes. Permet d'atteindre un raisonnement continu sur le code et une planification des tâches.",
     "适用于代码开发、任务规划与复杂逻辑推理场景，可结合 IDE 工具提升研发效率。": "Adapté aux scénarios de développement de code, planification des tâches et raisonnement logique complexe. Peut être combiné avec des outils IDE pour améliorer l'efficacité du développement.",
-    "适用于高并发 AI 对话、实时交互与企业级 Agent 场景，适合与 Hermes、OpenClaw 构建低延迟推理系统。": "Adapté aux scénarios de conversations IA à haut débit, interactions en temps réel et agents d'entreprise. Convient pour construire des systèmes de raisonnement à faible latence avec Hermes et OpenClaw.", 
+    "适用于高并发 AI 对话、实时交互与企业级 Agent 场景，适合与 Hermes、OpenClaw 构建低延迟推理系统。": "Adapté aux scénarios de conversations IA à haut débit, interactions en temps réel et agents d'entreprise. Convient pour construire des systèmes de raisonnement à faible latence avec Hermes et OpenClaw.",
     "适用于复杂推理、代码生成与企业 AI Agent 场景，可结合飞书龙虾与 MCP 工具实现自动化任务执行。": "Adapté aux scénarios de raisonnement complexe, génération de code et agents IA d'entreprise. Peut être combiné avec Feishu Longxia et les outils MCP pour réaliser l'automatisation des tâches.",
     "适用于多模态分析、长文档处理与复杂 AI 推理场景，可用于企业知识管理与智能办公。": "Adapté aux scénarios de analyse multi-modale, traitement de documents longs et raisonnement IA complexe. Peut être utilisé pour la gestion des connaissances d'entreprise et le travail intelligent.",
     "适用于前端代码开发、实时聊天、AI 搜索与移动端 AI 应用场景，适合构建高并发轻量化 AI 服务。": "Adapté aux scénarios de développement de code frontend, chat en temps réel, recherche IA et applications mobiles IA. Convient pour construire des services IA à haut débit et légers.",
@@ -4479,6 +4479,9 @@
     "适用于代码开发、自动化编程、AI 编程助手与复杂开发工作流场景，可结合 Hermes、OpenClaw 与 IDE 工具实现智能研发。": "Adapté aux scénarios de développement de code, programmation automatisée, assistants de programmation par IA et flux de travail de développement complexes. Peut être combiné avec Hermes, OpenClaw et les outils IDE pour réaliser un développement intelligent.",
     "适用于代码开发、高并发 AI 编程服务与轻量化开发 Agent 场景，重点优化低延迟与资源消耗。": "Adapté aux scénarios de développement de code, services de programmation IA à haut débit et agents de développement légers. Se concentre sur l'optimisation de la latence faible et de la consommation des ressources.",
     "适用于 AI 图片生成、广告设计、视觉创作与数字内容生产场景，可用于多模态创意工作流。": "Adapté aux scénarios de génération d'images IA, conception publicitaire, création visuelle et production de contenu numérique. Peut être utilisé pour des flux de travail créatifs multi-modaux.",
-    "适用于中文 AI Agent、企业办公与智能客服场景，可结合飞书龙虾与 OpenClaw 构建中文自动化工作流。": "Adapté aux scénarios d'agents IA chinois, bureau d'entreprise et service client intelligent. Peut être combiné avec Feishu Longxia et OpenClaw pour construire des flux de travail automatisés en chinois."
+    "适用于中文 AI Agent、企业办公与智能客服场景，可结合飞书龙虾与 OpenClaw 构建中文自动化工作流。": "Adapté aux scénarios d'agents IA chinois, bureau d'entreprise et service client intelligent. Peut être combiné avec Feishu Longxia et OpenClaw pour construire des flux de travail automatisés en chinois.",
+    "订单已超时，请重新发起充值": "La commande a expiré. Veuillez lancer une nouvelle recharge.",
+    "订单已失效，请重新发起充值": "La commande n'est plus valide. Veuillez lancer une nouvelle recharge.",
+    "订单状态查询失败": "Échec de la consultation du statut de la commande"
   }
 }

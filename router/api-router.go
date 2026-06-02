@@ -66,6 +66,7 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.GET("/logout", controller.Logout)
 			userRoute.POST("/epay/notify", controller.EpayNotify)
 			userRoute.GET("/epay/notify", controller.EpayNotify)
+			userRoute.POST("/lakala/notify", controller.LakalaNotify) // 拉卡拉支付结果回调
 			userRoute.GET("/groups", controller.GetUserGroups)
 
 			selfRoute := userRoute.Group("/")
@@ -89,6 +90,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/topup/rebate/records", controller.GetTopUpRebateRecords) // 用户返利记录列表
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
+				selfRoute.GET("/lakala/status", controller.GetLakalaTopUpStatus)
 				selfRoute.GET("/redemption/self", controller.GetSelfRedemptionRecords)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
 				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)

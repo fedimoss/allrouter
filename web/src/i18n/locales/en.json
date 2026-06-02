@@ -4555,6 +4555,9 @@
     "适用于企业级 AI 编程助手、复杂代码推理与自主开发 Agent 场景，可结合 Hermes 与 OpenClaw 实现自动化研发。": "Suitable for enterprise-level AI programming assistants, complex code reasoning, and autonomous development Agent scenarios. Can be combined with Hermes and OpenClaw to achieve automated R&D.",
     "适用于代码开发、高并发 AI 编程服务与轻量化开发 Agent 场景，重点优化低延迟与资源消耗。": "Suitable for code development, high-concurrency AI programming services, and lightweight development Agent scenarios. Focuses on optimizing low latency and resource consumption.",
     "适用于 AI 图片生成、广告设计、视觉创作与数字内容生产场景，可用于多模态创意工作流。": "Suitable for AI image generation, advertising design, visual creation, and digital content production scenarios. Can be used for multi-modal creative workflows.",
-    "适用于中文 AI Agent、企业办公与智能客服场景，可结合飞书龙虾与 OpenClaw 构建中文自动化工作流。": "Suitable for Chinese AI Agents, enterprise office work, and intelligent customer service scenarios. Can be combined with Feishu Longxia and OpenClaw to build Chinese automated workflows."
+    "适用于中文 AI Agent、企业办公与智能客服场景，可结合飞书龙虾与 OpenClaw 构建中文自动化工作流。": "Suitable for Chinese AI Agents, enterprise office work, and intelligent customer service scenarios. Can be combined with Feishu Longxia and OpenClaw to build Chinese automated workflows.",
+    "订单已超时，请重新发起充值": "Order timed out. Please start a new recharge.",
+    "订单已失效，请重新发起充值": "Order is no longer valid. Please start a new recharge.",
+    "订单状态查询失败": "Failed to query order status"
   }
 }

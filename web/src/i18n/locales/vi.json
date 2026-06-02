@@ -4996,7 +4996,7 @@
     "适用于大型代码工程、复杂开发任务与 AI 编程助手场景，支持长上下文代码理解与多工具协同。": "Phương pháp áp dụng cho việc phát triển mã, phức tạp, suy toán mã dài chuỗi và lập trình AI nghiệp nghiệp, hỗ trợ việc hợp tác với nhiều công cụ.",
     "适用于复杂代码架构设计、长链路开发任务与自主编程 Agent 场景，可实现持续代码推理与任务规划。": "Phương pháp áp dụng cho việc thiết kế mã phức tạp, phát triển mã dài chuỗi và lập trình AI nghiệp nghiệp, hỗ trợ việc hợp tác với nhiều công cụ.",
     "适用于代码开发、任务规划与复杂逻辑推理场景，可结合 IDE 工具提升研发效率。": "Phương pháp áp dụng cho việc phát triển mã, lập kế hoạch nhiệm vụ và suy luận logic phức tạp, có thể kết hợp với các công cụ IDE để nâng cao hiệu suất nghiên cứu và phát triển.",
-    "适用于高并发 AI 对话、实时交互与企业级 Agent 场景，适合与 Hermes、OpenClaw 构建低延迟推理系统。": "Phương pháp áp dụng cho việc đối thoại AI cao độ, tương tác thời gian thực và các kịch bản Agent cấp doanh nghiệp, phù hợp để xây dựng hệ thống suy luận độ trễ thấp cùng Hermes, OpenClaw.", 
+    "适用于高并发 AI 对话、实时交互与企业级 Agent 场景，适合与 Hermes、OpenClaw 构建低延迟推理系统。": "Phương pháp áp dụng cho việc đối thoại AI cao độ, tương tác thời gian thực và các kịch bản Agent cấp doanh nghiệp, phù hợp để xây dựng hệ thống suy luận độ trễ thấp cùng Hermes, OpenClaw.",
     "适用于复杂推理、代码生成与企业 AI Agent 场景，可结合飞书龙虾与 MCP 工具实现自动化任务执行。": "Phương pháp áp dụng cho việc suy luận phức tạp, sinh mã và các kịch bản Agent AI doanh nghiệp, có thể kết hợp với飞书龙虾 và MCP để thực hiện tự động hóa các nhiệm vụ.",
     "适用于多模态分析、长文档处理与复杂 AI 推理场景，可用于企业知识管理与智能办公。": "Phương pháp áp dụng cho việc phân tích đa mô thức, xử lý tài liệu dài và suy luận AI phức tạp, có thể được sử dụng cho quản lý kiến thức doanh nghiệp và văn phòng thông minh.",
     "适用于前端代码开发、实时聊天、AI 搜索与移动端 AI 应用场景，适合构建高并发轻量化 AI 服务。": "Phương pháp áp dụng cho việc phát triển mã frontend, trò chuyện thời gian thực, tìm kiếm AI và các kịch bản ứng dụng AI trên thiết bị di động, phù hợp để xây dựng các dịch vụ AI nhẹ và cao độ.",
@@ -5009,6 +5009,9 @@
     "适用于企业级 AI 编程助手、复杂代码推理与自主开发 Agent 场景，可结合 Hermes 与 OpenClaw 实现自动化研发。": "Phương pháp áp dụng cho việc trợ giúp lập trình AI cấp doanh nghiệp, suy luận mã phức tạp và các kịch bản phát triển Agent tự chủ, có thể kết hợp với Hermes và OpenClaw để thực hiện nghiên cứu và phát triển tự động.",
     "适用于代码开发、高并发 AI 编程服务与轻量化开发 Agent 场景，重点优化低延迟与资源消耗。": "Phương pháp áp dụng cho việc phát triển mã, dịch vụ lập trình AI cao độ và các kịch bản Agent phát triển nhẹ, tập trung vào tối ưu hóa độ trễ thấp và tiêu thụ tài nguyên.",
     "适用于 AI 图片生成、广告设计、视觉创作与数字内容生产场景，可用于多模态创意工作流。": "Phương pháp áp dụng cho việc sinh hình ảnh AI, thiết kế quảng cáo, sáng tạo thị giác và sản xuất nội dung kỹ thuật số, có thể được sử dụng cho quy trình sáng tạo đa mô thức.",
-    "适用于中文 AI Agent、企业办公与智能客服场景，可结合飞书龙虾与 OpenClaw 构建中文自动化工作流。": "Phương pháp áp dụng cho việc sử dụng Agent AI tiếng Trung, văn phòng doanh nghiệp và các kịch bản dịch vụ khách hàng thông minh, có thể kết hợp với飞书龙虾 và OpenClaw để xây dựng quy trình tự động hóa tiếng Trung."
+    "适用于中文 AI Agent、企业办公与智能客服场景，可结合飞书龙虾与 OpenClaw 构建中文自动化工作流。": "Phương pháp áp dụng cho việc sử dụng Agent AI tiếng Trung, văn phòng doanh nghiệp và các kịch bản dịch vụ khách hàng thông minh, có thể kết hợp với飞书龙虾 và OpenClaw để xây dựng quy trình tự động hóa tiếng Trung.",
+    "订单已超时，请重新发起充值": "Đơn hàng đã hết thời gian chờ. Vui lòng nạp lại.",
+    "订单已失效，请重新发起充值": "Đơn hàng không còn hiệu lực. Vui lòng nạp lại.",
+    "订单状态查询失败": "Không thể truy vấn trạng thái đơn hàng"
   }
 }

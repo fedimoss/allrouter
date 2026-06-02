@@ -1392,7 +1392,16 @@ func GetUserGroup(id int, fromDB bool) (group string, err error) {
 		// Don't return error - fall through to DB
 	}
 	fromDB = true
-	err = DB.Model(&User{}).Where("id = ?", id).Select(commonGroupCol).Find(&group).Error
+	// group 是 SQL 保留字，查询时必须按数据库类型转义列名。
+	// commonGroupCol 通常在数据库初始化时设置；为空时按当前数据库类型兜底，避免测试或早期初始化阶段查询失败。
+	groupCol := commonGroupCol
+	if groupCol == "" {
+		groupCol = "`group`"
+		if common.UsingPostgreSQL {
+			groupCol = `"group"`
+		}
+	}
+	err = DB.Model(&User{}).Where("id = ?", id).Select(groupCol).Find(&group).Error
 	if err != nil {
 		return "", err
 	}
