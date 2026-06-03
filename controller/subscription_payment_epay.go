@@ -90,6 +90,23 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		return
 	}
 
+	// 拉卡拉作为独立支付方式配置在"充值方式设置"中，命中后走拉卡拉预下单；其他方式继续走易支付。
+	// 与充值流程（topup.go）的分支逻辑一致：易支付和拉卡拉不会同时存在。
+	if req.PaymentMethod == model.PaymentProviderLakala {
+		chargeMoney, err := getSubscriptionEpayChargeMoney(c, plan.PriceAmount)
+		if err != nil {
+			common.ApiErrorMsg(c, "计算支付金额失败")
+			return
+		}
+		if chargeMoney < 0.01 {
+			common.ApiErrorMsg(c, "套餐金额过低")
+			return
+		}
+		userId := c.GetInt("id")
+		requestSubscriptionLakalaPay(c, plan, req, userId, chargeMoney, plan.PriceAmount)
+		return
+	}
+
 	userId := c.GetInt("id")
 	if plan.MaxPurchasePerUser > 0 {
 		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)

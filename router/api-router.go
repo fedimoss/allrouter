@@ -158,6 +158,7 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
 			subscriptionRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCryptoPay) // 加密货币订阅
 			subscriptionRoute.POST("/crypto/confirm", controller.SubscriptionRequestCryptoConfirm)                         // 加密货币订阅确认
+			subscriptionRoute.GET("/lakala/status", controller.GetSubscriptionLakalaStatus)                                // 拉卡拉订阅订单状态轮询
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())
@@ -180,6 +181,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/return", controller.SubscriptionEpayReturn)
 		apiRouter.POST("/subscription/epay/return", controller.SubscriptionEpayReturn)
+		apiRouter.POST("/subscription/lakala/notify", controller.SubscriptionLakalaNotify) // 拉卡拉订阅支付结果回调
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
 		{

@@ -38,6 +38,13 @@ const LakalaQRCode = () => {
   const tradeNo = searchParams.get('trade_no') || '';
   const payment = useMemo(() => getLakalaQRCodePayment(tradeNo), [tradeNo]);
 
+  // 根据订单号前缀判断是否为订阅订单，用于支付成功后的跳转目标
+  const isSubscription = tradeNo.startsWith('SUB');
+  const backPath = isSubscription ? '/console/topup' : '/console/topup';
+  const successPath = isSubscription
+    ? '/console/topup?pay=success'
+    : '/console/topup?pay=success';
+
   const copyTradeNo = async () => {
     await navigator.clipboard.writeText(payment?.trade_no || tradeNo);
     Toast.success({ content: t('复制成功') });
@@ -64,8 +71,12 @@ const LakalaQRCode = () => {
       }
 
       try {
+        // 根据订单号前缀区分充值和订阅：SUB 开头为订阅订单，其余为充值订单
+        const statusApi = tradeNo.startsWith('SUB')
+          ? '/api/subscription/lakala/status'
+          : '/api/user/lakala/status';
         const res = await API.get(
-          `/api/user/lakala/status?trade_no=${encodeURIComponent(tradeNo)}`,
+          `${statusApi}?trade_no=${encodeURIComponent(tradeNo)}`,
           { skipErrorHandler: true },
         );
         const payload = res?.data;
@@ -74,7 +85,7 @@ const LakalaQRCode = () => {
         if (payload?.message === 'success') {
           if (payload?.data?.paid || status === 'success') {
             Toast.success({ content: t('支付成功') });
-            navigate('/console/topup?pay=success', { replace: true });
+            navigate(successPath, { replace: true });
             return;
           }
           if (status === 'failed' || status === 'expired') {
