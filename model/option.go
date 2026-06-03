@@ -87,12 +87,13 @@ func InitOptionMap() {
 	common.OptionMap["USDExchangeRate"] = strconv.FormatFloat(operation_setting.USDExchangeRate, 'f', -1, 64)
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
 	// 拉卡拉支付配置：从系统设置同步到全局OptionMap，供controller层读取使用
-	common.OptionMap["LakalaAppID"] = setting.LakalaAppID           // 拉卡拉接入应用ID
-	common.OptionMap["LakalaSerialNo"] = setting.LakalaSerialNo     // 拉卡拉证书序列号
-	common.OptionMap["LakalaPrivateKey"] = setting.LakalaPrivateKey // 商户私钥（PEM格式），用于请求签名
-	common.OptionMap["LakalaPublicCert"] = setting.LakalaPublicCert // 拉卡拉平台公钥证书（PEM格式），用于验签
-	common.OptionMap["LakalaMerchantNo"] = setting.LakalaMerchantNo // 拉卡拉商户号
-	common.OptionMap["LakalaTermNo"] = setting.LakalaTermNo         // 拉卡拉终端号
+	common.OptionMap["LakalaAppID"] = setting.LakalaAppID                     // 拉卡拉接入应用ID
+	common.OptionMap["LakalaSerialNo"] = setting.LakalaSerialNo               // 拉卡拉证书序列号
+	common.OptionMap["LakalaPrivateKey"] = setting.LakalaPrivateKey           // 商户私钥（PEM格式），用于请求签名
+	common.OptionMap["LakalaPublicCert"] = setting.LakalaPublicCert           // 拉卡拉平台公钥证书（PEM格式），用于验签
+	common.OptionMap["LakalaMerchantNo"] = setting.LakalaMerchantNo           // 拉卡拉商户号
+	common.OptionMap["LakalaTermNo"] = setting.LakalaTermNo                   // 拉卡拉终端号
+	common.OptionMap["LakalaCallbackAddress"] = setting.LakalaCallbackAddress // 拉卡拉回调地址域名
 	common.OptionMap["StripeMinTopUp"] = strconv.Itoa(setting.StripeMinTopUp)
 	common.OptionMap["StripeApiSecret"] = setting.StripeApiSecret
 	common.OptionMap["StripeWebhookSecret"] = setting.StripeWebhookSecret
@@ -419,6 +420,8 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.LakalaMerchantNo = value
 	case "LakalaTermNo":
 		setting.LakalaTermNo = value
+	case "LakalaCallbackAddress":
+		setting.LakalaCallbackAddress = value
 	case "Price":
 		operation_setting.Price, _ = strconv.ParseFloat(value, 64)
 	case "USDExchangeRate":

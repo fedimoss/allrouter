@@ -52,6 +52,7 @@ const PaymentSetting = () => {
     StripePromotionCodesEnabled: false,
     InviteTopupRebateRatio: 0,
     InviteConsumeRebateRatioLevel2: 0,
+    LakalaCallbackAddress: '',
   });
 
   let [loading, setLoading] = useState(false);

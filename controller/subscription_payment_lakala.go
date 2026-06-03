@@ -11,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/lakala"
-	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -19,7 +18,7 @@ import (
 
 const (
 	// lakalaSubscriptionNotifyURLPath 是订阅拉卡拉支付回调的 API 路径（相对）。
-	// 实际完整地址 = service.GetCallbackAddress() + 此路径。
+	// 实际完整地址 = LakalaCallbackAddress + 此路径。
 	lakalaSubscriptionNotifyURLPath = "/api/subscription/lakala/notify"
 	// lakalaSubscriptionSubject 是订阅拉卡拉支付订单的商品标题。
 	lakalaSubscriptionSubject = "订阅"
@@ -42,7 +41,7 @@ const (
 func requestSubscriptionLakalaPay(c *gin.Context, plan *model.SubscriptionPlan, req SubscriptionEpayPayRequest, userId int, chargeMoney float64, usdPrice float64) {
 	// 获取拉卡拉配置并校验完整性
 	config := getLakalaOptionConfig()
-	if config.AppID == "" || config.SerialNo == "" || config.PrivateKey == "" || config.PublicCert == "" || config.MerchantNo == "" {
+	if config.AppID == "" || config.SerialNo == "" || config.PrivateKey == "" || config.PublicCert == "" || config.MerchantNo == "" || config.CallbackAddress == "" {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "当前管理员未配置拉卡拉支付信息"})
 		return
 	}
@@ -62,8 +61,7 @@ func requestSubscriptionLakalaPay(c *gin.Context, plan *model.SubscriptionPlan, 
 	tradeNo = fmt.Sprintf("SUBUSR%dNO%s", userId, tradeNo)
 
 	// 构造回调地址（订阅专用路径）
-	callBackAddress := service.GetCallbackAddress()
-	lakalaNotifyURL := callBackAddress + lakalaSubscriptionNotifyURLPath
+	lakalaNotifyURL := buildLakalaNotifyURL(config.CallbackAddress, lakalaSubscriptionNotifyURLPath)
 
 	// 构造拉卡拉预下单请求体
 	requestBody := map[string]any{
@@ -157,7 +155,7 @@ func requestSubscriptionLakalaPay(c *gin.Context, plan *model.SubscriptionPlan, 
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
-	if err := order.Insert(); err != nil {
+	if err := model.CreateSubscriptionOrderWithTopUp(order); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
 		return
 	}

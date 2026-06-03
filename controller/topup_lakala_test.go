@@ -38,10 +38,16 @@ func setupLakalaTopupTestDB(t *testing.T) {
 	oldRedisEnabled := common.RedisEnabled
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
 	require.NoError(t, db.AutoMigrate(
 		&model.User{},
 		&model.TopUp{},
 		&model.Log{},
+		&model.SubscriptionPlan{},
+		&model.SubscriptionOrder{},
+		&model.UserSubscription{},
 		&model.CurrencyStripeConfig{},
 		&model.TimezoneCurrencyMap{},
 	))
@@ -109,9 +115,10 @@ func setupLakalaSettingsForTest(t *testing.T) (keyPEM string, certPEM string) {
 	common.OptionMap["LakalaPrivateKey"] = string(keyPEMBytes)
 	common.OptionMap["LakalaPublicCert"] = string(certPEMBytes)
 	common.OptionMap["LakalaMerchantNo"] = "822290059430BF9"
+	common.OptionMap["LakalaCallbackAddress"] = "https://lakala-callback.example.com"
 	common.OptionMapRWMutex.Unlock()
 	system_setting.ServerAddress = "http://127.0.0.1:3000"
-	operation_setting.CustomCallbackAddress = "https://callback.example.com"
+	operation_setting.CustomCallbackAddress = "https://epay-callback.example.com"
 	return string(keyPEMBytes), string(certPEMBytes)
 }
 
@@ -203,7 +210,7 @@ func TestRequestEpayUsesLakalaPaymentMethod(t *testing.T) {
 	require.Equal(t, "41", reqData["trans_type"])
 	require.Equal(t, "D9261076", reqData["term_no"])
 	require.Equal(t, float64(730), reqData["total_amount"])
-	require.Equal(t, "https://43110f97.r34.cpolar.top/api/user/lakala/notify", reqData["notify_url"])
+	require.Equal(t, "https://lakala-callback.example.com/api/user/lakala/notify", reqData["notify_url"])
 	require.Equal(t, "充值", reqData["subject"])
 	require.Equal(t, "1", reqData["remark"])
 
@@ -213,6 +220,57 @@ func TestRequestEpayUsesLakalaPaymentMethod(t *testing.T) {
 	require.Equal(t, model.PaymentProviderLakala, topUp.PaymentProvider)
 	require.Equal(t, common.TopUpStatusPending, topUp.Status)
 	require.InDelta(t, 7.3, topUp.OriginalMoney, 0.001)
+}
+
+func TestSubscriptionLakalaPayUsesLakalaCallbackAddress(t *testing.T) {
+	setupLakalaTopupTestDB(t)
+	keyPEM, _ := setupLakalaSettingsForTest(t)
+	gin.SetMode(gin.TestMode)
+	require.NoError(t, model.DB.Create(&model.User{Id: 6, Username: "u6", Group: "default"}).Error)
+	plan := &model.SubscriptionPlan{
+		Id:            2,
+		Title:         "pro",
+		PriceAmount:   1,
+		Currency:      "USD",
+		DurationUnit:  model.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		TotalAmount:   100,
+	}
+	require.NoError(t, model.DB.Create(plan).Error)
+
+	var upstreamBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, common.DecodeJson(r.Body, &upstreamBody))
+		respBody := `{"resp_data":{"acc_resp_fields":{"code":"alipay://pay/subscription-code"}}}`
+		signResult, err := lakala.Sign("OP00000003", "00dfba8194c41b84cf", keyPEM, respBody)
+		require.NoError(t, err)
+		w.Header().Set("Lklapi-Appid", signResult.AppID)
+		w.Header().Set("Lklapi-Serial", signResult.SerialNo)
+		w.Header().Set("Lklapi-Timestamp", signResult.TimeStamp)
+		w.Header().Set("Lklapi-Nonce", signResult.NonceStr)
+		w.Header().Set("Lklapi-Signature", signResult.Signature)
+		_, _ = w.Write([]byte(respBody))
+	}))
+	defer server.Close()
+	oldURL := lakalaPreorderURL
+	lakalaPreorderURL = server.URL + "/preorder"
+	t.Cleanup(func() { lakalaPreorderURL = oldURL })
+
+	ctx, recorder := postLakalaTopupContext(t, SubscriptionEpayPayRequest{PlanId: plan.Id, PaymentMethod: model.PaymentProviderLakala}, 6)
+	requestSubscriptionLakalaPay(ctx, plan, SubscriptionEpayPayRequest{PlanId: plan.Id, PaymentMethod: model.PaymentProviderLakala}, 6, 7.3, 1)
+
+	var resp struct {
+		Message string            `json:"message"`
+		Data    map[string]string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, "success", resp.Message)
+	require.Equal(t, "alipay://pay/subscription-code", resp.Data["code"])
+
+	reqData := upstreamBody["req_data"].(map[string]any)
+	require.Equal(t, "https://lakala-callback.example.com/api/subscription/lakala/notify", reqData["notify_url"])
+	require.NotEqual(t, "https://epay-callback.example.com/api/subscription/lakala/notify", reqData["notify_url"])
 }
 
 func TestRequestEpayReturnsLakalaBusinessError(t *testing.T) {
@@ -368,6 +426,59 @@ func TestLakalaNotifyAcceptsStringAmount(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForLakalaControllerTest(t, "LKL-notify-string-amount"))
+}
+
+func TestSubscriptionLakalaNotifyCompletesOrderAndCreatesTopUpRecord(t *testing.T) {
+	setupLakalaTopupTestDB(t)
+	keyPEM, _ := setupLakalaSettingsForTest(t)
+	gin.SetMode(gin.TestMode)
+	require.NoError(t, model.DB.Create(&model.User{Id: 5, Username: "u5", Group: "default"}).Error)
+	plan := &model.SubscriptionPlan{
+		Id:            1,
+		Title:         "basic",
+		PriceAmount:   1,
+		Currency:      "USD",
+		DurationUnit:  model.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		TotalAmount:   100,
+	}
+	require.NoError(t, model.DB.Create(plan).Error)
+	order := &model.SubscriptionOrder{
+		UserId:          5,
+		PlanId:          plan.Id,
+		Money:           1,
+		Currency:        "CNY",
+		OriginalMoney:   7.3,
+		TradeNo:         "SUBUSR5NO-lakala-notify-ok",
+		PaymentMethod:   model.PaymentProviderLakala,
+		PaymentProvider: model.PaymentProviderLakala,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, order.Insert())
+
+	body := `{"merchantOrderNo":"SUBUSR5NO-lakala-notify-ok","amount":730,"payStatus":"S"}`
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/subscription/lakala/notify", bytes.NewReader([]byte(body)))
+	ctx.Request.Header.Set("Authorization", signLakalaNotifyForTest(t, keyPEM, body))
+
+	SubscriptionLakalaNotify(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"code":"0000","message":"success"}`, recorder.Body.String())
+
+	var completedOrder model.SubscriptionOrder
+	require.NoError(t, model.DB.Where("trade_no = ?", order.TradeNo).First(&completedOrder).Error)
+	require.Equal(t, common.TopUpStatusSuccess, completedOrder.Status)
+
+	var topUp model.TopUp
+	require.NoError(t, model.DB.Where("trade_no = ?", order.TradeNo).First(&topUp).Error)
+	require.Equal(t, model.TopUpBizTypeSubscription, topUp.BizType)
+	require.Equal(t, common.TopUpStatusSuccess, topUp.Status)
+	require.Equal(t, model.PaymentProviderLakala, topUp.PaymentProvider)
+	require.InDelta(t, 7.3, topUp.OriginalMoney, 0.001)
 }
 
 func TestLakalaNotifyRejectsMismatchedAmount(t *testing.T) {

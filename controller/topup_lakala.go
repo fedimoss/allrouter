@@ -25,8 +25,8 @@ const (
 	lakalaQRCodePath = "/payment/lakala/qrcode"
 	// lakalaTermNo 是拉卡拉分配的终端号。
 	lakalaTermNo = "D9261076"
-	// lakalaNotifyURL 是拉卡拉支付结果异步回调地址。
-	lakalaNotifyURL = "https://43110f97.r34.cpolar.top/api/user/lakala/notify"
+	// lakalaTopUpNotifyURLPath 是拉卡拉充值支付结果异步回调路径。
+	lakalaTopUpNotifyURLPath = "/api/user/lakala/notify"
 	// lakalaTopUpSubject 是拉卡拉支付订单的商品标题。
 	lakalaTopUpSubject = "充值"
 	// lakalaAccountType 是拉卡拉支付账户类型，目前固定为支付宝。
@@ -36,11 +36,12 @@ const (
 // lakalaOptionConfig 保存拉卡拉接口需要的 options 配置。
 // 这些配置从系统设置（common.OptionMap）中读取，由管理员在后台配置。
 type lakalaOptionConfig struct {
-	AppID      string // 拉卡拉分配的接入应用ID
-	SerialNo   string // 拉卡拉证书序列号
-	PrivateKey string // 商户私钥（PEM格式），用于对请求签名
-	PublicCert string // 拉卡拉平台公钥证书（PEM格式），用于验签回调
-	MerchantNo string // 拉卡拉分配的商户号
+	AppID           string // 拉卡拉分配的接入应用ID
+	SerialNo        string // 拉卡拉证书序列号
+	PrivateKey      string // 商户私钥（PEM格式），用于对请求签名
+	PublicCert      string // 拉卡拉平台公钥证书（PEM格式），用于验签回调
+	MerchantNo      string // 拉卡拉分配的商户号
+	CallbackAddress string // 拉卡拉回调地址域名，例如 https://example.com
 }
 
 // getLakalaOptionConfig 从系统全局配置中读取拉卡拉相关参数。
@@ -49,12 +50,17 @@ func getLakalaOptionConfig() lakalaOptionConfig {
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
 	return lakalaOptionConfig{
-		AppID:      strings.TrimSpace(common.OptionMap["LakalaAppID"]),
-		SerialNo:   strings.TrimSpace(common.OptionMap["LakalaSerialNo"]),
-		PrivateKey: strings.TrimSpace(common.OptionMap["LakalaPrivateKey"]),
-		PublicCert: strings.TrimSpace(common.OptionMap["LakalaPublicCert"]),
-		MerchantNo: strings.TrimSpace(common.OptionMap["LakalaMerchantNo"]),
+		AppID:           strings.TrimSpace(common.OptionMap["LakalaAppID"]),
+		SerialNo:        strings.TrimSpace(common.OptionMap["LakalaSerialNo"]),
+		PrivateKey:      strings.TrimSpace(common.OptionMap["LakalaPrivateKey"]),
+		PublicCert:      strings.TrimSpace(common.OptionMap["LakalaPublicCert"]),
+		MerchantNo:      strings.TrimSpace(common.OptionMap["LakalaMerchantNo"]),
+		CallbackAddress: strings.TrimRight(strings.TrimSpace(common.OptionMap["LakalaCallbackAddress"]), "/"),
 	}
+}
+
+func buildLakalaNotifyURL(callbackAddress string, path string) string {
+	return strings.TrimRight(strings.TrimSpace(callbackAddress), "/") + path
 }
 
 // isLakalaConfigured 检查拉卡拉支付是否已完整配置。
@@ -65,7 +71,8 @@ func isLakalaConfigured() bool {
 		config.SerialNo != "" &&
 		config.PrivateKey != "" &&
 		config.PublicCert != "" &&
-		config.MerchantNo != ""
+		config.MerchantNo != "" &&
+		config.CallbackAddress != ""
 }
 
 // requestLakalaWechatPay 处理额度充值的拉卡拉扫码支付预下单。
@@ -90,7 +97,7 @@ func isLakalaConfigured() bool {
 func requestLakalaWechatPay(c *gin.Context, req EpayRequest, amount int64, usdMoney float64, cnyChargeMoney float64, tradeNo string) {
 	// 获取拉卡拉配置并校验完整性
 	config := getLakalaOptionConfig()
-	if config.AppID == "" || config.SerialNo == "" || config.PrivateKey == "" || config.PublicCert == "" || config.MerchantNo == "" {
+	if config.AppID == "" || config.SerialNo == "" || config.PrivateKey == "" || config.PublicCert == "" || config.MerchantNo == "" || config.CallbackAddress == "" {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "当前管理员未配置拉卡拉支付信息"})
 		return
 	}
@@ -104,6 +111,7 @@ func requestLakalaWechatPay(c *gin.Context, req EpayRequest, amount int64, usdMo
 
 	// lakalaPayMoney 保存人民币元金额，用于前端展示和后续订单记录
 	lakalaPayMoney := decimal.NewFromFloat(cnyChargeMoney)
+	lakalaNotifyURL := buildLakalaNotifyURL(config.CallbackAddress, lakalaTopUpNotifyURLPath)
 
 	// 构造拉卡拉预下单请求体
 	requestBody := map[string]any{
