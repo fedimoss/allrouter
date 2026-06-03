@@ -900,7 +900,6 @@ const TaskLogsPage = () => {
                   total={logsData.logCount}
                   hideOnSinglePage
                   onPageChange={(page) => logsData.handlePageChange(page)}
-                  onPageSizeChange={(pageSize) => logsData.handlePageSizeChange(pageSize)}
                 />
               </div>
             </section>

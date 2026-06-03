@@ -45,7 +45,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const [groupRatios, setGroupRatios] = useState({});
   const [activePage, setActivePage] = useState(1);
   const [tokenCount, setTokenCount] = useState(0);
-  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const pageSize = ITEMS_PER_PAGE;
   const [searching, setSearching] = useState(false);
   const [searchMode, setSearchMode] = useState(false); // 是否处于搜索结果视图
   const [searchCriteria, setSearchCriteria] = useState({
@@ -100,7 +100,6 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     setTokens(payload.items || []);
     setTokenCount(payload.total || 0);
     setActivePage(payload.page || 1);
-    setPageSize(payload.page_size || pageSize);
     setShowKeys({});
   };
 
@@ -357,15 +356,6 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     }
   };
 
-  const handlePageSizeChange = async (size) => {
-    setPageSize(size);
-    if (searchMode) {
-      await searchTokens(1, size, searchCriteria);
-    } else {
-      await loadTokens(1, size);
-    }
-  };
-
   // Row selection handlers
   const rowSelection = {
     onSelect: (record, selected) => {},
@@ -515,7 +505,6 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     searchTokens,
     sortToken,
     handlePageChange,
-    handlePageSizeChange,
     rowSelection,
     handleRow,
     batchDeleteTokens,

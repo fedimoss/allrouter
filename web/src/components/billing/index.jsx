@@ -315,7 +315,7 @@ const Billing = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyRows, setHistoryRows] = useState([]);
   const [historyTotal, setHistoryTotal] = useState(0);
-  const [historyPageSize, setHistoryPageSize] = useState(10);
+  const historyPageSize = 10;
   const [historyKeyword, setHistoryKeyword] = useState('');
   const [detailVisible, setDetailVisible] = useState(false);
   const [orderInfo, setOrderInfo] = useState(null);

@@ -67,7 +67,7 @@ const SettingsAnnouncements = ({ options, refresh, onSave, onToggleEnabled }) =>
     extra: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const pageSize = 10;
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
   // 面板启用状态
@@ -495,13 +495,8 @@ const SettingsAnnouncements = ({ options, refresh, onSave, onToggleEnabled }) =>
           scroll={{ x: 'max-content' }}
           pagination={{
             total: announcementsList.length,
-            onChange: (page, size) => {
+            onChange: (page) => {
               setCurrentPage(page);
-              setPageSize(size);
-            },
-            onShowSizeChange: (current, size) => {
-              setCurrentPage(1);
-              setPageSize(size);
             },
           }}
           size='middle'

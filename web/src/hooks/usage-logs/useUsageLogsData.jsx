@@ -72,7 +72,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
   const [loadingStat, setLoadingStat] = useState(false);
   const [activePage, setActivePage] = useState(1);
   const [logCount, setLogCount] = useState(0);
-  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const pageSize = ITEMS_PER_PAGE;
   const [logType, setLogType] = useState(0);
 
   // User and admin
@@ -266,9 +266,9 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     if (isProviderScope) {
       url = `/api/provider/logs?p=${page}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
     } else if (isAdminUser) {
-      url = `/api/log/?p=${page}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/?p=${page}&page_size=${10}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
     } else {
-      url = `/api/log/self/?p=${page}&page_size=${size}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/self/?p=${page}&page_size=${10}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
     }
 
     return encodeURI(url);
@@ -780,7 +780,6 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     if (success) {
       const newPageData = data.items;
       setActivePage(data.page);
-      setPageSize(data.page_size);
       setLogCount(data.total);
 
       setLogsFormat(newPageData);
@@ -794,17 +793,6 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
   const handlePageChange = (page) => {
     setActivePage(page);
     loadLogs(page, pageSize).then((r) => {});
-  };
-
-  const handlePageSizeChange = async (size) => {
-    localStorage.setItem('page-size', size + '');
-    setPageSize(size);
-    setActivePage(1);
-    loadLogs(1, size)
-      .then()
-      .catch((reason) => {
-        showError(reason);
-      });
   };
 
   // Refresh function
@@ -830,10 +818,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
 
   // Initialize data
   useEffect(() => {
-    const localPageSize =
-      parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
-    setPageSize(localPageSize);
-    loadLogs(activePage, localPageSize)
+    loadLogs(activePage, ITEMS_PER_PAGE)
       .then()
       .catch((reason) => {
         showError(reason);
@@ -916,7 +901,6 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     // Functions
     loadLogs,
     handlePageChange,
-    handlePageSizeChange,
     refresh,
     copyText,
     handleEyeClick,

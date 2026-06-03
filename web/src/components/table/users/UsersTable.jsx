@@ -43,7 +43,6 @@ const UsersTable = (usersData) => {
     userCount,
     compactMode,
     handlePageChange,
-    handlePageSizeChange,
     handleRow,
     setEditingUser,
     setShowEditUser,
@@ -188,7 +187,6 @@ const UsersTable = (usersData) => {
         scroll={compactMode ? undefined : { x: 'max-content' }}
         pagination={{
           total: userCount,
-          onPageSizeChange: handlePageSizeChange,
           onPageChange: handlePageChange,
         }}
         hidePagination={true}

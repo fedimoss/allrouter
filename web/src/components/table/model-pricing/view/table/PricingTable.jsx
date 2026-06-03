@@ -30,7 +30,6 @@ const PricingTable = ({
   loading,
   rowSelection,
   pageSize,
-  setPageSize,
   selectedGroup,
   groupRatio,
   copyText,
@@ -114,9 +113,8 @@ const PricingTable = ({
             />
           }
           pagination={{
-            defaultPageSize: 20,
+            defaultPageSize: 10,
             pageSize: pageSize,
-            onPageSizeChange: (size) => setPageSize(size),
           }}
         />
       </Card>
@@ -127,7 +125,6 @@ const PricingTable = ({
       processedColumns,
       rowSelection,
       pageSize,
-      setPageSize,
       openModelDetail,
       t,
       compactMode,

@@ -1373,7 +1373,6 @@ function TokensPage() {
           <div className='token-v2-footer'>
             <Pagination
               total={tokensData.tokenCount}
-              onPageSizeChange={(pageSize) => tokensData.handlePageSizeChange(pageSize)}
               onPageChange={(page) => tokensData.handlePageChange(page)}
             />
           </div>

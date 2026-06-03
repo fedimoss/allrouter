@@ -1206,15 +1206,6 @@ html.dark .usage-logs-v2-stat-icon-tpm {
   background: var(--lg-surface-soft) !important;
 }
 
-.usage-logs-v2-control.semi-input-wrapper:focus-within,
-.usage-logs-v2-control .semi-select-selection:focus-within,
-.usage-logs-v2-control.semi-datepicker:focus-within
-  .semi-datepicker-range-input,
-.usage-logs-v2-control .semi-select-focus .semi-select-selection {
-  /* border-color: var(--theme-primary) !important; */
-  /* box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.08) !important; */
-}
-
 .usage-logs-v2-filter-card .semi-input,
 .usage-logs-v2-filter-card .semi-input-wrapper input,
 .usage-logs-v2-filter-card .semi-select-selection-text,
@@ -1234,7 +1225,7 @@ html.dark .usage-logs-v2-stat-icon-tpm {
 
 .usage-logs-v2-table-card .semi-table-wrapper,
 .usage-logs-v2-table-card .semi-table-container {
-  background: transparent !important;
+  background: transparent;
 }
 
 .usage-logs-v2-table-card .semi-table-thead > tr > th {
@@ -1247,7 +1238,7 @@ html.dark .usage-logs-v2-stat-icon-tpm {
 }
 
 .usage-logs-v2-table-card .semi-table-tbody > tr > td {
-  background: transparent !important;
+  background: transparent;
   border-bottom: 1px solid var(--lg-border-soft) !important;
   color: var(--lg-text) !important;
   padding: 18px !important;

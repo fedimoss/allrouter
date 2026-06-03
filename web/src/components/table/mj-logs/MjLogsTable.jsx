@@ -36,7 +36,6 @@ const MjLogsTable = (mjLogsData) => {
     compactMode,
     visibleColumns,
     handlePageChange,
-    handlePageSizeChange,
     copyText,
     openContentModal,
     openImageModal,
@@ -95,7 +94,6 @@ const MjLogsTable = (mjLogsData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: logCount,
-        onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}
       hidePagination={true}

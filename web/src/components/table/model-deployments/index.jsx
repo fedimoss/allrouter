@@ -134,7 +134,6 @@ const DeploymentsPage = () => {
           pageSize: deploymentsData.pageSize,
           total: deploymentsData.deploymentCount,
           onPageChange: deploymentsData.handlePageChange,
-          onPageSizeChange: deploymentsData.handlePageSizeChange,
           isMobile: isMobile,
           t: deploymentsData.t,
         })}

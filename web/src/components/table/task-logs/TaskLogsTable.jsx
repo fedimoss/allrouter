@@ -36,7 +36,6 @@ const TaskLogsTable = (taskLogsData) => {
     compactMode,
     visibleColumns,
     handlePageChange,
-    handlePageSizeChange,
     copyText,
     openContentModal,
     openVideoModal,
@@ -97,7 +96,6 @@ const TaskLogsTable = (taskLogsData) => {
       }
       pagination={{
         total: logCount,
-        onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}
       hidePagination={true}

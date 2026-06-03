@@ -46,7 +46,6 @@ const DeploymentsTable = (deploymentsData) => {
     rowSelection,
     batchOperationsEnabled = true,
     handlePageChange,
-    handlePageSizeChange,
     handleRow,
     t,
     COLUMN_KEYS,
@@ -175,7 +174,6 @@ const DeploymentsTable = (deploymentsData) => {
           currentPage: activePage,
           pageSize: pageSize,
           total: deploymentCount,
-          onPageSizeChange: handlePageSizeChange,
           onPageChange: handlePageChange,
         }}
         hidePagination={true}

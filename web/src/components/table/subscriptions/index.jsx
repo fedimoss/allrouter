@@ -88,7 +88,6 @@ const SubscriptionsPage = () => {
           pageSize: subscriptionsData.pageSize,
           total: subscriptionsData.planCount,
           onPageChange: subscriptionsData.handlePageChange,
-          onPageSizeChange: subscriptionsData.handlePageSizeChange,
           isMobile,
           t: subscriptionsData.t,
         })}

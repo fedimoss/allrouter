@@ -847,7 +847,6 @@ const MjLogsPage = () => {
                 <Pagination
                   total={logsData.logCount}
                   hideOnSinglePage
-                  onPageSizeChange={(pageSize) => logsData.handlePageSizeChange(pageSize)}
                   onPageChange={(page) => logsData.handlePageChange(page)}
                 />
               </div>

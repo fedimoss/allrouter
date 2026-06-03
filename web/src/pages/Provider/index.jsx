@@ -1604,7 +1604,7 @@ const ProviderPage = () => {
           columns={pricingColumns}
           dataSource={pricingRows}
           loading={pricingLoading}
-          pagination={{ pageSize: 8 }}
+          pagination={{ pageSize: 10 }}
         />
       </Modal>
 
