@@ -55,7 +55,7 @@ export const useMjLogsData = () => {
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState(1);
   const [logCount, setLogCount] = useState(0);
-  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const pageSize = ITEMS_PER_PAGE;
   const [showBanner, setShowBanner] = useState(false);
 
   // User and admin
@@ -218,7 +218,6 @@ export const useMjLogsData = () => {
     setLogs(items);
     setLogCount(payload.total || 0);
     setActivePage(payload.page || 1);
-    setPageSize(payload.page_size || pageSize);
   };
 
   // Load logs function
@@ -244,11 +243,6 @@ export const useMjLogsData = () => {
   // Page handlers
   const handlePageChange = (page) => {
     loadLogs(page, pageSize).then();
-  };
-
-  const handlePageSizeChange = async (size) => {
-    localStorage.setItem('mj-page-size', size + '');
-    await loadLogs(1, size);
   };
 
   // Refresh function
@@ -283,10 +277,7 @@ export const useMjLogsData = () => {
 
   // Initialize data
   useEffect(() => {
-    const localPageSize =
-      parseInt(localStorage.getItem('mj-page-size')) || ITEMS_PER_PAGE;
-    setPageSize(localPageSize);
-    loadLogs(1, localPageSize).then();
+    loadLogs(1, ITEMS_PER_PAGE).then();
   }, []);
 
   return {
@@ -329,7 +320,6 @@ export const useMjLogsData = () => {
     // Functions
     loadLogs,
     handlePageChange,
-    handlePageSizeChange,
     refresh,
     copyText,
     openContentModal,

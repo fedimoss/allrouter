@@ -115,7 +115,6 @@ const UsersPage = ({ apiPrefix = '/api/user', providerMode = false }) => {
           pageSize: usersData.pageSize,
           total: usersData.userCount,
           onPageChange: usersData.handlePageChange,
-          onPageSizeChange: usersData.handlePageSizeChange,
           isMobile: isMobile,
           t: usersData.t,
         })}

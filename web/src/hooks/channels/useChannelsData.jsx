@@ -50,7 +50,7 @@ export const useChannelsData = () => {
   const [activePage, setActivePage] = useState(1);
   const [idSort, setIdSort] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const pageSize = ITEMS_PER_PAGE;
   const [channelCount, setChannelCount] = useState(0);
   const [groupOptions, setGroupOptions] = useState([]);
 
@@ -146,19 +146,16 @@ export const useChannelsData = () => {
   // Initialize from localStorage
   useEffect(() => {
     const localIdSort = localStorage.getItem('id-sort') === 'true';
-    const localPageSize =
-      parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
     const localEnableTagMode =
       localStorage.getItem('enable-tag-mode') === 'true';
     const localEnableBatchDelete =
       localStorage.getItem('enable-batch-delete') === 'true';
 
     setIdSort(localIdSort);
-    setPageSize(localPageSize);
     setEnableTagMode(localEnableTagMode);
     setEnableBatchDelete(localEnableBatchDelete);
 
-    loadChannels(1, localPageSize, localIdSort, localEnableTagMode)
+    loadChannels(1, ITEMS_PER_PAGE, localIdSort, localEnableTagMode)
       .then()
       .catch((reason) => {
         showError(reason);
@@ -529,29 +526,6 @@ export const useChannelsData = () => {
         statusFilter,
         page,
         pageSize,
-        idSort,
-      );
-    }
-  };
-
-  const handlePageSizeChange = async (size) => {
-    localStorage.setItem('page-size', size + '');
-    setPageSize(size);
-    setActivePage(1);
-    const { searchKeyword, searchGroup, searchModel } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      loadChannels(1, size, idSort, enableTagMode)
-        .then()
-        .catch((reason) => {
-          showError(reason);
-        });
-    } else {
-      searchChannels(
-        enableTagMode,
-        activeTypeKey,
-        statusFilter,
-        1,
-        size,
         idSort,
       );
     }
@@ -1221,7 +1195,6 @@ export const useChannelsData = () => {
     manageChannel,
     manageTag,
     handlePageChange,
-    handlePageSizeChange,
     copySelectedChannel,
     updateChannelProperty,
     submitTagEdit,

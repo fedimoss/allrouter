@@ -36,7 +36,7 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [activePage, setActivePage] = useState(1);
-  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const pageSize = ITEMS_PER_PAGE;
   const [tokenCount, setTokenCount] = useState(0);
   const [selectedKeys, setSelectedKeys] = useState([]);
   const [displaySymbol, setDisplaySymbol] = useState('');
@@ -177,18 +177,6 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
     const { searchKeyword } = getFormValues();
     if (searchKeyword === '') {
       loadRedemptions(page, pageSize);
-    } else {
-      searchRedemptions();
-    }
-  };
-
-  // Handle page size change
-  const handlePageSizeChange = (size) => {
-    setPageSize(size);
-    setActivePage(1);
-    const { searchKeyword } = getFormValues();
-    if (searchKeyword === '') {
-      loadRedemptions(1, size);
     } else {
       searchRedemptions();
     }
@@ -341,7 +329,6 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
 
     // State updates
     setActivePage,
-    setPageSize,
     setSelectedKeys,
     setEditingRedemption,
     setShowEdit,
@@ -350,7 +337,6 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
 
     // Event handlers
     handlePageChange,
-    handlePageSizeChange,
     rowSelection,
     handleRow,
     closeEdit,

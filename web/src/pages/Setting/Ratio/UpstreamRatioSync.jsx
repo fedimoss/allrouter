@@ -121,7 +121,7 @@ export default function UpstreamRatioSync(props) {
 
   // 分页相关状态
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const pageSize = 10;
 
   // 搜索相关状态
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -819,13 +819,8 @@ export default function UpstreamRatioSync(props) {
         dataSource={getCurrentPageData(filteredDataSource)}
         pagination={{
           total: filteredDataSource.length,
-          onChange: (page, size) => {
+          onChange: (page) => {
             setCurrentPage(page);
-            setPageSize(size);
-          },
-          onShowSizeChange: (current, size) => {
-            setCurrentPage(1);
-            setPageSize(size);
           },
         }}
         scroll={{ x: 'max-content' }}

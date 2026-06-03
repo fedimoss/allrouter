@@ -55,7 +55,7 @@ export const useTaskLogsData = () => {
   const [loading, setLoading] = useState(false);
   const [activePage, setActivePage] = useState(1);
   const [logCount, setLogCount] = useState(0);
-  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const pageSize = ITEMS_PER_PAGE;
 
   // User and admin
   const isAdminUser = isAdmin();
@@ -222,7 +222,6 @@ export const useTaskLogsData = () => {
     setLogs(items);
     setLogCount(payload.total || 0);
     setActivePage(payload.page || 1);
-    setPageSize(payload.page_size || pageSize);
   };
 
   // Load logs function
@@ -248,11 +247,6 @@ export const useTaskLogsData = () => {
   // Page handlers
   const handlePageChange = (page) => {
     loadLogs(page, pageSize).then();
-  };
-
-  const handlePageSizeChange = async (size) => {
-    localStorage.setItem('task-page-size', size + '');
-    await loadLogs(1, size);
   };
 
   // Refresh function
@@ -308,10 +302,7 @@ export const useTaskLogsData = () => {
 
   // Initialize data
   useEffect(() => {
-    const localPageSize =
-      parseInt(localStorage.getItem('task-page-size')) || ITEMS_PER_PAGE;
-    setPageSize(localPageSize);
-    loadLogs(1, localPageSize).then();
+    loadLogs(1, ITEMS_PER_PAGE).then();
   }, []);
 
   return {
@@ -366,7 +357,6 @@ export const useTaskLogsData = () => {
     // Functions
     loadLogs,
     handlePageChange,
-    handlePageSizeChange,
     refresh,
     copyText,
     openContentModal,

@@ -93,7 +93,6 @@ const PricingCardView = ({
   loading,
   rowSelection,
   pageSize,
-  setPageSize,
   currentPage,
   setCurrentPage,
   selectedGroup,
@@ -373,10 +372,6 @@ const PricingCardView = ({
             size={isMobile ? 'small' : 'default'}
             showQuickJumper={isMobile}
             onPageChange={(page) => setCurrentPage(page)}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setCurrentPage(1);
-            }}
           />
         </div>
       )}

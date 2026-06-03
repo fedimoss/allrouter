@@ -32,7 +32,7 @@ export const useDeploymentsData = () => {
   const [deployments, setDeployments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState(1);
-  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const pageSize = ITEMS_PER_PAGE;
   const [searching, setSearching] = useState(false);
   const [deploymentCount, setDeploymentCount] = useState(0);
   const [query, setQuery] = useState({ keyword: '', status: '' });
@@ -240,18 +240,6 @@ export const useDeploymentsData = () => {
     fetchDeployments({
       page,
       size: pageSize,
-      keyword: query.keyword,
-      status: query.status,
-    });
-  };
-
-  // Handle page size change
-  const handlePageSizeChange = (size) => {
-    setPageSize(size);
-    setActivePage(1);
-    fetchDeployments({
-      page: 1,
-      size,
       keyword: query.keyword,
       status: query.status,
     });
@@ -503,7 +491,6 @@ export const useDeploymentsData = () => {
     searchDeployments,
     refresh,
     handlePageChange,
-    handlePageSizeChange,
     handleRow,
 
     // Deployment operations

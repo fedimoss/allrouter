@@ -56,7 +56,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
     slug: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const pageSize = 10;
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [panelEnabled, setPanelEnabled] = useState(true);
 
@@ -419,13 +419,8 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
           scroll={{ x: 'max-content' }}
           pagination={{
             total: uptimeGroupsList.length,
-            onChange: (page, size) => {
+            onChange: (page) => {
               setCurrentPage(page);
-              setPageSize(size);
-            },
-            onShowSizeChange: (current, size) => {
-              setCurrentPage(1);
-              setPageSize(size);
             },
           }}
           size='middle'

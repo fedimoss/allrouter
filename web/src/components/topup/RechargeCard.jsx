@@ -176,7 +176,7 @@ const RechargeCard = ({
   const [topups, setTopups] = useState([]);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyPage, setHistoryPage] = useState(1);
-  const [historyPageSize, setHistoryPageSize] = useState(10);
+  const historyPageSize = 10;
   const [historyKeyword, setHistoryKeyword] = useState('');
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
   const [cryptoDrawerVisible, setCryptoDrawerVisible] = useState(false);
@@ -308,11 +308,6 @@ const RechargeCard = ({
 
   const handleHistoryPageChange = (currentPage) => {
     setHistoryPage(currentPage);
-  };
-
-  const handleHistoryPageSizeChange = (currentPageSize) => {
-    setHistoryPageSize(currentPageSize);
-    setHistoryPage(1);
   };
 
   const handleHistoryKeywordChange = (value) => {
@@ -1117,7 +1112,6 @@ const RechargeCard = ({
             total={historyTotal}
             hideOnSinglePage
             onPageChange={handleHistoryPageChange}
-            onPageSizeChange={handleHistoryPageSizeChange}
           />
         </div>
       </div>

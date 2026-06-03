@@ -39,7 +39,6 @@ const ChannelsTable = (channelsData) => {
     visibleColumns,
     setSelectedChannels,
     handlePageChange,
-    handlePageSizeChange,
     handleRow,
     t,
     COLUMN_KEYS,
@@ -138,7 +137,6 @@ const ChannelsTable = (channelsData) => {
       scroll={compactMode ? undefined : { x: 'max-content' }}
       pagination={{
         total: channelCount,
-        onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}
       hidePagination={true}

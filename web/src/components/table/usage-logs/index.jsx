@@ -38,7 +38,6 @@ const LogsPage = ({ scope = 'default', title, description }) => {
     pageSize: logsData.pageSize,
     total: logsData.logCount,
     onPageChange: logsData.handlePageChange,
-    onPageSizeChange: logsData.handlePageSizeChange,
     isMobile,
     t: logsData.t,
   });

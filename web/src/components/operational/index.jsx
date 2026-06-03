@@ -475,7 +475,7 @@ export default function Operational () {
   const [total, setTotal] = useState(0);
   const [displaySymbol, setDisplaySymbol] = useState('');
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const pageSize = 10;
   const [searchInput, setSearchInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [sortState, setSortState] = useState({ key: '', order: '' });
@@ -513,7 +513,6 @@ export default function Operational () {
     setSearchInput('');
     setKeyword('');
     setPage(1);
-    setPageSize(10);
     setSortState({ key: '', order: '' });
     setShowColumnMenu(false);
     setShowAdvancedFilter(false);
@@ -613,9 +612,6 @@ export default function Operational () {
         setDisplaySymbol(data?.display_symbol || '');
         setRows(payload.list.map((item, index) => normalizeRow(activeTab, item, index)));
         setTotal(payload.total || 0);
-        if (payload.pageSize && payload.pageSize !== pageSize) {
-          setPageSize(payload.pageSize);
-        }
       } catch (error) {
         showError(error?.message || '获取列表数据失败');
         setRows([]);
@@ -872,10 +868,6 @@ export default function Operational () {
                 <Pagination
                   total={total}
                   onPageChange={(p) => setPage(p)}
-                  onPageSizeChange={(size) => {
-                    setPage(1);
-                    setPageSize(size);
-                  }}
                 />
               </div>
             ) : null}
@@ -895,8 +887,6 @@ export default function Operational () {
     </div>
   );
 }
-
-
 
 
 
