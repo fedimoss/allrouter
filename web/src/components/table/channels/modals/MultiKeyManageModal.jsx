@@ -58,7 +58,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const pageSize = 10;
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
@@ -99,7 +99,6 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         setKeyStatusList(data.keys || []);
         setTotal(data.total || 0);
         setCurrentPage(data.page || 1);
-        setPageSize(data.page_size || 10);
         setTotalPages(data.total_pages || 0);
 
         // Update statistics (these are always the overall statistics)
@@ -277,13 +276,6 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
   const handlePageChange = (page) => {
     setCurrentPage(page);
     loadKeyStatus(page, pageSize);
-  };
-
-  // Handle page size change
-  const handlePageSizeChange = (size) => {
-    setPageSize(size);
-    setCurrentPage(1); // Reset to first page
-    loadKeyStatus(1, size);
   };
 
   // Handle status filter change
@@ -694,19 +686,10 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                 columns={columns}
                 dataSource={keyStatusList}
                 pagination={{
-                  currentPage: currentPage,
-                  pageSize: pageSize,
                   total: total,
-                  showSizeChanger: true,
-                  showQuickJumper: true,
-                  pageSizeOpts: [10, 20, 50, 100],
-                  onChange: (page, size) => {
+                  onChange: (page) => {
                     setCurrentPage(page);
-                    loadKeyStatus(page, size);
-                  },
-                  onShowSizeChange: (current, size) => {
-                    setCurrentPage(1);
-                    handlePageSizeChange(size);
+                    loadKeyStatus(page, pageSize);
                   },
                 }}
                 size='small'

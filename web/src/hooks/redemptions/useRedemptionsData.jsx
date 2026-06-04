@@ -36,7 +36,7 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [activePage, setActivePage] = useState(1);
-  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const pageSize = ITEMS_PER_PAGE;
   const [tokenCount, setTokenCount] = useState(0);
   const [selectedKeys, setSelectedKeys] = useState([]);
   const [displaySymbol, setDisplaySymbol] = useState('');
@@ -182,18 +182,6 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
     }
   };
 
-  // Handle page size change
-  const handlePageSizeChange = (size) => {
-    setPageSize(size);
-    setActivePage(1);
-    const { searchKeyword } = getFormValues();
-    if (searchKeyword === '') {
-      loadRedemptions(1, size);
-    } else {
-      searchRedemptions();
-    }
-  };
-
   // Row selection configuration
   const rowSelection = {
     onSelect: (record, selected) => {},
@@ -228,12 +216,14 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
   // Copy text
   const copyText = async (text) => {
     if (await copy(text)) {
-      showSuccess('已复制到剪贴板！');
+      showSuccess(t('已复制到剪贴板！'));
     } else {
       Modal.error({
-        title: '无法复制到剪贴板，请手动复制',
+        title: t('无法复制到剪贴板，请手动复制'),
         content: text,
         size: 'large',
+        okText: t('确定'),
+        cancelText: t('取消'),
       });
     }
   };
@@ -257,6 +247,8 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
     Modal.confirm({
       title: t('确定清除所有失效兑换码？'),
       content: t('将删除已使用、已禁用及过期的兑换码，此操作不可撤销。'),
+      okText: t('确定'),
+      cancelText: t('取消'),
       onOk: async () => {
         setLoading(true);
         const res = await API.delete(`${apiPrefix}/invalid`);
@@ -337,7 +329,6 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
 
     // State updates
     setActivePage,
-    setPageSize,
     setSelectedKeys,
     setEditingRedemption,
     setShowEdit,
@@ -346,7 +337,6 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
 
     // Event handlers
     handlePageChange,
-    handlePageSizeChange,
     rowSelection,
     handleRow,
     closeEdit,

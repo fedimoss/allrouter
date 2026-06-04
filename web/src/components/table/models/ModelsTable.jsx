@@ -35,7 +35,6 @@ const ModelsTable = (modelsData) => {
     modelCount,
     compactMode,
     handlePageChange,
-    handlePageSizeChange,
     rowSelection,
     handleRow,
     manageModel,
@@ -80,9 +79,6 @@ const ModelsTable = (modelsData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: modelCount,
-        showSizeChanger: true,
-        pageSizeOptions: [10, 20, 50, 100],
-        onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}
       hidePagination={true}

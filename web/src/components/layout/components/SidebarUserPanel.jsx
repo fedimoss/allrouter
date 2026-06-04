@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useRef } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Avatar, Button, Dropdown } from '@douyinfe/semi-ui';
@@ -31,6 +31,20 @@ const SidebarUserPanel = ({ collapsed }) => {
   const [userState, userDispatch] = useContext(UserContext);
   const navigate = useNavigate();
   const userMenuAnchorRef = useRef(null);
+  const avatarUrl = userState?.user?.avatar;
+  const [imgLoaded, setImgLoaded] = useState(false);
+
+  useEffect(() => {
+    if (avatarUrl) {
+      setImgLoaded(false);
+      const img = new Image();
+      img.onload = () => setImgLoaded(true);
+      img.onerror = () => setImgLoaded(true);
+      img.src = avatarUrl;
+    }
+  }, [avatarUrl]);
+
+  const avatarSrc = avatarUrl && imgLoaded ? avatarUrl : undefined;
 
   if (!userState?.user) {
     return null;
@@ -82,8 +96,10 @@ const SidebarUserPanel = ({ collapsed }) => {
             <Avatar
               size='small'
               className='sidebar-user-avatar'
-              src={userState.user.avatar || defaultAvatar}
-            />
+              src={avatarSrc}
+            >
+              {userState.user.username?.[0]?.toUpperCase()}
+            </Avatar>
             {!collapsed && (
               <div className='sidebar-user-meta'>
                 <div className='sidebar-user-name'>{userState.user.username}</div>
@@ -100,4 +116,3 @@ const SidebarUserPanel = ({ collapsed }) => {
 };
 
 export default SidebarUserPanel;
-

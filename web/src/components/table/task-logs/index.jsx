@@ -18,16 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Empty, Modal } from '@douyinfe/semi-ui';
+import { DatePicker, Empty, Modal, Pagination } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
   Columns3,
   Copy as CopyIcon,
   Download,
@@ -60,17 +56,19 @@ const VIDEO_ACTIONS = new Set([
   TASK_ACTION_REMIX_GENERATE,
 ]);
 
-const getPaginationItems = (currentPage, totalPages) => {
-  if (totalPages <= 1) return [1];
-  const items = [];
-  const start = Math.max(1, currentPage - 1);
-  const end = Math.min(totalPages, currentPage + 1);
-  if (start > 1) items.push(1);
-  if (start > 2) items.push('left-ellipsis');
-  for (let page = start; page <= end; page += 1) items.push(page);
-  if (end < totalPages - 1) items.push('right-ellipsis');
-  if (end < totalPages) items.push(totalPages);
-  return items;
+const dateRangeToValue = (dateRange) => {
+  if (!Array.isArray(dateRange) || dateRange.length !== 2) return undefined;
+  const [start, end] = dateRange;
+  if (!start || !end) return undefined;
+  const startDate = new Date(start.replace(' ', 'T'));
+  const endDate = new Date(end.replace(' ', 'T'));
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return undefined;
+  return [startDate, endDate];
+};
+
+const formatDateToString = (date) => {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
 
 const cloneFilters = (filters) => ({
@@ -87,23 +85,6 @@ const createDefaultFilters = (formInitValues) =>
       ? formInitValues.dateRange
       : ['', ''],
   });
-
-const toDateTimeLocalValue = (value) => (value ? String(value).replace(' ', 'T') : '');
-
-const fromDateTimeLocalValue = (value) => {
-  if (!value) return '';
-  const normalized = String(value).replace('T', ' ');
-  return normalized.length === 16 ? `${normalized}:00` : normalized;
-};
-
-const handleDateTimeInputClick = (event) => {
-  const input = event.currentTarget;
-  if (typeof input?.showPicker === 'function') {
-    try {
-      input.showPicker();
-    } catch (_) {}
-  }
-};
 
 const toSeconds = (value) => {
   const parsed = Number(value);
@@ -386,14 +367,6 @@ const TaskLogsPage = () => {
     setFiltersAndSync({ ...filtersRef.current, [field]: value });
   };
 
-  const handleDateChange = (index, value) => {
-    const nextRange = Array.isArray(filtersRef.current.dateRange)
-      ? [...filtersRef.current.dateRange]
-      : ['', ''];
-    nextRange[index] = fromDateTimeLocalValue(value);
-    setFiltersAndSync({ ...filtersRef.current, dateRange: nextRange });
-  };
-
   const handleOpenDetail = (record) => {
     logsData.openContentModal(JSON.stringify(record, null, 2));
   };
@@ -601,16 +574,6 @@ const TaskLogsPage = () => {
   const visibleTableColumns = tableColumns.filter(
     (column) => visibleColumns[column.key],
   );
-  const totalPages = Math.max(
-    1,
-    Math.ceil(logsData.logCount / Math.max(logsData.pageSize || 1, 1)),
-  );
-  const paginationItems = getPaginationItems(logsData.activePage, totalPages);
-  const rangeStart =
-    logsData.logCount === 0
-      ? 0
-      : (logsData.activePage - 1) * logsData.pageSize + 1;
-  const rangeEnd = Math.min(logsData.logCount, logsData.activePage * logsData.pageSize);
   const hasActiveFilters =
     !!filters.task_id ||
     (logsData.isAdminUser && !!filters.channel_id) ||
@@ -789,26 +752,23 @@ const TaskLogsPage = () => {
               <form className='tasklog-v2-filter-form' onSubmit={handleSearchSubmit}>
                 <div className='tasklog-v2-filter-row'>
                   <div className='tasklog-v2-filter-grid'>
-                    <label className='tasklog-v2-filter-field tasklog-v2-filter-field-range'>
-                      <CalendarDays size={16} />
-                      <div className='tasklog-v2-filter-range'>
-                        <input
-                          type='datetime-local'
-                          step='1'
-                          value={toDateTimeLocalValue(filters.dateRange?.[0])}
-                          onClick={handleDateTimeInputClick}
-                          onChange={(event) => handleDateChange(0, event.target.value)}
-                        />
-                        <span className='tasklog-v2-range-separator'>→</span>
-                        <input
-                          type='datetime-local'
-                          step='1'
-                          value={toDateTimeLocalValue(filters.dateRange?.[1])}
-                          onClick={handleDateTimeInputClick}
-                          onChange={(event) => handleDateChange(1, event.target.value)}
-                        />
-                      </div>
-                    </label>
+                    <DatePicker
+                      type='dateTimeRange'
+                      className='tasklog-v2-filter-field tasklog-v2-filter-field-range'
+                      value={dateRangeToValue(filters.dateRange)}
+                      placeholder={[logsData.t('开始时间'), logsData.t('结束时间')]}
+                      showClear
+                      onChange={(dateArray) => {
+                        if (!dateArray || dateArray.length !== 2) {
+                          setFiltersAndSync({ ...filtersRef.current, dateRange: ['', ''] });
+                          return;
+                        }
+                        setFiltersAndSync({
+                          ...filtersRef.current,
+                          dateRange: [formatDateToString(dateArray[0]), formatDateToString(dateArray[1])],
+                        });
+                      }}
+                    />
 
                     <label className='tasklog-v2-filter-field tasklog-v2-filter-field-search'>
                       <Search size={16} />
@@ -936,67 +896,11 @@ const TaskLogsPage = () => {
                 )}
               </div>
               <div className='tasklog-v2-footer'>
-                <div className='tasklog-v2-footer-summary'>
-                  {logsData.t('显示第 {{start}} 到 {{end}} 条，共 {{total}} 条结果', {
-                    start: rangeStart,
-                    end: rangeEnd,
-                    total: logsData.logCount,
-                  })}
-                </div>
-                <div className='tasklog-v2-footer-actions'>
-                  <label className='tasklog-v2-page-size'>
-                    <span>{logsData.t('每页')}</span>
-                    <select
-                      value={logsData.pageSize}
-                      onChange={(event) => logsData.handlePageSizeChange(Number(event.target.value))}
-                    >
-                      {PAGE_SIZE_OPTIONS.map((size) => (
-                        <option key={size} value={size}>
-                          {size}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <nav className='tasklog-v2-pagination' aria-label='Pagination'>
-                    <button
-                      type='button'
-                      className='tasklog-v2-page-button'
-                      disabled={logsData.activePage <= 1}
-                      onClick={() => logsData.handlePageChange(logsData.activePage - 1)}
-                    >
-                      <ChevronLeft size={14} />
-                    </button>
-                    {paginationItems.map((item) =>
-                      typeof item === 'number' ? (
-                        <button
-                          key={item}
-                          type='button'
-                          className={
-                            item === logsData.activePage
-                              ? 'tasklog-v2-page-button tasklog-v2-page-current'
-                              : 'tasklog-v2-page-button'
-                          }
-                          onClick={() => logsData.handlePageChange(item)}
-                        >
-                          {item}
-                        </button>
-                      ) : (
-                        <span key={item} className='tasklog-v2-page-ellipsis'>
-                          ...
-                        </span>
-                      ),
-                    )}
-                    <button
-                      type='button'
-                      className='tasklog-v2-page-button'
-                      disabled={logsData.activePage >= totalPages}
-                      onClick={() => logsData.handlePageChange(logsData.activePage + 1)}
-                    >
-                      <ChevronRight size={14} />
-                    </button>
-                  </nav>
-                </div>
+                <Pagination
+                  total={logsData.logCount}
+                  hideOnSinglePage
+                  onPageChange={(page) => logsData.handlePageChange(page)}
+                />
               </div>
             </section>
           </div>

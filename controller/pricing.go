@@ -79,18 +79,14 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 	return filtered
 }
 
-func GetPricing(c *gin.Context) {
-	pricing := model.GetPricing()
-	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
-	pricing = applyProviderPricingView(providerId, pricing)
-	userId, exists := c.Get("id")
+func getPricingVisibilityContext(c *gin.Context) (map[string]string, map[string]float64, []string) {
 	usableGroup := map[string]string{}
 	groupRatio := map[string]float64{}
 	for s, f := range ratio_setting.GetGroupRatioCopy() {
 		groupRatio[s] = f
 	}
 	var group string
-	if exists {
+	if userId, exists := c.Get("id"); exists {
 		user, err := model.GetUserCache(userId.(int))
 		if err == nil {
 			group = user.Group
@@ -104,13 +100,26 @@ func GetPricing(c *gin.Context) {
 	}
 
 	usableGroup = service.GetUserUsableGroups(group)
-	pricing = filterPricingByUsableGroups(pricing, usableGroup)
-	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := usableGroup[group]; !ok {
 			delete(groupRatio, group)
 		}
 	}
+	return usableGroup, groupRatio, service.GetUserAutoGroup(group)
+}
+
+func getMarketplaceVisiblePricing(c *gin.Context) []model.Pricing {
+	pricing := model.GetPricing()
+	usableGroup, _, _ := getPricingVisibilityContext(c)
+	return filterPricingByUsableGroups(pricing, usableGroup)
+}
+
+func GetPricing(c *gin.Context) {
+	pricing := model.GetPricing()
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	pricing = applyProviderPricingView(providerId, pricing)
+	usableGroup, groupRatio, autoGroups := getPricingVisibilityContext(c)
+	pricing = filterPricingByUsableGroups(pricing, usableGroup)
 
 	c.JSON(200, gin.H{
 		"success":            true,
@@ -119,7 +128,7 @@ func GetPricing(c *gin.Context) {
 		"group_ratio":        groupRatio,
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
-		"auto_groups":        service.GetUserAutoGroup(group),
+		"auto_groups":        autoGroups,
 		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
 }

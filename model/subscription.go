@@ -222,6 +222,22 @@ func (o *SubscriptionOrder) Insert() error {
 	return DB.Create(o).Error
 }
 
+// CreateSubscriptionOrderWithTopUp 创建订阅订单，并在同一事务中同步创建或更新对应的充值记录。
+func CreateSubscriptionOrderWithTopUp(order *SubscriptionOrder) error {
+	if order == nil {
+		return errors.New("subscription order is nil")
+	}
+	if order.CreateTime == 0 {
+		order.CreateTime = common.GetTimestamp()
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
+		return upsertSubscriptionTopUpTx(tx, order)
+	})
+}
+
 func (o *SubscriptionOrder) Update() error {
 	return DB.Save(o).Error
 }
@@ -466,7 +482,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -543,12 +559,12 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			return ErrPaymentMethodMismatch
 		}
 		if order.Status == common.TopUpStatusSuccess {
-			return nil
+			return upsertSubscriptionTopUpTx(tx, &order)
 		}
 		if order.Status != common.TopUpStatusPending {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
+		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
 		if err != nil {
 			return err
 		}
@@ -558,9 +574,6 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
 		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
 		if err != nil {
-			return err
-		}
-		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
 			return err
 		}
 		paidQuota := int(decimal.NewFromFloat(order.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
@@ -576,6 +589,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			order.ProviderPayload = providerPayload
 		}
 		if err := tx.Save(&order).Error; err != nil {
+			return err
+		}
+		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
 			return err
 		}
 		logUserId = order.UserId
@@ -602,6 +618,16 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 		return errors.New("invalid subscription order")
 	}
 	now := common.GetTimestamp()
+	// 订阅订单未显式设置状态时，充值记录按待支付处理。
+	status := order.Status
+	if status == "" {
+		status = common.TopUpStatusPending
+	}
+	// 支付成功但订单未记录完成时间时，使用当前时间补齐。
+	completeTime := order.CompleteTime
+	if status == common.TopUpStatusSuccess && completeTime == 0 {
+		completeTime = now
+	}
 	var topup TopUp
 	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -615,8 +641,8 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 				BizType:         TopUpBizTypeSubscription,
 				SourceID:        order.Id,
 				CreateTime:      order.CreateTime,
-				CompleteTime:    now,
-				Status:          common.TopUpStatusSuccess,
+				CompleteTime:    completeTime,
+				Status:          status,
 				Currency:        order.Currency,      // 传递币种符号
 				OriginalMoney:   order.OriginalMoney, // 传递实际支付金额
 			}
@@ -648,8 +674,8 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	if topup.CreateTime == 0 {
 		topup.CreateTime = order.CreateTime
 	}
-	topup.CompleteTime = now
-	topup.Status = common.TopUpStatusSuccess
+	topup.CompleteTime = completeTime
+	topup.Status = status
 	return tx.Save(&topup).Error
 }
 
@@ -675,7 +701,10 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentMethod string) error
 		}
 		order.Status = common.TopUpStatusExpired
 		order.CompleteTime = common.GetTimestamp()
-		return tx.Save(&order).Error
+		if err := tx.Save(&order).Error; err != nil {
+			return err
+		}
+		return upsertSubscriptionTopUpTx(tx, &order)
 	})
 }
 

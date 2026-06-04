@@ -93,7 +93,6 @@ const PricingCardView = ({
   loading,
   rowSelection,
   pageSize,
-  setPageSize,
   currentPage,
   setCurrentPage,
   selectedGroup,
@@ -306,14 +305,14 @@ const PricingCardView = ({
                   </div>
 
                   <div className='pricing-market-desktop-card-actions'>
-                    <Button theme='borderless' type='tertiary' icon={<Heart size={16} />} onClick={(e) => { e.stopPropagation(); }} />
+                    {/* <Button theme='borderless' type='tertiary' icon={<Heart size={16} />} onClick={(e) => { e.stopPropagation(); }} /> */}
                     <Button theme='borderless' type='tertiary' icon={<Copy size={14} />} onClick={(e) => { e.stopPropagation(); copyText(model.model_name); }} />
                     {/* {rowSelection && <Checkbox checked={isSelected} onChange={(e) => handleCheckboxChange(model, e.target.checked)} />} */}
                   </div>
                 </div>
 
                 <p className='pricing-market-desktop-card-description'>
-                  {model.description || `${model.vendor_name || t('通用')} ${t('最新模型，适合多轮对话、推理与生产环境调用。')}`}
+                  {t(model.description) || `${model.vendor_name || t('通用')} ${t('最新模型，适合多轮对话、推理与生产环境调用。')}`}
                 </p>
 
                 {/* <div className='pricing-market-desktop-card-tags'>
@@ -370,15 +369,9 @@ const PricingCardView = ({
             currentPage={currentPage}
             pageSize={pageSize}
             total={filteredModels.length}
-            showSizeChanger={true}
-            pageSizeOptions={[10, 20, 50, 100]}
             size={isMobile ? 'small' : 'default'}
             showQuickJumper={isMobile}
             onPageChange={(page) => setCurrentPage(page)}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setCurrentPage(1);
-            }}
           />
         </div>
       )}

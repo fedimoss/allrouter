@@ -321,7 +321,7 @@ claude \-\-version
 
 登录后，在个人中心页面，点击 API Keys，创建一个新的 API Key。
 
-要开始调用 API，您需要事先在allrouter平台创建一个令牌：
+要开始调用 API，您需要事先在AllRouter平台创建一个令牌：
 
 - （1）点击左侧菜单栏的 【令牌管理】。
 - （2）点击 【添加令牌】 按钮。
@@ -348,12 +348,12 @@ claude \-\-version
 
 \# 新增或修改里面的 env 字段
 
-\# 注意替换里面的 \`your\_allrouter\_api\_key\` 为您上一步获取到的 API Key
+\# 注意替换里面的 \`your\_api\_key\` 为您上一步获取到的 API Key
 
 ```json
 {
   "env": {
-    "ANTHROPIC_AUTH_TOKEN": "your_allrouter_api_key",
+    "ANTHROPIC_AUTH_TOKEN": "your_api_key",
     "ANTHROPIC_BASE_URL": "https://allrouter.ai/v1",
     "API_TIMEOUT_MS": "3000000",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1

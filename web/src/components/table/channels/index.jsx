@@ -101,7 +101,6 @@ const ChannelsPage = () => {
           pageSize: channelsData.pageSize,
           total: channelsData.channelCount,
           onPageChange: channelsData.handlePageChange,
-          onPageSizeChange: channelsData.handlePageSizeChange,
           isMobile: isMobile,
           t: channelsData.t,
         })}

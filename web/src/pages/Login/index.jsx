@@ -419,7 +419,7 @@ export default function LoginPage() {
           <div className='auth-view active' id='login'>
             <form onSubmit={handleLoginSubmit}>
               <div className='form-group'>
-                <label className='form-label'>{t('电子邮箱')}</label>
+                <label className='form-label'>{t('电子邮箱 / 用户名')}</label>
                 <Input
                   className='form-input'
                   size='large'

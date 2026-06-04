@@ -107,9 +107,6 @@ const RedemptionsTable = (redemptionsData) => {
           currentPage: activePage,
           pageSize: pageSize,
           total: tokenCount,
-          showSizeChanger: true,
-          pageSizeOptions: [10, 20, 50, 100],
-          onPageSizeChange: redemptionsData.handlePageSizeChange,
           onPageChange: handlePageChange,
         }}
         hidePagination={true}

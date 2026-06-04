@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Typography, Card, Skeleton, Button, Toast } from '@douyinfe/semi-ui';
+import {
+  Modal,
+  Typography,
+  Card,
+  Skeleton,
+  Button,
+  Toast,
+} from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
 
@@ -50,7 +57,8 @@ const PaymentConfirmModal = ({
   const discountAmount = hasDiscount ? originalAmount - amountNumber : 0;
 
   // 判断是否为微信/支付宝等人民币支付方式
-  const isCNYOnlyPayment = payWay === 'wxpay' || payWay === 'alipay';
+  const isCNYOnlyPayment =
+    payWay === 'wxpay' || payWay === 'alipay' || payWay === 'lakala';
   // 用户展示币种是否为美元
   const isUSDDisplay = displayCurrency?.currency !== 'CNY';
 
@@ -103,8 +111,18 @@ const PaymentConfirmModal = ({
       footer={
         <>
           <div className='flex justify-end'>
-            <Button onClick={handleCancel} style={{color:'#000'}}>{t('取消')}</Button>
-            <Button style={{ color: 'var(--theme-primary-btn-color)', background:'var(--theme-gradient)'}}  onClick={onlineTopUp}>{t('充值')}</Button>
+            <Button onClick={handleCancel} style={{ color: '#000' }}>
+              {t('取消')}
+            </Button>
+            <Button
+              style={{
+                color: 'var(--theme-primary-btn-color)',
+                background: 'var(--theme-gradient)',
+              }}
+              onClick={onlineTopUp}
+            >
+              {t('充值')}
+            </Button>
           </div>
         </>
       }
@@ -146,8 +164,7 @@ const PaymentConfirmModal = ({
                     {t('原价')}：
                   </Text>
                   <Text delete className='text-slate-500 dark:text-slate-400'>
-                      {formatPayAmount(originalAmount)}
-
+                    {formatPayAmount(originalAmount)}
                   </Text>
                 </div>
                 <div className='flex justify-between items-center'>

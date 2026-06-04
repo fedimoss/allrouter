@@ -35,7 +35,6 @@ const TokensTable = (tokensData) => {
     tokenCount,
     compactMode,
     handlePageChange,
-    handlePageSizeChange,
     rowSelection,
     handleRow,
     showKeys,
@@ -105,12 +104,7 @@ const TokensTable = (tokensData) => {
       dataSource={tokens}
       scroll={compactMode ? undefined : { x: 'max-content' }}
       pagination={{
-        currentPage: activePage,
-        pageSize: pageSize,
         total: tokenCount,
-        showSizeChanger: true,
-        pageSizeOptions: [10, 20, 50, 100],
-        onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}
       hidePagination={true}

@@ -493,6 +493,8 @@ export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
   Modal.info({
     title: tt('Codex 帐号与用量'),
     centered: true,
+    okText: tt('确定'),
+    cancelText: tt('取消'),
     width: 900,
     style: { maxWidth: '95vw' },
     content: (

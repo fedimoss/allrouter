@@ -185,7 +185,7 @@ const PersonalSetting = () => {
   const [status, setStatus] = useState({});
   const [profileInputs, setProfileInputs] = useState({
     username: '',
-    avatar: logo,
+    avatar: '',
     phone_country_code: '+86',
     phone_number: '',
     timezone: '',
@@ -937,6 +937,23 @@ const PersonalSetting = () => {
   };
 
   const displayName = currentUser?.username || profileInputs.username || '-';
+  const avatarUrl = profileInputs.avatar;
+  const isCustomAvatar = avatarUrl && avatarUrl !== defaultAvatar;
+  const [avatarImgLoaded, setAvatarImgLoaded] = useState(false);
+
+  useEffect(() => {
+    if (isCustomAvatar) {
+      setAvatarImgLoaded(false);
+      const img = new Image();
+      img.onload = () => setAvatarImgLoaded(true);
+      img.onerror = () => setAvatarImgLoaded(true);
+      img.src = avatarUrl;
+    } else {
+      setAvatarImgLoaded(false);
+    }
+  }, [avatarUrl, isCustomAvatar]);
+
+  const avatarSrc = isCustomAvatar && avatarImgLoaded ? avatarUrl : undefined;
   const localTimeLabel = useMemo(() => {
     if (typeof Intl === 'undefined') {
       return '-';
@@ -993,8 +1010,10 @@ const PersonalSetting = () => {
                         size='large'
                         shape='square'
                         hoverMask={hoverMask}
-                        src={profileInputs.avatar || defaultAvatar}
-                      />
+                        src={avatarSrc}
+                      >
+                        {displayName?.[0]?.toUpperCase()}
+                      </Avatar>
                     </Upload>
                     <div className='min-w-0'>
                       <div className='personal-v3-profile-name'>{displayName}</div>
@@ -1200,7 +1219,7 @@ const PersonalSetting = () => {
                   </div>
 
                   <div className='personal-v3-note-banner personal-v3-note-banner-compact'>
-                    <strong>{t('当前通知目标')}：</strong>
+                    <strong>{t('当前通知目标：')}：</strong>
                     {notificationTargetSummary}
                   </div>
 
@@ -1457,9 +1476,7 @@ const PersonalSetting = () => {
                       <div>
                         <h4>{t('已绑定方式')}</h4>
                         <p>
-                          {t('{{count}} 项登录或通知方式已绑定', {
-                            count: boundAccountCount,
-                          })}
+                          {boundAccountCount}{t('项登录或通知方式已绑定')}
                         </p>
                       </div>
                       <span className='personal-v3-session-badge'>

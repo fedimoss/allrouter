@@ -199,6 +199,8 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       title: t('确认作废'),
       content: t('作废后该订阅将立即失效，历史记录不受影响。是否继续？'),
       centered: true,
+      okText: t('确定'),
+      cancelText: t('取消'),
       onOk: async () => {
         try {
           const res = await API.post(
@@ -225,6 +227,8 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       content: t('删除会彻底移除该订阅记录（含权益明细）。是否继续？'),
       centered: true,
       okType: 'danger',
+      okText: t('确定'),
+      cancelText: t('取消'),
       onOk: async () => {
         try {
           const res = await API.delete(
@@ -407,7 +411,6 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
             currentPage,
             pageSize,
             total: subs.length,
-            pageSizeOpts: [10, 20, 50],
             showSizeChanger: false,
             onPageChange: handlePageChange,
           }}

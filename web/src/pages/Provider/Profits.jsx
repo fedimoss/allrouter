@@ -52,9 +52,7 @@ const ProviderProfitsPage = () => {
   const [records, setRecords] = useState([]);
   const [summary, setSummary] = useState({});
   const [activePage, setActivePage] = useState(1);
-  const [pageSize, setPageSize] = useState(
-    parseInt(localStorage.getItem('page-size')) || 10,
-  );
+  const pageSize = 10;
   const [total, setTotal] = useState(0);
   const [detailRecord, setDetailRecord] = useState(null);
 
@@ -103,7 +101,6 @@ const ProviderProfitsPage = () => {
       setRecords(pageData.items || []);
       setSummary(data?.summary || {});
       setActivePage(pageData.page || page);
-      setPageSize(pageData.page_size || size);
       setTotal(pageData.total || 0);
     } catch (error) {
       showError(error);
@@ -315,10 +312,6 @@ const ProviderProfitsPage = () => {
     pageSize,
     total,
     onPageChange: (page) => loadProfits(page, pageSize),
-    onPageSizeChange: (size) => {
-      localStorage.setItem('page-size', `${size}`);
-      loadProfits(1, size);
-    },
     isMobile,
     t,
   });

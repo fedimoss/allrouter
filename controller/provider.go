@@ -16,7 +16,9 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type providerAdminResponse struct {
@@ -211,6 +213,41 @@ func upsertProviderImportPriceRatio(providerId int, ratio float64) error {
 	}).Error
 }
 
+func createDefaultProviderModelPricing(tx *gorm.DB, providerId int, models []string) error {
+	if len(models) == 0 {
+		return nil
+	}
+	rows := make([]model.ProviderModelPricing, 0, len(models))
+	seen := make(map[string]struct{}, len(models))
+	for _, modelName := range models {
+		modelName = strings.TrimSpace(modelName)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := seen[modelName]; ok {
+			continue
+		}
+		seen[modelName] = struct{}{}
+		rows = append(rows, model.ProviderModelPricing{
+			ProviderId:      providerId,
+			PublicModelName: modelName,
+			BaseModelName:   modelName,
+			Enabled:         true,
+			PricingType:     model.ProviderPricingTypeRatio,
+			Ratio:           1.5,
+		})
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	for _, chunk := range lo.Chunk(rows, 100) {
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&chunk).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func buildProviderAdminResponses(providers []model.Provider, withPricing bool) ([]providerAdminResponse, error) {
 	responses := make([]providerAdminResponse, 0, len(providers))
 	if len(providers) == 0 {
@@ -336,7 +373,7 @@ func AdminListProviderOwnerCandidates(c *gin.Context) {
 
 	query := model.DB.Model(&model.User{}).
 		Select("id, username, display_name, email").
-		Where("provider_id = ? AND role < ?", 0, common.RoleAdminUser)
+		Where("role < ?", common.RoleAdminUser)
 	if len(usedOwnerIds) > 0 {
 		query = query.Where("id NOT IN ?", usedOwnerIds)
 	}
@@ -400,7 +437,7 @@ func validateProviderOwnerCandidate(userId int, currentProviderId int) bool {
 	if err := model.DB.Select("id, provider_id, role, username").Where("id = ?", userId).First(&user).Error; err != nil {
 		return false
 	}
-	if user.ProviderId != 0 || user.Role >= common.RoleAdminUser {
+	if user.Role >= common.RoleAdminUser {
 		return false
 	}
 	if currentProviderId > 0 {
@@ -448,11 +485,21 @@ func AdminCreateProvider(c *gin.Context) {
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	if err := model.DB.Create(&provider).Error; err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if err := upsertProviderImportPriceRatio(provider.Id, importPriceRatio); err != nil {
+	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&provider).Error; err != nil {
+			return err
+		}
+		cfg := model.ProviderConfig{
+			ProviderId:       provider.Id,
+			ImportPriceRatio: importPriceRatio,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		}
+		if err := tx.Create(&cfg).Error; err != nil {
+			return err
+		}
+		return createDefaultProviderModelPricing(tx, provider.Id, getMarketplaceVisibleModelNames(c))
+	}); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -508,6 +555,53 @@ func AdminDisableProvider(c *gin.Context) {
 		"status":     model.ProviderStatusDisabled,
 		"updated_at": common.GetTimestamp(),
 	}).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+func AdminDeleteProvider(c *gin.Context) {
+	id, ok := parseProviderAdminId(c)
+	if !ok {
+		return
+	}
+	var provider model.Provider
+	if err := model.DB.Where("id = ?", id).First(&provider).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "provider not found")
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	var userCount int64
+	if err := model.DB.Model(&model.User{}).Where("provider_id = ?", id).Count(&userCount).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if userCount > 0 {
+		common.ApiErrorMsg(c, "provider has users and cannot be deleted")
+		return
+	}
+	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("provider_id = ?", id).Delete(&model.ProviderDomain{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("provider_id = ?", id).Delete(&model.ProviderConfig{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("provider_id = ?", id).Delete(&model.ProviderModelPricing{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("provider_id = ?", id).Delete(&model.ProviderRewardConfig{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("provider_id = ?", id).Delete(&model.ProviderOption{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ?", id).Delete(&model.Provider{}).Error
+	}); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -621,15 +715,43 @@ func AdminUploadProviderLogo(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"url": logoURL})
 }
 
+func ensureProviderDomainAvailable(c *gin.Context, domain string, currentDomainId int) bool {
+	candidates := model.ProviderDomainLookupCandidates(domain)
+	if len(candidates) == 0 {
+		common.ApiErrorMsg(c, "domain is required")
+		return false
+	}
+
+	var existing model.ProviderDomain
+	query := model.DB.Where("domain IN ?", candidates)
+	if currentDomainId > 0 {
+		query = query.Where("id <> ?", currentDomainId)
+	}
+	err := query.First(&existing).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return true
+		}
+		common.ApiError(c, err)
+		return false
+	}
+
+	common.ApiErrorMsg(c, "domain or equivalent www/apex domain is already used")
+	return false
+}
+
 func createProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 	var req model.ProviderDomain
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	req.Domain = strings.TrimSpace(strings.ToLower(req.Domain))
+	req.Domain = model.NormalizeProviderDomain(req.Domain)
 	if req.Domain == "" {
 		common.ApiErrorMsg(c, "domain is required")
+		return
+	}
+	if !ensureProviderDomainAvailable(c, req.Domain, 0) {
 		return
 	}
 	status := model.ProviderDomainStatusPending
@@ -663,13 +785,16 @@ func updateProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 		common.ApiError(c, err)
 		return
 	}
-	req.Domain = strings.TrimSpace(strings.ToLower(req.Domain))
+	req.Domain = model.NormalizeProviderDomain(req.Domain)
 	if req.Domain == "" {
 		if err := model.DB.Where("id = ? AND provider_id = ?", domainId, providerId).Delete(&model.ProviderDomain{}).Error; err != nil {
 			common.ApiError(c, err)
 			return
 		}
 		common.ApiSuccess(c, nil)
+		return
+	}
+	if !ensureProviderDomainAvailable(c, req.Domain, domainId) {
 		return
 	}
 	status := model.ProviderDomainStatusPending
@@ -756,6 +881,25 @@ func getPricingByModelName() map[string]model.Pricing {
 	return pricingMap
 }
 
+func getMarketplaceVisibleModelNames(c *gin.Context) []string {
+	pricing := getMarketplaceVisiblePricing(c)
+	models := make([]string, 0, len(pricing))
+	seen := make(map[string]struct{}, len(pricing))
+	for _, item := range pricing {
+		modelName := strings.TrimSpace(item.ModelName)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := seen[modelName]; ok {
+			continue
+		}
+		seen[modelName] = struct{}{}
+		models = append(models, modelName)
+	}
+	sort.Strings(models)
+	return models
+}
+
 func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelChannelPrice, error) {
 	importPriceRatio := getProviderImportPriceRatio(providerId)
 	pricingMap := getPricingByModelName()
@@ -832,17 +976,26 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 }
 
 func listProviderBaseModels(c *gin.Context, providerId int) {
-	models := model.GetEnabledModels()
-	sort.Strings(models)
+	models := getMarketplaceVisibleModelNames(c)
 	if c.Query("with_price") == "true" || c.Query("with_price") == "1" {
 		items, err := buildProviderBaseModelChannelPrices(providerId)
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
+		visible := make(map[string]struct{}, len(models))
+		for _, modelName := range models {
+			visible[modelName] = struct{}{}
+		}
+		filteredItems := make([]providerBaseModelChannelPrice, 0, len(items))
+		for _, item := range items {
+			if _, ok := visible[item.ModelName]; ok {
+				filteredItems = append(filteredItems, item)
+			}
+		}
 		common.ApiSuccess(c, gin.H{
 			"models": models,
-			"items":  items,
+			"items":  filteredItems,
 		})
 		return
 	}

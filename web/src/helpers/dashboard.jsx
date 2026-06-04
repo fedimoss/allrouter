@@ -365,6 +365,10 @@ export const generateChartTimePoints = (
   data,
   dataExportDefaultTime,
 ) => {
+  if (!data || data.length === 0) {
+    return [];
+  }
+
   let chartTimePoints = Array.from(
     new Set([...aggregatedData.values()].map((d) => d.time)),
   );

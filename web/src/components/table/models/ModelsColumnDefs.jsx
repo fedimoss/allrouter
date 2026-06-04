@@ -221,6 +221,8 @@ const renderOperations = (
           Modal.confirm({
             title: t('确定是否要删除此模型？'),
             content: t('此修改将不可逆'),
+            okText: t('确定'),
+            cancelText: t('取消'),
             onOk: () => {
               (async () => {
                 await manageModel(record.id, 'delete', record);

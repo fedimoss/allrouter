@@ -42,6 +42,11 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import { getEffectiveTopupMin } from '../../helpers/topup';
+import {
+  isLakalaQRCodePayment,
+  LAKALA_QRCODE_ROUTE,
+  saveLakalaQRCodePayment,
+} from '../../helpers/lakalaPayment';
 
 const TopUp = () => {
   const { t } = useTranslation();
@@ -137,6 +142,8 @@ const TopUp = () => {
           title: t('兑换成功！'),
           content: t('成功兑换额度：') + renderQuota(data),
           centered: true,
+          okText: t('确定'),
+          cancelText: t('取消'),
         });
         if (userState.user) {
           const updatedUser = {
@@ -262,6 +269,18 @@ const TopUp = () => {
             // 普通支付表单提交
             let params = data;
             let url = res.data.url;
+            if (isLakalaQRCodePayment(url, params)) {
+              // 保存拉卡拉订单信息和返回路径，供二维码页支付成功后跳回充值页。
+              const tradeNo = saveLakalaQRCodePayment(params, {
+                returnTo: '/console/topup',
+                successPath: '/console/topup?pay=success',
+              });
+              window.open(
+                `${LAKALA_QRCODE_ROUTE}?trade_no=${encodeURIComponent(tradeNo)}`,
+                '_blank',
+              );
+              return;
+            }
             let form = document.createElement('form');
             form.action = url;
             form.method = 'POST';
@@ -345,32 +364,32 @@ const TopUp = () => {
 
   const waffoTopUp = async (payMethodIndex) => {
     try {
-        if (topUpCount < waffoMinTopUp) {
-            showError(t('充值数量不能小于') + waffoMinTopUp);
-            return;
-        }
-        setPaymentLoading(true);
-        const requestBody = {
-            amount: parseInt(topUpCount),
-        };
-        if (payMethodIndex != null) {
-            requestBody.pay_method_index = payMethodIndex;
-        }
-        const res = await API.post('/api/user/waffo/pay', requestBody);
-        if (res !== undefined) {
-            const { message, data } = res.data;
-            if (message === 'success' && data?.payment_url) {
-                window.open(data.payment_url, '_blank');
-            } else {
-                showError(data || t('支付请求失败'));
-            }
+      if (topUpCount < waffoMinTopUp) {
+        showError(t('充值数量不能小于') + waffoMinTopUp);
+        return;
+      }
+      setPaymentLoading(true);
+      const requestBody = {
+        amount: parseInt(topUpCount),
+      };
+      if (payMethodIndex != null) {
+        requestBody.pay_method_index = payMethodIndex;
+      }
+      const res = await API.post('/api/user/waffo/pay', requestBody);
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success' && data?.payment_url) {
+          window.open(data.payment_url, '_blank');
         } else {
-            showError(res);
+          showError(data || t('支付请求失败'));
         }
+      } else {
+        showError(res);
+      }
     } catch (e) {
-        showError(t('支付请求失败'));
+      showError(t('支付请求失败'));
     } finally {
-        setPaymentLoading(false);
+      setPaymentLoading(false);
     }
   };
 
@@ -381,9 +400,12 @@ const TopUp = () => {
 
   const getUserQuota = async () => {
     const startTimestamp = Date.parse(getInitialTimestamp()) / 1000;
-    const endTimestamp = Date.parse(timestamp2string(new Date().getTime() / 1000)) / 1000;
+    const endTimestamp =
+      Date.parse(timestamp2string(new Date().getTime() / 1000)) / 1000;
 
-    let res = await API.get(`/api/user/self?start_timestamp=${startTimestamp}&end_timestamp=${endTimestamp}`);
+    let res = await API.get(
+      `/api/user/self?start_timestamp=${startTimestamp}&end_timestamp=${endTimestamp}`,
+    );
     const { success, message, data } = res.data;
     if (success) {
       userDispatch({ type: 'login', payload: data });
@@ -620,14 +642,6 @@ const TopUp = () => {
     await copy(affLink);
     showSuccess(t('邀请链接已复制到剪切板'));
   };
-
-  // URL 参数处理（支付回跳时清理参数）
-  useEffect(() => {
-    if (searchParams.get('show_history') === 'true') {
-      searchParams.delete('show_history');
-      setSearchParams(searchParams, { replace: true });
-    }
-  }, []);
 
   useEffect(() => {
     // 始终获取最新用户数据，确保余额等统计信息准确

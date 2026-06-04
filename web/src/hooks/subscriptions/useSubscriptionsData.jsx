@@ -32,7 +32,7 @@ export const useSubscriptionsData = () => {
 
   // Pagination (client-side for now)
   const [activePage, setActivePage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const pageSize = 10;
 
   // Drawer states
   const [showEdit, setShowEdit] = useState(false);
@@ -68,11 +68,6 @@ export const useSubscriptionsData = () => {
 
   const handlePageChange = (page) => {
     setActivePage(page);
-  };
-
-  const handlePageSizeChange = (size) => {
-    setPageSize(size);
-    setActivePage(1);
   };
 
   // Update plan enabled status (single endpoint)
@@ -150,7 +145,6 @@ export const useSubscriptionsData = () => {
     activePage,
     pageSize,
     handlePageChange,
-    handlePageSizeChange,
 
     // Actions
     loadPlans,

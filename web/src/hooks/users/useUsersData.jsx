@@ -32,7 +32,7 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState(1);
-  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const pageSize = ITEMS_PER_PAGE;
   const [searching, setSearching] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
   const [userCount, setUserCount] = useState(0);
@@ -204,18 +204,6 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
     }
   };
 
-  // Handle page size change
-  const handlePageSizeChange = async (size) => {
-    localStorage.setItem('page-size', size + '');
-    setPageSize(size);
-    setActivePage(1);
-    loadUsers(activePage, size)
-      .then()
-      .catch((reason) => {
-        showError(reason);
-      });
-  };
-
   // Handle table row styling for disabled/deleted users
   const handleRow = (record, index) => {
     if (record.DeletedAt !== null || record.status !== 1) {
@@ -318,7 +306,6 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
     resetUserPasskey,
     resetUserTwoFA,
     handlePageChange,
-    handlePageSizeChange,
     handleRow,
     refresh,
     closeAddUser,

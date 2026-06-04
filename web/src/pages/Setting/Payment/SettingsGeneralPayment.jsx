@@ -50,10 +50,10 @@ export default function SettingsGeneralPayment(props) {
 
   // 状态管理：服务器地址和消费返利比例
   const [inputs, setInputs] = useState({
-    ServerAddress: '',          // 服务器地址（影响支付回调）
+    ServerAddress: '', // 服务器地址（影响支付回调）
     InviteTopupRebateRatio: 0, // 一级消费返利比例（0-100之间的数字）
     InviteConsumeRebateRatioLevel2: 0, // 二级消费返利比例（0-100之间的数字）
-    StripeCnyUnitPrice: 7.25,  // 美元人民币汇率
+    StripeCnyUnitPrice: 7.25, // 美元人民币汇率
   });
   const formApiRef = useRef(null);
 
@@ -187,9 +187,7 @@ export default function SettingsGeneralPayment(props) {
             precision={6}
             step={0.01}
             style={{ width: '100%' }}
-            extraText={t(
-              '用于支付中美元与人民币的换算，例如 7.25',
-            )}
+            extraText={t('用于支付中美元与人民币的换算，例如 7.25')}
           />
 
           {/* 保存按钮 */}

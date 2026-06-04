@@ -59,7 +59,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
     color: 'blue',
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const pageSize = 10;
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
   // 面板启用状态 state
@@ -406,19 +406,9 @@ const SettingsAPIInfo = ({ options, refresh }) => {
           rowKey='id'
           scroll={{ x: 'max-content' }}
           pagination={{
-            currentPage: currentPage,
-            pageSize: pageSize,
             total: apiInfoList.length,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            pageSizeOptions: ['5', '10', '20', '50'],
-            onChange: (page, size) => {
+            onChange: (page) => {
               setCurrentPage(page);
-              setPageSize(size);
-            },
-            onShowSizeChange: (current, size) => {
-              setCurrentPage(1);
-              setPageSize(size);
             },
           }}
           size='middle'

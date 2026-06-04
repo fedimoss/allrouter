@@ -59,7 +59,7 @@ const ChannelSelectorModal = forwardRef(
   ) => {
     const [searchText, setSearchText] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
+    const pageSize = 10;
     const isMobile = useIsMobile();
 
     const [filteredData, setFilteredData] = useState([]);
@@ -287,16 +287,9 @@ const ChannelSelectorModal = forwardRef(
               currentPage: currentPage,
               pageSize: pageSize,
               total: total,
-              showSizeChanger: true,
               showQuickJumper: true,
-              pageSizeOptions: ['10', '20', '50', '100'],
-              onChange: (page, size) => {
+              onChange: (page) => {
                 setCurrentPage(page);
-                setPageSize(size);
-              },
-              onShowSizeChange: (curr, size) => {
-                setCurrentPage(1);
-                setPageSize(size);
               },
             }}
             size='small'

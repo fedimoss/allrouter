@@ -42,6 +42,11 @@ import { RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
 import CryptoPaymentDrawer from './CryptoPaymentDrawer';
 import {
+  isLakalaQRCodePayment,
+  saveLakalaQRCodePayment,
+  LAKALA_QRCODE_ROUTE,
+} from '../../helpers/lakalaPayment';
+import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
 } from '../../helpers/subscriptionFormat';
@@ -245,6 +250,22 @@ const SubscriptionPlansCard = ({
         payment_method: selectedEpayMethod,
       });
       if (res.data?.message === 'success') {
+        // 拉卡拉扫码支付：返回二维码数据，跳转到二维码展示页面
+        if (isLakalaQRCodePayment(res.data.url, res.data.data)) {
+          const tradeNo = saveLakalaQRCodePayment(res.data.data, {
+            returnTo: '/console/topup',
+            successPath: '/console/topup?pay=success',
+          });
+          window.open(
+            `${LAKALA_QRCODE_ROUTE}?trade_no=${encodeURIComponent(tradeNo)}`,
+            '_blank',
+          );
+          startSubscriptionRefreshPolling();
+          showSuccess(t('已发起支付'));
+          closeBuy();
+          return;
+        }
+        // 易支付表单跳转
         submitEpayForm({ url: res.data.url, params: res.data.data });
         startSubscriptionRefreshPolling();
         showSuccess(t('已发起支付'));

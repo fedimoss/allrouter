@@ -195,7 +195,6 @@ const ModelsPage = () => {
           pageSize: modelsData.pageSize,
           total: modelsData.modelCount,
           onPageChange: modelsData.handlePageChange,
-          onPageSizeChange: modelsData.handlePageSizeChange,
           isMobile: isMobile,
           t: modelsData.t,
         })}

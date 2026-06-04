@@ -55,7 +55,7 @@ export const useTaskLogsData = () => {
   const [loading, setLoading] = useState(false);
   const [activePage, setActivePage] = useState(1);
   const [logCount, setLogCount] = useState(0);
-  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const pageSize = ITEMS_PER_PAGE;
 
   // User and admin
   const isAdminUser = isAdmin();
@@ -222,7 +222,6 @@ export const useTaskLogsData = () => {
     setLogs(items);
     setLogCount(payload.total || 0);
     setActivePage(payload.page || 1);
-    setPageSize(payload.page_size || pageSize);
   };
 
   // Load logs function
@@ -250,11 +249,6 @@ export const useTaskLogsData = () => {
     loadLogs(page, pageSize).then();
   };
 
-  const handlePageSizeChange = async (size) => {
-    localStorage.setItem('task-page-size', size + '');
-    await loadLogs(1, size);
-  };
-
   // Refresh function
   const refresh = async () => {
     await loadLogs(1, pageSize);
@@ -265,7 +259,12 @@ export const useTaskLogsData = () => {
     if (await copy(text)) {
       showSuccess(t('已复制：') + text);
     } else {
-      Modal.error({ title: t('无法复制到剪贴板，请手动复制'), content: text });
+      Modal.error({
+        title: t('无法复制到剪贴板，请手动复制'),
+        content: text,
+        okText: t('确定'),
+        cancelText: t('取消'),
+      });
     }
   };
 
@@ -303,10 +302,7 @@ export const useTaskLogsData = () => {
 
   // Initialize data
   useEffect(() => {
-    const localPageSize =
-      parseInt(localStorage.getItem('task-page-size')) || ITEMS_PER_PAGE;
-    setPageSize(localPageSize);
-    loadLogs(1, localPageSize).then();
+    loadLogs(1, ITEMS_PER_PAGE).then();
   }, []);
 
   return {
@@ -361,7 +357,6 @@ export const useTaskLogsData = () => {
     // Functions
     loadLogs,
     handlePageChange,
-    handlePageSizeChange,
     refresh,
     copyText,
     openContentModal,

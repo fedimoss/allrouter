@@ -715,7 +715,7 @@ const Home = () => {
                   </li>
                   <li>
                     <a
-                      href='https://status.allrouter.ai/'
+                      href={`https://status.${systemName.toLowerCase()}/`}
                       target='_blank'
                       rel='noreferrer'
                     >
@@ -750,7 +750,7 @@ const Home = () => {
                     </a>
                   </li>
                   <li>
-                    <a href='mailto:support@allrouter.ai'>{t('联系我们')}</a>
+                    <a href={`mailto:support@${systemName.toLowerCase()}`}>{t('联系我们')}</a>
                   </li>
                 </ul>
               </div>

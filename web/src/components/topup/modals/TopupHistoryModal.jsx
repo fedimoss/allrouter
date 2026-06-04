@@ -66,7 +66,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [topups, setTopups] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const pageSize = 10;
   const [keyword, setKeyword] = useState('');
   const isMobile = useIsMobile();
 
@@ -100,11 +100,6 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
 
   const handlePageChange = (currentPage) => {
     setPage(currentPage);
-  };
-
-  const handlePageSizeChange = (currentPageSize) => {
-    setPageSize(currentPageSize);
-    setPage(1);
   };
 
   const handleKeywordChange = (value) => {
@@ -263,13 +258,8 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         loading={loading}
         rowKey='id'
         pagination={{
-          currentPage: page,
-          pageSize: pageSize,
           total: total,
-          showSizeChanger: true,
-          pageSizeOpts: [10, 20, 50, 100],
           onPageChange: handlePageChange,
-          onPageSizeChange: handlePageSizeChange,
         }}
         size='small'
         empty={

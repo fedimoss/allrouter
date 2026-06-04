@@ -108,7 +108,6 @@ const RedemptionsPage = ({ apiPrefix = '/api/redemption' }) => {
           pageSize: redemptionsData.pageSize,
           total: redemptionsData.tokenCount,
           onPageChange: redemptionsData.handlePageChange,
-          onPageSizeChange: redemptionsData.handlePageSizeChange,
           isMobile: isMobile,
           t: redemptionsData.t,
         })}

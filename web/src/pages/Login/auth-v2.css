@@ -135,7 +135,7 @@
 .auth-v2 .brand-desc {
   margin: 28px 0 44px;
   max-width: 450px;
-  color: #AAABAD;
+  color: #aaabad;
   font-size: 18px;
   line-height: 30px;
 }
@@ -584,6 +584,55 @@
   transform: none;
 }
 
+.auth-v2.password-reset-page .password-reset-container {
+  width: min(100%, 524px);
+}
+
+.auth-v2.password-reset-page .password-reset-heading {
+  margin-bottom: 44px;
+}
+
+.auth-v2.password-reset-page .password-reset-heading h2 {
+  font-size: clamp(2.15rem, 4vw, 2.65rem);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.auth-v2.password-reset-page .password-reset-heading p {
+  color: #b2b8bf;
+  font-size: 1.08rem;
+}
+
+.auth-v2.password-reset-page .password-reset-helper {
+  margin: 0 0 40px 0 !important;
+  color: var(--auth-text-muted);
+  font-size: 0.98rem;
+  line-height: 1.8;
+}
+
+.auth-v2.password-reset-page .password-reset-form .form-group {
+  margin-bottom: 46px;
+}
+
+.auth-v2.password-reset-page .password-reset-login-link {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 52px;
+  color: var(--auth-text-main);
+  font-size: 0.98rem;
+}
+
+.auth-v2.password-reset-page .password-reset-login-link a {
+  color: var(--auth-accent);
+  font-weight: 500;
+}
+
+.auth-v2.password-reset-page .password-reset-login-link a:hover {
+  opacity: 0.82;
+}
+
 .auth-v2 .form-footer {
   display: none;
 }
@@ -674,14 +723,14 @@
 .auth-v2 .terms {
   margin-top: 22px;
   text-align: center;
-  color: #AAABAD;
+  color: #aaabad;
   font-size: 12px;
   line-height: 1.75;
 }
 
 .auth-v2 .terms a,
 .auth-v2 .terms-check a {
-  color: #D8D8D8;
+  color: #d8d8d8;
   text-decoration: underline;
 }
 
@@ -722,7 +771,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 1px solid #BACBB9;
+  border: 1px solid #bacbb9;
   transition: border-color 0.2s;
   flex-shrink: 0;
   position: relative;
@@ -745,7 +794,7 @@
 }
 
 .auth-v2 .remember-checkbox-label {
-  color: #AAABAD;
+  color: #aaabad;
   font-size: 12px;
 }
 

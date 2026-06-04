@@ -35,6 +35,15 @@ export const reducer = (state, action) => {
   }
 };
 
+function loadCachedUser() {
+  try {
+    const cached = localStorage.getItem('user');
+    return cached ? JSON.parse(cached) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export const initialState = {
-  user: undefined,
+  user: loadCachedUser(),
 };

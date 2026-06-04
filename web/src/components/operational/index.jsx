@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Dropdown } from '@douyinfe/semi-ui';
+import { Dropdown, Pagination } from '@douyinfe/semi-ui';
 import { IconLoading } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import {
@@ -389,58 +389,8 @@ function MobileCards({ columns, rows, displaySymbol }) {
     </div>
   );
 }
-function PaginationBar({ page, pageSize, total, loading, onPageChange, onPageSizeChange }) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const end = total === 0 ? 0 : Math.min(page * pageSize, total);
-
-  return (
-    <div className='mt-5 flex flex-col gap-3 border-t border-slate-100 pt-5 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400 lg:flex-row lg:items-center lg:justify-between'>
-      <div>
-        显示第 {start} 条 - 第 {end} 条，共 {total} 条
-      </div>
-      <div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
-        <label className='inline-flex items-center gap-2'>
-          <span>每页</span>
-          <select
-            className='rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200'
-            onChange={(event) => onPageSizeChange(Number(event.target.value))}
-            value={pageSize}
-          >
-            {[10, 20, 50, 100].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className='inline-flex items-center gap-2'>
-          <button
-            className={lightButtonClassName}
-            disabled={loading || page <= 1}
-            onClick={() => onPageChange(page - 1)}
-            type='button'
-          >
-            上一页
-          </button>
-          <span className='min-w-[88px] text-center'>
-            第 {page} / {totalPages} 页
-          </span>
-          <button
-            className={lightButtonClassName}
-            disabled={loading || page >= totalPages}
-            onClick={() => onPageChange(page + 1)}
-            type='button'
-          >
-            下一页
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AdvancedFilterModal({ open, fields, values, onChange, onClose, onReset, onSubmit }) {
+function AdvancedFilterModal ({ open, fields, values, onChange, onClose, onReset, onSubmit }) {
+  const { t } = useTranslation();
   if (!open) {
     return null;
   }
@@ -456,9 +406,9 @@ function AdvancedFilterModal({ open, fields, values, onChange, onClose, onReset,
       >
         <div className='flex items-center justify-between gap-4'>
           <div>
-            <h3 className='text-lg font-semibold text-slate-900 dark:text-white'>高级筛选</h3>
+            <h3 className='text-lg font-semibold text-slate-900 dark:text-white'>{t('高级筛选')}</h3>
             <p className='mt-1 text-sm text-slate-400 dark:text-slate-500'>
-              按当前标签页配置的条件组合筛选数据。
+              {t('按当前标签页配置的条件组合筛选数据。')}
             </p>
           </div>
           <button
@@ -498,7 +448,7 @@ function AdvancedFilterModal({ open, fields, values, onChange, onClose, onReset,
         </div>
         <div className='mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end'>
           <button className={lightButtonClassName} onClick={onReset} type='button'>
-            重置
+            {t('重置')}
           </button>
           <button
             className='rounded-2xl px-5 py-3 text-sm font-semibold theme-btn-color'
@@ -506,7 +456,7 @@ function AdvancedFilterModal({ open, fields, values, onChange, onClose, onReset,
             style={gradientButtonStyle}
             type='button'
           >
-            应用筛选
+            {t('应用筛选')}
           </button>
         </div>
       </div>
@@ -525,7 +475,7 @@ export default function Operational () {
   const [total, setTotal] = useState(0);
   const [displaySymbol, setDisplaySymbol] = useState('');
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const pageSize = 10;
   const [searchInput, setSearchInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [sortState, setSortState] = useState({ key: '', order: '' });
@@ -563,7 +513,6 @@ export default function Operational () {
     setSearchInput('');
     setKeyword('');
     setPage(1);
-    setPageSize(10);
     setSortState({ key: '', order: '' });
     setShowColumnMenu(false);
     setShowAdvancedFilter(false);
@@ -663,9 +612,6 @@ export default function Operational () {
         setDisplaySymbol(data?.display_symbol || '');
         setRows(payload.list.map((item, index) => normalizeRow(activeTab, item, index)));
         setTotal(payload.total || 0);
-        if (payload.pageSize && payload.pageSize !== pageSize) {
-          setPageSize(payload.pageSize);
-        }
       } catch (error) {
         showError(error?.message || '获取列表数据失败');
         setRows([]);
@@ -918,17 +864,12 @@ export default function Operational () {
             )}
 
             {hasRecordsApi ? (
-              <PaginationBar
-                loading={tableLoading}
-                onPageChange={setPage}
-                onPageSizeChange={(value) => {
-                  setPage(1);
-                  setPageSize(value);
-                }}
-                page={page}
-                pageSize={pageSize}
-                total={total}
-              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+                <Pagination
+                  total={total}
+                  onPageChange={(p) => setPage(p)}
+                />
+              </div>
             ) : null}
           </div>
         </section>
@@ -946,8 +887,6 @@ export default function Operational () {
     </div>
   );
 }
-
-
 
 
 

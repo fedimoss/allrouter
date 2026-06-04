@@ -39,7 +39,7 @@ export const useModelPricingData = () => {
   const [filterEndpointType, setFilterEndpointType] = useState('all'); // 端点类型筛选: 'all' | string
   const [filterVendor, setFilterVendor] = useState('all'); // 供应商筛选: 'all' | 'unknown' | string
   const [filterTag, setFilterTag] = useState('all'); // 模型标签筛选: 'all' | string
-  const [pageSize, setPageSize] = useState(20);
+  const pageSize = 10;
   const [currentPage, setCurrentPage] = useState(1);
   const [currency, setCurrency] = useState('USD');
   const [showWithRecharge, setShowWithRecharge] = useState(false);
@@ -268,7 +268,12 @@ export const useModelPricingData = () => {
     if (await copy(text)) {
       showSuccess(t('已复制：') + text);
     } else {
-      Modal.error({ title: t('无法复制到剪贴板，请手动复制'), content: text });
+      Modal.error({
+        title: t('无法复制到剪贴板，请手动复制'),
+        content: text,
+        okText: t('确定'),
+        cancelText: t('取消')
+      });
     }
   };
 
@@ -358,7 +363,6 @@ export const useModelPricingData = () => {
     filterTag,
     setFilterTag,
     pageSize,
-    setPageSize,
     currentPage,
     setCurrentPage,
     currency,

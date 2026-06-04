@@ -30,6 +30,7 @@ import {
   Tag,
   Typography,
   Upload,
+  Pagination,
 } from '@douyinfe/semi-ui';
 import {
   IconDelete,
@@ -211,6 +212,7 @@ const ProviderPage = () => {
   const pageTitle = adminMode ? t('服务商管理') : t('服务商设置');
 
   const [providers, setProviders] = useState([]);
+  const [providerPage, setProviderPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [currentProvider, setCurrentProvider] = useState(null);
   const [providerModalVisible, setProviderModalVisible] = useState(false);
@@ -821,6 +823,16 @@ const ProviderPage = () => {
     }
   };
 
+  const deleteProvider = async (provider) => {
+    const res = await API.delete(`/api/provider/admin/${provider.id}/permanent`);
+    if (res.data.success) {
+      showSuccess(t('已删除服务商'));
+      fetchProviders();
+    } else {
+      showError(res.data.message);
+    }
+  };
+
   const columns = useMemo(
     () =>
       [
@@ -901,6 +913,7 @@ const ProviderPage = () => {
         },
         {
           title: t('页面配置'),
+          width: 120,
           dataIndex: 'config',
           render: (config) => (
             <Text>
@@ -923,7 +936,7 @@ const ProviderPage = () => {
         },
         {
           title: t('操作'),
-          width: adminMode ? 420 : 300,
+          width: 300,
           render: (_, record) => (
             <Space wrap>
               <Button
@@ -979,6 +992,19 @@ const ProviderPage = () => {
                     <Button size='small'>{t('启用')}</Button>
                   </Popconfirm>
                 )
+              ) : null}
+              {adminMode ? (
+                <Popconfirm
+                  title={t('确认删除该服务商？')}
+                  content={t(
+                    '删除后会移除服务商、域名、页面配置、模型定价和奖励配置。已有服务商用户时不能删除。',
+                  )}
+                  onConfirm={() => deleteProvider(record)}
+                >
+                  <Button size='small' type='danger' icon={<IconDelete />}>
+                    {t('删除')}
+                  </Button>
+                </Popconfirm>
               ) : null}
             </Space>
           ),
@@ -1219,10 +1245,17 @@ const ProviderPage = () => {
       <Table
         rowKey='id'
         columns={columns}
-        dataSource={providers}
+        dataSource={providers.slice((providerPage - 1) * 10, providerPage * 10)}
         loading={loading}
-        pagination={{ pageSize: 10 }}
+        pagination={false}
       />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+        <Pagination
+          total={providers.length}
+          hideOnSinglePage
+          onPageChange={(p) => setProviderPage(p)}
+        />
+      </div>
 
       <Modal
         title={editingProvider ? t('编辑服务商') : t('新建服务商')}
@@ -1330,7 +1363,7 @@ const ProviderPage = () => {
           </Space>
           <Text type='tertiary' size='small'>
             {t(
-              '只能选择普通主站用户。管理员、服务商子用户、已绑定其他服务商的用户不能选择。',
+              '可以选择普通主站用户或服务商用户。管理员、已绑定其他服务商主账号的用户不能选择。',
             )}
           </Text>
           <Table
@@ -1571,7 +1604,7 @@ const ProviderPage = () => {
           columns={pricingColumns}
           dataSource={pricingRows}
           loading={pricingLoading}
-          pagination={{ pageSize: 8 }}
+          pagination={{ pageSize: 10 }}
         />
       </Modal>
 

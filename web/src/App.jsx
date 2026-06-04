@@ -35,6 +35,7 @@ import Channel from './pages/Channel';
 import Token from './pages/Token';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
+import LakalaQRCode from './pages/LakalaQRCode';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
@@ -74,12 +75,12 @@ const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const Docs = lazy(() => import('./pages/Docs'));
 
-function DynamicOAuth2Callback () {
+function DynamicOAuth2Callback() {
   const { provider } = useParams();
   return <OAuth2Callback type={provider} />;
 }
 
-function App () {
+function App() {
   const location = useLocation();
   const [statusState] = useContext(StatusContext);
 
@@ -435,6 +436,16 @@ function App () {
             <PrivateRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <TopUp />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/payment/lakala/qrcode'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <LakalaQRCode />
               </Suspense>
             </PrivateRoute>
           }

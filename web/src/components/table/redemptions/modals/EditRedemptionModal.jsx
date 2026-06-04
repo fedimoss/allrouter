@@ -174,6 +174,8 @@ const EditRedemptionModal = (props) => {
             <p>{t('兑换码将以文本文件的形式下载，文件名为兑换码的名称。')}</p>
           </div>
         ),
+        okText: t('确定'),
+        cancelText: t('取消'),
         onOk: () => {
           downloadTextAsFile(text, `${localInputs.name}.txt`);
         },

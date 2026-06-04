@@ -345,7 +345,7 @@ const ProviderRewardModal = ({
           </Text>
         </Form>
 
-        <div style={{ marginTop: 24 }}>
+        {/* <div style={{ marginTop: 24 }}>
           <div
             style={{
               display: 'grid',
@@ -391,7 +391,7 @@ const ProviderRewardModal = ({
             dataSource={summaryRows}
             pagination={false}
           />
-        </div>
+        </div> */}
       </Spin>
     </Modal>
   );

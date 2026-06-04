@@ -43,7 +43,7 @@ import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
 
 export const useLogsData = ({ scope = 'default' } = {}) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isProviderScope = scope === 'provider';
 
   // Define column keys for selection
@@ -72,7 +72,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
   const [loadingStat, setLoadingStat] = useState(false);
   const [activePage, setActivePage] = useState(1);
   const [logCount, setLogCount] = useState(0);
-  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const pageSize = ITEMS_PER_PAGE;
   const [logType, setLogType] = useState(0);
 
   // User and admin
@@ -118,8 +118,8 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     return {
       [COLUMN_KEYS.TIME]: true,
       [COLUMN_KEYS.CHANNEL]: false,
-      [COLUMN_KEYS.USERNAME]: false,
-      [COLUMN_KEYS.TOKEN]: true,
+      [COLUMN_KEYS.USERNAME]: true,
+      [COLUMN_KEYS.TOKEN]: false,
       [COLUMN_KEYS.GROUP]: true,
       [COLUMN_KEYS.TYPE]: true,
       [COLUMN_KEYS.MODEL]: true,
@@ -128,34 +128,9 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       [COLUMN_KEYS.COMPLETION]: true,
       [COLUMN_KEYS.COST]: true,
       [COLUMN_KEYS.RETRY]: false,
-      [COLUMN_KEYS.IP]: true,
+      [COLUMN_KEYS.IP]: false,
       [COLUMN_KEYS.DETAILS]: true,
     };
-  };
-
-  const getInitialVisibleColumns = () => {
-    const defaults = getDefaultColumnVisibility();
-    const savedColumns = localStorage.getItem(STORAGE_KEY);
-
-    if (!savedColumns) {
-      return defaults;
-    }
-
-    try {
-      const parsed = JSON.parse(savedColumns);
-      const merged = { ...defaults, ...parsed };
-
-      if (!isAdminUser && !isProviderScope) {
-        merged[COLUMN_KEYS.CHANNEL] = false;
-        merged[COLUMN_KEYS.USERNAME] = false;
-        merged[COLUMN_KEYS.RETRY] = false;
-      }
-
-      return merged;
-    } catch (e) {
-      console.error('Failed to parse saved column preferences', e);
-      return defaults;
-    }
   };
 
   const getInitialBillingDisplayMode = () => {
@@ -169,7 +144,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(getDefaultColumnVisibility);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -226,13 +201,6 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
 
     setVisibleColumns(updatedColumns);
   };
-
-  // Persist column settings to the role-specific STORAGE_KEY
-  useEffect(() => {
-    if (Object.keys(visibleColumns).length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleColumns));
-    }
-  }, [visibleColumns]);
 
   useEffect(() => {
     localStorage.setItem(BILLING_DISPLAY_MODE_STORAGE_KEY, billingDisplayMode);
@@ -298,9 +266,9 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     if (isProviderScope) {
       url = `/api/provider/logs?p=${page}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
     } else if (isAdminUser) {
-      url = `/api/log/?p=${page}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/?p=${page}&page_size=${10}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
     } else {
-      url = `/api/log/self/?p=${page}&page_size=${size}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/self/?p=${page}&page_size=${10}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
     }
 
     return encodeURI(url);
@@ -465,7 +433,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
         expandDataLocal.push({
           key: t('渠道信息'),
-          value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
+          value: `${logs[i].channel} - ${logs[i].channel_name || t('[未知]')}`,
         });
       }
       if (logs[i].request_id) {
@@ -812,7 +780,6 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     if (success) {
       const newPageData = data.items;
       setActivePage(data.page);
-      setPageSize(data.page_size);
       setLogCount(data.total);
 
       setLogsFormat(newPageData);
@@ -828,17 +795,6 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     loadLogs(page, pageSize).then((r) => {});
   };
 
-  const handlePageSizeChange = async (size) => {
-    localStorage.setItem('page-size', size + '');
-    setPageSize(size);
-    setActivePage(1);
-    loadLogs(1, size)
-      .then()
-      .catch((reason) => {
-        showError(reason);
-      });
-  };
-
   // Refresh function
   const refresh = async () => {
     setActivePage(1);
@@ -849,18 +805,20 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
   const copyText = async (e, text) => {
     e.stopPropagation();
     if (await copy(text)) {
-      showSuccess('已复制：' + text);
+      showSuccess(t('已复制：') + text);
     } else {
-      Modal.error({ title: t('无法复制到剪贴板，请手动复制'), content: text });
+      Modal.error({
+        title: t('无法复制到剪贴板，请手动复制'),
+        content: text,
+        okText: t('确定'),
+        cancelText: t('取消')
+      });
     }
   };
 
   // Initialize data
   useEffect(() => {
-    const localPageSize =
-      parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
-    setPageSize(localPageSize);
-    loadLogs(activePage, localPageSize)
+    loadLogs(activePage, ITEMS_PER_PAGE)
       .then()
       .catch((reason) => {
         showError(reason);
@@ -873,6 +831,13 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       handleEyeClick();
     }
   }, [formApi]);
+
+  // Re-compute translations on language change
+  useEffect(() => {
+    if (logs.length > 0) {
+      setLogsFormat([...logs]);
+    }
+  }, [i18n.language]);
 
   // Check if any record has expandable content
   const hasExpandableRows = () => {
@@ -936,7 +901,6 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     // Functions
     loadLogs,
     handlePageChange,
-    handlePageSizeChange,
     refresh,
     copyText,
     handleEyeClick,

@@ -37,6 +37,7 @@ import {
   Input,
   Empty,
   Toast,
+  Pagination,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -107,6 +108,7 @@ const PAYMENT_METHOD_MAP = {
   waffo: 'Waffo',
   alipay: '支付宝',
   wxpay: '微信',
+  lakala: '微信',
   crypto: '加密货币',
   redemptionCode: '兑换码',
   redemption_code: '兑换码',
@@ -174,7 +176,7 @@ const RechargeCard = ({
   const [topups, setTopups] = useState([]);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyPage, setHistoryPage] = useState(1);
-  const [historyPageSize, setHistoryPageSize] = useState(10);
+  const historyPageSize = 10;
   const [historyKeyword, setHistoryKeyword] = useState('');
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
   const [cryptoDrawerVisible, setCryptoDrawerVisible] = useState(false);
@@ -246,21 +248,30 @@ const RechargeCard = ({
     stripeCurrency,
   ]);
 
-  // 切换到 Stripe 支付时，若当前充值金额低于 Stripe 最低要求，自动修正为最低金额
+  const prevInputMinTopUpRef = useRef(inputMinTopUp);
+  // 支付方式切换时，根据最低充值金额自动修正当前输入值
   useEffect(() => {
-    if (fallbackInputPaymentType !== 'stripe') return;
+    const prevMin = prevInputMinTopUpRef.current;
     const currentValue = Number(topUpCount || 0);
-    if (!currentValue || currentValue >= inputMinTopUp) return;
 
-    setTopUpCount(inputMinTopUp);
-    setSelectedPreset(null);
-    onlineFormApiRef.current?.setValue('topUpCount', inputMinTopUp);
-  }, [
-    fallbackInputPaymentType,
-    inputMinTopUp,
-    setSelectedPreset,
-    setTopUpCount,
-  ]);
+    if (inputMinTopUp > prevMin) {
+      // 最低金额变大了（如切换到 Stripe CNY），当前值低于新下限则拉高
+      if (currentValue && currentValue < inputMinTopUp) {
+        setTopUpCount(inputMinTopUp);
+        setSelectedPreset(null);
+        onlineFormApiRef.current?.setValue('topUpCount', inputMinTopUp);
+      }
+    } else if (inputMinTopUp < prevMin) {
+      // 最低金额变小了（如从 Stripe 切换到微信），当前值恰好等于旧下限则重置到新下限
+      if (currentValue && currentValue === prevMin) {
+        setTopUpCount(inputMinTopUp);
+        setSelectedPreset(null);
+        onlineFormApiRef.current?.setValue('topUpCount', inputMinTopUp);
+      }
+    }
+
+    prevInputMinTopUpRef.current = inputMinTopUp;
+  }, [inputMinTopUp, setSelectedPreset, setTopUpCount]);
 
   // 跳转邀请详情
   const toInvitationDetail = () => {
@@ -297,11 +308,6 @@ const RechargeCard = ({
 
   const handleHistoryPageChange = (currentPage) => {
     setHistoryPage(currentPage);
-  };
-
-  const handleHistoryPageSizeChange = (currentPageSize) => {
-    setHistoryPageSize(currentPageSize);
-    setHistoryPage(1);
   };
 
   const handleHistoryKeywordChange = (value) => {
@@ -1086,16 +1092,7 @@ const RechargeCard = ({
           dataSource={topups}
           loading={historyLoading}
           rowKey='id'
-          // scroll={{ x: 920 }}
-          pagination={{
-            currentPage: historyPage,
-            pageSize: historyPageSize,
-            total: historyTotal,
-            showSizeChanger: true,
-            pageSizeOpts: [10, 20, 50, 100],
-            onPageChange: handleHistoryPageChange,
-            onPageSizeChange: handleHistoryPageSizeChange,
-          }}
+          pagination={false}
           size='small'
           empty={
             <Empty
@@ -1110,6 +1107,13 @@ const RechargeCard = ({
             />
           }
         />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+          <Pagination
+            total={historyTotal}
+            hideOnSinglePage
+            onPageChange={handleHistoryPageChange}
+          />
+        </div>
       </div>
 
       <CryptoPaymentDrawer

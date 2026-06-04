@@ -239,6 +239,8 @@ const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
         content: t('禁用后用户端不再展示，但历史订单不受影响。是否继续？'),
         centered: true,
         onOk: () => setPlanEnabled(record, false),
+        okText: t('确定'),
+        cancelText: t('取消'),
       });
     } else {
       Modal.confirm({
@@ -246,6 +248,8 @@ const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
         content: t('启用后套餐将在用户端展示。是否继续？'),
         centered: true,
         onOk: () => setPlanEnabled(record, true),
+        okText: t('确定'),
+        cancelText: t('取消'),
       });
     }
   };

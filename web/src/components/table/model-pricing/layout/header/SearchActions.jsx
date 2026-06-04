@@ -118,7 +118,7 @@ const SearchActions = memo(
         </div>
 
         <div className='pricing-market-toolbar-actions'>
-          {supportsCurrencyDisplay && (
+          {/* {supportsCurrencyDisplay && (
             <label className='pricing-market-toolbar-toggle'>
               <span>{t('充值价格')}</span>
               <Switch color='red' checked={showWithRecharge} onChange={setShowWithRecharge} />
@@ -136,12 +136,12 @@ const SearchActions = memo(
               ]}
               className='pricing-market-toolbar-currency'
             />
-          )}
+          )} */}
 
-          <label className='pricing-market-toolbar-toggle'>
+          {/* <label className='pricing-market-toolbar-toggle'>
             <span>{t('倍率')}</span>
             <Switch checked={showRatio} onChange={setShowRatio} />
-          </label>
+          </label> */}
 
           <button
             type='button'

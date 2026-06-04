@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { SiBinance, SiEthereum, SiOkx } from 'react-icons/si';
 import { WALLETS } from '../../helpers/cryptoConfig';
-import { API } from '../../helpers';
+import { API, getSystemName } from '../../helpers';
 import {
   confirmCryptoOrder,
   connectWallet,
@@ -34,6 +34,8 @@ import {
 } from '../../helpers/walletUtils';
 
 const { Text } = Typography;
+
+const systemName = getSystemName();
 
 function getNetworkIcon(name) {
   const n = (name || '').toLowerCase();
@@ -477,7 +479,7 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
                 </div>
                 <div className='mt-6 text-[14px] font-medium text-[#94A3B8]'>
                   {t('收款方')}：
-                  <span className='font-bold text-[#10D9CD]'>AllRouter.AI</span>
+                  <span className='font-bold text-[#10D9CD]'>{systemName}</span>
                 </div>
               </div>
 
