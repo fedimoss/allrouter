@@ -62,14 +62,12 @@ const pickLocalizedValue = (i18nValue, lang, fallback) => {
 
 const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
   const i18n_key = localStorage.getItem('i18nextLng') || 'zh-CN';
-
+  console.log('modelData==', modelData);
   const getModelDescription = () => {
-    if (!modelData) return t('暂无模型描述');
-
     if (modelData.description_i18n) {
       try {
         const parsed = JSON.parse(modelData.description_i18n);
-        return parsed[i18n_key] || t(modelData.description) || t('暂无模型描述');
+        return parsed[i18n_key] || t('暂无模型描述');
       } catch { /* ignore */ }
     }
 
