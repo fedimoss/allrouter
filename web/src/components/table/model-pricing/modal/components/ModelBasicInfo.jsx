@@ -25,18 +25,20 @@ import { stringToColor } from '../../../../../helpers';
 const { Text } = Typography;
 
 const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
-  // 获取模型描述（使用后端真实数据）
+  const i18n_key = localStorage.getItem('i18nextLng') || 'zh-CN';
+
   const getModelDescription = () => {
     if (!modelData) return t('暂无模型描述');
 
-    // 优先使用后端提供的描述
-    if (modelData.description) {
-      return t(modelData.description);
+    if (modelData.description_i18n) {
+      try {
+        const parsed = JSON.parse(modelData.description_i18n);
+        return parsed[i18n_key] || t(modelData.description) || t('暂无模型描述');
+      } catch { /* ignore */ }
     }
 
-    // 如果没有描述但有供应商描述，显示供应商信息
-    if (modelData.vendor_description) {
-      return t('供应商信息：') + t(modelData.vendor_description);
+    if (modelData.description) {
+      return t(modelData.description);
     }
 
     return t('暂无模型描述');

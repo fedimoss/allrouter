@@ -115,6 +115,7 @@ const PricingCardView = ({
   const startIndex = (currentPage - 1) * pageSize;
   const paginatedModels = filteredModels.slice(startIndex, startIndex + pageSize);
   const isMobile = useIsMobile();
+  const i18n_key = localStorage.getItem('i18nextLng') || 'zh-CN';
 
   const handleCheckboxChange = (model, checked) => {
     if (!setSelectedRowKeys) return;
@@ -257,7 +258,7 @@ const PricingCardView = ({
 
                   <div className='flex-1 mb-4'>
                     <p className='pricing-market-mobile-card-description text-xs line-clamp-2 leading-relaxed'>
-                      {model.description || ''}
+                      {model.description_i18n ? JSON.parse(model.description_i18n)[i18n_key] : (t(model.description) || `${model.vendor_name || t('通用')} ${t('最新模型，适合多轮对话、推理与生产环境调用。')}`)}
                     </p>
                   </div>
 
@@ -312,7 +313,7 @@ const PricingCardView = ({
                 </div>
 
                 <p className='pricing-market-desktop-card-description'>
-                  {t(model.description) || `${model.vendor_name || t('通用')} ${t('最新模型，适合多轮对话、推理与生产环境调用。')}`}
+                  {model.description_i18n ? JSON.parse(model.description_i18n)[i18n_key] : (t(model.description) || `${model.vendor_name || t('通用')} ${t('最新模型，适合多轮对话、推理与生产环境调用。')}`)}
                 </p>
 
                 {/* <div className='pricing-market-desktop-card-tags'>
