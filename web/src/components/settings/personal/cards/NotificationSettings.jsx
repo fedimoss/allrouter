@@ -90,6 +90,7 @@ const NotificationSettings = ({
       channel: true,
       models: true,
       deployment: true,
+      callLog: true,
       provider: true,
       billing: true,
       operational: true,
@@ -180,6 +181,7 @@ const NotificationSettings = ({
         channel: true,
         models: true,
         deployment: true,
+        callLog: true,
         provider: true,
         billing: true,
         operational: true,
@@ -316,6 +318,11 @@ const NotificationSettings = ({
           key: 'deployment',
           title: t('模型部署'),
           description: t('模型部署管理'),
+        },
+        {
+          key: 'callLog',
+          title: t('调用日志'),
+          description: t('大模型调用记录'),
         },
         {
           key: 'provider',

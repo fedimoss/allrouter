@@ -91,6 +91,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     '/console/subscription': t('订阅管理'),
     '/console/models': t('模型管理'),
     '/console/deployment': t('模型部署'),
+    '/console/call-log': t('调用日志'),
     '/console/provider': t('服务商设置'),
     '/console/provider/reward': t('奖励设置'),
     '/console/provider/reward-report': t('奖励报表'),

@@ -62,6 +62,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     channel: true,
     models: true,
     deployment: true,
+    callLog: true,
     provider: true,
     providerWithdraw: true,
     billing: true,

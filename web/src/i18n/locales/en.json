@@ -4636,6 +4636,10 @@
     "请使用您注册 {{systemName}} 的邮箱地址。": "Please use the email address you registered with {{systemName}}.",
     "订单已超时，请重新发起充值": "Order timed out. Please start a new recharge.",
     "订单已失效，请重新发起充值": "Order is no longer valid. Please start a new recharge.",
-    "订单状态查询失败": "Failed to query order status"
+    "订单状态查询失败": "Failed to query order status",
+    "调用日志": "Call Logs",
+    "查看所有用户的 API 调用、服务商归属、计费和请求状态。": "View API calls, provider ownership, billing, and request status for all users.",
+    "大模型调用记录": "Large model call records",
+    "主服务": "Main Service"
   }
 }

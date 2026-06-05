@@ -37,6 +37,7 @@ import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
 import LakalaQRCode from './pages/LakalaQRCode';
 import Log from './pages/Log';
+import CallLog from './pages/CallLog';
 import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
 import Midjourney from './pages/Midjourney';
@@ -147,6 +148,14 @@ function App() {
           element={
             <AdminRoute>
               <ModelDeploymentPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/call-log'
+          element={
+            <AdminRoute>
+              <CallLog />
             </AdminRoute>
           }
         />

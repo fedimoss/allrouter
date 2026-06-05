@@ -38,6 +38,7 @@ type Log struct {
 	IsStream          bool   `json:"is_stream"`
 	ChannelId         int    `json:"channel" gorm:"index"`
 	ChannelName       string `json:"channel_name" gorm:"->"`
+	ProviderName      string `json:"provider_name" gorm:"->"`
 	TokenId           int    `json:"token_id" gorm:"default:0;index"`
 	Group             string `json:"group" gorm:"index"`
 	Ip                string `json:"ip" gorm:"index;default:''"`
@@ -71,6 +72,104 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		logs[i].Other = common.MapToJsonStr(otherMap)
 		logs[i].Id = startIdx + i + 1
 	}
+}
+
+func fillLogChannelNames(logs []*Log) error {
+	channelIds := types.NewSet[int]()
+	for _, log := range logs {
+		if log.ChannelId != 0 {
+			channelIds.Add(log.ChannelId)
+		}
+	}
+
+	if channelIds.Len() == 0 {
+		return nil
+	}
+
+	var channels []struct {
+		Id   int    `gorm:"column:id"`
+		Name string `gorm:"column:name"`
+	}
+	if common.MemoryCacheEnabled {
+		for _, channelId := range channelIds.Items() {
+			if cacheChannel, err := CacheGetChannel(channelId); err == nil {
+				channels = append(channels, struct {
+					Id   int    `gorm:"column:id"`
+					Name string `gorm:"column:name"`
+				}{
+					Id:   channelId,
+					Name: cacheChannel.Name,
+				})
+			}
+		}
+	} else if err := DB.Table("channels").Select("id, name").Where("id IN ?", channelIds.Items()).Find(&channels).Error; err != nil {
+		return err
+	}
+
+	channelMap := make(map[int]string, len(channels))
+	for _, channel := range channels {
+		channelMap[channel.Id] = channel.Name
+	}
+	for i := range logs {
+		logs[i].ChannelName = channelMap[logs[i].ChannelId]
+	}
+	return nil
+}
+
+func fillLogProviderNames(logs []*Log) error {
+	providerIds := types.NewSet[int]()
+	userIds := types.NewSet[int]()
+	for _, log := range logs {
+		if log.ProviderId > 0 {
+			providerIds.Add(log.ProviderId)
+		} else if log.UserId > 0 {
+			userIds.Add(log.UserId)
+		}
+	}
+
+	userProviderMap := make(map[int]int)
+	if userIds.Len() > 0 {
+		var users []struct {
+			Id         int `gorm:"column:id"`
+			ProviderId int `gorm:"column:provider_id"`
+		}
+		if err := DB.Table("users").Select("id, provider_id").Where("id IN ?", userIds.Items()).Find(&users).Error; err != nil {
+			return err
+		}
+		for _, user := range users {
+			if user.ProviderId > 0 {
+				userProviderMap[user.Id] = user.ProviderId
+				providerIds.Add(user.ProviderId)
+			}
+		}
+	}
+
+	if providerIds.Len() == 0 {
+		return nil
+	}
+
+	var providers []struct {
+		Id   int    `gorm:"column:id"`
+		Name string `gorm:"column:name"`
+	}
+	if err := DB.Table("providers").Select("id, name").Where("id IN ?", providerIds.Items()).Find(&providers).Error; err != nil {
+		return err
+	}
+	providerNameMap := make(map[int]string, len(providers))
+	for _, provider := range providers {
+		providerNameMap[provider.Id] = provider.Name
+	}
+	for _, log := range logs {
+		providerId := log.ProviderId
+		if providerId <= 0 {
+			providerId = userProviderMap[log.UserId]
+		}
+		if providerId > 0 {
+			log.ProviderId = providerId
+			log.ProviderName = providerNameMap[providerId]
+		}
+	}
+	return nil
 }
 
 func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
@@ -310,19 +409,41 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 			tokenName = token.Name
 		}
 	}
+	providerId := 0
+	billingSide := ""
+	baseModelName := ""
+	if params.Other != nil {
+		switch v := params.Other["provider_id"].(type) {
+		case int:
+			providerId = v
+		case int64:
+			providerId = int(v)
+		case float64:
+			providerId = int(v)
+		}
+		if v, ok := params.Other["billing_side"].(string); ok {
+			billingSide = v
+		}
+		if v, ok := params.Other["provider_base_model"].(string); ok {
+			baseModelName = v
+		}
+	}
 	log := &Log{
-		UserId:    params.UserId,
-		Username:  username,
-		CreatedAt: common.GetTimestamp(),
-		Type:      params.LogType,
-		Content:   params.Content,
-		TokenName: tokenName,
-		ModelName: params.ModelName,
-		Quota:     params.Quota,
-		ChannelId: params.ChannelId,
-		TokenId:   params.TokenId,
-		Group:     params.Group,
-		Other:     common.MapToJsonStr(params.Other),
+		UserId:        params.UserId,
+		ProviderId:    providerId,
+		Username:      username,
+		CreatedAt:     common.GetTimestamp(),
+		Type:          params.LogType,
+		Content:       params.Content,
+		TokenName:     tokenName,
+		ModelName:     params.ModelName,
+		BaseModelName: baseModelName,
+		BillingSide:   billingSide,
+		Quota:         params.Quota,
+		ChannelId:     params.ChannelId,
+		TokenId:       params.TokenId,
+		Group:         params.Group,
+		Other:         common.MapToJsonStr(params.Other),
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
@@ -378,50 +499,74 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		return nil, 0, err
 	}
 
-	channelIds := types.NewSet[int]()
-	for _, log := range logs {
-		if log.ChannelId != 0 {
-			channelIds.Add(log.ChannelId)
-		}
-	}
-
-	if channelIds.Len() > 0 {
-		var channels []struct {
-			Id   int    `gorm:"column:id"`
-			Name string `gorm:"column:name"`
-		}
-		if common.MemoryCacheEnabled {
-			// Cache get channel
-			for _, channelId := range channelIds.Items() {
-				if cacheChannel, err := CacheGetChannel(channelId); err == nil {
-					channels = append(channels, struct {
-						Id   int    `gorm:"column:id"`
-						Name string `gorm:"column:name"`
-					}{
-						Id:   channelId,
-						Name: cacheChannel.Name,
-					})
-				}
-			}
-		} else {
-			// Bulk query channels from DB
-			if err = DB.Table("channels").Select("id, name").Where("id IN ?", channelIds.Items()).Find(&channels).Error; err != nil {
-				return logs, total, err
-			}
-		}
-		channelMap := make(map[int]string, len(channels))
-		for _, channel := range channels {
-			channelMap[channel.Id] = channel.Name
-		}
-		for i := range logs {
-			logs[i].ChannelName = channelMap[logs[i].ChannelId]
-		}
+	if err = fillLogChannelNames(logs); err != nil {
+		return logs, total, err
 	}
 
 	return logs, total, err
 }
 
 const logSearchCountLimit = 10000
+
+func buildAdminCallLogsQuery(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string) (*gorm.DB, error) {
+	tx := LOG_DB.Model(&Log{}).
+		Where("logs.type = ?", LogTypeConsume).
+		Where("(logs.billing_side = ? OR logs.billing_side = ? OR logs.billing_side IS NULL)", "", "provider_user")
+
+	if modelName != "" {
+		modelNamePattern, err := sanitizeLikePattern(modelName)
+		if err != nil {
+			return nil, err
+		}
+		tx = tx.Where("logs.model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	}
+	if username != "" {
+		tx = tx.Where("logs.username = ?", username)
+	}
+	if tokenName != "" {
+		tx = tx.Where("logs.token_name = ?", tokenName)
+	}
+	if requestId != "" {
+		tx = tx.Where("logs.request_id = ?", requestId)
+	}
+	if upstreamRequestId != "" {
+		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", endTimestamp)
+	}
+	if channel != 0 {
+		tx = tx.Where("logs.channel_id = ?", channel)
+	}
+	if group != "" {
+		tx = tx.Where("logs."+logGroupCol+" = ?", group)
+	}
+	return tx, nil
+}
+
+func GetAdminCallLogs(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+	tx, err := buildAdminCallLogsQuery(startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if err = tx.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err = tx.Session(&gorm.Session{}).Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error; err != nil {
+		return nil, 0, err
+	}
+	if err = fillLogChannelNames(logs); err != nil {
+		return logs, total, err
+	}
+	if err = fillLogProviderNames(logs); err != nil {
+		return logs, total, err
+	}
+	return logs, total, nil
+}
 
 func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
@@ -577,6 +722,62 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if err := rpmTpmQuery.Scan(&stat).Error; err != nil {
 		common.SysError("failed to query rpm/tpm stat: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
+	}
+
+	return stat, nil
+}
+
+func SumAdminCallUsedQuota(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+	tx := LOG_DB.Table("logs").Select("COALESCE(SUM(quota), 0) quota")
+	rpmTpmQuery := LOG_DB.Table("logs").Select("COUNT(*) rpm, COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(completion_tokens), 0) tpm")
+
+	tx = tx.Where("type = ?", LogTypeConsume)
+	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
+	tx = tx.Where("(billing_side = ? OR billing_side = ? OR billing_side IS NULL)", "", "provider_user")
+	rpmTpmQuery = rpmTpmQuery.Where("(billing_side = ? OR billing_side = ? OR billing_side IS NULL)", "", "provider_user")
+
+	if username != "" {
+		tx = tx.Where("username = ?", username)
+		rpmTpmQuery = rpmTpmQuery.Where("username = ?", username)
+	}
+	if tokenName != "" {
+		tx = tx.Where("token_name = ?", tokenName)
+		rpmTpmQuery = rpmTpmQuery.Where("token_name = ?", tokenName)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+		rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+		rpmTpmQuery = rpmTpmQuery.Where("created_at <= ?", endTimestamp)
+	}
+	if modelName != "" {
+		modelNamePattern, err := sanitizeLikePattern(modelName)
+		if err != nil {
+			return stat, err
+		}
+		tx = tx.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+		rpmTpmQuery = rpmTpmQuery.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	}
+	if channel != 0 {
+		tx = tx.Where("channel_id = ?", channel)
+		rpmTpmQuery = rpmTpmQuery.Where("channel_id = ?", channel)
+	}
+	if group != "" {
+		tx = tx.Where(logGroupCol+" = ?", group)
+		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
+	}
+
+	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
+
+	if err := tx.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query admin call log stat: " + err.Error())
+		return stat, errors.New("查询调用日志统计失败")
+	}
+	if err := rpmTpmQuery.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query admin call log rpm/tpm stat: " + err.Error())
+		return stat, errors.New("查询调用日志统计失败")
 	}
 
 	return stat, nil

@@ -513,6 +513,7 @@ export const getLogsColumns = ({
   openChannelAffinityUsageCacheModal,
   isAdminUser,
   isProviderScope,
+  isAdminCallScope,
   billingDisplayMode = 'price',
 }) => {
   return [
@@ -613,6 +614,32 @@ export const getLogsColumns = ({
             )}
           </Space>
         ) : null;
+      },
+    },
+    {
+      key: COLUMN_KEYS.PROVIDER,
+      title: t('服务商'),
+      dataIndex: 'provider_name',
+      render: (text, record) => {
+        if (!isAdminCallScope) {
+          return null;
+        }
+        const providerId = Number(record.provider_id || 0);
+        if (providerId <= 0) {
+          return (
+            <Tag color='blue' shape='circle'>
+              {t('主服务')}
+            </Tag>
+          );
+        }
+        return (
+          <Space>
+            <Tag color='violet' shape='circle'>
+              {providerId}
+            </Tag>
+            <span>{text || t('[未知]')}</span>
+          </Space>
+        );
       },
     },
     {

@@ -35,6 +35,7 @@ const LogsFilters = ({
   loading,
   isAdminUser,
   isProviderScope,
+  isAdminCallScope,
   compactMode,
   setCompactMode,
   t,
@@ -165,30 +166,32 @@ const LogsFilters = ({
               />
             </div>
 
-            <div className='usage-logs-v2-filter-item'>
-              <div className='usage-logs-v2-filter-label'>{t('日志类型')}</div>
-              <Form.Select
-                field='logType'
-                placeholder={t('日志类型')}
-                size='large'
-                showClear
-                pure
-                className='usage-logs-v2-control'
-                onChange={() => {
-                  setTimeout(() => {
-                    refresh();
-                  }, 0);
-                }}
-              >
-                <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
-                <Form.Select.Option value='1'>{t('充值')}</Form.Select.Option>
-                <Form.Select.Option value='2'>{t('消费')}</Form.Select.Option>
-                <Form.Select.Option value='3'>{t('管理')}</Form.Select.Option>
-                <Form.Select.Option value='4'>{t('系统')}</Form.Select.Option>
-                <Form.Select.Option value='5'>{t('错误')}</Form.Select.Option>
-                <Form.Select.Option value='6'>{t('退款')}</Form.Select.Option>
-              </Form.Select>
-            </div>
+            {!isAdminCallScope && (
+              <div className='usage-logs-v2-filter-item'>
+                <div className='usage-logs-v2-filter-label'>{t('日志类型')}</div>
+                <Form.Select
+                  field='logType'
+                  placeholder={t('日志类型')}
+                  size='large'
+                  showClear
+                  pure
+                  className='usage-logs-v2-control'
+                  onChange={() => {
+                    setTimeout(() => {
+                      refresh();
+                    }, 0);
+                  }}
+                >
+                  <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
+                  <Form.Select.Option value='1'>{t('充值')}</Form.Select.Option>
+                  <Form.Select.Option value='2'>{t('消费')}</Form.Select.Option>
+                  <Form.Select.Option value='3'>{t('管理')}</Form.Select.Option>
+                  <Form.Select.Option value='4'>{t('系统')}</Form.Select.Option>
+                  <Form.Select.Option value='5'>{t('错误')}</Form.Select.Option>
+                  <Form.Select.Option value='6'>{t('退款')}</Form.Select.Option>
+                </Form.Select>
+              </div>
+            )}
 
             {(isAdminUser || isProviderScope) && (
               <>
