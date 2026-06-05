@@ -1009,6 +1009,8 @@ export const createCardProPagination = ({
       {/* 右侧分页控件 */}
       <Pagination
         total={total}
+        currentPage={currentPage}
+        pageSize={pageSize}
         onPageChange={onPageChange}
         size={isMobile ? 'small' : 'default'}
         showQuickJumper={isMobile}

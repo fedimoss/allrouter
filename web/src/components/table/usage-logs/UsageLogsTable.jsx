@@ -114,6 +114,8 @@ const LogsTable = (logsData) => {
         />
       }
       pagination={{
+        currentPage: activePage,
+        pageSize: pageSize,
         total: logCount,
         onPageChange: handlePageChange,
       }}
