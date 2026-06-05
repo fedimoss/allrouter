@@ -36,3 +36,4 @@ data/
 .gocache_test/
 .gotmp_test/
 .tmp/
+.gocache_codex/

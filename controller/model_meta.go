@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"sort"
 	"strconv"
 	"strings"
@@ -77,6 +76,22 @@ func GetModelMeta(c *gin.Context) {
 	common.ApiSuccess(c, &m)
 }
 
+func validateModelI18nPayload(m *model.Model) error {
+	if strings.TrimSpace(m.DescriptionI18n) != "" {
+		var desc map[string]string
+		if err := common.Unmarshal([]byte(m.DescriptionI18n), &desc); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(m.FeaturesI18n) != "" {
+		var features map[string][]string
+		if err := common.Unmarshal([]byte(m.FeaturesI18n), &features); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // CreateModelMeta 新建模型
 func CreateModelMeta(c *gin.Context) {
 	var m model.Model
@@ -89,6 +104,11 @@ func CreateModelMeta(c *gin.Context) {
 		return
 	}
 	// 名称冲突检查
+	if err := validateModelI18nPayload(&m); err != nil {
+		common.ApiErrorMsg(c, "JSON无效")
+		return
+	}
+
 	if dup, err := model.IsModelNameDuplicated(0, m.ModelName); err != nil {
 		common.ApiError(c, err)
 		return
@@ -119,6 +139,13 @@ func UpdateModelMeta(c *gin.Context) {
 		return
 	}
 
+	if !statusOnly {
+		if err := validateModelI18nPayload(&m); err != nil {
+			common.ApiErrorMsg(c, "\u6a21\u578b\u591a\u8bed\u8a00\u5b57\u6bb5\u4e0d\u662f\u6709\u6548 JSON")
+			return
+		}
+	}
+
 	if statusOnly {
 		// 只更新状态，防止误清空其他字段
 		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Update("status", m.Status).Error; err != nil {
@@ -142,6 +169,86 @@ func UpdateModelMeta(c *gin.Context) {
 	}
 	model.RefreshPricing()
 	common.ApiSuccess(c, &m)
+}
+
+type translateModelContentRequest struct {
+	SourceLang  string   `json:"source_lang"`
+	TargetLangs []string `json:"target_langs"`
+	Description string   `json:"description"`
+	Features    []string `json:"features"`
+}
+
+func normalizeI18nLang(lang string) string {
+	lang = strings.TrimSpace(lang)
+	if lang == "" {
+		return "zh-CN"
+	}
+	lower := strings.ToLower(strings.ReplaceAll(lang, "_", "-"))
+	switch lower {
+	case "zh", "zh-cn", "zh-hans":
+		return "zh-CN"
+	case "zh-tw", "zh-hant", "zh-hk":
+		return "zh-TW"
+	case "en", "en-us", "en-gb":
+		return "en"
+	case "fr", "ja", "ru", "vi":
+		return lower
+	default:
+		return lang
+	}
+}
+
+func splitFeatureText(features []string) []string {
+	result := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, feature := range features {
+		for _, item := range strings.Split(feature, ",") {
+			item = strings.TrimSpace(item)
+			if item == "" {
+				continue
+			}
+			if _, ok := seen[item]; ok {
+				continue
+			}
+			seen[item] = struct{}{}
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func TranslateModelContent(c *gin.Context) {
+	var req translateModelContentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	sourceLang := normalizeI18nLang(req.SourceLang)
+	if len(req.TargetLangs) == 0 {
+		req.TargetLangs = []string{"zh-CN", "zh-TW", "en", "fr", "ja", "ru", "vi"}
+	}
+
+	descriptionI18n := make(map[string]string)
+	featuresI18n := make(map[string][]string)
+	features := splitFeatureText(req.Features)
+
+	for _, lang := range req.TargetLangs {
+		normalized := normalizeI18nLang(lang)
+		if normalized == "" {
+			continue
+		}
+		descriptionI18n[normalized] = ""
+		featuresI18n[normalized] = []string{}
+	}
+	descriptionI18n[sourceLang] = strings.TrimSpace(req.Description)
+	featuresI18n[sourceLang] = features
+
+	common.ApiSuccess(c, gin.H{
+		"description_i18n": descriptionI18n,
+		"features_i18n":    featuresI18n,
+		"source_lang":      sourceLang,
+	})
 }
 
 // DeleteModelMeta 删除模型
@@ -192,7 +299,7 @@ func enrichModels(models []*model.Model) {
 			mm := models[idx]
 			if mm.Endpoints == "" {
 				eps := model.GetModelSupportEndpointTypes(mm.ModelName)
-				if b, err := json.Marshal(eps); err == nil {
+				if b, err := common.Marshal(eps); err == nil {
 					mm.Endpoints = string(b)
 				}
 			}
@@ -282,7 +389,7 @@ func enrichModels(models []*model.Model) {
 			for et := range es {
 				eps = append(eps, et)
 			}
-			if b, err := json.Marshal(eps); err == nil {
+			if b, err := common.Marshal(eps); err == nil {
 				mm.Endpoints = string(b)
 			}
 		}
