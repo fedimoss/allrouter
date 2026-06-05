@@ -4647,6 +4647,10 @@
     "模型描述多语言": "Multi-language Model Description",
     "JSON对象，键为语言代码，值为描述文本": "JSON object, where the key is the language code and the value is the description text",
     "模型特性多语言": "Multi-language Model Features",
-    "JSON对象，键为语言代码，值为特性数组": "JSON object, where the key is the language code and the value is the array of features for that language."
+    "JSON对象，键为语言代码，值为特性数组": "JSON object, where the key is the language code and the value is the array of features for that language.",
+    "主域名": "Primary Domain",
+    "备用域名 {{index}}": "Backup Domain {{index}}",
+    "域名管理": "Domain Management",
+    "暂无域名": "No domains"
   }
 }

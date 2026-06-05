@@ -4571,6 +4571,10 @@
     "模型描述多语言": "Description multilingue du modèle",
     "JSON对象，键为语言代码，值为描述文本": "Objet JSON, où la clé est le code de la langue et la valeur est le texte de la description",
     "模型特性多语言": "Caractéristiques multilingues du modèle",
-    "JSON对象，键为语言代码，值为特性数组": "Objet JSON, où la clé est le code de la langue et la valeur est le tableau des caractéristiques pour cette langue"
+    "JSON对象，键为语言代码，值为特性数组": "Objet JSON, où la clé est le code de la langue et la valeur est le tableau des caractéristiques pour cette langue",
+    "主域名": "Domaine principal",
+    "备用域名 {{index}}": "Domaine de secours {{index}}",
+    "域名管理": "Gestion des domaines",
+    "暂无域名": "Aucun domaine"
   }
 }

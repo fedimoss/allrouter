@@ -36,6 +36,10 @@ type providerAdminRequest struct {
 	ImportPriceRatio *float64 `json:"import_price_ratio"`
 }
 
+type providerDomainsSaveRequest struct {
+	Domains []model.ProviderDomain `json:"domains"`
+}
+
 type providerConfigRequest struct {
 	SiteName        string `json:"site_name"`
 	Logo            string `json:"logo"`
@@ -51,6 +55,13 @@ type providerConfigRequest struct {
 	WechatSupport   string `json:"wechat_support"`
 	QQSupport       string `json:"qq_support"`
 }
+
+var (
+	errProviderDomainRequired   = errors.New("domain is required")
+	errProviderDomainConflict   = errors.New("domain or equivalent www/apex domain is already used")
+	errProviderDomainDuplicated = errors.New("domain or equivalent www/apex domain is duplicated")
+	errProviderDomainInvalidId  = errors.New("invalid domain id")
+)
 
 type providerOwnerCandidate struct {
 	Id          int    `json:"id"`
@@ -715,11 +726,24 @@ func AdminUploadProviderLogo(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"url": logoURL})
 }
 
-func ensureProviderDomainAvailable(c *gin.Context, domain string, currentDomainId int) bool {
+func writeProviderDomainError(c *gin.Context, err error) {
+	if err == nil {
+		return
+	}
+	if errors.Is(err, errProviderDomainRequired) ||
+		errors.Is(err, errProviderDomainConflict) ||
+		errors.Is(err, errProviderDomainDuplicated) ||
+		errors.Is(err, errProviderDomainInvalidId) {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	common.ApiError(c, err)
+}
+
+func checkProviderDomainAvailable(domain string, currentDomainId int) error {
 	candidates := model.ProviderDomainLookupCandidates(domain)
 	if len(candidates) == 0 {
-		common.ApiErrorMsg(c, "domain is required")
-		return false
+		return errProviderDomainRequired
 	}
 
 	var existing model.ProviderDomain
@@ -730,14 +754,129 @@ func ensureProviderDomainAvailable(c *gin.Context, domain string, currentDomainI
 	err := query.First(&existing).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return true
+			return nil
 		}
-		common.ApiError(c, err)
-		return false
+		return err
 	}
 
-	common.ApiErrorMsg(c, "domain or equivalent www/apex domain is already used")
-	return false
+	return errProviderDomainConflict
+}
+
+func checkProviderDomainAvailableForProvider(domain string, providerId int) error {
+	candidates := model.ProviderDomainLookupCandidates(domain)
+	if len(candidates) == 0 {
+		return errProviderDomainRequired
+	}
+
+	var existing model.ProviderDomain
+	err := model.DB.Where("domain IN ? AND provider_id <> ?", candidates, providerId).First(&existing).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	return errProviderDomainConflict
+}
+
+func ensureProviderDomainAvailable(c *gin.Context, domain string, currentDomainId int) bool {
+	if err := checkProviderDomainAvailable(domain, currentDomainId); err != nil {
+		writeProviderDomainError(c, err)
+		return false
+	}
+	return true
+}
+
+func prepareProviderDomainRows(providerId int, domains []model.ProviderDomain, allowVerified bool) ([]model.ProviderDomain, error) {
+	var existingDomains []model.ProviderDomain
+	if err := model.DB.Where("provider_id = ?", providerId).Find(&existingDomains).Error; err != nil {
+		return nil, err
+	}
+	existingIds := make(map[int]struct{}, len(existingDomains))
+	for _, domain := range existingDomains {
+		existingIds[domain.Id] = struct{}{}
+	}
+
+	seenCandidates := make(map[string]struct{}, len(domains)*2)
+	rows := make([]model.ProviderDomain, 0, len(domains))
+	for _, item := range domains {
+		if item.Id < 0 {
+			return nil, errProviderDomainInvalidId
+		}
+		if item.Id > 0 {
+			if _, ok := existingIds[item.Id]; !ok {
+				return nil, errProviderDomainInvalidId
+			}
+		}
+
+		domain := model.NormalizeProviderDomain(item.Domain)
+		if domain == "" {
+			return nil, errProviderDomainRequired
+		}
+		for _, candidate := range model.ProviderDomainLookupCandidates(domain) {
+			if _, ok := seenCandidates[candidate]; ok {
+				return nil, errProviderDomainDuplicated
+			}
+			seenCandidates[candidate] = struct{}{}
+		}
+		if err := checkProviderDomainAvailableForProvider(domain, providerId); err != nil {
+			return nil, err
+		}
+
+		status := model.ProviderDomainStatusPending
+		if allowVerified {
+			status = normalizeProviderDomainStatus(item.Status)
+		}
+		rows = append(rows, model.ProviderDomain{
+			ProviderId:  providerId,
+			Domain:      domain,
+			Status:      status,
+			VerifyToken: strings.TrimSpace(item.VerifyToken),
+		})
+	}
+
+	return rows, nil
+}
+
+func saveProviderDomains(c *gin.Context, providerId int, allowVerified bool) {
+	var req providerDomainsSaveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	rows, err := prepareProviderDomainRows(providerId, req.Domains, allowVerified)
+	if err != nil {
+		writeProviderDomainError(c, err)
+		return
+	}
+
+	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("provider_id = ?", providerId).Delete(&model.ProviderDomain{}).Error; err != nil {
+			return err
+		}
+		now := common.GetTimestamp()
+		for i := range rows {
+			rows[i].Id = 0
+			rows[i].ProviderId = providerId
+			rows[i].CreatedAt = now
+			rows[i].UpdatedAt = now
+			if err := tx.Create(&rows[i]).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var refreshed []model.ProviderDomain
+	if err := model.DB.Where("provider_id = ?", providerId).Order("id asc").Find(&refreshed).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, refreshed)
 }
 
 func createProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
@@ -834,6 +973,14 @@ func AdminCreateProviderDomain(c *gin.Context) {
 		return
 	}
 	createProviderDomain(c, id, true)
+}
+
+func AdminSaveProviderDomains(c *gin.Context) {
+	id, ok := parseProviderAdminId(c)
+	if !ok {
+		return
+	}
+	saveProviderDomains(c, id, true)
 }
 
 func AdminUpdateProviderDomain(c *gin.Context) {
@@ -1167,6 +1314,14 @@ func CreateProviderSelfDomain(c *gin.Context) {
 		return
 	}
 	createProviderDomain(c, provider.Id, true)
+}
+
+func SaveProviderSelfDomains(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	saveProviderDomains(c, provider.Id, true)
 }
 
 func UpdateProviderSelfDomain(c *gin.Context) {
