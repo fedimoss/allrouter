@@ -4640,6 +4640,10 @@
     "调用日志": "Call Logs",
     "查看所有用户的 API 调用、服务商归属、计费和请求状态。": "View API calls, provider ownership, billing, and request status for all users.",
     "大模型调用记录": "Large model call records",
-    "主服务": "Main Service"
+    "主服务": "Main Service",
+    "主域名": "Primary Domain",
+    "备用域名 {{index}}": "Backup Domain {{index}}",
+    "域名管理": "Domain Management",
+    "暂无域名": "No domains"
   }
 }

@@ -5093,6 +5093,10 @@
     "调用日志": "Nhật ký cuộc gọi",
     "查看所有用户的 API 调用、服务商归属、计费和请求状态。": "Xem các lệnh gọi API, nhà cung cấp sở hữu, tính phí và trạng thái yêu cầu của tất cả người dùng.",
     "大模型调用记录": "Bản ghi gọi mô hình lớn",
-    "主服务": "Dịch vụ chính"
+    "主服务": "Dịch vụ chính",
+    "主域名": "Tên miền chính",
+    "备用域名 {{index}}": "Tên miền dự phòng {{index}}",
+    "域名管理": "Quản lý tên miền",
+    "暂无域名": "Chưa có tên miền"
   }
 }

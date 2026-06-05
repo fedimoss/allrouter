@@ -104,6 +104,16 @@ const emptyDomain = {
   verify_token: '',
 };
 
+const createProviderDomainRow = (domain = {}, index = 0) => ({
+  rowKey: domain.id
+    ? `domain-${domain.id}`
+    : `new-domain-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+  id: Number(domain.id || 0),
+  domain: domain.domain || '',
+  status: Number(domain.status ?? emptyDomain.status),
+  verify_token: domain.verify_token || '',
+});
+
 const emptyPricing = {
   public_model_name: '',
   base_model_name: '',
@@ -143,6 +153,20 @@ const formatProviderDiscount = (ratio, t) => {
     return t('原价');
   }
   return t('{{discount}}折', { discount });
+};
+
+const getOrderedProviderDomains = (domains) => {
+  if (!Array.isArray(domains)) {
+    return [];
+  }
+  return [...domains].sort((a, b) => Number(a?.id || 0) - Number(b?.id || 0));
+};
+
+const getProviderDomainRoleLabel = (index, t) => {
+  if (index === 0) {
+    return t('主域名');
+  }
+  return t('备用域名 {{index}}', { index });
 };
 
 const formatPriceNumber = (value) => {
@@ -222,8 +246,9 @@ const ProviderPage = () => {
   const [pricingListVisible, setPricingListVisible] = useState(false);
   const [rewardModalVisible, setRewardModalVisible] = useState(false);
   const [editingProvider, setEditingProvider] = useState(null);
-  const [editingDomain, setEditingDomain] = useState(null);
   const [editingPricing, setEditingPricing] = useState(null);
+  const [domainRows, setDomainRows] = useState([]);
+  const [domainsSaving, setDomainsSaving] = useState(false);
   const [pricingRows, setPricingRows] = useState([]);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
@@ -250,7 +275,6 @@ const ProviderPage = () => {
   const [selectedOwner, setSelectedOwner] = useState(null);
 
   const providerFormRef = useRef(null);
-  const domainFormRef = useRef(null);
   const configFormRef = useRef(null);
   const pricingFormRef = useRef(null);
 
@@ -394,11 +418,6 @@ const ProviderPage = () => {
   }, [providerModalVisible, editingProvider]);
 
   useEffect(() => {
-    if (!domainModalVisible || !domainFormRef.current) return;
-    domainFormRef.current.setValues(editingDomain || emptyDomain);
-  }, [domainModalVisible, editingDomain]);
-
-  useEffect(() => {
     if (!configModalVisible || !configFormRef.current) return;
     const values = getConfigFormValues(currentProvider?.config);
     configFormRef.current.setValues(values);
@@ -424,10 +443,37 @@ const ProviderPage = () => {
     setProviderModalVisible(true);
   };
 
-  const openDomainModal = (provider, domain = null) => {
+  const openDomainModal = (provider) => {
     setCurrentProvider(provider);
-    setEditingDomain(domain);
+    const rows = getOrderedProviderDomains(provider?.domains).map(
+      (domain, index) => createProviderDomainRow(domain, index),
+    );
+    setDomainRows(rows.length > 0 ? rows : [createProviderDomainRow()]);
     setDomainModalVisible(true);
+  };
+
+  const addDomainRow = () => {
+    setDomainRows((rows) => [
+      ...rows,
+      createProviderDomainRow({}, rows.length),
+    ]);
+  };
+
+  const updateDomainRow = (rowKey, field, value) => {
+    setDomainRows((rows) =>
+      rows.map((row) =>
+        row.rowKey === rowKey
+          ? {
+              ...row,
+              [field]: field === 'status' ? Number(value) : value,
+            }
+          : row,
+      ),
+    );
+  };
+
+  const removeDomainRow = (rowKey) => {
+    setDomainRows((rows) => rows.filter((row) => row.rowKey !== rowKey));
   };
 
   const openConfigModal = (provider) => {
@@ -681,48 +727,47 @@ const ProviderPage = () => {
     }
   };
 
-  const submitDomain = async () => {
-    const values = domainFormRef.current?.getValues?.() || {};
-    if (!editingDomain && !values.domain) {
+  const submitDomains = async () => {
+    const domains = domainRows.map((row) => ({
+      id: Number(row.id || 0),
+      domain: String(row.domain || '').trim(),
+      status: Number(row.status),
+      verify_token: String(row.verify_token || '').trim(),
+    }));
+    if (domains.some((domain) => !domain.domain)) {
       showError(t('域名不能为空'));
       return;
     }
-    const payload = {
-      ...values,
-      status: Number(values.status),
-    };
-    const res = editingDomain
-      ? adminMode
-        ? await API.put(
-            `/api/provider/admin/${currentProvider.id}/domains/${editingDomain.id}`,
-            payload,
-          )
-        : await API.put(`/api/provider/domains/${editingDomain.id}`, payload)
-      : adminMode
-        ? await API.post(
-            `/api/provider/admin/${currentProvider.id}/domains`,
-            payload,
-          )
-        : await API.post('/api/provider/domains', payload);
-    if (res.data.success) {
-      showSuccess(t('保存成功'));
-      setDomainModalVisible(false);
-      refreshAfterMutation();
-    } else {
-      showError(res.data.message);
-    }
-  };
-
-  const deleteDomain = async (provider, domain) => {
     const url = adminMode
-      ? `/api/provider/admin/${provider.id}/domains/${domain.id}`
-      : `/api/provider/domains/${domain.id}`;
-    const res = await API.delete(url);
-    if (res.data.success) {
-      showSuccess(t('删除成功'));
-      refreshAfterMutation();
-    } else {
-      showError(res.data.message);
+      ? `/api/provider/admin/${currentProvider.id}/domains`
+      : '/api/provider/domains';
+    setDomainsSaving(true);
+    try {
+      const res = await API.put(url, { domains });
+      if (res.data.success) {
+        const savedDomains = res.data.data || [];
+        setProviders((providers) =>
+          providers.map((provider) =>
+            provider.id === currentProvider.id
+              ? { ...provider, domains: savedDomains }
+              : provider,
+          ),
+        );
+        setCurrentProvider((provider) =>
+          provider?.id === currentProvider.id
+            ? { ...provider, domains: savedDomains }
+            : provider,
+        );
+        showSuccess(t('保存成功'));
+        setDomainModalVisible(false);
+        refreshAfterMutation();
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(error);
+    } finally {
+      setDomainsSaving(false);
     }
   };
 
@@ -880,15 +925,15 @@ const ProviderPage = () => {
           title: t('域名'),
           dataIndex: 'domains',
           render: (domains, provider) => {
-            const domainRows = Array.isArray(domains) ? domains : [];
+            const domainRows = getOrderedProviderDomains(domains);
             return (
               <Space wrap>
                 {domainRows.length === 0 ? (
                   <Text type='tertiary'>{t('未配置')}</Text>
                 ) : null}
-                {domainRows.map((domain) => (
+                {domainRows.map((domain, index) => (
                   <Tag
-                    key={domain.id}
+                    key={domain.id || `${domain.domain}-${index}`}
                     color={
                       !domain.domain
                         ? 'grey'
@@ -896,14 +941,9 @@ const ProviderPage = () => {
                           ? 'green'
                           : 'orange'
                     }
-                    closable
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => openDomainModal(provider, domain)}
-                    onClose={(e) => {
-                      e?.stopPropagation?.();
-                      deleteDomain(provider, domain);
-                    }}
                   >
+                    {getProviderDomainRoleLabel(index, t)}
+                    {' · '}
                     {domain.domain || t('未配置')}
                   </Tag>
                 ))}
@@ -947,7 +987,7 @@ const ProviderPage = () => {
                 {t('编辑')}
               </Button>
               <Button size='small' onClick={() => openDomainModal(record)}>
-                {t('添加域名')}
+                {t('域名管理')}
               </Button>
               <Button size='small' onClick={() => openConfigModal(record)}>
                 {t('页面配置')}
@@ -1399,31 +1439,115 @@ const ProviderPage = () => {
       </Modal>
 
       <Modal
-        title={editingDomain ? t('编辑域名') : t('添加域名')}
+        title={t('域名管理')}
         visible={domainModalVisible}
         onCancel={() => setDomainModalVisible(false)}
-        onOk={submitDomain}
+        footer={
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              width: '100%',
+              gap: 12,
+            }}
+          >
+            <Button icon={<IconPlus />} onClick={addDomainRow}>
+              {t('域名管理')}
+            </Button>
+            <Space>
+              <Button onClick={() => setDomainModalVisible(false)}>
+                {t('取消')}
+              </Button>
+              <Button
+                type='primary'
+                loading={domainsSaving}
+                onClick={submitDomains}
+              >
+                {t('保存')}
+              </Button>
+            </Space>
+          </div>
+        }
+        width={900}
       >
-        <Form
-          key={editingDomain?.id || `${currentProvider?.id || 0}-new-domain`}
-          initValues={editingDomain || emptyDomain}
-          getFormApi={(api) => (domainFormRef.current = api)}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+            overflowX: 'auto',
+          }}
         >
-          <Form.Input
-            field='domain'
-            label={t('域名')}
-            placeholder='ai.example.com'
-          />
-          <Form.Select
-            field='status'
-            label={t('状态')}
-            optionList={DOMAIN_STATUS_OPTIONS.map((option) => ({
-              ...option,
-              label: t(option.label),
-            }))}
-          />
-          <Form.Input field='verify_token' label={t('验证标识')} />
-        </Form>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '140px minmax(180px, 1fr) 130px minmax(140px, 0.8fr) 48px',
+              gap: 8,
+              alignItems: 'center',
+              minWidth: 860,
+              padding: '0 4px',
+            }}
+          >
+            <Text type='tertiary'>{t('类型')}</Text>
+            <Text type='tertiary'>{t('域名')}</Text>
+            <Text type='tertiary'>{t('状态')}</Text>
+            <Text type='tertiary'>{t('验证标识')}</Text>
+            <Text type='tertiary'>{t('操作')}</Text>
+          </div>
+          {domainRows.length === 0 ? (
+            <Text type='tertiary'>{t('暂无域名')}</Text>
+          ) : null}
+          {domainRows.map((row, index) => (
+            <div
+              key={row.rowKey}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '140px minmax(180px, 1fr) 130px minmax(140px, 0.8fr) 48px',
+                gap: 8,
+                alignItems: 'center',
+                minWidth: 860,
+              }}
+            >
+              <Tag color={row.status === 1 ? 'green' : 'orange'}>
+                {getProviderDomainRoleLabel(index, t)}
+              </Tag>
+              <Input
+                value={row.domain}
+                placeholder='ai.example.com'
+                onChange={(value) =>
+                  updateDomainRow(row.rowKey, 'domain', value)
+                }
+              />
+              <Select
+                value={row.status}
+                optionList={DOMAIN_STATUS_OPTIONS.map((option) => ({
+                  ...option,
+                  label: t(option.label),
+                }))}
+                onChange={(value) =>
+                  updateDomainRow(row.rowKey, 'status', value)
+                }
+              />
+              <Input
+                value={row.verify_token}
+                placeholder={t('验证标识')}
+                onChange={(value) =>
+                  updateDomainRow(row.rowKey, 'verify_token', value)
+                }
+              />
+              <Popconfirm
+                title={t('确认删除？')}
+                onConfirm={() => removeDomainRow(row.rowKey)}
+              >
+                <Button
+                  type='danger'
+                  theme='borderless'
+                  icon={<IconDelete />}
+                />
+              </Popconfirm>
+            </div>
+          ))}
+        </div>
       </Modal>
 
       <Modal

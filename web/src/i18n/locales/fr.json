@@ -4564,6 +4564,10 @@
     "调用日志": "Journaux d’appels",
     "查看所有用户的 API 调用、服务商归属、计费和请求状态。": "Afficher les appels API, l’appartenance au fournisseur, la facturation et l’état des requêtes de tous les utilisateurs.",
     "大模型调用记录": "Enregistrements d’appels de grands modèles",
-    "主服务": "Service principal"
+    "主服务": "Service principal",
+    "主域名": "Domaine principal",
+    "备用域名 {{index}}": "Domaine de secours {{index}}",
+    "域名管理": "Gestion des domaines",
+    "暂无域名": "Aucun domaine"
   }
 }

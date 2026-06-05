@@ -358,6 +358,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			providerRoute.GET("/self", controller.GetProviderSelf)
 			providerRoute.PUT("/self", controller.UpdateProviderSelf)
+			providerRoute.PUT("/domains", controller.SaveProviderSelfDomains)
 			providerRoute.POST("/domains", controller.CreateProviderSelfDomain)
 			providerRoute.PUT("/domains/:domain_id", controller.UpdateProviderSelfDomain)
 			providerRoute.DELETE("/domains/:domain_id", controller.DeleteProviderSelfDomain)
@@ -416,6 +417,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.PUT("/:id/reward/config", controller.AdminUpsertProviderRewardConfig)
 			providerAdminRoute.GET("/:id/reward/summary", controller.AdminGetProviderRewardSummary)
 			providerAdminRoute.GET("/:id/profits", controller.AdminGetProviderProfits)
+			providerAdminRoute.PUT("/:id/domains", controller.AdminSaveProviderDomains)
 			providerAdminRoute.POST("/:id/domains", controller.AdminCreateProviderDomain)
 			providerAdminRoute.PUT("/:id/domains/:domain_id", controller.AdminUpdateProviderDomain)
 			providerAdminRoute.DELETE("/:id/domains/:domain_id", controller.AdminDeleteProviderDomain)
