@@ -29,7 +29,7 @@ export const isLakalaQRCodePayment = (url, data) =>
   !!String(data?.code || '').trim() &&
   !!String(data?.trade_no || '').trim();
 
-export const saveLakalaQRCodePayment = (data) => {
+export const saveLakalaQRCodePayment = (data, options = {}) => {
   const tradeNo = String(data?.trade_no || '').trim();
   if (!tradeNo) return '';
 
@@ -40,6 +40,10 @@ export const saveLakalaQRCodePayment = (data) => {
       trade_no: tradeNo,
       amount: String(data?.amount || '').trim(),
       created_at: Date.now(),
+      return_to: String(options?.returnTo || options?.return_to || '').trim(),
+      success_path: String(
+        options?.successPath || options?.success_path || '',
+      ).trim(),
     }),
   );
   return tradeNo;

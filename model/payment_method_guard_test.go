@@ -88,6 +88,66 @@ func getUserQuotaForPaymentGuardTest(t *testing.T, userID int) int {
 	return user.Quota
 }
 
+func TestCreateSubscriptionOrderWithTopUp_CreatesPendingSubscriptionRecord(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 120, 0)
+	plan := insertSubscriptionPlanForPaymentGuardTest(t, 220)
+	order := &SubscriptionOrder{
+		UserId:          120,
+		PlanId:          plan.Id,
+		Money:           9.99,
+		Currency:        "CNY",
+		OriginalMoney:   73.00,
+		TradeNo:         "sub-pending-record",
+		PaymentMethod:   PaymentProviderLakala,
+		PaymentProvider: PaymentProviderLakala,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+
+	require.NoError(t, CreateSubscriptionOrderWithTopUp(order))
+
+	topUp := GetTopUpByTradeNo(order.TradeNo)
+	require.NotNil(t, topUp)
+	assert.Equal(t, TopUpBizTypeSubscription, topUp.BizType)
+	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
+	assert.Equal(t, PaymentProviderLakala, topUp.PaymentProvider)
+	assert.Equal(t, order.Id, topUp.SourceID)
+	assert.InDelta(t, order.OriginalMoney, topUp.OriginalMoney, 0.001)
+	assert.Zero(t, topUp.CompleteTime)
+}
+
+func TestCompleteSubscriptionOrder_UpdatesPendingSubscriptionRecord(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 121, 0)
+	plan := insertSubscriptionPlanForPaymentGuardTest(t, 221)
+	order := &SubscriptionOrder{
+		UserId:          121,
+		PlanId:          plan.Id,
+		Money:           9.99,
+		Currency:        "CNY",
+		OriginalMoney:   73.00,
+		TradeNo:         "sub-complete-record",
+		PaymentMethod:   PaymentProviderLakala,
+		PaymentProvider: PaymentProviderLakala,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, CreateSubscriptionOrderWithTopUp(order))
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, order.TradeNo))
+
+	require.NoError(t, CompleteSubscriptionOrder(order.TradeNo, `{"provider":"lakala"}`, PaymentProviderLakala, PaymentProviderLakala))
+
+	topUp := GetTopUpByTradeNo(order.TradeNo)
+	require.NotNil(t, topUp)
+	assert.Equal(t, TopUpBizTypeSubscription, topUp.BizType)
+	assert.Equal(t, common.TopUpStatusSuccess, topUp.Status)
+	assert.NotZero(t, topUp.CompleteTime)
+	assert.Equal(t, int64(1), countUserSubscriptionsForPaymentGuardTest(t, 121))
+}
+
 func insertWechatTopUpForPaymentGuardTest(t *testing.T, tradeNo string, userID int, paymentProvider string) {
 	t.Helper()
 	insertPaymentTopUpForPaymentGuardTest(t, tradeNo, userID, "wxpay", paymentProvider)

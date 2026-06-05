@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -18,8 +17,10 @@ import (
 type Pricing struct {
 	ModelName              string                  `json:"model_name"`
 	Description            string                  `json:"description,omitempty"`
+	DescriptionI18n        string                  `json:"description_i18n,omitempty"`
 	Icon                   string                  `json:"icon,omitempty"`
 	Tags                   string                  `json:"tags,omitempty"`
+	FeaturesI18n           string                  `json:"features_i18n,omitempty"`
 	VendorID               int                     `json:"vendor_id,omitempty"`
 	QuotaType              int                     `json:"quota_type"`
 	ModelRatio             float64                 `json:"model_ratio"`
@@ -220,7 +221,7 @@ func updatePricing() {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
 			endpoints := make([]string, 0, len(raw))
 			for k, v := range raw {
 				switch v.(type) {
@@ -264,7 +265,7 @@ func updatePricing() {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
 			for k, v := range raw {
 				switch val := v.(type) {
 				case string:
@@ -300,8 +301,10 @@ func updatePricing() {
 				continue
 			}
 			pricing.Description = meta.Description
+			pricing.DescriptionI18n = meta.DescriptionI18n
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
+			pricing.FeaturesI18n = meta.FeaturesI18n
 			pricing.VendorID = meta.VendorID
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)

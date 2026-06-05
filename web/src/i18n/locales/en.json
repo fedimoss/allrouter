@@ -626,6 +626,7 @@
     "例如：https://example.com/.well-known/openid-configuration": "e.g.: https://example.com/.well-known/openid-configuration",
     "例如：https://gitea.example.com": "e.g.: https://gitea.example.com",
     "例如：https://yourdomain.com": "e.g.: https://yourdomain.com",
+    "拉卡拉回调地址": "Lakala callback address",
     "例如：name、full_name": "e.g.: name, full_name",
     "例如：nginx:latest": "e.g.: nginx:latest",
     "例如：preferred_username、login": "e.g.: preferred_username, login",

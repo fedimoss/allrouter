@@ -270,7 +270,11 @@ const TopUp = () => {
             let params = data;
             let url = res.data.url;
             if (isLakalaQRCodePayment(url, params)) {
-              const tradeNo = saveLakalaQRCodePayment(params);
+              // 保存拉卡拉订单信息和返回路径，供二维码页支付成功后跳回充值页。
+              const tradeNo = saveLakalaQRCodePayment(params, {
+                returnTo: '/console/topup',
+                successPath: '/console/topup?pay=success',
+              });
               window.open(
                 `${LAKALA_QRCODE_ROUTE}?trade_no=${encodeURIComponent(tradeNo)}`,
                 '_blank',
@@ -638,14 +642,6 @@ const TopUp = () => {
     await copy(affLink);
     showSuccess(t('邀请链接已复制到剪切板'));
   };
-
-  // URL 参数处理（支付回跳时清理参数）
-  useEffect(() => {
-    if (searchParams.get('show_history') === 'true') {
-      searchParams.delete('show_history');
-      setSearchParams(searchParams, { replace: true });
-    }
-  }, []);
 
   useEffect(() => {
     // 始终获取最新用户数据，确保余额等统计信息准确

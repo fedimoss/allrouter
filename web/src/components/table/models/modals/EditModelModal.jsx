@@ -62,6 +62,7 @@ const nameRuleOptions = [
 const EditModelModal = (props) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const [translateLoading, setTranslateLoading] = useState(false);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const isEdit = props.editingModel && props.editingModel.id !== undefined;
@@ -115,8 +116,10 @@ const EditModelModal = (props) => {
   const getInitValues = () => ({
     model_name: props.editingModel?.model_name || '',
     description: '',
+    description_i18n: '',
     icon: '',
     tags: [],
+    features_i18n: '',
     vendor_id: undefined,
     vendor: '',
     vendor_icon: '',
@@ -188,6 +191,45 @@ const EditModelModal = (props) => {
       formApiRef.current?.reset();
     }
   }, [props.visiable, props.editingModel?.id, props.editingModel?.model_name]);
+
+
+  const generateI18nStructure = async () => {
+    if (!formApiRef.current) return;
+    const description = formApiRef.current.getValue('description') || '';
+    const tags = formApiRef.current.getValue('tags') || [];
+    if (!description.trim() && (!Array.isArray(tags) || tags.length === 0)) {
+      showError(t('请先填写描述或标签'));
+      return;
+    }
+
+    setTranslateLoading(true);
+    try {
+      const res = await API.post('/api/models/translate', {
+        source_lang: 'zh-CN',
+        target_langs: ['zh-CN', 'zh-TW', 'en', 'fr', 'ja', 'ru', 'vi'],
+        description,
+        features: Array.isArray(tags) ? tags : String(tags).split(','),
+      });
+      const { success, message, data } = res.data;
+      if (!success) {
+        showError(t(message));
+        return;
+      }
+      formApiRef.current.setValue(
+        'description_i18n',
+        JSON.stringify(data.description_i18n || {}, null, 2),
+      );
+      formApiRef.current.setValue(
+        'features_i18n',
+        JSON.stringify(data.features_i18n || {}, null, 2),
+      );
+      showSuccess(t('多语言结构已生成，请补充翻译后保存'));
+    } catch (error) {
+      showError(error.response?.data?.message || t('生成多语言结构失败'));
+    } finally {
+      setTranslateLoading(false);
+    }
+  };
 
   const submit = async (values) => {
     setLoading(true);
@@ -421,6 +463,53 @@ const EditModelModal = (props) => {
                           </Space>
                         ),
                       })}
+                    />
+                  </Col>
+
+                  <Col span={24}>
+                    <div className='flex justify-between items-center mb-2'>
+                      <Text strong>{t('多语言内容')}</Text>
+                      <Button
+                        size='small'
+                        type='primary'
+                        theme='light'
+                        loading={translateLoading}
+                        onClick={generateI18nStructure}
+                      >
+                        {t('从当前内容生成多语言结构')}
+                      </Button>
+                    </div>
+                    <Banner
+                      type='info'
+                      closeIcon={null}
+                      description={t(
+                        '动态内容不会使用前端静态翻译。请在这里维护各语言文案，留空语言会回退到默认描述和标签。',
+                      )}
+                      style={{ marginBottom: 12 }}
+                    />
+                    <JSONEditor
+                      field='description_i18n'
+                      label={t('模型描述多语言')}
+                      placeholder={'{\n  "zh-CN": "中文描述",\n  "en": "English description"\n}'}
+                      value={values.description_i18n}
+                      onChange={(val) =>
+                        formApiRef.current?.setValue('description_i18n', val)
+                      }
+                      formApi={formApiRef.current}
+                      editorType='object'
+                      extraText={t('JSON对象，键为语言代码，值为描述文本')}
+                    />
+                    <JSONEditor
+                      field='features_i18n'
+                      label={t('模型特性多语言')}
+                      placeholder={'{\n  "zh-CN": ["代码", "推理"],\n  "en": ["Coding", "Reasoning"]\n}'}
+                      value={values.features_i18n}
+                      onChange={(val) =>
+                        formApiRef.current?.setValue('features_i18n', val)
+                      }
+                      formApi={formApiRef.current}
+                      editorType='object'
+                      extraText={t('JSON对象，键为语言代码，值为特性数组')}
                     />
                   </Col>
                   <Col span={24}>

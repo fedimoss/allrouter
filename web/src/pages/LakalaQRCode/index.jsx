@@ -38,12 +38,9 @@ const LakalaQRCode = () => {
   const tradeNo = searchParams.get('trade_no') || '';
   const payment = useMemo(() => getLakalaQRCodePayment(tradeNo), [tradeNo]);
 
-  // 根据订单号前缀判断是否为订阅订单，用于支付成功后的跳转目标
-  const isSubscription = tradeNo.startsWith('SUB');
-  const backPath = isSubscription ? '/console/topup' : '/console/topup';
-  const successPath = isSubscription
-    ? '/console/topup?pay=success'
-    : '/console/topup?pay=success';
+  // Prefer the source page saved when the QR code payment was created.
+  const backPath = payment?.return_to || '/console/topup';
+  const successPath = payment?.success_path || '/console/topup?pay=success';
 
   const copyTradeNo = async () => {
     await navigator.clipboard.writeText(payment?.trade_no || tradeNo);
@@ -51,11 +48,11 @@ const LakalaQRCode = () => {
   };
 
   useEffect(() => {
-    if (!payment?.code || !tradeNo) return undefined;
+    if (!tradeNo) return undefined;
 
     let stopped = false;
     let timerId;
-    const startedAt = Number(payment.created_at) || Date.now();
+    const startedAt = Number(payment?.created_at) || Date.now();
 
     const stopWithTimeout = () => {
       Toast.warning({ content: t('订单已超时，请重新发起充值') });
@@ -115,7 +112,7 @@ const LakalaQRCode = () => {
       stopped = true;
       window.clearTimeout(timerId);
     };
-  }, [navigate, payment?.code, payment?.created_at, t, tradeNo]);
+  }, [navigate, payment?.created_at, successPath, t, tradeNo]);
 
   if (!payment?.code) {
     return (
@@ -128,7 +125,7 @@ const LakalaQRCode = () => {
             </p>
             <Button
               icon={<ArrowLeft size={16} />}
-              onClick={() => navigate('/console/topup')}
+              onClick={() => navigate(backPath)}
               className='!rounded-lg'
             >
               {t('充值')}
@@ -186,7 +183,7 @@ const LakalaQRCode = () => {
             <Button
               theme='borderless'
               icon={<ArrowLeft size={16} />}
-              onClick={() => navigate('/console/topup')}
+              onClick={() => navigate(backPath)}
               className='!mt-5 !rounded-lg'
             >
               {t('充值')}

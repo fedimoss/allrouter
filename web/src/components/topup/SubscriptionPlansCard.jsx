@@ -252,7 +252,10 @@ const SubscriptionPlansCard = ({
       if (res.data?.message === 'success') {
         // 拉卡拉扫码支付：返回二维码数据，跳转到二维码展示页面
         if (isLakalaQRCodePayment(res.data.url, res.data.data)) {
-          const tradeNo = saveLakalaQRCodePayment(res.data.data);
+          const tradeNo = saveLakalaQRCodePayment(res.data.data, {
+            returnTo: '/console/topup',
+            successPath: '/console/topup?pay=success',
+          });
           window.open(
             `${LAKALA_QRCODE_ROUTE}?trade_no=${encodeURIComponent(tradeNo)}`,
             '_blank',

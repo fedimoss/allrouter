@@ -27,7 +27,7 @@ import {
   Spin,
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
-import { API, showError, showSuccess } from '../../../helpers';
+import { API, removeTrailingSlash, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
 export default function SettingsPaymentGatewayLakala(props) {
@@ -40,6 +40,7 @@ export default function SettingsPaymentGatewayLakala(props) {
     LakalaPublicCert: '',
     LakalaMerchantNo: '',
     LakalaTermNo: '',
+    LakalaCallbackAddress: '',
   });
   const [originInputs, setOriginInputs] = useState({});
   const [formReady, setFormReady] = useState(false);
@@ -54,6 +55,7 @@ export default function SettingsPaymentGatewayLakala(props) {
         LakalaPublicCert: props.options.LakalaPublicCert || '',
         LakalaMerchantNo: props.options.LakalaMerchantNo || '',
         LakalaTermNo: props.options.LakalaTermNo || '',
+        LakalaCallbackAddress: props.options.LakalaCallbackAddress || '',
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
@@ -66,10 +68,6 @@ export default function SettingsPaymentGatewayLakala(props) {
   };
 
   const submitLakalaSetting = async () => {
-    if (props.options.ServerAddress === '') {
-      showError(t('请先填写服务器地址'));
-      return;
-    }
     setLoading(true);
     try {
       const keys = [
@@ -79,13 +77,16 @@ export default function SettingsPaymentGatewayLakala(props) {
         'LakalaPublicCert',
         'LakalaMerchantNo',
         'LakalaTermNo',
+        'LakalaCallbackAddress',
       ];
 
       const options = keys
         .filter((key) => inputs[key] && inputs[key] !== '')
         .map((key) => ({
           key,
-          value: inputs[key],
+          value: key === 'LakalaCallbackAddress'
+            ? removeTrailingSlash(inputs[key])
+            : inputs[key],
         }));
 
       const results = await Promise.all(
@@ -181,6 +182,16 @@ export default function SettingsPaymentGatewayLakala(props) {
                 field='LakalaTermNo'
                 label={t('终端号')}
                 placeholder={t('拉卡拉分配的业务终端号')}
+              />
+            </Col>
+          </Row>
+
+          <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.Input
+                field='LakalaCallbackAddress'
+                label={t('拉卡拉回调地址')}
+                placeholder={t('例如：https://yourdomain.com')}
               />
             </Col>
           </Row>

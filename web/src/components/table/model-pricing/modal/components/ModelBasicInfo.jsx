@@ -18,11 +18,47 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, Avatar, Typography, Tag, Space } from '@douyinfe/semi-ui';
 import { IconInfoCircle } from '@douyinfe/semi-icons';
 import { stringToColor } from '../../../../../helpers';
 
 const { Text } = Typography;
+
+const safeParseI18n = (value, fallback = {}) => {
+  if (!value) return fallback;
+  if (typeof value === 'object') return value;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const normalizeLangCandidates = (lang) => {
+  const normalized = (lang || '').replace('_', '-');
+  const base = normalized.split('-')[0];
+  const candidates = [normalized, base];
+  if (normalized === 'zh-CN' || normalized === 'zh-Hans' || base === 'zh') {
+    candidates.push('zh-CN', 'zh');
+  }
+  if (normalized === 'zh-TW' || normalized === 'zh-Hant') {
+    candidates.push('zh-TW', 'zh-CN', 'zh');
+  }
+  candidates.push('en', 'zh-CN', 'zh');
+  return [...new Set(candidates.filter(Boolean))];
+};
+
+const pickLocalizedValue = (i18nValue, lang, fallback) => {
+  const data = safeParseI18n(i18nValue);
+  for (const key of normalizeLangCandidates(lang)) {
+    const value = data[key];
+    if (Array.isArray(value) && value.length > 0) return value;
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return fallback;
+};
 
 const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
   const i18n_key = localStorage.getItem('i18nextLng') || 'zh-CN';
@@ -44,9 +80,21 @@ const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
     return t('暂无模型描述');
   };
 
-  // 获取模型标签
   const getModelTags = () => {
     const tags = [];
+
+    const localizedFeatures = pickLocalizedValue(
+      modelData?.features_i18n,
+      i18n_key,
+      null,
+    );
+    if (Array.isArray(localizedFeatures) && localizedFeatures.length > 0) {
+      localizedFeatures.forEach((tag) => {
+        const tagText = String(tag).trim();
+        if (tagText) tags.push({ text: tagText, color: stringToColor(tagText) });
+      });
+      return tags;
+    }
 
     if (modelData?.tags) {
       const customTags = modelData.tags.split(',').filter((tag) => tag.trim());
