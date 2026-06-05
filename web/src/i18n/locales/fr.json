@@ -4560,6 +4560,10 @@
     "请使用您注册 {{systemName}} 的邮箱地址。": "Veuillez utiliser l'adresse email que vous avez inscrite avec {{systemName}} pour le réinitialisation de mot de passe.",
     "订单已超时，请重新发起充值": "La commande a expiré. Veuillez lancer une nouvelle recharge.",
     "订单已失效，请重新发起充值": "La commande n'est plus valide. Veuillez lancer une nouvelle recharge.",
-    "订单状态查询失败": "Échec de la consultation du statut de la commande"
+    "订单状态查询失败": "Échec de la consultation du statut de la commande",
+    "调用日志": "Journaux d’appels",
+    "查看所有用户的 API 调用、服务商归属、计费和请求状态。": "Afficher les appels API, l’appartenance au fournisseur, la facturation et l’état des requêtes de tous les utilisateurs.",
+    "大模型调用记录": "Enregistrements d’appels de grands modèles",
+    "主服务": "Service principal"
   }
 }

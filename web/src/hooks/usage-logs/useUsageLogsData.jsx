@@ -45,11 +45,13 @@ import ParamOverrideEntry from '../../components/table/usage-logs/components/Par
 export const useLogsData = ({ scope = 'default' } = {}) => {
   const { t, i18n } = useTranslation();
   const isProviderScope = scope === 'provider';
+  const isAdminCallScope = scope === 'admin-call';
 
   // Define column keys for selection
   const COLUMN_KEYS = {
     TIME: 'time',
     CHANNEL: 'channel',
+    PROVIDER: 'provider',
     USERNAME: 'username',
     TOKEN: 'token',
     GROUP: 'group',
@@ -80,11 +82,15 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
   // Role-specific storage key to prevent different roles from overwriting each other
   const STORAGE_KEY = isProviderScope
     ? 'logs-table-columns-provider'
+    : isAdminCallScope
+    ? 'logs-table-columns-admin-call'
     : isAdminUser
     ? 'logs-table-columns-admin'
     : 'logs-table-columns-user';
   const BILLING_DISPLAY_MODE_STORAGE_KEY = isProviderScope
     ? 'logs-billing-display-mode-provider'
+    : isAdminCallScope
+    ? 'logs-billing-display-mode-admin-call'
     : isAdminUser
     ? 'logs-billing-display-mode-admin'
     : 'logs-billing-display-mode-user';
@@ -118,6 +124,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     return {
       [COLUMN_KEYS.TIME]: true,
       [COLUMN_KEYS.CHANNEL]: false,
+      [COLUMN_KEYS.PROVIDER]: isAdminCallScope,
       [COLUMN_KEYS.USERNAME]: true,
       [COLUMN_KEYS.TOKEN]: false,
       [COLUMN_KEYS.GROUP]: true,
@@ -188,11 +195,14 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     allKeys.forEach((key) => {
       if (
         (key === COLUMN_KEYS.CHANNEL ||
+          key === COLUMN_KEYS.PROVIDER ||
           key === COLUMN_KEYS.USERNAME ||
           key === COLUMN_KEYS.RETRY) &&
         !isAdminUser &&
         !isProviderScope
       ) {
+        updatedColumns[key] = false;
+      } else if (key === COLUMN_KEYS.PROVIDER && !isAdminCallScope) {
         updatedColumns[key] = false;
       } else {
         updatedColumns[key] = checked;
@@ -265,6 +275,8 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     let url = '';
     if (isProviderScope) {
       url = `/api/provider/logs?p=${page}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
+    } else if (isAdminCallScope) {
+      url = `/api/log/calls?p=${page}&page_size=${size}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
     } else if (isAdminUser) {
       url = `/api/log/?p=${page}&page_size=${10}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
     } else {
@@ -347,14 +359,43 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     }
   };
 
+  const getAdminCallLogStat = async () => {
+    const {
+      username,
+      token_name,
+      model_name,
+      start_timestamp,
+      end_timestamp,
+      channel,
+      group,
+    } = getFormValues();
+    let localStartTimestamp = Date.parse(start_timestamp) / 1000;
+    let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+    let url = `/api/log/calls/stat?username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
+    url = encodeURI(url);
+    let res = await API.get(url);
+    const { success, message, data } = res.data;
+    if (success) {
+      setStat(data);
+    } else {
+      showError(message);
+    }
+  };
+
   const handleEyeClick = async () => {
     if (loadingStat) {
       return;
     }
     setLoadingStat(true);
     await Promise.all([
-      isProviderScope ? getProviderLogStat() : isAdminUser ? getLogStat() : getLogSelfStat(),
-      loadErrorCount(),
+      isProviderScope
+        ? getProviderLogStat()
+        : isAdminCallScope
+        ? getAdminCallLogStat()
+        : isAdminUser
+        ? getLogStat()
+        : getLogSelfStat(),
+      isAdminCallScope ? Promise.resolve() : loadErrorCount(),
     ]);
     setShowStat(true);
     setLoadingStat(false);
@@ -861,6 +902,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
     errorCount,
     isAdminUser,
     isProviderScope,
+    isAdminCallScope,
 
     // Form state
     formApi,

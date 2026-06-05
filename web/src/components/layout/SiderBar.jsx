@@ -47,6 +47,7 @@ const routerMap = {
   detail: '/console',
   pricing: '/pricing',
   task: '/console/task',
+  callLog: '/console/call-log',
   models: '/console/models',
   deployment: '/console/deployment',
   provider: '/console/provider',
@@ -312,6 +313,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('模型部署'),
         itemKey: 'deployment',
         to: '/deployment',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('调用日志'),
+        itemKey: 'callLog',
+        to: '/call-log',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

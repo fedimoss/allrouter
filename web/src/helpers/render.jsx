@@ -142,6 +142,8 @@ export function getLucideIcon(key, selected = false) {
       return <FileBox {...commonProps} color={iconColor} />;
     case 'log':
       return <ClipboardList {...commonProps} color={iconColor} />;
+    case 'callLog':
+      return <ScrollText {...commonProps} color={iconColor} />;
     case 'midjourney':
       return <ImageIcon {...commonProps} color={iconColor} />;
     case 'task':

@@ -43,6 +43,7 @@ const LogsTable = (logsData) => {
     hasExpandableRows,
     isAdminUser,
     isProviderScope,
+    isAdminCallScope,
     billingDisplayMode,
     t,
     COLUMN_KEYS,
@@ -57,6 +58,7 @@ const LogsTable = (logsData) => {
       openChannelAffinityUsageCacheModal,
       isAdminUser,
       isProviderScope,
+      isAdminCallScope,
       billingDisplayMode,
     });
   }, [
@@ -67,6 +69,7 @@ const LogsTable = (logsData) => {
     openChannelAffinityUsageCacheModal,
     isAdminUser,
     isProviderScope,
+    isAdminCallScope,
     billingDisplayMode,
   ]);
 

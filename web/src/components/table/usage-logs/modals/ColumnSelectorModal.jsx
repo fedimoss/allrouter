@@ -33,6 +33,7 @@ const ColumnSelectorModal = ({
   COLUMN_KEYS,
   isAdminUser,
   isProviderScope,
+  isAdminCallScope,
   copyText,
   showUserInfoFunc,
   t,
@@ -53,6 +54,7 @@ const ColumnSelectorModal = ({
     showUserInfoFunc,
     isAdminUser,
     isProviderScope,
+    isAdminCallScope,
     billingDisplayMode,
   });
 
@@ -107,11 +109,13 @@ const ColumnSelectorModal = ({
         {allColumns.map((column) => {
           // Skip admin-only columns for non-admin users
           if (
-            !isAdminUser &&
-            !isProviderScope &&
-            (column.key === COLUMN_KEYS.CHANNEL ||
-              column.key === COLUMN_KEYS.USERNAME ||
-              column.key === COLUMN_KEYS.RETRY)
+            (column.key === COLUMN_KEYS.PROVIDER && !isAdminCallScope) ||
+            (!isAdminUser &&
+              !isProviderScope &&
+              (column.key === COLUMN_KEYS.CHANNEL ||
+                column.key === COLUMN_KEYS.PROVIDER ||
+                column.key === COLUMN_KEYS.USERNAME ||
+                column.key === COLUMN_KEYS.RETRY))
           ) {
             return null;
           }

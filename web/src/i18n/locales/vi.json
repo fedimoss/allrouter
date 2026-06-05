@@ -5089,6 +5089,10 @@
     "请使用您注册 {{systemName}} 的邮箱地址。": "Vui lòng sử dụng địa chỉ email của bạn đã đăng ký với {{systemName}}.",
     "订单已超时，请重新发起充值": "Đơn hàng đã hết thời gian chờ. Vui lòng nạp lại.",
     "订单已失效，请重新发起充值": "Đơn hàng không còn hiệu lực. Vui lòng nạp lại.",
-    "订单状态查询失败": "Không thể truy vấn trạng thái đơn hàng"
+    "订单状态查询失败": "Không thể truy vấn trạng thái đơn hàng",
+    "调用日志": "Nhật ký cuộc gọi",
+    "查看所有用户的 API 调用、服务商归属、计费和请求状态。": "Xem các lệnh gọi API, nhà cung cấp sở hữu, tính phí và trạng thái yêu cầu của tất cả người dùng.",
+    "大模型调用记录": "Bản ghi gọi mô hình lớn",
+    "主服务": "Dịch vụ chính"
   }
 }
