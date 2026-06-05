@@ -92,6 +92,12 @@ p {
 .semi-checkbox-inner-display {
   box-shadow: inset 0 0 0 1px var(--theme-primary) !important;
 }
+.semi-radio-addon-buttonRadio-checked{
+  color: var(--theme-primary) !important;
+}
+.semi-input-wrapper-focus:active{
+  border-color: var(--theme-primary) !important;
+}
 
 /* 桌面端禁止 body 纵向滚动 - 防止 VChart tooltip 触发页面滚动条 */
 @media (min-width: 768px) {

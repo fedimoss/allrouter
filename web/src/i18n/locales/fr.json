@@ -4564,6 +4564,13 @@
     "调用日志": "Journaux d’appels",
     "查看所有用户的 API 调用、服务商归属、计费和请求状态。": "Afficher les appels API, l’appartenance au fournisseur, la facturation et l’état des requêtes de tous les utilisateurs.",
     "大模型调用记录": "Enregistrements d’appels de grands modèles",
-    "主服务": "Service principal"
+    "主服务": "Service principal",
+    "多语言内容": "Contenu multilingue",
+    "从当前内容生成多语言结构": "Générer une structure multilingue à partir du contenu actuel", 
+    "动态内容不会使用前端静态翻译。请在这里维护各语言文案，留空语言会回退到默认描述和标签。": "Les contenus dynamiques n'utiliseront pas la traduction statique du frontend. Veuillez maintenir les textes pour chaque langue ici, et les langues vides reverront aux descriptions et libellés par défaut.",
+    "模型描述多语言": "Description multilingue du modèle",
+    "JSON对象，键为语言代码，值为描述文本": "Objet JSON, où la clé est le code de la langue et la valeur est le texte de la description",
+    "模型特性多语言": "Caractéristiques multilingues du modèle",
+    "JSON对象，键为语言代码，值为特性数组": "Objet JSON, où la clé est le code de la langue et la valeur est le tableau des caractéristiques pour cette langue"
   }
 }

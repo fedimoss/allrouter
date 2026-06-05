@@ -314,7 +314,7 @@ const AgentPartner = () => {
           <div className='max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-12 md:gap-16'>
             {/* Left — copy */}
             <div className='flex-1 min-w-0'>
-              <div className='inline-flex border border-[var(--theme-primary)]/10 items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-xs font-medium mb-6'>
+              <div className='inline-flex border border-[var(--theme-primary)]/10 items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--theme-primary)]/10 text-[#A6ACB0] text-xs font-medium mb-6'>
                 <span className='w-1.5 h-1.5 rounded-full bg-[var(--theme-primary)]' />
                 {t('代理计划已开放')}
               </div>

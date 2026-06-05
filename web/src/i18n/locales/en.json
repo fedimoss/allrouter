@@ -4640,6 +4640,13 @@
     "调用日志": "Call Logs",
     "查看所有用户的 API 调用、服务商归属、计费和请求状态。": "View API calls, provider ownership, billing, and request status for all users.",
     "大模型调用记录": "Large model call records",
-    "主服务": "Main Service"
+    "主服务": "Main Service",
+    "多语言内容": "Multi-language Content",
+    "从当前内容生成多语言结构": "Generate Multi-language Structure from Current Content",
+    "动态内容不会使用前端静态翻译。请在这里维护各语言文案，留空语言会回退到默认描述和标签。": "Dynamic content will not use frontend static translation. Please maintain the text for each language here, and empty languages will fall back to the default description and labels.",
+    "模型描述多语言": "Multi-language Model Description",
+    "JSON对象，键为语言代码，值为描述文本": "JSON object, where the key is the language code and the value is the description text",
+    "模型特性多语言": "Multi-language Model Features",
+    "JSON对象，键为语言代码，值为特性数组": "JSON object, where the key is the language code and the value is the array of features for that language."
   }
 }

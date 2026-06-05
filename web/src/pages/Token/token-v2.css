@@ -88,7 +88,6 @@ html.dark .token-v2-toolbar {
   align-items: center;
   gap: 20px;
   padding: 20px;
-  border: 1px solid var(--tk-border);
   border-radius: 12px;
   margin-top: 32px;
   background: var(--tk-surface);
@@ -251,7 +250,7 @@ html.dark .token-v2-toolbar {
   top: 0;
   z-index: 1;
   border-bottom: 1px solid var(--tk-border);
-  background: var(--tk-surface-soft);
+  /* background: var(--tk-surface-soft); */
   padding: 14px 20px;
   text-align: left;
   font-size: 11px;
@@ -267,7 +266,7 @@ html.dark .token-v2-toolbar {
 
 .token-v2-table tbody tr:hover,
 .token-v2-row-selected {
-  background: var(--tk-surface-hover);
+  /* background: var(--tk-surface-hover); */
 }
 
 .token-v2-table tbody td {

@@ -46,7 +46,8 @@ import {
   Col,
   Row,
   InputNumber,
-    Modal,
+  Modal,
+  Radio,
 } from '@douyinfe/semi-ui';
 import {
   IconCreditCard,
@@ -69,6 +70,7 @@ const EditTokenModal = (props) => {
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
+  const [quickExpiry, setQuickExpiry] = useState('');
   const isEdit = props.editingToken.id !== undefined;
 
   const getInitValues = () => ({
@@ -330,7 +332,7 @@ const EditTokenModal = (props) => {
           <Space>
             <Button
               theme='solid'
-              className='!rounded-lg'
+              className='!rounded-lg token-v2-primary-button theme-btn-color'
               onClick={() => formApiRef.current?.submitForm()}
               icon={<IconSave />}
               loading={loading}
@@ -340,8 +342,8 @@ const EditTokenModal = (props) => {
             <Button
               theme='light'
               className='!rounded-lg'
-              type='primary'
               onClick={handleCancel}
+              type='tertiary'
               icon={<IconClose />}
             >
               {t('取消')}
@@ -460,36 +462,25 @@ const EditTokenModal = (props) => {
                   </Col>
                   <Col xs={24} sm={24} md={24} lg={14} xl={14}>
                     <Form.Slot label={t('过期时间快捷设置')}>
-                      <Space wrap>
-                        <Button
-                          theme='light'
-                          type='primary'
-                          onClick={() => setExpiredTime(0, 0, 0, 0)}
-                        >
-                          {t('永不过期')}
-                        </Button>
-                        <Button
-                          theme='light'
-                          type='tertiary'
-                          onClick={() => setExpiredTime(1, 0, 0, 0)}
-                        >
-                          {t('一个月')}
-                        </Button>
-                        <Button
-                          theme='light'
-                          type='tertiary'
-                          onClick={() => setExpiredTime(0, 1, 0, 0)}
-                        >
-                          {t('一天')}
-                        </Button>
-                        <Button
-                          theme='light'
-                          type='tertiary'
-                          onClick={() => setExpiredTime(0, 0, 1, 0)}
-                        >
-                          {t('一小时')}
-                        </Button>
-                      </Space>
+                      <Radio.Group
+                        value={quickExpiry}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setQuickExpiry(val);
+                          switch (val) {
+                            case 'never': setExpiredTime(0, 0, 0, 0); break;
+                            case '1month': setExpiredTime(1, 0, 0, 0); break;
+                            case '1day': setExpiredTime(0, 1, 0, 0); break;
+                            case '1hour': setExpiredTime(0, 0, 1, 0); break;
+                          }
+                        }}
+                        options={[
+                          { value: 'never', label: t('永不过期') },
+                          { value: '1month', label: t('一个月') },
+                          { value: '1day', label: t('一天') },
+                          { value: '1hour', label: t('一小时') },
+                        ]}
+                      />
                     </Form.Slot>
                   </Col>
                   {!isEdit && (

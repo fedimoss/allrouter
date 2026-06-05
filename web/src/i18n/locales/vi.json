@@ -5093,6 +5093,13 @@
     "调用日志": "Nhật ký cuộc gọi",
     "查看所有用户的 API 调用、服务商归属、计费和请求状态。": "Xem các lệnh gọi API, nhà cung cấp sở hữu, tính phí và trạng thái yêu cầu của tất cả người dùng.",
     "大模型调用记录": "Bản ghi gọi mô hình lớn",
-    "主服务": "Dịch vụ chính"
+    "主服务": "Dịch vụ chính",
+    "多语言内容": "Nội dung đa ngôn ngữ",
+    "从当前内容生成多语言结构": "Tạo cấu trúc đa ngôn ngữ từ nội dung hiện tại",
+    "动态内容不会使用前端静态翻译。请在这里维护各语言文案，留空语言会回退到默认描述和标签。": "Nội dung động sẽ không sử dụng bản dịch tĩnh phía frontend. Vui lòng duy trì văn bản cho từng ngôn ngữ ở đây, các ngôn ngữ trống sẽ fallback đến mô tả và nhãn mặc định.",
+    "模型描述多语言": "Mô tả mô hình đa ngôn ngữ",
+    "JSON对象，键为语言代码，值为描述文本": "Đối tượng JSON, khóa là mã ngôn ngữ, giá trị là văn bản mô tả",
+    "模型特性多语言": "Tính năng mô hình đa ngôn ngữ",
+    "JSON对象，键为语言代码，值为特性数组": "Đối tượng JSON, khóa là mã ngôn ngữ, giá trị là mảng chức năng"
   }
 }
