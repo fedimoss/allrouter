@@ -1424,6 +1424,8 @@ func ManageUser(c *gin.Context) {
 		}
 		user.Role = common.RoleCommonUser
 	case "add_quota":
+		common.ApiError(c, errors.New("管理员修改用户余额功能已禁用"))
+		return
 		adminName := c.GetString("username")
 		switch req.Mode {
 		case "add":
