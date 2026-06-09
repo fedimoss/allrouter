@@ -20,11 +20,15 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/singleflight"
 )
 
 // https://cloud.baidu.com/doc/WENXINWORKSHOP/s/flfmc9do2
 
-var baiduTokenStore sync.Map
+var (
+	baiduTokenStore        sync.Map
+	baiduTokenRefreshGroup singleflight.Group
+)
 
 func requestOpenAI2Baidu(request dto.GeneralOpenAIRequest) *BaiduChatRequest {
 	baiduRequest := BaiduChatRequest{
@@ -189,26 +193,47 @@ func baiduEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 }
 
 func getBaiduAccessToken(apiKey string) (string, error) {
+	now := time.Now()
 	if val, ok := baiduTokenStore.Load(apiKey); ok {
 		var accessToken BaiduAccessToken
 		if accessToken, ok = val.(BaiduAccessToken); ok {
-			// soon this will expire
-			if time.Now().Add(time.Hour).After(accessToken.ExpiresAt) {
-				go func() {
-					_, _ = getBaiduAccessTokenHelper(apiKey)
-				}()
+			if !now.Before(accessToken.ExpiresAt) {
+				baiduTokenStore.Delete(apiKey)
+			} else {
+				// soon this will expire
+				if now.Add(time.Hour).After(accessToken.ExpiresAt) {
+					go func() {
+						_, _ = refreshBaiduAccessToken(apiKey)
+					}()
+				}
+				return accessToken.AccessToken, nil
 			}
-			return accessToken.AccessToken, nil
+		} else {
+			baiduTokenStore.Delete(apiKey)
 		}
 	}
-	accessToken, err := getBaiduAccessTokenHelper(apiKey)
+	accessToken, err := refreshBaiduAccessToken(apiKey)
 	if err != nil {
 		return "", err
 	}
 	if accessToken == nil {
 		return "", errors.New("getBaiduAccessToken return a nil token")
 	}
-	return (*accessToken).AccessToken, nil
+	return accessToken.AccessToken, nil
+}
+
+func refreshBaiduAccessToken(apiKey string) (*BaiduAccessToken, error) {
+	val, err, _ := baiduTokenRefreshGroup.Do(apiKey, func() (interface{}, error) {
+		return getBaiduAccessTokenHelper(apiKey)
+	})
+	if err != nil {
+		return nil, err
+	}
+	accessToken, ok := val.(*BaiduAccessToken)
+	if !ok || accessToken == nil {
+		return nil, errors.New("getBaiduAccessToken return a nil token")
+	}
+	return accessToken, nil
 }
 
 func getBaiduAccessTokenHelper(apiKey string) (*BaiduAccessToken, error) {
@@ -227,7 +252,7 @@ func getBaiduAccessTokenHelper(apiKey string) (*BaiduAccessToken, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
+	defer service.CloseResponseBodyGracefully(res)
 
 	var accessToken BaiduAccessToken
 	err = json.NewDecoder(res.Body).Decode(&accessToken)

@@ -44,8 +44,6 @@ func getTokenEncoder(model string) tokenizer.Codec {
 	// Create new encoder
 	modelCodec, err := tokenizer.ForModel(tokenizer.Model(model))
 	if err != nil {
-		// Cache the default encoder for this model to avoid repeated failures
-		tokenEncoderMap[model] = defaultTokenEncoder
 		return defaultTokenEncoder
 	}
 
