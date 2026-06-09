@@ -986,6 +986,7 @@
     "剩余时间": "Remaining Time",
     "剩余额度": "Remaining quota",
     "剩余额度 / 总额度": "Remaining quota / Total quota",
+    "Token 消耗总量": "Total Token consumed",
     "剩余额度$": "Remaining quota $",
     "剩余额度/总额度": "Remaining/Total",
     "剪贴板中未检测到连接信息": "No connection info found in clipboard",

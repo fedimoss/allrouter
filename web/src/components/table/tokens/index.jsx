@@ -1101,6 +1101,7 @@ function TokensPage() {
                       <th>{tokensData.t('名称')}</th>
                       <th className='token-v2-col-status'>{tokensData.t('状态')}</th>
                       <th className='token-v2-col-quota'>{tokensData.t('剩余额度 / 总额度')}</th>
+                      <th className='token-v2-col-quota'>{tokensData.t('Token 消耗总量')}</th>
                       <th className='token-v2-col-group'>{tokensData.t('分组')}</th>
                       <th className='token-v2-col-key'>{tokensData.t('密钥 (Key)')}</th>
                       <th className='token-v2-col-date'>
@@ -1167,9 +1168,9 @@ function TokensPage() {
                                 <span className='token-v2-inline-tag'>
                                   {tokensData.t('无限额度')}
                                 </span>
-                                <div className='token-v2-quota-used-text'>
+                                {/* <div className='token-v2-quota-used-text'>
                                   {`${tokensData.t('\u5df2\u7528')} Tokens ${renderNumber(getTotalTokenUsed(record))}`}
-                                </div>
+                                </div> */}
                               </div>
                             ) : (
                               <div className='token-v2-quota-cell'>
@@ -1187,11 +1188,16 @@ function TokensPage() {
                                 <div className='token-v2-quota-text'>
                                   {`${renderQuota(quotaMeta.remain)} / ${renderQuota(quotaMeta.total)}`}
                                 </div>
-                                <div className='token-v2-quota-used-text'>
+                                {/* <div className='token-v2-quota-used-text'>
                                   {`${tokensData.t('\u5df2\u7528')} Tokens ${renderNumber(getTotalTokenUsed(record))}`}
-                                </div>
+                                </div> */}
                               </div>
                             )}
+                          </td>
+                          <td className='token-v2-col-quota'>
+                            <div className='token-v2-quota-used-text'>
+                              {`${tokensData.t('Token 消耗总量')} ${renderNumber(getTotalTokenUsed(record))}`}
+                            </div>
                           </td>
                           <td className='token-v2-col-group'>
                             <span className='token-v2-group-chip'>

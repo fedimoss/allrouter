@@ -106,7 +106,7 @@ const StatsCards = ({
     },
     {
       key: 'user-token-used',
-      title: userTotalTokenUsedTitle,
+      title: 'Token 消耗总量',
       titleTranslated: true,
       value: userTotalTokenUsed,
       icon: Hash,
@@ -147,7 +147,7 @@ const StatsCards = ({
         >
           <div className='dashboard-stats-v3__header'>
             <div className='dashboard-stats-v3__title'>
-              {card.titleTranslated ? card.title : t(card.title)}
+              {card.titleTranslated ? t(card.title) : t(card.title)}
             </div>
             <div className={card.iconClassName}>
               <Icon size={18} strokeWidth={2.1} />
