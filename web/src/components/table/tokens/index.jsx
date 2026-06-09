@@ -35,6 +35,7 @@ import {
 } from '@douyinfe/semi-illustrations';
 import {
   API,
+  renderNumber,
   renderQuota,
   showError,
   getModelCategories,
@@ -171,11 +172,14 @@ const getQuotaMeta = (record) => {
 
   return {
     remain,
+    used,
     total,
     percent,
     toneClassName,
   };
 };
+
+const getTotalTokenUsed = (record) => Number(record.total_token_used) || 0;
 
 const getExpireMeta = (record, t) => {
   if (record.expired_time === -1) {
@@ -298,6 +302,12 @@ function TokenDetailModal({ token, groupLabelMap, visible, onClose, t }) {
                 : currentToken.unlimited_quota
                 ? t('无限额度')
                 : `${renderQuota(quotaMeta.remain)} / ${renderQuota(quotaMeta.total)}`}
+            </span>
+          </div>
+          <div className='token-v2-detail-item'>
+            <span className='token-v2-detail-label'>{`${t('\u5df2\u7528')} Tokens`}</span>
+            <span className='token-v2-detail-value'>
+              {!token ? '-' : renderNumber(getTotalTokenUsed(currentToken))}
             </span>
           </div>
           <div className='token-v2-detail-item'>
@@ -1153,9 +1163,14 @@ function TokensPage() {
                           </td>
                           <td className='token-v2-col-quota'>
                             {record.unlimited_quota ? (
-                              <span className='token-v2-inline-tag'>
-                                {tokensData.t('无限额度')}
-                              </span>
+                              <div className='token-v2-quota-cell'>
+                                <span className='token-v2-inline-tag'>
+                                  {tokensData.t('无限额度')}
+                                </span>
+                                <div className='token-v2-quota-used-text'>
+                                  {`${tokensData.t('\u5df2\u7528')} Tokens ${renderNumber(getTotalTokenUsed(record))}`}
+                                </div>
+                              </div>
                             ) : (
                               <div className='token-v2-quota-cell'>
                                 <div className='token-v2-quota-meter'>
@@ -1171,6 +1186,9 @@ function TokensPage() {
                                 </div>
                                 <div className='token-v2-quota-text'>
                                   {`${renderQuota(quotaMeta.remain)} / ${renderQuota(quotaMeta.total)}`}
+                                </div>
+                                <div className='token-v2-quota-used-text'>
+                                  {`${tokensData.t('\u5df2\u7528')} Tokens ${renderNumber(getTotalTokenUsed(record))}`}
                                 </div>
                               </div>
                             )}

@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Skeleton, Tag } from '@douyinfe/semi-ui';
 import { useNavigate } from 'react-router-dom';
-import { Hourglass, DollarSign, Info, Orbit } from 'lucide-react';
+import { Hourglass, DollarSign, Hash, Info, Orbit } from 'lucide-react';
 
 const StatsCards = ({
   groupedStatsData,
@@ -49,6 +49,8 @@ const StatsCards = ({
   const totalCount24H = formatValue(usage?.[1]?.value, 0);
   const totalQuota = formatValue(resource?.[0]?.value, '0');
   const totalTokens = formatValue(resource?.[1]?.value, '0');
+  const userTotalTokenUsed = formatValue(resource?.[2]?.value, '0');
+  const userTotalTokenUsedTitle = resource?.[2]?.title || `${t('已用')} Tokens`;
   const avgRPM = formatValue(performance?.[0]?.value, '0');
   const avgTPM = formatValue(performance?.[1]?.value, '0');
 
@@ -102,6 +104,15 @@ const StatsCards = ({
       ],
       onClick: performance?.[0]?.onClick,
     },
+    {
+      key: 'user-token-used',
+      title: userTotalTokenUsedTitle,
+      titleTranslated: true,
+      value: userTotalTokenUsed,
+      icon: Hash,
+      iconClassName: 'dashboard-stats-v3__icon dashboard-stats-v3__icon--blue',
+      onClick: resource?.[2]?.onClick,
+    },
   ];
 
   const renderValue = (value, width = 118) => (
@@ -135,7 +146,9 @@ const StatsCards = ({
           role={card.onClick ? 'button' : undefined}
         >
           <div className='dashboard-stats-v3__header'>
-            <div className='dashboard-stats-v3__title'>{t(card.title)}</div>
+            <div className='dashboard-stats-v3__title'>
+              {card.titleTranslated ? card.title : t(card.title)}
+            </div>
             <div className={card.iconClassName}>
               <Icon size={18} strokeWidth={2.1} />
             </div>

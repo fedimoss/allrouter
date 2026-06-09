@@ -88,6 +88,17 @@ func taskIsSubscription(task *model.Task) bool {
 	return task.PrivateData.BillingSource == BillingSourceSubscription && task.PrivateData.SubscriptionId > 0
 }
 
+func RecordTaskTotalTokenUsage(ctx context.Context, task *model.Task, totalTokens int) {
+	if task == nil || totalTokens <= 0 || task.PrivateData.TokenUsageSettled {
+		return
+	}
+	model.UpdateUserAndTokenTotalTokenUsed(task.UserId, task.PrivateData.TokenId, totalTokens)
+	task.PrivateData.TokenUsageSettled = true
+	if err := task.Update(); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("failed to mark task token usage settled (task=%s): %s", task.TaskID, err.Error()))
+	}
+}
+
 // taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示扣费，delta < 0 表示退还。
 func taskAdjustFunding(task *model.Task, delta int) error {
 	if taskIsSubscription(task) {

@@ -113,6 +113,14 @@ export const useDashboardStats = (
             trendData: trendData.tokens,
             trendColor: '#ec4899',
           },
+          {
+            title: `${t('\u5df2\u7528')} Tokens`,
+            value: Number(userState?.user?.total_token_used || 0).toLocaleString(),
+            icon: <IconTypograph />,
+            avatarColor: 'orange',
+            trendData: [],
+            trendColor: '#f97316',
+          },
         ],
       },
       {
@@ -141,6 +149,7 @@ export const useDashboardStats = (
     [
       userState?.user?.quota,
       userState?.user?.used_quota,
+      userState?.user?.total_token_used,
       userState?.user?.request_count,
       userState?.user?.total_count,
       times,

@@ -5066,3 +5066,11 @@ COMMENT ON COLUMN "provider_options"."id"                    IS '主键';
 COMMENT ON COLUMN "provider_options"."provider_id"           IS '服务商id';
 COMMENT ON COLUMN "provider_options"."key"                   IS '键';
 COMMENT ON COLUMN "provider_options"."value"                 IS '值';
+
+
+-- 用户表和令牌表新增token消耗量
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS total_token_used bigint NOT NULL DEFAULT 0;
+
+ALTER TABLE tokens
+    ADD COLUMN IF NOT EXISTS total_token_used bigint NOT NULL DEFAULT 0;
