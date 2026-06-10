@@ -1320,7 +1320,7 @@ html.dark .with-pastel-balls::before {
   /* background-color: var(--semi-color-bg-0); */
   overflow: auto;
   flex-shrink: 0;
-  max-width: 300px;
+  width: 300px;
 }
 
 .pricing-content {
