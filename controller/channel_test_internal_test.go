@@ -5,8 +5,11 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -68,4 +71,20 @@ func TestBuildTestLogOtherInjectsTieredInfo(t *testing.T) {
 	require.Equal(t, "tiered_expr", other["billing_mode"])
 	require.Equal(t, "base", other["matched_tier"])
 	require.NotEmpty(t, other["expr_b64"])
+}
+
+// 测试 normalizeChannelTestEndpoint 函数在 Responses Chat 渠道下的行为
+func TestNormalizeChannelTestEndpointUsesResponsesForResponsesChat(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeResponsesChat}
+
+	endpoint := normalizeChannelTestEndpoint(channel, "GLM-5.1", "")
+
+	require.Equal(t, string(constant.EndpointTypeOpenAIResponse), endpoint)
+}
+
+// 测试 Responses Chat 渠道在 Ark Coding 上的 Chat Completions 端点路径
+func TestResponsesChatChannelTestUsesArkCodingChatPath(t *testing.T) {
+	path := relay.ResponsesChatCompletionsPath("https://ark.cn-beijing.volces.com")
+
+	require.Equal(t, "/api/coding/v3/chat/completions", path)
 }

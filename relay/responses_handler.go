@@ -173,6 +173,14 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	return nil
 }
 
+// ResponsesChatCompletionsPath 根据渠道 base URL 选择对应的 Chat Completions 端点路径
+func ResponsesChatCompletionsPath(baseURL string) string {
+	if strings.Contains(baseURL, "ark.cn-beijing.volces.com") {
+		return "/api/coding/v3/chat/completions"
+	}
+	return "/v1/chat/completions"
+}
+
 // responsesViaChatCompletions 将 Responses API 请求转换为 Chat Completions 请求，
 // 然后委托给 TextHelper 处理。用于不支持 /v1/responses 端点的通道。
 func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
@@ -237,17 +245,10 @@ func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo) *t
 	}()
 
 	// 将中继信息切换为 Chat Completions 模式
-	info.Request = chatReq                                  // 替换为转换后的 Chat 请求
-	info.RelayMode = relayconstant.RelayModeChatCompletions // 切换为 Chat Completions 中继模式
-	// 根据渠道 base URL 选择对应的 Chat Completions 端点路径：
-	// - 火山引擎（ark.cn-beijing.volces.com）：使用 /api/coding/v3/chat/completions
-	// - 其他供应商：使用标准的 /v1/chat/completions
-	chatCompletionsPath := "/v1/chat/completions"
-	if strings.Contains(info.ChannelBaseUrl, "ark.cn-beijing.volces.com") {
-		chatCompletionsPath = "/api/coding/v3/chat/completions"
-	}
-	info.RequestURLPath = chatCompletionsPath // 修改请求路径为 Chat Completions 端点
-	info.ForceRequestBodyConversion = true    // 强制使用转换后的请求体
+	info.Request = chatReq                                                  // 替换为转换后的 Chat 请求
+	info.RelayMode = relayconstant.RelayModeChatCompletions                 // 切换为 Chat Completions 中继模式
+	info.RequestURLPath = ResponsesChatCompletionsPath(info.ChannelBaseUrl) // 修改请求路径为 Chat Completions 端点
+	info.ForceRequestBodyConversion = true                                  // 强制使用转换后的请求体
 	logger.LogDebug(c, "responses route converted to chat completions: channel_id=%d original_path=%q new_path=%q", info.ChannelId, savedRequestURLPath, info.RequestURLPath)
 
 	// 委托给 TextHelper 以 Chat Completions 模式处理请求
