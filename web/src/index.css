@@ -1685,12 +1685,12 @@ html.dark .landing-home.landing-v2 .landing-v2-nav-tools .semi-button {
   background: var(--landing-v2-gradient-primary);
   color: var(--landing-v2-btn-color);
   padding: 11px 22px;
-  box-shadow: 0 10px 24px var(--landing-v2-glow);
+  /* box-shadow: 0 10px 24px var(--landing-v2-glow); */
 }
 
 .landing-home.landing-v2 .landing-v2-btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 32px var(--landing-v2-glow-hover);
+  /* box-shadow: 0 16px 32px var(--landing-v2-glow-hover); */
 }
 
 .landing-home.landing-v2 .landing-v2-btn-primary::before {
@@ -1729,7 +1729,7 @@ html.dark .landing-home.landing-v2 .landing-v2-btn-secondary {
 .landing-home.landing-v2 .landing-v2-btn-secondary:hover {
   border-color: #53f3b2;
   color: #53f3b2;
-  box-shadow: 0 10px 24px rgba(83, 243, 178, 0.12);
+  /* box-shadow: 0 10px 24px rgba(83, 243, 178, 0.12); */
 }
 
 .landing-home.landing-v2 .landing-v2-btn-lg {

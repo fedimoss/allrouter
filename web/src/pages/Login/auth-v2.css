@@ -551,7 +551,7 @@
   border: none !important;
   border-radius: 10px;
   background: var(--auth-accent-gradient) !important;
-  box-shadow: 0 16px 28px rgba(37, 223, 224, 0.24);
+  /* box-shadow: 0 16px 28px rgba(37, 223, 224, 0.24); */
   font-size: 1rem;
   font-weight: 800;
 }
@@ -574,7 +574,7 @@
 
 .auth-v2 .btn-submit.semi-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 20px 34px rgba(37, 223, 224, 0.28);
+  /* box-shadow: 0 20px 34px rgba(37, 223, 224, 0.28); */
 }
 
 .auth-v2 .btn-submit.semi-button-disabled,
