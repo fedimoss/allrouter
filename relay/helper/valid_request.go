@@ -118,6 +118,7 @@ func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest
 	if err != nil {
 		return nil, err
 	}
+	// 获取模型名称
 	if request.Model == "" {
 		return nil, errors.New("model is required")
 	}

@@ -108,6 +108,10 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		logger.LogError(c, "invalid response or response body")
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
+	// 如果请求格式为 Responses API，将上游返回的流式 Chat Completions 响应转换为 Responses 流式响应
+	if info != nil && info.RelayFormat == types.RelayFormatOpenAIResponses {
+		return OaiChatToResponsesStreamHandler(c, info, resp)
+	}
 
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -230,6 +234,12 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+	}
+	// 如果请求格式为 Responses API，记录上游 Chat Completions 响应体日志（用于兼容性调试），
+	// 并将非流式 Chat Completions 响应转换为 Responses 响应格式
+	if info != nil && info.RelayFormat == types.RelayFormatOpenAIResponses {
+		logger.LogInfo(c, fmt.Sprintf("responses compatibility upstream chat response body: %s", string(responseBody)))
+		return OaiChatToResponsesHandler(c, info, &simpleResponse)
 	}
 
 	for _, choice := range simpleResponse.Choices {

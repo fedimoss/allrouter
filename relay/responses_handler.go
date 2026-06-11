@@ -23,6 +23,40 @@ import (
 
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
+	logger.LogDebug(
+		c,
+		"responses route selected channel: channel_id=%d channel_type=%d api_type=%d base_url=%q relay_mode=%d request_path=%q model=%q pass_through_global=%t pass_through_channel=%t",
+		info.ChannelId,
+		info.ChannelType,
+		info.ApiType,
+		info.ChannelBaseUrl,
+		info.RelayMode,
+		info.RequestURLPath,
+		info.OriginModelName,
+		model_setting.GetGlobalSettings().PassThroughRequestEnabled,
+		info.ChannelSetting.PassThroughBodyEnabled,
+	)
+	if info.ApiType == appconstant.APITypeResponsesChat || info.ChannelType == appconstant.ChannelTypeResponsesChat {
+		logger.LogInfo(c, fmt.Sprintf(
+			"responses-chat compatibility dispatch: channel_id=%d channel_type=%d api_type=%d relay_mode=%d request_path=%q model=%q pass_through_global=%t pass_through_channel=%t request_type=%T",
+			info.ChannelId,
+			info.ChannelType,
+			info.ApiType,
+			info.RelayMode,
+			info.RequestURLPath,
+			info.OriginModelName,
+			model_setting.GetGlobalSettings().PassThroughRequestEnabled,
+			info.ChannelSetting.PassThroughBodyEnabled,
+			info.Request,
+		))
+	}
+
+	// Responses→Chat channel: convert /v1/responses to /v1/chat/completions.
+	if info.ApiType == appconstant.APITypeResponsesChat {
+		logger.LogDebug(c, "responses route using chat completions compatibility: reason=api_type_responses_chat channel_id=%d channel_type=%d base_url=%q", info.ChannelId, info.ChannelType, info.ChannelBaseUrl)
+		return responsesViaChatCompletions(c, info)
+	}
+
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
 		switch info.ApiType {
 		case appconstant.APITypeOpenAI, appconstant.APITypeCodex:
@@ -65,11 +99,13 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.EnqueueModelContentAuditFromRelay(c, info, auditRequestMessages, newAPIError)
 	}()
 
+	// 模型映射（model 名称已确定）
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
+	// 获取上游适配器
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
@@ -77,12 +113,14 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	adaptor.Init(info)
 	var requestBody io.Reader
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+		logger.LogDebug(c, "responses route using original body pass-through: channel_id=%d channel_type=%d api_type=%d base_url=%q", info.ChannelId, info.ChannelType, info.ApiType, info.ChannelBaseUrl)
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 		}
 		requestBody = common.ReaderOnly(storage)
 	} else {
+		// 请求格式转换的入口
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
@@ -161,4 +199,91 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
 	return nil
+}
+
+// responsesViaChatCompletions 将 Responses API 请求转换为 Chat Completions 请求，
+// 然后委托给 TextHelper 处理。用于不支持 /v1/responses 端点的通道。
+func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
+	// 根据请求的实际类型提取 Responses 请求对象
+	var responsesReq *dto.OpenAIResponsesRequest
+	switch req := info.Request.(type) {
+	case *dto.OpenAIResponsesRequest:
+		// 标准的 Responses 请求，直接使用
+		responsesReq = req
+	case *dto.OpenAIResponsesCompactionRequest:
+		// 压缩请求，转换为标准 Responses 请求格式
+		responsesReq = &dto.OpenAIResponsesRequest{
+			Model:              req.Model,              // 模型名称
+			Input:              req.Input,              // 输入内容
+			Instructions:       req.Instructions,       // 系统指令
+			PreviousResponseID: req.PreviousResponseID, // 上一次响应 ID（用于会话延续）
+		}
+	default:
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("invalid request type for Responses→Chat conversion: %T", info.Request),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
+
+	// 对于 Responses→Chat 类型通道，记录原始请求体用于诊断调试
+	// if info.ApiType == appconstant.APITypeResponsesChat || info.ChannelType == appconstant.ChannelTypeResponsesChat {
+	// 	if storage, err := common.GetBodyStorage(c); err == nil {
+	// 		if rawBody, bErr := storage.Bytes(); bErr == nil {
+	// 			logResponsesCompatFullBody(c, info, "original responses request body before conversion", info.RequestURLPath, rawBody)
+	// 		} else {
+	// 			logger.LogWarn(c, fmt.Sprintf("failed to read original Responses→Chat request body for diagnostic logging: %s", bErr.Error()))
+	// 		}
+	// 	} else {
+	// 		logger.LogWarn(c, fmt.Sprintf("failed to get original Responses→Chat request body for diagnostic logging: %s", err.Error()))
+	// 	}
+	// }
+
+	// 将 Responses 请求转换为 Chat Completions 兼容请求
+	chatReq, err := service.ResponsesRequestToChatCompletionsCompatRequest(responsesReq)
+	if err != nil {
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("failed to convert responses request to chat request: %w", err),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
+	// 记录转换后 Chat 请求的关键信息，便于排查问题
+	logger.LogInfo(c, fmt.Sprintf(
+		"responses compatibility produced chat request: channel_id=%d channel_type=%d api_type=%d messages=%d tools=%d has_tool_choice=%t stream_set=%t force_before=%t original_path=%q",
+		info.ChannelId,
+		info.ChannelType,
+		info.ApiType,
+		len(chatReq.Messages),
+		len(chatReq.Tools),
+		chatReq.ToolChoice != nil,
+		chatReq.Stream != nil,
+		info.ForceRequestBodyConversion,
+		info.RequestURLPath,
+	))
+
+	// 保存原始的请求信息，以便在 defer 中恢复，避免影响后续处理
+	savedRequest := info.Request                                       // 原始请求对象
+	savedRelayMode := info.RelayMode                                   // 原始中继模式
+	savedRequestURLPath := info.RequestURLPath                         // 原始请求路径
+	savedForceRequestBodyConversion := info.ForceRequestBodyConversion // 原始请求体转换标记
+	defer func() {
+		// 恢复原始信息，防止 TextHelper 内部修改泄漏
+		info.Request = savedRequest
+		info.RelayMode = savedRelayMode
+		info.RequestURLPath = savedRequestURLPath
+		info.ForceRequestBodyConversion = savedForceRequestBodyConversion
+	}()
+
+	// 将中继信息切换为 Chat Completions 模式
+	info.Request = chatReq                                  // 替换为转换后的 Chat 请求
+	info.RelayMode = relayconstant.RelayModeChatCompletions // 切换为 Chat Completions 中继模式
+	info.RequestURLPath = "/v1/chat/completions"            // 修改请求路径为 Chat Completions 端点
+	info.ForceRequestBodyConversion = true                  // 强制使用转换后的请求体
+	logger.LogDebug(c, "responses route converted to chat completions: channel_id=%d original_path=%q new_path=%q", info.ChannelId, savedRequestURLPath, info.RequestURLPath)
+
+	// 委托给 TextHelper 以 Chat Completions 模式处理请求
+	return TextHelper(c, info)
 }
