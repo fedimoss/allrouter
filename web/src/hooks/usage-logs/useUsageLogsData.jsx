@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@douyinfe/semi-ui';
 import {
@@ -41,11 +41,27 @@ import {
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
+import { UserContext } from '../../context/User';
+
+const isProviderCostLog = (other) => other?.billing_side === 'provider_cost';
+
+const getProviderCostQuota = (log, other) => {
+  const quota = Number(other?.provider_owner_cost_quota ?? log?.quota ?? 0);
+  return Number.isFinite(quota) ? quota : 0;
+};
+
+const renderProviderCostBillingProcess = (log, other, t) =>
+  `${t('服务商承担')}：${renderQuota(
+    getProviderCostQuota(log, other),
+    6,
+  )}。${t('如果用户充值余额支付不足以覆盖主站成本，差额会由服务商主账号余额承担。')}`;
 
 export const useLogsData = ({ scope = 'default' } = {}) => {
   const { t, i18n } = useTranslation();
+  const [userState] = useContext(UserContext);
   const isProviderScope = scope === 'provider';
   const isAdminCallScope = scope === 'admin-call';
+  const currentUsername = userState?.user?.username || '';
 
   // Define column keys for selection
   const COLUMN_KEYS = {
@@ -196,7 +212,6 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       if (
         (key === COLUMN_KEYS.CHANNEL ||
           key === COLUMN_KEYS.PROVIDER ||
-          key === COLUMN_KEYS.USERNAME ||
           key === COLUMN_KEYS.RETRY) &&
         !isAdminUser &&
         !isProviderScope
@@ -466,9 +481,19 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
 
     let expandDatesLocal = {};
     for (let i = 0; i < logs.length; i++) {
+      if (
+        !logs[i].username &&
+        !isAdminUser &&
+        !isProviderScope &&
+        !isAdminCallScope &&
+        currentUsername
+      ) {
+        logs[i].username = currentUsername;
+      }
       logs[i].timestamp2string = timestamp2string(logs[i].created_at);
       logs[i].key = logs[i].id;
       let other = getLogOther(logs[i].other);
+      const providerCostLog = isProviderCostLog(other);
       let expandDataLocal = [];
 
       if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
@@ -513,7 +538,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
           value: other.cache_creation_tokens,
         });
       }
-      if (logs[i].type === 2 && other) {
+      if (logs[i].type === 2 && other && !providerCostLog) {
         expandDataLocal.push({
           key: t('日志详情'),
           value: other?.claude
@@ -588,7 +613,9 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
         let content = '';
         if (!isViolationFeeLog) {
           const isTaskLog = other?.is_task === true || other?.task_id != null;
-          if (isTaskLog && other?.model_price === -1) {
+          if (providerCostLog) {
+            content = renderProviderCostBillingProcess(logs[i], other, t);
+          } else if (isTaskLog && other?.model_price === -1) {
             content = renderTaskBillingProcess(other, logs[i].content);
           } else if (other?.ws || other?.audio) {
             content = renderAudioModelPrice(
