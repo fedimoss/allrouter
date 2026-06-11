@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
 	"regexp"
 	"slices"
@@ -519,6 +520,125 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 	return builder.String()
 }
 
+func buildUpstreamModelUpdateTemplateData(
+	checkedChannels int,
+	changedChannels int,
+	detectedAddModels int,
+	detectedRemoveModels int,
+	autoAddedModels int,
+	failedChannelIDs []int,
+	channelSummaries []upstreamModelUpdateChannelSummary,
+	addModelSamples []string,
+	removeModelSamples []string,
+) map[string]any {
+	failedChannels := len(failedChannelIDs)
+
+	// Build Chinese HTML content
+	var zhBuilder strings.Builder
+	zhBuilder.WriteString(fmt.Sprintf(
+		"<p>上游模型巡检摘要：检测渠道 %d 个，发现变更 %d 个，新增 %d 个，删除 %d 个，自动同步新增 %d 个，失败 %d 个。</p>",
+		checkedChannels, changedChannels, detectedAddModels, detectedRemoveModels, autoAddedModels, failedChannels,
+	))
+
+	if len(channelSummaries) > 0 {
+		displayCount := min(len(channelSummaries), channelUpstreamModelUpdateNotifyMaxChannelDetails)
+		zhBuilder.WriteString(fmt.Sprintf("<p>变更渠道明细（展示 %d/%d）：</p><ul>", displayCount, len(channelSummaries)))
+		for _, summary := range channelSummaries[:displayCount] {
+			zhBuilder.WriteString(fmt.Sprintf("<li>%s (+%d / -%d)</li>", summary.ChannelName, summary.AddCount, summary.RemoveCount))
+		}
+		if len(channelSummaries) > displayCount {
+			zhBuilder.WriteString(fmt.Sprintf("<li>其余 %d 个渠道已省略</li>", len(channelSummaries)-displayCount))
+		}
+		zhBuilder.WriteString("</ul>")
+	}
+
+	normalizedAddModelSamples := normalizeModelNames(addModelSamples)
+	if len(normalizedAddModelSamples) > 0 {
+		displayCount := min(len(normalizedAddModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
+		zhBuilder.WriteString(fmt.Sprintf("<p>新增模型示例（展示 %d/%d）：%s</p>",
+			displayCount, len(normalizedAddModelSamples), strings.Join(normalizedAddModelSamples[:displayCount], ", ")))
+		if len(normalizedAddModelSamples) > displayCount {
+			zhBuilder.WriteString(fmt.Sprintf("<p>（其余 %d 个已省略）</p>", len(normalizedAddModelSamples)-displayCount))
+		}
+	}
+
+	normalizedRemoveModelSamples := normalizeModelNames(removeModelSamples)
+	if len(normalizedRemoveModelSamples) > 0 {
+		displayCount := min(len(normalizedRemoveModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
+		zhBuilder.WriteString(fmt.Sprintf("<p>删除模型示例（展示 %d/%d）：%s</p>",
+			displayCount, len(normalizedRemoveModelSamples), strings.Join(normalizedRemoveModelSamples[:displayCount], ", ")))
+		if len(normalizedRemoveModelSamples) > displayCount {
+			zhBuilder.WriteString(fmt.Sprintf("<p>（其余 %d 个已省略）</p>", len(normalizedRemoveModelSamples)-displayCount))
+		}
+	}
+
+	if failedChannels > 0 {
+		displayCount := min(failedChannels, channelUpstreamModelUpdateNotifyMaxFailedChannelIDs)
+		displayIDs := lo.Map(failedChannelIDs[:displayCount], func(channelID int, _ int) string {
+			return fmt.Sprintf("%d", channelID)
+		})
+		zhBuilder.WriteString(fmt.Sprintf("<p>失败渠道 ID（展示 %d/%d）：%s</p>",
+			displayCount, failedChannels, strings.Join(displayIDs, ", ")))
+		if failedChannels > displayCount {
+			zhBuilder.WriteString(fmt.Sprintf("<p>（其余 %d 个已省略）</p>", failedChannels-displayCount))
+		}
+	}
+
+	// Build English HTML content
+	var enBuilder strings.Builder
+	enBuilder.WriteString(fmt.Sprintf(
+		"<p>Upstream Model Patrol Summary: %d channels checked, %d changed, %d added, %d removed, %d auto-synced, %d failed.</p>",
+		checkedChannels, changedChannels, detectedAddModels, detectedRemoveModels, autoAddedModels, failedChannels,
+	))
+
+	if len(channelSummaries) > 0 {
+		displayCount := min(len(channelSummaries), channelUpstreamModelUpdateNotifyMaxChannelDetails)
+		enBuilder.WriteString(fmt.Sprintf("<p>Changed channel details (showing %d/%d):</p><ul>", displayCount, len(channelSummaries)))
+		for _, summary := range channelSummaries[:displayCount] {
+			enBuilder.WriteString(fmt.Sprintf("<li>%s (+%d / -%d)</li>", summary.ChannelName, summary.AddCount, summary.RemoveCount))
+		}
+		if len(channelSummaries) > displayCount {
+			enBuilder.WriteString(fmt.Sprintf("<li>and %d more channels omitted</li>", len(channelSummaries)-displayCount))
+		}
+		enBuilder.WriteString("</ul>")
+	}
+
+	if len(normalizedAddModelSamples) > 0 {
+		displayCount := min(len(normalizedAddModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
+		enBuilder.WriteString(fmt.Sprintf("<p>Added model samples (showing %d/%d): %s</p>",
+			displayCount, len(normalizedAddModelSamples), strings.Join(normalizedAddModelSamples[:displayCount], ", ")))
+		if len(normalizedAddModelSamples) > displayCount {
+			enBuilder.WriteString(fmt.Sprintf("<p>(%d more omitted)</p>", len(normalizedAddModelSamples)-displayCount))
+		}
+	}
+
+	if len(normalizedRemoveModelSamples) > 0 {
+		displayCount := min(len(normalizedRemoveModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
+		enBuilder.WriteString(fmt.Sprintf("<p>Removed model samples (showing %d/%d): %s</p>",
+			displayCount, len(normalizedRemoveModelSamples), strings.Join(normalizedRemoveModelSamples[:displayCount], ", ")))
+		if len(normalizedRemoveModelSamples) > displayCount {
+			enBuilder.WriteString(fmt.Sprintf("<p>(%d more omitted)</p>", len(normalizedRemoveModelSamples)-displayCount))
+		}
+	}
+
+	if failedChannels > 0 {
+		displayCount := min(failedChannels, channelUpstreamModelUpdateNotifyMaxFailedChannelIDs)
+		displayIDs := lo.Map(failedChannelIDs[:displayCount], func(channelID int, _ int) string {
+			return fmt.Sprintf("%d", channelID)
+		})
+		enBuilder.WriteString(fmt.Sprintf("<p>Failed channel IDs (showing %d/%d): %s</p>",
+			displayCount, failedChannels, strings.Join(displayIDs, ", ")))
+		if failedChannels > displayCount {
+			enBuilder.WriteString(fmt.Sprintf("<p>(%d more omitted)</p>", failedChannels-displayCount))
+		}
+	}
+
+	return map[string]any{
+		"ContentZh": template.HTML(zhBuilder.String()),
+		"ContentEn": template.HTML(enBuilder.String()),
+	}
+}
+
 func runChannelUpstreamModelUpdateTaskOnce() {
 	if !channelUpstreamModelUpdateTaskRunning.CompareAndSwap(false, true) {
 		return
@@ -633,8 +753,19 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 			return
 		}
 		service.NotifyUpstreamModelUpdateWatchers(
-			"上游模型巡检通知",
+			"上游模型巡检通知 / Upstream Model Patrol",
 			buildUpstreamModelUpdateTaskNotificationContent(
+				checkedChannels,
+				changedChannels,
+				detectedAddModels,
+				detectedRemoveModels,
+				autoAddedModels,
+				failedChannelIDs,
+				channelSummaries,
+				addModelSamples,
+				removeModelSamples,
+			),
+			buildUpstreamModelUpdateTemplateData(
 				checkedChannels,
 				changedChannels,
 				detectedAddModels,

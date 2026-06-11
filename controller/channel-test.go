@@ -966,7 +966,10 @@ func testAllChannels(notify bool) error {
 		}
 
 		if notify {
-			service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
+			notifyData := dto.NewNotify(dto.NotifyTypeChannelTest, "通道测试完成 / Channel Test Complete", "所有通道测试已完成", nil)
+			notifyData.TemplateName = "channel_test_complete.html"
+			notifyData.TemplateData = map[string]any{}
+			service.NotifyRootUserWithNotify(notifyData)
 		}
 	})
 	return nil

@@ -27,18 +27,31 @@ func DisableChannel(channelError types.ChannelError, reason string) {
 
 	success := model.UpdateChannelStatus(channelError.ChannelId, channelError.UsingKey, common.ChannelStatusAutoDisabled, reason)
 	if success {
-		subject := fmt.Sprintf("通道「%s」（#%d）已被禁用", channelError.ChannelName, channelError.ChannelId)
+		subject := fmt.Sprintf("通道「%s」（#%d）已被禁用 / Channel Disabled", channelError.ChannelName, channelError.ChannelId)
 		content := fmt.Sprintf("通道「%s」（#%d）已被禁用，原因：%s", channelError.ChannelName, channelError.ChannelId, reason)
-		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content)
+		notify := dto.NewNotify(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content, nil)
+		notify.TemplateName = "channel_disabled.html"
+		notify.TemplateData = map[string]any{
+			"ChannelName": channelError.ChannelName,
+			"ChannelId":   channelError.ChannelId,
+			"Reason":      reason,
+		}
+		NotifyRootUserWithNotify(notify)
 	}
 }
 
 func EnableChannel(channelId int, usingKey string, channelName string) {
 	success := model.UpdateChannelStatus(channelId, usingKey, common.ChannelStatusEnabled, "")
 	if success {
-		subject := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
+		subject := fmt.Sprintf("通道「%s」（#%d）已被启用 / Channel Enabled", channelName, channelId)
 		content := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
-		NotifyRootUser(formatNotifyType(channelId, common.ChannelStatusEnabled), subject, content)
+		notify := dto.NewNotify(formatNotifyType(channelId, common.ChannelStatusEnabled), subject, content, nil)
+		notify.TemplateName = "channel_enabled.html"
+		notify.TemplateData = map[string]any{
+			"ChannelName": channelName,
+			"ChannelId":   channelId,
+		}
+		NotifyRootUserWithNotify(notify)
 	}
 }
 
