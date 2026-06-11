@@ -1,6 +1,7 @@
 package service
 
 import (
+	"container/list"
 	"context"
 	"fmt"
 	"net"
@@ -16,10 +17,18 @@ import (
 )
 
 var (
-	httpClient      *http.Client
-	proxyClientLock sync.Mutex
-	proxyClients    = make(map[string]*http.Client)
+	httpClient       *http.Client
+	proxyClientLock  sync.Mutex
+	proxyClients     = make(map[string]*list.Element)
+	proxyClientOrder = list.New()
 )
+
+const maxProxyClientCacheSize = 128
+
+type proxyClientCacheEntry struct {
+	proxyURL string
+	client   *http.Client
+}
 
 func checkRedirect(req *http.Request, via []*http.Request) error {
 	fetchSetting := system_setting.GetFetchSetting()
@@ -70,16 +79,68 @@ func GetHttpClientWithProxy(proxyURL string) (*http.Client, error) {
 	return NewProxyHttpClient(proxyURL)
 }
 
+func closeHttpClientIdleConnections(client *http.Client) {
+	if client == nil {
+		return
+	}
+	if transport, ok := client.Transport.(*http.Transport); ok && transport != nil {
+		transport.CloseIdleConnections()
+	}
+}
+
+func getCachedProxyClient(proxyURL string) (*http.Client, bool) {
+	proxyClientLock.Lock()
+	defer proxyClientLock.Unlock()
+
+	element, ok := proxyClients[proxyURL]
+	if !ok {
+		return nil, false
+	}
+	proxyClientOrder.MoveToFront(element)
+	entry := element.Value.(*proxyClientCacheEntry)
+	return entry.client, true
+}
+
+func cacheProxyClient(proxyURL string, client *http.Client) *http.Client {
+	proxyClientLock.Lock()
+	defer proxyClientLock.Unlock()
+
+	if element, ok := proxyClients[proxyURL]; ok {
+		proxyClientOrder.MoveToFront(element)
+		entry := element.Value.(*proxyClientCacheEntry)
+		closeHttpClientIdleConnections(client)
+		return entry.client
+	}
+
+	element := proxyClientOrder.PushFront(&proxyClientCacheEntry{
+		proxyURL: proxyURL,
+		client:   client,
+	})
+	proxyClients[proxyURL] = element
+
+	if proxyClientOrder.Len() > maxProxyClientCacheSize {
+		oldest := proxyClientOrder.Back()
+		if oldest != nil {
+			proxyClientOrder.Remove(oldest)
+			entry := oldest.Value.(*proxyClientCacheEntry)
+			delete(proxyClients, entry.proxyURL)
+			closeHttpClientIdleConnections(entry.client)
+		}
+	}
+
+	return client
+}
+
 // ResetProxyClientCache 清空代理客户端缓存，确保下次使用时重新初始化
 func ResetProxyClientCache() {
 	proxyClientLock.Lock()
 	defer proxyClientLock.Unlock()
-	for _, client := range proxyClients {
-		if transport, ok := client.Transport.(*http.Transport); ok && transport != nil {
-			transport.CloseIdleConnections()
-		}
+	for _, element := range proxyClients {
+		entry := element.Value.(*proxyClientCacheEntry)
+		closeHttpClientIdleConnections(entry.client)
 	}
-	proxyClients = make(map[string]*http.Client)
+	proxyClients = make(map[string]*list.Element)
+	proxyClientOrder.Init()
 }
 
 // NewProxyHttpClient 创建支持代理的 HTTP 客户端
@@ -91,12 +152,9 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		return http.DefaultClient, nil
 	}
 
-	proxyClientLock.Lock()
-	if client, ok := proxyClients[proxyURL]; ok {
-		proxyClientLock.Unlock()
+	if client, ok := getCachedProxyClient(proxyURL); ok {
 		return client, nil
 	}
-	proxyClientLock.Unlock()
 
 	parsedURL, err := url.Parse(proxyURL)
 	if err != nil {
@@ -119,10 +177,7 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 			CheckRedirect: checkRedirect,
 		}
 		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
-		proxyClientLock.Lock()
-		proxyClients[proxyURL] = client
-		proxyClientLock.Unlock()
-		return client, nil
+		return cacheProxyClient(proxyURL, client), nil
 
 	case "socks5", "socks5h":
 		// 获取认证信息
@@ -158,10 +213,7 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 
 		client := &http.Client{Transport: transport, CheckRedirect: checkRedirect}
 		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
-		proxyClientLock.Lock()
-		proxyClients[proxyURL] = client
-		proxyClientLock.Unlock()
-		return client, nil
+		return cacheProxyClient(proxyURL, client), nil
 
 	default:
 		return nil, fmt.Errorf("unsupported proxy scheme: %s, must be http, https, socks5 or socks5h", parsedURL.Scheme)

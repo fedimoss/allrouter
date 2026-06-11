@@ -82,41 +82,42 @@ func UpdateMidjourneyTaskBulk() {
 			body, _ := json.Marshal(map[string]any{
 				"ids": taskIds,
 			})
-			req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer(body))
+			responseItems, err := func() ([]dto.MidjourneyDto, error) {
+				req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer(body))
+				if err != nil {
+					return nil, fmt.Errorf("Get Task error: %w", err)
+				}
+				timeout := time.Second * 15
+				requestCtx, cancel := context.WithTimeout(context.Background(), timeout)
+				defer cancel()
+				req = req.WithContext(requestCtx)
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("mj-api-secret", midjourneyChannel.Key)
+
+				resp, err := service.GetHttpClient().Do(req)
+				if err != nil {
+					return nil, fmt.Errorf("Get Task Do req error: %w", err)
+				}
+				defer service.CloseResponseBodyGracefully(resp)
+				if resp.StatusCode != http.StatusOK {
+					return nil, fmt.Errorf("Get Task status code: %d", resp.StatusCode)
+				}
+
+				responseBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("Get Mjp Task parse body error: %w", err)
+				}
+				var responseItems []dto.MidjourneyDto
+				err = json.Unmarshal(responseBody, &responseItems)
+				if err != nil {
+					return nil, fmt.Errorf("Get Mjp Task parse body error2: %w, body: %s", err, string(responseBody))
+				}
+				return responseItems, nil
+			}()
 			if err != nil {
-				logger.LogError(ctx, fmt.Sprintf("Get Task error: %v", err))
+				logger.LogError(ctx, err.Error())
 				continue
 			}
-			// 设置超时时间
-			timeout := time.Second * 15
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			// 使用带有超时的 context 创建新的请求
-			req = req.WithContext(ctx)
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("mj-api-secret", midjourneyChannel.Key)
-			resp, err := service.GetHttpClient().Do(req)
-			if err != nil {
-				logger.LogError(ctx, fmt.Sprintf("Get Task Do req error: %v", err))
-				continue
-			}
-			if resp.StatusCode != http.StatusOK {
-				logger.LogError(ctx, fmt.Sprintf("Get Task status code: %d", resp.StatusCode))
-				continue
-			}
-			responseBody, err := io.ReadAll(resp.Body)
-			if err != nil {
-				logger.LogError(ctx, fmt.Sprintf("Get Mjp Task parse body error: %v", err))
-				continue
-			}
-			var responseItems []dto.MidjourneyDto
-			err = json.Unmarshal(responseBody, &responseItems)
-			if err != nil {
-				logger.LogError(ctx, fmt.Sprintf("Get Mjp Task parse body error2: %v, body: %s", err, string(responseBody)))
-				continue
-			}
-			resp.Body.Close()
-			req.Body.Close()
-			cancel()
 
 			for _, responseItem := range responseItems {
 				task := taskM[responseItem.MjId]

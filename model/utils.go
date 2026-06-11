@@ -17,6 +17,8 @@ const (
 	BatchUpdateTypeUsedQuota
 	BatchUpdateTypeChannelUsedQuota
 	BatchUpdateTypeRequestCount
+	BatchUpdateTypeUserTotalTokenUsed
+	BatchUpdateTypeTokenTotalTokenUsed
 	BatchUpdateTypeCount // if you add a new type, you need to add a new map and a new lock
 )
 
@@ -89,6 +91,10 @@ func batchUpdate() {
 				updateUserUsedQuota(key, value)
 			case BatchUpdateTypeRequestCount:
 				updateUserRequestCount(key, value)
+			case BatchUpdateTypeUserTotalTokenUsed:
+				updateUserTotalTokenUsed(key, value)
+			case BatchUpdateTypeTokenTotalTokenUsed:
+				updateTokenTotalTokenUsed(key, value)
 			case BatchUpdateTypeChannelUsedQuota:
 				updateChannelUsedQuota(key, value)
 			}

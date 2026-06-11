@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
@@ -148,12 +148,13 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 		if !(len(taskResult.Url) > 5 && taskResult.Url[:5] == "data:") {
 			task.FailReason = taskResult.Url
 		}
+		service.RecordTaskTotalTokenUsage(ctx, task, taskResult.TotalTokens)
 
 		// 如果返回了 total_tokens 并且配置了模型倍率(非固定价格),则重新计费
 		if taskResult.TotalTokens > 0 {
 			// 获取模型名称
 			var taskData map[string]interface{}
-			if err := json.Unmarshal(task.Data, &taskData); err == nil {
+			if err := common.Unmarshal(task.Data, &taskData); err == nil {
 				if modelName, ok := taskData["model"].(string); ok && modelName != "" {
 					// 获取模型价格和倍率
 					modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
@@ -280,7 +281,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 
 func redactVideoResponseBody(body []byte) []byte {
 	var m map[string]any
-	if err := json.Unmarshal(body, &m); err != nil {
+	if err := common.Unmarshal(body, &m); err != nil {
 		return body
 	}
 	resp, _ := m["response"].(map[string]any)
@@ -297,7 +298,7 @@ func redactVideoResponseBody(body []byte) []byte {
 			}
 		}
 	}
-	b, err := json.Marshal(m)
+	b, err := common.Marshal(m)
 	if err != nil {
 		return body
 	}

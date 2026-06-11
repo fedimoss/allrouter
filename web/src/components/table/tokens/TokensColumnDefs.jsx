@@ -36,6 +36,7 @@ import {
 import {
   timestamp2string,
   renderGroup,
+  renderNumber,
   renderQuota,
   getModelCategories,
   showError,
@@ -298,20 +299,26 @@ const renderAllowIps = (text, t) => {
 const renderQuotaUsage = (text, record, t) => {
   const { Paragraph } = Typography;
   const used = parseInt(record.used_quota) || 0;
+  const tokenUsed = parseInt(record.total_token_used) || 0;
   const remain = parseInt(record.remain_quota) || 0;
   const total = used + remain;
   if (record.unlimited_quota) {
     const popoverContent = (
       <div className='text-xs p-2'>
-        <Paragraph copyable={{ content: renderQuota(used) }}>
-          {t('已用额度')}: {renderQuota(used)}
+        <Paragraph copyable={{ content: renderNumber(tokenUsed) }}>
+          {`${t('\u5df2\u7528')} Tokens`}: {renderNumber(tokenUsed)}
         </Paragraph>
       </div>
     );
     return (
       <Popover content={popoverContent} position='top'>
         <Tag color='white' shape='circle'>
+          <div className='flex flex-col items-end gap-1'>
           {t('无限额度')}
+            <span className='text-xs leading-none'>
+              {t('\u5df2\u7528')} Tokens: {renderNumber(tokenUsed)}
+            </span>
+          </div>
         </Tag>
       </Popover>
     );
@@ -319,8 +326,8 @@ const renderQuotaUsage = (text, record, t) => {
   const percent = total > 0 ? (remain / total) * 100 : 0;
   const popoverContent = (
     <div className='text-xs p-2'>
-      <Paragraph copyable={{ content: renderQuota(used) }}>
-        {t('已用额度')}: {renderQuota(used)}
+      <Paragraph copyable={{ content: renderNumber(tokenUsed) }}>
+        {`${t('\u5df2\u7528')} Tokens`}: {renderNumber(tokenUsed)}
       </Paragraph>
       <Paragraph copyable={{ content: renderQuota(remain) }}>
         {t('剩余额度')}: {renderQuota(remain)} ({percent.toFixed(0)}%)
@@ -335,6 +342,9 @@ const renderQuotaUsage = (text, record, t) => {
       <Tag color='white' shape='circle'>
         <div className='flex flex-col items-end'>
           <span className='text-xs leading-none'>{`${renderQuota(remain)} / ${renderQuota(total)}`}</span>
+          <span className='text-xs leading-none mt-1'>
+            {t('\u5df2\u7528')} Tokens: {renderNumber(tokenUsed)}
+          </span>
           <Progress
             percent={percent}
             stroke={getProgressColor(percent)}

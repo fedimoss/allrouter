@@ -27,6 +27,7 @@ type Token struct {
 	ModelLimits        string         `json:"model_limits" gorm:"type:text"`
 	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
 	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
+	TotalTokenUsed     int64          `json:"total_token_used" gorm:"type:bigint;default:0"`
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
@@ -459,6 +460,24 @@ func decreaseTokenQuota(id int, quota int) (err error) {
 		},
 	).Error
 	return err
+}
+
+func UpdateTokenTotalTokenUsed(id int, tokenUsed int) {
+	if id <= 0 || tokenUsed <= 0 {
+		return
+	}
+	if common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeTokenTotalTokenUsed, id, tokenUsed)
+		return
+	}
+	updateTokenTotalTokenUsed(id, tokenUsed)
+}
+
+func updateTokenTotalTokenUsed(id int, tokenUsed int) {
+	err := DB.Model(&Token{}).Where("id = ?", id).Update("total_token_used", gorm.Expr("total_token_used + ?", tokenUsed)).Error
+	if err != nil {
+		common.SysLog("failed to update token total token used: " + err.Error())
+	}
 }
 
 // CountUserTokens returns total number of tokens for the given user, used for pagination

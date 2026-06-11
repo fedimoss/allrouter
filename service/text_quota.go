@@ -423,6 +423,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		} else {
 			model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
 		}
+		RecordRelayTotalTokenUsage(relayInfo, summary.TotalTokens)
 		channelQuota := summary.Quota
 		if providerId > 0 {
 			channelQuota = baseQuota

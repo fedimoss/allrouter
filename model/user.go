@@ -41,7 +41,8 @@ type User struct {
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
 	RewardQuota      int            `json:"reward_quota" gorm:"type:int;default:0;column:reward_quota"`
 	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
-	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	TotalTokenUsed   int64          `json:"total_token_used" gorm:"type:bigint;default:0;column:total_token_used"`
+	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"` // request number
 	Group            string         `json:"group" gorm:"type:varchar(64);default:'default'"`
 	AffCode          string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex:ux_user_provider_aff"`
 	AffCount         int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
@@ -1712,6 +1713,34 @@ func updateUserUsedQuota(id int, quota int) {
 	).Error
 	if err != nil {
 		common.SysLog("failed to update user used quota: " + err.Error())
+	}
+}
+
+func UpdateUserAndTokenTotalTokenUsed(userId int, tokenId int, tokenUsed int) {
+	if tokenUsed <= 0 {
+		return
+	}
+	UpdateUserTotalTokenUsed(userId, tokenUsed)
+	if tokenId > 0 {
+		UpdateTokenTotalTokenUsed(tokenId, tokenUsed)
+	}
+}
+
+func UpdateUserTotalTokenUsed(id int, tokenUsed int) {
+	if id <= 0 || tokenUsed <= 0 {
+		return
+	}
+	if common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeUserTotalTokenUsed, id, tokenUsed)
+		return
+	}
+	updateUserTotalTokenUsed(id, tokenUsed)
+}
+
+func updateUserTotalTokenUsed(id int, tokenUsed int) {
+	err := DB.Model(&User{}).Where("id = ?", id).Update("total_token_used", gorm.Expr("total_token_used + ?", tokenUsed)).Error
+	if err != nil {
+		common.SysLog("failed to update user total token used: " + err.Error())
 	}
 }
 

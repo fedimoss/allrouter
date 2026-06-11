@@ -325,6 +325,11 @@ html.dark .token-v2-toolbar {
   color: var(--tk-text-muted);
 }
 
+.token-v2-quota-used-text {
+  font-size: 12px;
+  color: var(--tk-text);
+}
+
 .token-v2-status-badge,
 .token-v2-group-chip,
 .token-v2-inline-tag {

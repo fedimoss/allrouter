@@ -39,6 +39,13 @@ type QuotaInfo struct {
 	GroupRatio    float64
 }
 
+func RecordRelayTotalTokenUsage(relayInfo *relaycommon.RelayInfo, totalTokens int) {
+	if relayInfo == nil || relayInfo.IsPlayground || totalTokens <= 0 {
+		return
+	}
+	model.UpdateUserAndTokenTotalTokenUsed(relayInfo.UserId, relayInfo.TokenId, totalTokens)
+}
+
 func hasCustomModelRatio(modelName string, currentRatio float64) bool {
 	defaultRatio, exists := ratio_setting.GetDefaultModelRatioMap()[modelName]
 	if !exists {
@@ -215,6 +222,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		} else {
 			model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		}
+		RecordRelayTotalTokenUsage(relayInfo, totalTokens)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
 	}
 
@@ -331,6 +339,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		} else {
 			model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		}
+		RecordRelayTotalTokenUsage(relayInfo, totalTokens)
 		channelQuota := quota
 		if providerId > 0 {
 			channelQuota = baseQuota
