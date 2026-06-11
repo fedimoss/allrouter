@@ -650,6 +650,9 @@ const EditChannelModal = (props) => {
         case 36:
           localModels = ['suno_music', 'suno_lyrics'];
           break;
+        case 58: // Responses→Chat，不自动填充模型
+          localModels = [];
+          break;
         case 45:
           localModels = getChannelModels(value);
           setInputs((prevInputs) => ({

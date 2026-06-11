@@ -373,6 +373,7 @@ export function getChannelIcon(channelType) {
     case 1: // OpenAI
     case 3: // Azure OpenAI
     case 57: // Codex
+    case 58: // Responses→Chat
       return <OpenAI size={iconSize} />;
     case 2: // Midjourney Proxy
     case 5: // Midjourney Proxy Plus
@@ -1285,7 +1286,11 @@ function shouldUseRatioBillingProcess(modelPrice = -1) {
 
 function formatCompactDisplayPrice(usdAmount, digits = 6) {
   const { symbol, rate } = getCurrencyConfig();
-  const amount = Number((usdAmount * rate).toFixed(digits));
+  const numericAmount = Number(usdAmount) * Number(rate);
+  if (!Number.isFinite(numericAmount)) {
+    return '-';
+  }
+  const amount = Number(numericAmount.toFixed(digits));
   return `${symbol}${amount}`;
 }
 
@@ -1322,7 +1327,11 @@ function renderDisplayAmountFromUsd(usdAmount, digits = 6) {
 }
 
 function formatBillingDisplayPrice(usdAmount, rate, digits = 6) {
-  return (usdAmount * rate).toFixed(digits);
+  const amount = Number(usdAmount) * Number(rate);
+  if (!Number.isFinite(amount)) {
+    return '-';
+  }
+  return amount.toFixed(digits);
 }
 
 function formatBillingDisplayTotal(usdAmount, rate, digits = 6) {

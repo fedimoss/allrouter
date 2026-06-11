@@ -22,7 +22,15 @@ func NotifyRootUser(t string, subject string, content string) {
 	}
 }
 
-func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
+func NotifyRootUserWithNotify(notify dto.Notify) {
+	user := model.GetRootUser().ToBaseUser()
+	err := NotifyUser(user.Id, user.Email, user.GetSetting(), notify)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to notify root user: %s", err.Error()))
+	}
+}
+
+func NotifyUpstreamModelUpdateWatchers(subject string, content string, templateData map[string]any) {
 	var users []model.User
 	if err := model.DB.
 		Select("id", "email", "role", "status", "setting").
@@ -33,6 +41,10 @@ func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
 	}
 
 	notification := dto.NewNotify(dto.NotifyTypeChannelUpdate, subject, content, nil)
+	if templateData != nil {
+		notification.TemplateName = "upstream_model_update.html"
+		notification.TemplateData = templateData
+	}
 	sentCount := 0
 	for _, user := range users {
 		userSetting := user.GetSetting()
@@ -106,9 +118,16 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 }
 
 func sendEmailNotify(userEmail string, data dto.Notify) error {
-	// make email content
+	// If a template is specified, render it for email
+	if data.TemplateName != "" {
+		content, err := common.RenderEmailTemplate(data.TemplateName, data.TemplateData)
+		if err != nil {
+			return fmt.Errorf("failed to render email template %s: %w", data.TemplateName, err)
+		}
+		return common.SendEmail(data.Title, userEmail, content)
+	}
+	// Fallback: replace {{value}} placeholders in plain content
 	content := data.Content
-	// 处理占位符
 	for _, value := range data.Values {
 		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
 	}

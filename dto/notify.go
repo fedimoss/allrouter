@@ -1,10 +1,12 @@
 package dto
 
 type Notify struct {
-	Type    string        `json:"type"`
-	Title   string        `json:"title"`
-	Content string        `json:"content"`
-	Values  []interface{} `json:"values"`
+	Type         string        `json:"type"`
+	Title        string        `json:"title"`
+	Content      string        `json:"content"`
+	Values       []interface{} `json:"values"`
+	TemplateName string        `json:"template_name,omitempty"`
+	TemplateData any           `json:"template_data,omitempty"`
 }
 
 const ContentValueParam = "{{value}}"

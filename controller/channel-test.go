@@ -51,7 +51,9 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}
-	if channel != nil && channel.Type == constant.ChannelTypeCodex {
+
+	// 对于 Codex 和 Responses Chat 渠道，使用 OpenAI Response 端点
+	if channel != nil && (channel.Type == constant.ChannelTypeCodex || channel.Type == constant.ChannelTypeResponsesChat) {
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
 	return normalized
@@ -290,6 +292,33 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	}
 
 	adaptor.Init(info)
+
+	// 处理 Responses Chat 请求
+	if info.RelayMode == relayconstant.RelayModeResponses && apiType == constant.APITypeResponsesChat {
+		responseReq, ok := request.(*dto.OpenAIResponsesRequest)
+		if !ok {
+			err := errors.New("invalid response request type")
+			return testResult{
+				context:     c,
+				localErr:    err,
+				newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
+			}
+		}
+		chatReq, convertErr := service.ResponsesRequestToChatCompletionsCompatRequest(responseReq)
+		if convertErr != nil {
+			return testResult{
+				context:     c,
+				localErr:    convertErr,
+				newAPIError: types.NewError(convertErr, types.ErrorCodeConvertRequestFailed),
+			}
+		}
+		request = chatReq
+		info.Request = chatReq
+		info.RelayMode = relayconstant.RelayModeChatCompletions
+		info.RequestURLPath = relay.ResponsesChatCompletionsPath(info.ChannelBaseUrl)
+		info.ForceRequestBodyConversion = true
+		info.AppendRequestConversion(types.RelayFormatOpenAI)
+	}
 
 	var convertedRequest any
 	// 根据 RelayMode 选择正确的转换函数
@@ -937,7 +966,10 @@ func testAllChannels(notify bool) error {
 		}
 
 		if notify {
-			service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
+			notifyData := dto.NewNotify(dto.NotifyTypeChannelTest, "通道测试完成 / Channel Test Complete", "所有通道测试已完成", nil)
+			notifyData.TemplateName = "channel_test_complete.html"
+			notifyData.TemplateData = map[string]any{}
+			service.NotifyRootUserWithNotify(notifyData)
 		}
 	})
 	return nil

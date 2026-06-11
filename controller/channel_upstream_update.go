@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
 	"regexp"
 	"slices"
@@ -519,6 +520,152 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 	return builder.String()
 }
 
+// buildUpstreamModelUpdateTemplateData 构建上游模型巡检通知的邮件模板数据（中英双语）。
+// 该函数将巡检结果分别生成中文和英文两段 HTML 内容，供 upstream_model_update.html 模板渲染使用。
+// 参数说明：
+//   - checkedChannels: 本次巡检检测的渠道总数
+//   - changedChannels: 发现模型变更的渠道数量
+//   - detectedAddModels: 检测到的新增模型总数
+//   - detectedRemoveModels: 检测到的删除模型总数
+//   - autoAddedModels: 自动同步新增的模型数量
+//   - failedChannelIDs: 巡检失败的渠道 ID 列表
+//   - channelSummaries: 各变更渠道的摘要信息（渠道名、新增数、删除数）
+//   - addModelSamples: 新增模型的名称样本列表
+//   - removeModelSamples: 删除模型的名称样本列表
+// 返回值：包含 ContentZh（中文 HTML）和 ContentEn（英文 HTML）的模板数据字典
+func buildUpstreamModelUpdateTemplateData(
+	checkedChannels int,
+	changedChannels int,
+	detectedAddModels int,
+	detectedRemoveModels int,
+	autoAddedModels int,
+	failedChannelIDs []int,
+	channelSummaries []upstreamModelUpdateChannelSummary,
+	addModelSamples []string,
+	removeModelSamples []string,
+) map[string]any {
+	// 失败渠道数量
+	failedChannels := len(failedChannelIDs)
+
+	// ========== 构建中文 HTML 内容 ==========
+	var zhBuilder strings.Builder
+	// 写入巡检摘要（检测数、变更数、新增数、删除数、自动同步数、失败数）
+	zhBuilder.WriteString(fmt.Sprintf(
+		"<p>上游模型巡检摘要：检测渠道 %d 个，发现变更 %d 个，新增 %d 个，删除 %d 个，自动同步新增 %d 个，失败 %d 个。</p>",
+		checkedChannels, changedChannels, detectedAddModels, detectedRemoveModels, autoAddedModels, failedChannels,
+	))
+
+	// 写入变更渠道明细列表（限制最大展示数量，超出部分提示已省略）
+	if len(channelSummaries) > 0 {
+		displayCount := min(len(channelSummaries), channelUpstreamModelUpdateNotifyMaxChannelDetails)
+		zhBuilder.WriteString(fmt.Sprintf("<p>变更渠道明细（展示 %d/%d）：</p><ul>", displayCount, len(channelSummaries)))
+		for _, summary := range channelSummaries[:displayCount] {
+			zhBuilder.WriteString(fmt.Sprintf("<li>%s (+%d / -%d)</li>", summary.ChannelName, summary.AddCount, summary.RemoveCount))
+		}
+		if len(channelSummaries) > displayCount {
+			zhBuilder.WriteString(fmt.Sprintf("<li>其余 %d 个渠道已省略</li>", len(channelSummaries)-displayCount))
+		}
+		zhBuilder.WriteString("</ul>")
+	}
+
+	// 对新增模型名称进行归一化处理（去重、排序）
+	normalizedAddModelSamples := normalizeModelNames(addModelSamples)
+	// 写入新增模型示例（限制最大展示数量，超出部分提示已省略）
+	if len(normalizedAddModelSamples) > 0 {
+		displayCount := min(len(normalizedAddModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
+		zhBuilder.WriteString(fmt.Sprintf("<p>新增模型示例（展示 %d/%d）：%s</p>",
+			displayCount, len(normalizedAddModelSamples), strings.Join(normalizedAddModelSamples[:displayCount], ", ")))
+		if len(normalizedAddModelSamples) > displayCount {
+			zhBuilder.WriteString(fmt.Sprintf("<p>（其余 %d 个已省略）</p>", len(normalizedAddModelSamples)-displayCount))
+		}
+	}
+
+	// 对删除模型名称进行归一化处理
+	normalizedRemoveModelSamples := normalizeModelNames(removeModelSamples)
+	// 写入删除模型示例（限制最大展示数量，超出部分提示已省略）
+	if len(normalizedRemoveModelSamples) > 0 {
+		displayCount := min(len(normalizedRemoveModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
+		zhBuilder.WriteString(fmt.Sprintf("<p>删除模型示例（展示 %d/%d）：%s</p>",
+			displayCount, len(normalizedRemoveModelSamples), strings.Join(normalizedRemoveModelSamples[:displayCount], ", ")))
+		if len(normalizedRemoveModelSamples) > displayCount {
+			zhBuilder.WriteString(fmt.Sprintf("<p>（其余 %d 个已省略）</p>", len(normalizedRemoveModelSamples)-displayCount))
+		}
+	}
+
+	// 写入失败渠道 ID 列表（限制最大展示数量，超出部分提示已省略）
+	if failedChannels > 0 {
+		displayCount := min(failedChannels, channelUpstreamModelUpdateNotifyMaxFailedChannelIDs)
+		displayIDs := lo.Map(failedChannelIDs[:displayCount], func(channelID int, _ int) string {
+			return fmt.Sprintf("%d", channelID)
+		})
+		zhBuilder.WriteString(fmt.Sprintf("<p>失败渠道 ID（展示 %d/%d）：%s</p>",
+			displayCount, failedChannels, strings.Join(displayIDs, ", ")))
+		if failedChannels > displayCount {
+			zhBuilder.WriteString(fmt.Sprintf("<p>（其余 %d 个已省略）</p>", failedChannels-displayCount))
+		}
+	}
+
+	// ========== 构建英文 HTML 内容 ==========
+	var enBuilder strings.Builder
+	// 写入英文巡检摘要
+	enBuilder.WriteString(fmt.Sprintf(
+		"<p>Upstream Model Patrol Summary: %d channels checked, %d changed, %d added, %d removed, %d auto-synced, %d failed.</p>",
+		checkedChannels, changedChannels, detectedAddModels, detectedRemoveModels, autoAddedModels, failedChannels,
+	))
+
+	// 写入英文变更渠道明细列表
+	if len(channelSummaries) > 0 {
+		displayCount := min(len(channelSummaries), channelUpstreamModelUpdateNotifyMaxChannelDetails)
+		enBuilder.WriteString(fmt.Sprintf("<p>Changed channel details (showing %d/%d):</p><ul>", displayCount, len(channelSummaries)))
+		for _, summary := range channelSummaries[:displayCount] {
+			enBuilder.WriteString(fmt.Sprintf("<li>%s (+%d / -%d)</li>", summary.ChannelName, summary.AddCount, summary.RemoveCount))
+		}
+		if len(channelSummaries) > displayCount {
+			enBuilder.WriteString(fmt.Sprintf("<li>and %d more channels omitted</li>", len(channelSummaries)-displayCount))
+		}
+		enBuilder.WriteString("</ul>")
+	}
+
+	// 写入英文新增模型示例
+	if len(normalizedAddModelSamples) > 0 {
+		displayCount := min(len(normalizedAddModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
+		enBuilder.WriteString(fmt.Sprintf("<p>Added model samples (showing %d/%d): %s</p>",
+			displayCount, len(normalizedAddModelSamples), strings.Join(normalizedAddModelSamples[:displayCount], ", ")))
+		if len(normalizedAddModelSamples) > displayCount {
+			enBuilder.WriteString(fmt.Sprintf("<p>(%d more omitted)</p>", len(normalizedAddModelSamples)-displayCount))
+		}
+	}
+
+	// 写入英文删除模型示例
+	if len(normalizedRemoveModelSamples) > 0 {
+		displayCount := min(len(normalizedRemoveModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
+		enBuilder.WriteString(fmt.Sprintf("<p>Removed model samples (showing %d/%d): %s</p>",
+			displayCount, len(normalizedRemoveModelSamples), strings.Join(normalizedRemoveModelSamples[:displayCount], ", ")))
+		if len(normalizedRemoveModelSamples) > displayCount {
+			enBuilder.WriteString(fmt.Sprintf("<p>(%d more omitted)</p>", len(normalizedRemoveModelSamples)-displayCount))
+		}
+	}
+
+	// 写入英文失败渠道 ID 列表
+	if failedChannels > 0 {
+		displayCount := min(failedChannels, channelUpstreamModelUpdateNotifyMaxFailedChannelIDs)
+		displayIDs := lo.Map(failedChannelIDs[:displayCount], func(channelID int, _ int) string {
+			return fmt.Sprintf("%d", channelID)
+		})
+		enBuilder.WriteString(fmt.Sprintf("<p>Failed channel IDs (showing %d/%d): %s</p>",
+			displayCount, failedChannels, strings.Join(displayIDs, ", ")))
+		if failedChannels > displayCount {
+			enBuilder.WriteString(fmt.Sprintf("<p>(%d more omitted)</p>", failedChannels-displayCount))
+		}
+	}
+
+	// 组装模板数据，使用 template.HTML 类型避免 html/template 自动转义
+	return map[string]any{
+		"ContentZh": template.HTML(zhBuilder.String()),
+		"ContentEn": template.HTML(enBuilder.String()),
+	}
+}
+
 func runChannelUpstreamModelUpdateTaskOnce() {
 	if !channelUpstreamModelUpdateTaskRunning.CompareAndSwap(false, true) {
 		return
@@ -633,8 +780,19 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 			return
 		}
 		service.NotifyUpstreamModelUpdateWatchers(
-			"上游模型巡检通知",
+			"上游模型巡检通知 / Upstream Model Patrol",
 			buildUpstreamModelUpdateTaskNotificationContent(
+				checkedChannels,
+				changedChannels,
+				detectedAddModels,
+				detectedRemoveModels,
+				autoAddedModels,
+				failedChannelIDs,
+				channelSummaries,
+				addModelSamples,
+				removeModelSamples,
+			),
+			buildUpstreamModelUpdateTemplateData(
 				checkedChannels,
 				changedChannels,
 				detectedAddModels,
