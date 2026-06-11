@@ -114,7 +114,6 @@ const ColumnSelectorModal = ({
               !isProviderScope &&
               (column.key === COLUMN_KEYS.CHANNEL ||
                 column.key === COLUMN_KEYS.PROVIDER ||
-                column.key === COLUMN_KEYS.USERNAME ||
                 column.key === COLUMN_KEYS.RETRY))
           ) {
             return null;

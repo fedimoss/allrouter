@@ -386,6 +386,15 @@ function getUsageLogGroupSummary(groupRatio, userGroupRatio, t) {
   return `${useUserGroupRatio ? t('专属倍率') : t('分组')} ${formatRatio(ratio)}x`;
 }
 
+function isProviderCostLog(other) {
+  return other?.billing_side === 'provider_cost';
+}
+
+function getProviderCostQuota(record, other) {
+  const quota = Number(other?.provider_owner_cost_quota ?? record?.quota ?? 0);
+  return Number.isFinite(quota) ? quota : 0;
+}
+
 function renderCompactDetailSummary(summarySegments) {
   const segments = Array.isArray(summarySegments)
     ? summarySegments.filter((segment) => segment?.text)
@@ -434,6 +443,21 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
 
   if (other == null || record.type !== 2) {
     return null;
+  }
+
+  if (isProviderCostLog(other)) {
+    return {
+      segments: [
+        { text: t('主站成本'), tone: 'primary' },
+        {
+          text: `${t('服务商承担')}：${renderQuota(
+            getProviderCostQuota(record, other),
+            6,
+          )}`,
+          tone: 'secondary',
+        },
+      ],
+    };
   }
 
   if (
@@ -647,7 +671,7 @@ export const getLogsColumns = ({
       title: t('用户'),
       dataIndex: 'username',
       render: (text, record, index) => {
-        return isAdminUser || isProviderScope ? (
+        return text ? (
           <div>
             <Avatar
               size='extra-small'

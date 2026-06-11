@@ -1286,7 +1286,11 @@ function shouldUseRatioBillingProcess(modelPrice = -1) {
 
 function formatCompactDisplayPrice(usdAmount, digits = 6) {
   const { symbol, rate } = getCurrencyConfig();
-  const amount = Number((usdAmount * rate).toFixed(digits));
+  const numericAmount = Number(usdAmount) * Number(rate);
+  if (!Number.isFinite(numericAmount)) {
+    return '-';
+  }
+  const amount = Number(numericAmount.toFixed(digits));
   return `${symbol}${amount}`;
 }
 
@@ -1323,7 +1327,11 @@ function renderDisplayAmountFromUsd(usdAmount, digits = 6) {
 }
 
 function formatBillingDisplayPrice(usdAmount, rate, digits = 6) {
-  return (usdAmount * rate).toFixed(digits);
+  const amount = Number(usdAmount) * Number(rate);
+  if (!Number.isFinite(amount)) {
+    return '-';
+  }
+  return amount.toFixed(digits);
 }
 
 function formatBillingDisplayTotal(usdAmount, rate, digits = 6) {
