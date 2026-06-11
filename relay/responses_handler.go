@@ -23,37 +23,9 @@ import (
 
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
-	logger.LogDebug(
-		c,
-		"responses route selected channel: channel_id=%d channel_type=%d api_type=%d base_url=%q relay_mode=%d request_path=%q model=%q pass_through_global=%t pass_through_channel=%t",
-		info.ChannelId,
-		info.ChannelType,
-		info.ApiType,
-		info.ChannelBaseUrl,
-		info.RelayMode,
-		info.RequestURLPath,
-		info.OriginModelName,
-		model_setting.GetGlobalSettings().PassThroughRequestEnabled,
-		info.ChannelSetting.PassThroughBodyEnabled,
-	)
-	if info.ApiType == appconstant.APITypeResponsesChat || info.ChannelType == appconstant.ChannelTypeResponsesChat {
-		logger.LogInfo(c, fmt.Sprintf(
-			"responses-chat compatibility dispatch: channel_id=%d channel_type=%d api_type=%d relay_mode=%d request_path=%q model=%q pass_through_global=%t pass_through_channel=%t request_type=%T",
-			info.ChannelId,
-			info.ChannelType,
-			info.ApiType,
-			info.RelayMode,
-			info.RequestURLPath,
-			info.OriginModelName,
-			model_setting.GetGlobalSettings().PassThroughRequestEnabled,
-			info.ChannelSetting.PassThroughBodyEnabled,
-			info.Request,
-		))
-	}
 
 	// Responses→Chat channel: convert /v1/responses to /v1/chat/completions.
 	if info.ApiType == appconstant.APITypeResponsesChat {
-		logger.LogDebug(c, "responses route using chat completions compatibility: reason=api_type_responses_chat channel_id=%d channel_type=%d base_url=%q", info.ChannelId, info.ChannelType, info.ChannelBaseUrl)
 		return responsesViaChatCompletions(c, info)
 	}
 
@@ -250,19 +222,6 @@ func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo) *t
 			types.ErrOptionWithSkipRetry(),
 		)
 	}
-	// 记录转换后 Chat 请求的关键信息，便于排查问题
-	logger.LogInfo(c, fmt.Sprintf(
-		"responses compatibility produced chat request: channel_id=%d channel_type=%d api_type=%d messages=%d tools=%d has_tool_choice=%t stream_set=%t force_before=%t original_path=%q",
-		info.ChannelId,
-		info.ChannelType,
-		info.ApiType,
-		len(chatReq.Messages),
-		len(chatReq.Tools),
-		chatReq.ToolChoice != nil,
-		chatReq.Stream != nil,
-		info.ForceRequestBodyConversion,
-		info.RequestURLPath,
-	))
 
 	// 保存原始的请求信息，以便在 defer 中恢复，避免影响后续处理
 	savedRequest := info.Request                                       // 原始请求对象

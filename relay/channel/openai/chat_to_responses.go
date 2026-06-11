@@ -76,7 +76,7 @@ func sendResponsesEvent(c *gin.Context, event dto.ResponsesStreamResponse) error
 	if err != nil {
 		return err
 	}
-	logger.LogInfo(c, fmt.Sprintf("responses compatibility converted stream event: event=%s body=%s", event.Type, string(data)))
+	// logger.LogInfo(c, fmt.Sprintf("responses compatibility converted stream event: event=%s body=%s", event.Type, string(data)))
 	helper.ResponseChunkData(c, event, string(data))
 	return nil
 }
@@ -383,7 +383,7 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			sr.Stop(streamErr)
 			return
 		}
-		logger.LogInfo(c, fmt.Sprintf("responses compatibility upstream chat stream body: %s", data))
+		// logger.LogInfo(c, fmt.Sprintf("responses compatibility upstream chat stream body: %s", data))
 		// 解析 Chat Completions 流式响应块
 		var chunk dto.ChatCompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &chunk); err != nil {
@@ -596,7 +596,7 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, chat
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
 	}
-	logger.LogInfo(c, fmt.Sprintf("responses compatibility converted response body: %s", string(responseBody)))
+	// logger.LogInfo(c, fmt.Sprintf("responses compatibility converted response body: %s", string(responseBody)))
 	service.IOCopyBytesGracefully(c, nil, responseBody)
 	// 设置内容审计文本
 	service.SetModelContentAuditResponseText(c, text)
