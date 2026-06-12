@@ -61,6 +61,8 @@ import { StatusContext } from '../../../../context/Status';
 
 const { Text, Title } = Typography;
 
+const NEVER_EXPIRES_VALUE = 'never';
+
 const EditTokenModal = (props) => {
   const { t } = useTranslation();
   const [statusState, statusDispatch] = useContext(StatusContext);
@@ -70,7 +72,7 @@ const EditTokenModal = (props) => {
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
-  const [quickExpiry, setQuickExpiry] = useState('');
+  const [quickExpiry, setQuickExpiry] = useState(NEVER_EXPIRES_VALUE);
   const isEdit = props.editingToken.id !== undefined;
 
   const getInitValues = () => ({
@@ -86,6 +88,24 @@ const EditTokenModal = (props) => {
     cross_group_retry: false,
     tokenCount: 1,
   });
+
+  const getQuickExpiryFromExpiredTime = (expiredTime) =>
+    expiredTime === -1 || expiredTime === '-1' ? NEVER_EXPIRES_VALUE : '';
+
+  const resetFormValues = () => {
+    formApiRef.current?.setValues(getInitValues());
+    setQuickExpiry(NEVER_EXPIRES_VALUE);
+  };
+
+  const getGroupOptions = (selectedGroup) => {
+    if (
+      !selectedGroup ||
+      groups.some((group) => group.value === selectedGroup)
+    ) {
+      return groups;
+    }
+    return [{ label: selectedGroup, value: selectedGroup }, ...groups];
+  };
 
   const handleCancel = () => {
     props.handleClose();
@@ -165,19 +185,21 @@ const EditTokenModal = (props) => {
     let res = await API.get(`/api/token/${props.editingToken.id}`);
     const { success, message, data } = res.data;
     if (success) {
-      if (data.expired_time !== -1) {
-        data.expired_time = timestamp2string(data.expired_time);
+      const token = { ...data };
+      if (token.expired_time !== -1) {
+        token.expired_time = timestamp2string(token.expired_time);
       }
-      if (data.model_limits !== '') {
-        data.model_limits = data.model_limits.split(',');
+      if (token.model_limits !== '') {
+        token.model_limits = token.model_limits.split(',');
       } else {
-        data.model_limits = [];
+        token.model_limits = [];
       }
-      data.remain_amount = Number(
-        quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
+      token.remain_amount = Number(
+        quotaToDisplayAmount(token.remain_quota || 0).toFixed(6),
       );
+      setQuickExpiry(getQuickExpiryFromExpiredTime(token.expired_time));
       if (formApiRef.current) {
-        formApiRef.current.setValues({ ...getInitValues(), ...data });
+        formApiRef.current.setValues({ ...getInitValues(), ...token });
       }
     } else {
       showError(message);
@@ -188,7 +210,7 @@ const EditTokenModal = (props) => {
   useEffect(() => {
     if (formApiRef.current) {
       if (!isEdit) {
-        formApiRef.current.setValues(getInitValues());
+        resetFormValues();
       }
     }
     loadModels();
@@ -200,10 +222,11 @@ const EditTokenModal = (props) => {
       if (isEdit) {
         loadToken();
       } else {
-        formApiRef.current?.setValues(getInitValues());
+        resetFormValues();
       }
     } else {
       formApiRef.current?.reset();
+      setQuickExpiry(NEVER_EXPIRES_VALUE);
     }
   }, [props.visiable, props.editingToken.id]);
 
@@ -307,7 +330,7 @@ const EditTokenModal = (props) => {
 
   return (
     <SideSheet
-         placement={isEdit ? 'right' : 'left'}
+      placement={isEdit ? 'right' : 'left'}
       title={
         <Space>
           {isEdit ? (
@@ -388,32 +411,28 @@ const EditTokenModal = (props) => {
                     />
                   </Col>
                   <Col span={24}>
-                    {groups.length > 0 ? (
-                      <Form.Select
-                        field='group'
-                        label={t('令牌分组')}
-                        placeholder={t('令牌分组，默认为用户的分组')}
-                        optionList={groups}
-                        renderOptionItem={renderGroupOption}
-                        filter={(input, option) => {
-                          const q = input.toLowerCase();
-                          return (
-                            option.value?.toLowerCase().includes(q) ||
-                            (typeof option.label === 'string' &&
-                              option.label.toLowerCase().includes(q))
-                          );
-                        }}
-                        showClear
-                        style={{ width: '100%' }}
-                      />
-                    ) : (
-                      <Form.Select
-                        placeholder={t('管理员未设置用户可选分组')}
-                        disabled
-                        label={t('令牌分组')}
-                        style={{ width: '100%' }}
-                      />
-                    )}
+                    <Form.Select
+                      field='group'
+                      label={t('令牌分组')}
+                      placeholder={
+                        groups.length > 0
+                          ? t('令牌分组，默认为用户的分组')
+                          : t('管理员未设置用户可选分组')
+                      }
+                      optionList={getGroupOptions(values.group)}
+                      renderOptionItem={renderGroupOption}
+                      filter={(input, option) => {
+                        const q = input.toLowerCase();
+                        return (
+                          option.value?.toLowerCase().includes(q) ||
+                          (typeof option.label === 'string' &&
+                            option.label.toLowerCase().includes(q))
+                        );
+                      }}
+                      disabled={groups.length === 0}
+                      showClear
+                      style={{ width: '100%' }}
+                    />
                   </Col>
                   <Col
                     span={24}
@@ -468,10 +487,18 @@ const EditTokenModal = (props) => {
                           const val = e.target.value;
                           setQuickExpiry(val);
                           switch (val) {
-                            case 'never': setExpiredTime(0, 0, 0, 0); break;
-                            case '1month': setExpiredTime(1, 0, 0, 0); break;
-                            case '1day': setExpiredTime(0, 1, 0, 0); break;
-                            case '1hour': setExpiredTime(0, 0, 1, 0); break;
+                            case 'never':
+                              setExpiredTime(0, 0, 0, 0);
+                              break;
+                            case '1month':
+                              setExpiredTime(1, 0, 0, 0);
+                              break;
+                            case '1day':
+                              setExpiredTime(0, 1, 0, 0);
+                              break;
+                            case '1hour':
+                              setExpiredTime(0, 0, 1, 0);
+                              break;
                           }
                         }}
                         options={[
@@ -546,7 +573,10 @@ const EditTokenModal = (props) => {
                         ? `▾ ${t('收起原生额度输入')}`
                         : `▸ ${t('使用原生额度输入')}`}
                     </div>
-                    <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
+                    <div
+                      style={{ display: showQuotaInput ? 'block' : 'none' }}
+                      className='mt-2'
+                    >
                       <Form.InputNumber
                         field='remain_quota'
                         label={t('额度')}
