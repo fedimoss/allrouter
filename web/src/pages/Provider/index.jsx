@@ -26,6 +26,7 @@ import {
   Popconfirm,
   Select,
   Space,
+  Switch,
   Table,
   Tag,
   Typography,
@@ -46,9 +47,11 @@ import {
   DEFAULT_THEME_PRIMARY_COLOR,
   DEFAULT_THEME_SECONDARY_COLOR,
   isAdmin,
+  isProviderAgentPartnerEnabled,
   isProviderOwner,
   showError,
   showSuccess,
+  stringifyProviderNavModules,
   timestamp2string,
 } from '../../helpers';
 import ProviderRewardModal from './ProviderRewardModal';
@@ -273,6 +276,7 @@ const ProviderPage = () => {
   const [ownerTotal, setOwnerTotal] = useState(0);
   const [selectedOwnerId, setSelectedOwnerId] = useState(undefined);
   const [selectedOwner, setSelectedOwner] = useState(null);
+  const [agentPartnerSwitchingIds, setAgentPartnerSwitchingIds] = useState({});
 
   const providerFormRef = useRef(null);
   const configFormRef = useRef(null);
@@ -814,9 +818,7 @@ const ProviderPage = () => {
       consume_rebate_ratio_level1: Number(
         values.consume_rebate_ratio_level1 || 0,
       ),
-      consume_rebate_ratio_level2: Number(
-        values.consume_rebate_ratio_level2 || 0,
-      ),
+      consume_rebate_ratio_level2: 0,
     };
     const url = adminMode
       ? `/api/provider/admin/${currentProvider.id}/model_pricing`
@@ -878,6 +880,48 @@ const ProviderPage = () => {
     }
   };
 
+  const updateProviderAgentPartnerMenu = async (provider, enabled) => {
+    if (!adminMode || !provider?.id) return;
+    const navModules = stringifyProviderNavModules(provider.config, {
+      agent_partner: enabled,
+    });
+    setAgentPartnerSwitchingIds((ids) => ({ ...ids, [provider.id]: true }));
+    try {
+      const res = await API.put(
+        `/api/provider/admin/${provider.id}/nav_modules`,
+        {
+          nav_modules: navModules,
+        },
+      );
+      if (res.data.success) {
+        const updateProviderConfig = (item) =>
+          item.id === provider.id
+            ? {
+                ...item,
+                config: {
+                  ...(item.config || {}),
+                  nav_modules: navModules,
+                },
+              }
+            : item;
+        setProviders((items) => items.map(updateProviderConfig));
+        setCurrentProvider((item) =>
+          item?.id === provider.id ? updateProviderConfig(item) : item,
+        );
+        showSuccess(t('保存成功'));
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(error);
+    } finally {
+      setAgentPartnerSwitchingIds((ids) => ({
+        ...ids,
+        [provider.id]: false,
+      }));
+    }
+  };
+
   const columns = useMemo(
     () =>
       [
@@ -914,6 +958,22 @@ const ProviderPage = () => {
             </Tag>
           ),
         },
+        adminMode
+          ? {
+              title: t('代理加盟'),
+              dataIndex: 'config',
+              width: 120,
+              render: (config, record) => (
+                <Switch
+                  checked={isProviderAgentPartnerEnabled(config)}
+                  loading={Boolean(agentPartnerSwitchingIds[record.id])}
+                  onChange={(checked) =>
+                    updateProviderAgentPartnerMenu(record, checked)
+                  }
+                />
+              ),
+            }
+          : null,
         {
           title: t('折扣'),
           dataIndex: 'config',
@@ -1050,7 +1110,7 @@ const ProviderPage = () => {
           ),
         },
       ].filter(Boolean),
-    [adminMode, t],
+    [adminMode, agentPartnerSwitchingIds, t],
   );
 
   const pricingColumns = [
@@ -1084,13 +1144,8 @@ const ProviderPage = () => {
         record.pricing_type === 'delta' ? value : '-',
     },
     {
-      title: t('一级消费返佣比例'),
+      title: t('消费返佣比例'),
       dataIndex: 'consume_rebate_ratio_level1',
-      render: (value) => `${Number(value || 0)}%`,
-    },
-    {
-      title: t('二级消费返佣比例'),
-      dataIndex: 'consume_rebate_ratio_level2',
       render: (value) => `${Number(value || 0)}%`,
     },
     {
@@ -1872,16 +1927,7 @@ const ProviderPage = () => {
           >
             <Form.InputNumber
               field='consume_rebate_ratio_level1'
-              label={t('一级消费返佣比例（利润比例）')}
-              min={0}
-              max={100}
-              step={0.01}
-              precision={6}
-              suffix='%'
-            />
-            <Form.InputNumber
-              field='consume_rebate_ratio_level2'
-              label={t('二级消费返佣比例（利润比例）')}
+              label={t('消费返佣比例（利润比例）')}
               min={0}
               max={100}
               step={0.01}
@@ -1891,7 +1937,7 @@ const ProviderPage = () => {
           </div>
           <Text type='tertiary' size='small'>
             {t(
-              '消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生对应层级返佣。',
+              '消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生消费返佣。',
             )}
           </Text>
         </Form>

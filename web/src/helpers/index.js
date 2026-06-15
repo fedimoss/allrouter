@@ -32,3 +32,4 @@ export * from './passkey';
 export * from './statusCodeRules';
 export * from './currency';
 export * from './themeColors';
+export * from './providerNavModules';
