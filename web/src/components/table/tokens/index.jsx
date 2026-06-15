@@ -928,7 +928,7 @@ function TokensPage() {
   };
 
   const handleDeleteRecord = (record) => {
-    Modal.confirm({
+    Modal.error({
       title: tokensData.t('确定是否要删除此令牌？'),
       content: tokensData.t('此修改将不可逆'),
       onOk: async () => {
@@ -1196,7 +1196,7 @@ function TokensPage() {
                           </td>
                           <td className='token-v2-col-quota'>
                             <div className='token-v2-quota-used-text'>
-                              {`${tokensData.t('Token 消耗总量')} ${renderNumber(getTotalTokenUsed(record))}`}
+                              {`${renderNumber(getTotalTokenUsed(record))}`}
                             </div>
                           </td>
                           <td className='token-v2-col-group'>
