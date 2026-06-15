@@ -26,6 +26,7 @@ import {
   Popconfirm,
   Select,
   Space,
+  Switch,
   Table,
   Tag,
   Typography,
@@ -46,9 +47,11 @@ import {
   DEFAULT_THEME_PRIMARY_COLOR,
   DEFAULT_THEME_SECONDARY_COLOR,
   isAdmin,
+  isProviderAgentPartnerEnabled,
   isProviderOwner,
   showError,
   showSuccess,
+  stringifyProviderNavModules,
   timestamp2string,
 } from '../../helpers';
 import ProviderRewardModal from './ProviderRewardModal';
@@ -273,6 +276,7 @@ const ProviderPage = () => {
   const [ownerTotal, setOwnerTotal] = useState(0);
   const [selectedOwnerId, setSelectedOwnerId] = useState(undefined);
   const [selectedOwner, setSelectedOwner] = useState(null);
+  const [agentPartnerSwitchingIds, setAgentPartnerSwitchingIds] = useState({});
 
   const providerFormRef = useRef(null);
   const configFormRef = useRef(null);
@@ -878,6 +882,48 @@ const ProviderPage = () => {
     }
   };
 
+  const updateProviderAgentPartnerMenu = async (provider, enabled) => {
+    if (!adminMode || !provider?.id) return;
+    const navModules = stringifyProviderNavModules(provider.config, {
+      agent_partner: enabled,
+    });
+    setAgentPartnerSwitchingIds((ids) => ({ ...ids, [provider.id]: true }));
+    try {
+      const res = await API.put(
+        `/api/provider/admin/${provider.id}/nav_modules`,
+        {
+          nav_modules: navModules,
+        },
+      );
+      if (res.data.success) {
+        const updateProviderConfig = (item) =>
+          item.id === provider.id
+            ? {
+                ...item,
+                config: {
+                  ...(item.config || {}),
+                  nav_modules: navModules,
+                },
+              }
+            : item;
+        setProviders((items) => items.map(updateProviderConfig));
+        setCurrentProvider((item) =>
+          item?.id === provider.id ? updateProviderConfig(item) : item,
+        );
+        showSuccess(t('保存成功'));
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(error);
+    } finally {
+      setAgentPartnerSwitchingIds((ids) => ({
+        ...ids,
+        [provider.id]: false,
+      }));
+    }
+  };
+
   const columns = useMemo(
     () =>
       [
@@ -914,6 +960,22 @@ const ProviderPage = () => {
             </Tag>
           ),
         },
+        adminMode
+          ? {
+              title: t('代理加盟'),
+              dataIndex: 'config',
+              width: 120,
+              render: (config, record) => (
+                <Switch
+                  checked={isProviderAgentPartnerEnabled(config)}
+                  loading={Boolean(agentPartnerSwitchingIds[record.id])}
+                  onChange={(checked) =>
+                    updateProviderAgentPartnerMenu(record, checked)
+                  }
+                />
+              ),
+            }
+          : null,
         {
           title: t('折扣'),
           dataIndex: 'config',
@@ -1050,7 +1112,7 @@ const ProviderPage = () => {
           ),
         },
       ].filter(Boolean),
-    [adminMode, t],
+    [adminMode, agentPartnerSwitchingIds, t],
   );
 
   const pricingColumns = [

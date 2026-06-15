@@ -14,6 +14,7 @@ import {
   getQQSupport,
   getSystemName,
   getWechatSupport,
+  shouldShowProviderAgentPartner,
   withBrowserBaseUrl,
 } from '../../helpers';
 import { StatusContext } from '../../context/Status';
@@ -206,6 +207,9 @@ const AgentPartner = () => {
   const isLoggedIn = Boolean(currentUser?.id);
   const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
   const consoleNavTarget = isLoggedIn ? '/console' : '/login';
+  const showAgentPartnerNav = shouldShowProviderAgentPartner(
+    statusState?.status,
+  );
   const normalizedUserState = { user: currentUser };
 
   const handleThemeToggle = useCallback(
@@ -263,9 +267,11 @@ const AgentPartner = () => {
           <Link to='/'>{t('首页')}</Link>
           <Link to={consoleNavTarget}>{t('控制台')}</Link>
           <Link to='/pricing'>{t('模型广场')}</Link>
-          <Link to='/agent-partner' className='landing-v2-nav-link-active'>
-            {t('代理加盟')}
-          </Link>
+          {showAgentPartnerNav ? (
+            <Link to='/agent-partner' className='landing-v2-nav-link-active'>
+              {t('代理加盟')}
+            </Link>
+          ) : null}
           <a href={docsHref} target='_blank' rel='noreferrer'>
             {t('文档')}
           </a>
