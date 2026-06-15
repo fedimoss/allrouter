@@ -1060,6 +1060,9 @@ func listProviderModelPricing(c *gin.Context, providerId int) {
 		common.ApiError(c, err)
 		return
 	}
+	for i := range rows {
+		rows[i].ConsumeRebateRatioLevel2 = 0
+	}
 	common.ApiSuccess(c, rows)
 }
 
@@ -1223,7 +1226,8 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 	if req.Ratio == 0 {
 		req.Ratio = 1
 	}
-	if !validateProviderRebateRatio(req.ConsumeRebateRatioLevel1) || !validateProviderRebateRatio(req.ConsumeRebateRatioLevel2) {
+	req.ConsumeRebateRatioLevel2 = 0
+	if !validateProviderRebateRatio(req.ConsumeRebateRatioLevel1) {
 		common.ApiErrorMsg(c, "consume rebate ratio must be between 0 and 100")
 		return
 	}
@@ -1246,7 +1250,7 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 			"delta_model_ratio":           req.DeltaModelRatio,
 			"delta_model_price":           req.DeltaModelPrice,
 			"consume_rebate_ratio_level1": req.ConsumeRebateRatioLevel1,
-			"consume_rebate_ratio_level2": req.ConsumeRebateRatioLevel2,
+			"consume_rebate_ratio_level2": 0,
 			"updated_at":                  common.GetTimestamp(),
 		}).Error; err != nil {
 		common.ApiError(c, err)

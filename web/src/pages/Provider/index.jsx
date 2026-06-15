@@ -818,9 +818,7 @@ const ProviderPage = () => {
       consume_rebate_ratio_level1: Number(
         values.consume_rebate_ratio_level1 || 0,
       ),
-      consume_rebate_ratio_level2: Number(
-        values.consume_rebate_ratio_level2 || 0,
-      ),
+      consume_rebate_ratio_level2: 0,
     };
     const url = adminMode
       ? `/api/provider/admin/${currentProvider.id}/model_pricing`
@@ -1146,13 +1144,8 @@ const ProviderPage = () => {
         record.pricing_type === 'delta' ? value : '-',
     },
     {
-      title: t('一级消费返佣比例'),
+      title: t('消费返佣比例'),
       dataIndex: 'consume_rebate_ratio_level1',
-      render: (value) => `${Number(value || 0)}%`,
-    },
-    {
-      title: t('二级消费返佣比例'),
-      dataIndex: 'consume_rebate_ratio_level2',
       render: (value) => `${Number(value || 0)}%`,
     },
     {
@@ -1934,16 +1927,7 @@ const ProviderPage = () => {
           >
             <Form.InputNumber
               field='consume_rebate_ratio_level1'
-              label={t('一级消费返佣比例（利润比例）')}
-              min={0}
-              max={100}
-              step={0.01}
-              precision={6}
-              suffix='%'
-            />
-            <Form.InputNumber
-              field='consume_rebate_ratio_level2'
-              label={t('二级消费返佣比例（利润比例）')}
+              label={t('消费返佣比例（利润比例）')}
               min={0}
               max={100}
               step={0.01}
@@ -1953,7 +1937,7 @@ const ProviderPage = () => {
           </div>
           <Text type='tertiary' size='small'>
             {t(
-              '消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生对应层级返佣。',
+              '消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生消费返佣。',
             )}
           </Text>
         </Form>
