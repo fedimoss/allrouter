@@ -141,6 +141,9 @@ const EditUserModal = (props) => {
     let payload = { ...values };
     delete payload.quota;
     delete payload.quota_amount;
+    if (props.providerMode) {
+      delete payload.group;
+    }
     if (userId) {
       payload.id = parseInt(userId);
     }
@@ -301,8 +304,9 @@ const EditUserModal = (props) => {
                           label={t('分组')}
                           placeholder={t('请选择分组')}
                           optionList={groupOptions}
-                          allowAdditions
+                          allowAdditions={!props.providerMode}
                           search
+                          disabled={props.providerMode}
                           rules={[{ required: true, message: t('请选择分组') }]}
                         />
                       </Col>

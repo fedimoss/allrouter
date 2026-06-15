@@ -285,7 +285,7 @@ func UpdateProviderUser(c *gin.Context) {
 		Username:    req.Username,
 		Password:    req.Password,
 		DisplayName: req.DisplayName,
-		Group:       req.Group,
+		Group:       originUser.Group,
 		Remark:      req.Remark,
 	}
 	if cleanUser.Username == "" {
@@ -293,9 +293,6 @@ func UpdateProviderUser(c *gin.Context) {
 	}
 	if cleanUser.DisplayName == "" {
 		cleanUser.DisplayName = cleanUser.Username
-	}
-	if cleanUser.Group == "" {
-		cleanUser.Group = originUser.Group
 	}
 	if err := cleanUser.Edit(updatePassword); err != nil {
 		common.ApiError(c, err)
