@@ -87,7 +87,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 			common.SysLog(fmt.Sprintf("user %d has no email, skip sending email", userId))
 			return nil
 		}
-		return sendEmailNotify(emailToUse, data)
+		return sendEmailNotify(getNotifyUserProviderId(userId), emailToUse, data)
 	case dto.NotifyTypeWebhook:
 		webhookURLStr := userSetting.WebhookUrl
 		if webhookURLStr == "" {
@@ -117,21 +117,35 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 	return nil
 }
 
-func sendEmailNotify(userEmail string, data dto.Notify) error {
+func getNotifyUserProviderId(userId int) int {
+	if userId <= 0 {
+		return 0
+	}
+	var user struct {
+		ProviderId int `gorm:"column:provider_id"`
+	}
+	if err := model.DB.Model(&model.User{}).Select("provider_id").Where("id = ?", userId).Take(&user).Error; err != nil {
+		common.SysLog(fmt.Sprintf("failed to get provider id for user %d notification: %s", userId, err.Error()))
+		return 0
+	}
+	return user.ProviderId
+}
+
+func sendEmailNotify(providerId int, userEmail string, data dto.Notify) error {
 	// If a template is specified, render it for email
 	if data.TemplateName != "" {
 		content, err := common.RenderEmailTemplate(data.TemplateName, data.TemplateData)
 		if err != nil {
 			return fmt.Errorf("failed to render email template %s: %w", data.TemplateName, err)
 		}
-		return common.SendEmail(data.Title, userEmail, content)
+		return SendProviderMail(providerId, data.Title, userEmail, content)
 	}
 	// Fallback: replace {{value}} placeholders in plain content
 	content := data.Content
 	for _, value := range data.Values {
 		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
 	}
-	return common.SendEmail(data.Title, userEmail, content)
+	return SendProviderMail(providerId, data.Title, userEmail, content)
 }
 
 func sendBarkNotify(barkURL string, data dto.Notify) error {

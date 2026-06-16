@@ -11,6 +11,25 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func canManageProviderOptions(c *gin.Context, providerId int) bool {
+	provider, err := model.GetProviderById(providerId)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if c.GetInt("role") >= common.RoleAdminUser {
+		return true
+	}
+	if provider.OwnerUserId == c.GetInt("id") {
+		return true
+	}
+	c.JSON(http.StatusForbidden, gin.H{
+		"success": false,
+		"message": "无权访问该服务商配置",
+	})
+	return false
+}
+
 // GetProviderOptions 获取服务商配置
 func GetProviderOptions(c *gin.Context) {
 	// 服务商ID
@@ -22,6 +41,9 @@ func GetProviderOptions(c *gin.Context) {
 			"success": false,
 			"message": "无效的服务商ID",
 		})
+		return
+	}
+	if !canManageProviderOptions(c, providerId) {
 		return
 	}
 
@@ -45,6 +67,9 @@ func UpdateProviderOption(c *gin.Context) {
 			"success": false,
 			"message": "无效的服务商ID",
 		})
+		return
+	}
+	if !canManageProviderOptions(c, providerId) {
 		return
 	}
 

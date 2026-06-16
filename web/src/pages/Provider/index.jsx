@@ -26,6 +26,7 @@ import {
   Popconfirm,
   Select,
   Space,
+  Spin,
   Table,
   Tag,
   Typography,
@@ -80,6 +81,18 @@ const OWNER_SEARCH_FIELD_OPTIONS = [
 ];
 
 const OWNER_PAGE_SIZE = 10;
+const PROVIDER_SMTP_OPTION_KEY = 'mail.smtp';
+const SWITCH_CHECKED_TEXT = '|';
+const SWITCH_UNCHECKED_TEXT = 'O';
+const SMTP_HOST_PLACEHOLDER = 'smtp.example.com';
+const SMTP_FROM_PLACEHOLDER = 'noreply@example.com';
+const SMTP_REPLY_TO_PLACEHOLDER = 'support@example.com';
+
+const SMTP_ENCRYPTION_OPTIONS = [
+  { label: 'STARTTLS', value: 'starttls' },
+  { label: 'SSL/TLS', value: 'ssl' },
+  { label: '不加密', value: 'none' },
+];
 
 const emptyProvider = {
   owner_user_id: undefined,
@@ -126,6 +139,80 @@ const emptyPricing = {
   consume_rebate_ratio_level1: 0,
   consume_rebate_ratio_level2: 0,
 };
+
+const emptySmtpConfig = {
+  enabled: false,
+  host: '',
+  port: 587,
+  username: '',
+  password: '',
+  from_email: '',
+  from_name: '',
+  reply_to: '',
+  encryption: 'starttls',
+  force_auth_login: false,
+  timeout_seconds: 10,
+};
+
+const numberOrDefault = (value, fallback) => {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+
+const parseProviderSmtpConfig = (value) => {
+  if (!value) {
+    return { ...emptySmtpConfig };
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return {
+      ...emptySmtpConfig,
+      enabled: !!parsed.enabled,
+      host: parsed.host ?? parsed.smtp_server ?? '',
+      port: numberOrDefault(
+        parsed.port ?? parsed.smtp_port,
+        emptySmtpConfig.port,
+      ),
+      username: parsed.username ?? parsed.smtp_account ?? '',
+      password: parsed.password ?? parsed.smtp_token ?? '',
+      from_email: parsed.from_email ?? parsed.smtp_from ?? '',
+      from_name: parsed.from_name ?? '',
+      reply_to: parsed.reply_to ?? '',
+      encryption:
+        parsed.encryption ||
+        (parsed.smtp_ssl_enabled || parsed.ssl_enabled ? 'ssl' : 'starttls'),
+      force_auth_login: !!(
+        parsed.force_auth_login ?? parsed.smtp_force_auth_login
+      ),
+      timeout_seconds: numberOrDefault(
+        parsed.timeout_seconds,
+        emptySmtpConfig.timeout_seconds,
+      ),
+    };
+  } catch (error) {
+    return { ...emptySmtpConfig };
+  }
+};
+
+const normalizeProviderSmtpPayload = (values) => ({
+  enabled: !!values.enabled,
+  host: String(values.host || '').trim(),
+  port: numberOrDefault(values.port, emptySmtpConfig.port),
+  username: String(values.username || '').trim(),
+  password: String(values.password || ''),
+  from_email: String(values.from_email || '').trim(),
+  from_name: String(values.from_name || '').trim(),
+  reply_to: String(values.reply_to || '').trim(),
+  encryption: values.encryption || emptySmtpConfig.encryption,
+  force_auth_login: !!values.force_auth_login,
+  timeout_seconds: numberOrDefault(
+    values.timeout_seconds,
+    emptySmtpConfig.timeout_seconds,
+  ),
+});
 
 const ratioToMarkupPercent = (ratio) => {
   const value = Number(ratio || 1);
@@ -245,12 +332,17 @@ const ProviderPage = () => {
   const [pricingModalVisible, setPricingModalVisible] = useState(false);
   const [pricingListVisible, setPricingListVisible] = useState(false);
   const [rewardModalVisible, setRewardModalVisible] = useState(false);
+  const [smtpModalVisible, setSmtpModalVisible] = useState(false);
   const [editingProvider, setEditingProvider] = useState(null);
   const [editingPricing, setEditingPricing] = useState(null);
   const [domainRows, setDomainRows] = useState([]);
   const [domainsSaving, setDomainsSaving] = useState(false);
   const [pricingRows, setPricingRows] = useState([]);
   const [pricingLoading, setPricingLoading] = useState(false);
+  const [smtpConfig, setSmtpConfig] = useState(emptySmtpConfig);
+  const [smtpLoading, setSmtpLoading] = useState(false);
+  const [smtpSaving, setSmtpSaving] = useState(false);
+  const [smtpFormKey, setSmtpFormKey] = useState(0);
   const [logoUploading, setLogoUploading] = useState(false);
   const [wechatQRCodeUploading, setWechatQRCodeUploading] = useState(false);
   const [baseModels, setBaseModels] = useState([]);
@@ -277,6 +369,7 @@ const ProviderPage = () => {
   const providerFormRef = useRef(null);
   const configFormRef = useRef(null);
   const pricingFormRef = useRef(null);
+  const smtpFormRef = useRef(null);
 
   const refreshSelfProvider = async () => {
     const res = await API.get('/api/provider/self');
@@ -479,6 +572,35 @@ const ProviderPage = () => {
   const openConfigModal = (provider) => {
     setCurrentProvider(provider);
     setConfigModalVisible(true);
+  };
+
+  const fetchProviderSmtpConfig = async (provider) => {
+    if (!provider?.id) return;
+    setSmtpLoading(true);
+    try {
+      const res = await API.get(`/api/provider/options/${provider.id}`);
+      if (res.data.success) {
+        const option = (res.data.data || []).find(
+          (item) => item.key === PROVIDER_SMTP_OPTION_KEY,
+        );
+        setSmtpConfig(parseProviderSmtpConfig(option?.value));
+        setSmtpFormKey((key) => key + 1);
+      } else {
+        showError(res.data.message || t('获取邮箱配置失败'));
+      }
+    } catch (error) {
+      showError(t('获取邮箱配置失败'));
+    } finally {
+      setSmtpLoading(false);
+    }
+  };
+
+  const openSmtpModal = (provider) => {
+    setCurrentProvider(provider);
+    setSmtpConfig({ ...emptySmtpConfig });
+    setSmtpFormKey((key) => key + 1);
+    setSmtpModalVisible(true);
+    fetchProviderSmtpConfig(provider);
   };
 
   const openPricingList = (provider) => {
@@ -791,6 +913,55 @@ const ProviderPage = () => {
     }
   };
 
+  const submitSmtpConfig = async () => {
+    if (!currentProvider?.id) {
+      showError(t('服务商ID缺失'));
+      return;
+    }
+    const values = smtpFormRef.current?.getValues?.() || {};
+    const payload = normalizeProviderSmtpPayload(values);
+    if (payload.enabled) {
+      if (!payload.host) {
+        showError(t('SMTP 主机不能为空'));
+        return;
+      }
+      if (!payload.username) {
+        showError(t('SMTP 账号不能为空'));
+        return;
+      }
+      if (!payload.password) {
+        showError(t('SMTP 密码不能为空'));
+        return;
+      }
+      if (!payload.from_email) {
+        showError(t('发件邮箱不能为空'));
+        return;
+      }
+    }
+    if (payload.port < 1 || payload.port > 65535) {
+      showError(t('端口范围应为 1-65535'));
+      return;
+    }
+    setSmtpSaving(true);
+    try {
+      const res = await API.put(`/api/provider/options/${currentProvider.id}`, {
+        key: PROVIDER_SMTP_OPTION_KEY,
+        value: JSON.stringify(payload),
+      });
+      if (res.data.success) {
+        showSuccess(t('保存邮箱配置成功'));
+        setSmtpConfig(payload);
+        setSmtpModalVisible(false);
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(error);
+    } finally {
+      setSmtpSaving(false);
+    }
+  };
+
   const submitPricing = async () => {
     const values = pricingFormRef.current?.getValues?.() || {};
     if (!values.public_model_name || !values.base_model_name) {
@@ -869,7 +1040,9 @@ const ProviderPage = () => {
   };
 
   const deleteProvider = async (provider) => {
-    const res = await API.delete(`/api/provider/admin/${provider.id}/permanent`);
+    const res = await API.delete(
+      `/api/provider/admin/${provider.id}/permanent`,
+    );
     if (res.data.success) {
       showSuccess(t('已删除服务商'));
       fetchProviders();
@@ -976,7 +1149,7 @@ const ProviderPage = () => {
         },
         {
           title: t('操作'),
-          width: 300,
+          width: 360,
           render: (_, record) => (
             <Space wrap>
               <Button
@@ -991,6 +1164,9 @@ const ProviderPage = () => {
               </Button>
               <Button size='small' onClick={() => openConfigModal(record)}>
                 {t('页面配置')}
+              </Button>
+              <Button size='small' onClick={() => openSmtpModal(record)}>
+                {t('邮箱配置')}
               </Button>
               <Button size='small' onClick={() => openPricingList(record)}>
                 {t('模型定价')}
@@ -1191,7 +1367,9 @@ const ProviderPage = () => {
       dataIndex: 'original_price',
       render: (value, record) => (
         <Space vertical align='start' spacing={1}>
-          <Text>{t('原价')}：{formatPriceNumber(value)}</Text>
+          <Text>
+            {t('原价')}：{formatPriceNumber(value)}
+          </Text>
           <Text>
             {t('服务商成本价')}：{formatPriceNumber(record.cost_price)}
           </Text>
@@ -1204,9 +1382,12 @@ const ProviderPage = () => {
       render: (value, record) =>
         record.quota_type === 0 ? (
           <Space vertical align='start' spacing={1}>
-            <Text>{t('原价')}：{formatPriceNumber(value)}</Text>
             <Text>
-              {t('服务商成本价')}：{formatPriceNumber(record.cost_completion_price)}
+              {t('原价')}：{formatPriceNumber(value)}
+            </Text>
+            <Text>
+              {t('服务商成本价')}：
+              {formatPriceNumber(record.cost_completion_price)}
             </Text>
           </Space>
         ) : (
@@ -1219,7 +1400,9 @@ const ProviderPage = () => {
       render: (value, record) =>
         record.quota_type === 0 && value !== undefined && value !== null ? (
           <Space vertical align='start' spacing={1}>
-            <Text>{t('原价')}：{formatPriceNumber(value)}</Text>
+            <Text>
+              {t('原价')}：{formatPriceNumber(value)}
+            </Text>
             <Text>
               {t('服务商成本价')}：{formatPriceNumber(record.cost_cache_price)}
             </Text>
@@ -1289,7 +1472,9 @@ const ProviderPage = () => {
         loading={loading}
         pagination={false}
       />
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+      <div
+        style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}
+      >
         <Pagination
           total={providers.length}
           hideOnSinglePage
@@ -1481,7 +1666,8 @@ const ProviderPage = () => {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '140px minmax(180px, 1fr) 130px minmax(140px, 0.8fr) 48px',
+              gridTemplateColumns:
+                '140px minmax(180px, 1fr) 130px minmax(140px, 0.8fr) 48px',
               gap: 8,
               alignItems: 'center',
               minWidth: 860,
@@ -1502,7 +1688,8 @@ const ProviderPage = () => {
               key={row.rowKey}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '140px minmax(180px, 1fr) 130px minmax(140px, 0.8fr) 48px',
+                gridTemplateColumns:
+                  '140px minmax(180px, 1fr) 130px minmax(140px, 0.8fr) 48px',
                 gap: 8,
                 alignItems: 'center',
                 minWidth: 860,
@@ -1701,6 +1888,112 @@ const ProviderPage = () => {
             showClear
           />
         </Form>
+      </Modal>
+
+      <Modal
+        title={`${currentProvider?.name || ''} - ${t('邮箱配置')}`}
+        visible={smtpModalVisible}
+        onCancel={() => setSmtpModalVisible(false)}
+        onOk={submitSmtpConfig}
+        okButtonProps={{ loading: smtpSaving }}
+        width={760}
+      >
+        <Spin spinning={smtpLoading}>
+          <Form
+            key={`${currentProvider?.id || 0}-smtp-${smtpFormKey}`}
+            initValues={smtpConfig}
+            getFormApi={(api) => (smtpFormRef.current = api)}
+          >
+            <Form.Switch
+              field='enabled'
+              label={t('启用服务商 SMTP')}
+              checkedText={SWITCH_CHECKED_TEXT}
+              uncheckedText={SWITCH_UNCHECKED_TEXT}
+            />
+            <Text type='tertiary' size='small'>
+              {t('启用后服务商域名相关邮件将优先使用这套 SMTP 配置。')}
+            </Text>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+              <div style={{ flex: 2 }}>
+                <Form.Input
+                  field='host'
+                  label={t('SMTP 主机')}
+                  placeholder={SMTP_HOST_PLACEHOLDER}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <Form.InputNumber
+                  field='port'
+                  label={t('SMTP 端口')}
+                  min={1}
+                  max={65535}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <Form.Select
+                  field='encryption'
+                  label={t('加密方式')}
+                  optionList={SMTP_ENCRYPTION_OPTIONS.map((option) => ({
+                    ...option,
+                    label: t(option.label),
+                  }))}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <Form.InputNumber
+                  field='timeout_seconds'
+                  label={t('超时时间（秒）')}
+                  min={1}
+                  max={120}
+                />
+              </div>
+            </div>
+
+            <Form.Input
+              field='username'
+              label={t('SMTP 账号')}
+              placeholder={SMTP_FROM_PLACEHOLDER}
+            />
+            <Form.Input
+              field='password'
+              label={t('SMTP 密码 / 授权码')}
+              mode='password'
+            />
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <Form.Input
+                  field='from_email'
+                  label={t('发件邮箱')}
+                  placeholder={SMTP_FROM_PLACEHOLDER}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <Form.Input
+                  field='from_name'
+                  label={t('发件人名称')}
+                  placeholder={currentProvider?.name || ''}
+                />
+              </div>
+            </div>
+
+            <Form.Input
+              field='reply_to'
+              label={t('回复邮箱')}
+              placeholder={SMTP_REPLY_TO_PLACEHOLDER}
+            />
+            <Form.Switch
+              field='force_auth_login'
+              label={t('强制 LOGIN 认证')}
+              checkedText={SWITCH_CHECKED_TEXT}
+              uncheckedText={SWITCH_UNCHECKED_TEXT}
+            />
+          </Form>
+        </Spin>
       </Modal>
 
       <Modal
