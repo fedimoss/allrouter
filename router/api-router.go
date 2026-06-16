@@ -399,7 +399,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.GET("/options/:id", controller.GetProviderOptions)                  // 获取服务商配置
 			providerRoute.PUT("/options/:id", controller.UpdateProviderOption)                // 更新服务商配置
 		}
-		providerAdminRoute := apiRouter.Group("/provider/admin")
+		providerAdminRoute := apiRouter.Group("/provider/admin") //服务商管理
 		providerAdminRoute.Use(middleware.AdminAuth())
 		{
 			providerAdminRoute.GET("", controller.AdminListProviders)

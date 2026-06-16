@@ -16,7 +16,7 @@ func GetProviderOptions(providerId int) ([]*ProviderOption, error) {
 	return options, err
 }
 
-// UpdateProviderOption 更新服务商配置
+// GetProviderOptionValue 获取指定服务商配置
 func GetProviderOptionValue(providerId int, key string) (string, error) {
 	var option ProviderOption
 	err := DB.Where("provider_id = ? AND key = ?", providerId, key).First(&option).Error

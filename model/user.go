@@ -22,44 +22,45 @@ const UserNameMaxLength = 20
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
 type User struct {
-	Id               int            `json:"id"`
-	ProviderId       int            `json:"provider_id" gorm:"type:int;default:0;index;uniqueIndex:ux_user_provider_aff"`
-	Username         string         `json:"username" gorm:"index" validate:"max=20"`
-	Password         string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
-	OriginalPassword string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
-	DisplayName      string         `json:"display_name" gorm:"index" validate:"max=20"`
-	Role             int            `json:"role" gorm:"type:int;default:1"`   // admin, common
-	Status           int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
-	Email            string         `json:"email" gorm:"index" validate:"max=50"`
-	GitHubId         string         `json:"github_id" gorm:"column:github_id;index"`
-	DiscordId        string         `json:"discord_id" gorm:"column:discord_id;index"`
-	OidcId           string         `json:"oidc_id" gorm:"column:oidc_id;index"`
-	WeChatId         string         `json:"wechat_id" gorm:"column:wechat_id;index"`
-	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
-	VerificationCode string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
-	AccessToken      *string        `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
-	Quota            int            `json:"quota" gorm:"type:int;default:0"`
-	RewardQuota      int            `json:"reward_quota" gorm:"type:int;default:0;column:reward_quota"`
-	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
-	TotalTokenUsed   int64          `json:"total_token_used" gorm:"type:bigint;default:0;column:total_token_used"`
-	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"` // request number
-	Group            string         `json:"group" gorm:"type:varchar(64);default:'default'"`
-	AffCode          string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex:ux_user_provider_aff"`
-	AffCount         int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
-	AffQuota         int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
-	AffHistoryQuota  int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
-	InviterId        int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
-	CreatedAt        int64          `json:"created_at" gorm:"bigint;column:created_at"`
-	DeletedAt        gorm.DeletedAt `gorm:"index"`
-	LinuxDOId        string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
-	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
-	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
-	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
-	PhoneCountryCode string         `json:"phone_country_code" gorm:"type:varchar(8);column:phone_country_code" validate:"max=8"` // 手机号国家区号（E.164），如 +86
-	PhoneNumber      string         `json:"phone_number" gorm:"type:varchar(20);column:phone_number" validate:"max=20"`           // 手机号本地号码，不含国家区号，如 13800000000
-	Timezone         string         `json:"timezone" gorm:"type:varchar(64);column:timezone" validate:"max=64"`                   // 时区标识（IANA），如 Asia/Shanghai
-	Avatar           string         `json:"avatar" gorm:"type:varchar(255);column:avatar" validate:"max=255"`                     // 头像                   // 头像 URL
-	SignupSource     string         `json:"signup_source" gorm:"type:varchar(64);column:signup_source" validate:"max=64"`         // 注册来源
+	Id                         int            `json:"id"`
+	ProviderId                 int            `json:"provider_id" gorm:"type:int;default:0;index;uniqueIndex:ux_user_provider_aff"`
+	Username                   string         `json:"username" gorm:"index" validate:"max=20"`
+	Password                   string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
+	OriginalPassword           string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
+	DisplayName                string         `json:"display_name" gorm:"index" validate:"max=20"`
+	Role                       int            `json:"role" gorm:"type:int;default:1"`   // admin, common
+	Status                     int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
+	Email                      string         `json:"email" gorm:"index" validate:"max=50"`
+	GitHubId                   string         `json:"github_id" gorm:"column:github_id;index"`
+	DiscordId                  string         `json:"discord_id" gorm:"column:discord_id;index"`
+	OidcId                     string         `json:"oidc_id" gorm:"column:oidc_id;index"`
+	WeChatId                   string         `json:"wechat_id" gorm:"column:wechat_id;index"`
+	TelegramId                 string         `json:"telegram_id" gorm:"column:telegram_id;index"`
+	VerificationCode           string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
+	AccessToken                *string        `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
+	Quota                      int            `json:"quota" gorm:"type:int;default:0"`
+	RewardQuota                int            `json:"reward_quota" gorm:"type:int;default:0;column:reward_quota"`
+	UsedQuota                  int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
+	TotalTokenUsed             int64          `json:"total_token_used" gorm:"type:bigint;default:0;column:total_token_used"`
+	RequestCount               int            `json:"request_count" gorm:"type:int;default:0;"` // request number
+	Group                      string         `json:"group" gorm:"type:varchar(64);default:'default'"`
+	InviteConsumeRebateEnabled bool           `json:"invite_consume_rebate_enabled" gorm:"type:boolean;default:false;column:invite_consume_rebate_enabled"`
+	AffCode                    string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex:ux_user_provider_aff"`
+	AffCount                   int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
+	AffQuota                   int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
+	AffHistoryQuota            int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
+	InviterId                  int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	CreatedAt                  int64          `json:"created_at" gorm:"bigint;column:created_at"`
+	DeletedAt                  gorm.DeletedAt `gorm:"index"`
+	LinuxDOId                  string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
+	Setting                    string         `json:"setting" gorm:"type:text;column:setting"`
+	Remark                     string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
+	StripeCustomer             string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	PhoneCountryCode           string         `json:"phone_country_code" gorm:"type:varchar(8);column:phone_country_code" validate:"max=8"` // 手机号国家区号（E.164），如 +86
+	PhoneNumber                string         `json:"phone_number" gorm:"type:varchar(20);column:phone_number" validate:"max=20"`           // 手机号本地号码，不含国家区号，如 13800000000
+	Timezone                   string         `json:"timezone" gorm:"type:varchar(64);column:timezone" validate:"max=64"`                   // 时区标识（IANA），如 Asia/Shanghai
+	Avatar                     string         `json:"avatar" gorm:"type:varchar(255);column:avatar" validate:"max=255"`                     // 头像                   // 头像 URL
+	SignupSource               string         `json:"signup_source" gorm:"type:varchar(64);column:signup_source" validate:"max=64"`         // 注册来源
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -1065,10 +1066,11 @@ func (user *User) Edit(updatePassword bool) error {
 
 	newUser := *user
 	updates := map[string]interface{}{
-		"username":     newUser.Username,
-		"display_name": newUser.DisplayName,
-		"group":        newUser.Group,
-		"remark":       newUser.Remark,
+		"username":                      newUser.Username,
+		"display_name":                  newUser.DisplayName,
+		"group":                         newUser.Group,
+		"invite_consume_rebate_enabled": newUser.InviteConsumeRebateEnabled,
+		"remark":                        newUser.Remark,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password

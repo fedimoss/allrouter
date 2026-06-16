@@ -466,6 +466,22 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 	return nil
 }
 
+func getProviderAwareConsoleBaseURL(providerId int) string {
+	fallback := strings.TrimRight(system_setting.ServerAddress, "/")
+	if providerId <= 0 {
+		return fallback
+	}
+	domains, err := model.GetProviderVerifiedDomains(providerId)
+	if err != nil || len(domains) == 0 {
+		return fallback
+	}
+	scheme := "https"
+	if strings.HasPrefix(strings.ToLower(fallback), "http://") {
+		scheme = "http"
+	}
+	return fmt.Sprintf("%s://%s", scheme, domains[0])
+}
+
 func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) {
 	gopool.Go(func() {
 		userSetting := relayInfo.UserSetting
@@ -482,7 +498,7 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 		}
 		if quotaTooLow {
 			prompt := "您的额度即将用尽 / Quota Running Low"
-			topUpLink := fmt.Sprintf("%s/console/topup", system_setting.ServerAddress)
+			topUpLink := fmt.Sprintf("%s/console/topup", getProviderAwareConsoleBaseURL(relayInfo.ProviderId))
 
 			// 纯文本内容，用于 Bark/Gotify 等非邮件渠道
 			content := "{{value}}，剩余额度：{{value}}，请及时充值"
@@ -525,7 +541,7 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 		}
 
 		prompt := "您的订阅额度即将用尽 / Subscription Quota Running Low"
-		topUpLink := fmt.Sprintf("%s/console/topup", system_setting.ServerAddress)
+		topUpLink := fmt.Sprintf("%s/console/topup", getProviderAwareConsoleBaseURL(relayInfo.ProviderId))
 
 		// 纯文本内容，用于 Bark/Gotify 等非邮件渠道
 		content := "{{value}}，剩余额度：{{value}}，请及时充值"

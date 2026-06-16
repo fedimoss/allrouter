@@ -79,6 +79,7 @@ const EditUserModal = (props) => {
     quota: 0,
     quota_amount: 0,
     group: 'default',
+    invite_consume_rebate_enabled: false,
     remark: '',
   });
 
@@ -352,6 +353,14 @@ const EditUserModal = (props) => {
                           </Col>
                         </>
                       )}
+
+                      <Col span={24}>
+                        <Form.Switch
+                          field='invite_consume_rebate_enabled'
+                          label={t('消费分佣资格')}
+                          extraText={t('开启后，该用户作为邀请人时可获得被邀请人消费产生的分佣。')}
+                        />
+                      </Col>
                     </Row>
                   </Card>
                 )}

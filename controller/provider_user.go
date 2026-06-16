@@ -281,12 +281,13 @@ func UpdateProviderUser(c *gin.Context) {
 	}
 	updatePassword := req.Password != ""
 	cleanUser := model.User{
-		Id:          req.Id,
-		Username:    req.Username,
-		Password:    req.Password,
-		DisplayName: req.DisplayName,
-		Group:       originUser.Group,
-		Remark:      req.Remark,
+		Id:                         req.Id,
+		Username:                   req.Username,
+		Password:                   req.Password,
+		DisplayName:                req.DisplayName,
+		Group:                      originUser.Group,
+		InviteConsumeRebateEnabled: req.InviteConsumeRebateEnabled,
+		Remark:                     req.Remark,
 	}
 	if cleanUser.Username == "" {
 		cleanUser.Username = originUser.Username

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -290,6 +292,28 @@ func GetHomePageContent(c *gin.Context) {
 	return
 }
 
+func getRequestSystemName(c *gin.Context) string {
+	if v, ok := c.Get("provider_config"); ok {
+		if cfg, ok := v.(model.ProviderConfig); ok && strings.TrimSpace(cfg.SiteName) != "" {
+			return strings.TrimSpace(cfg.SiteName)
+		}
+	}
+	if v, ok := c.Get("provider_name"); ok {
+		if name, ok := v.(string); ok && strings.TrimSpace(name) != "" {
+			return strings.TrimSpace(name)
+		}
+	}
+	return common.SystemName
+}
+
+func getRequestBaseURLForEmail(c *gin.Context) string {
+	providerDomain := strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyProviderDomain))
+	if providerDomain != "" {
+		return common.GetTrustedRequestBaseURLWithDomains(c, system_setting.ServerAddress, []string{providerDomain})
+	}
+	return strings.TrimRight(system_setting.ServerAddress, "/")
+}
+
 func SendEmailVerification(c *gin.Context) {
 	email := c.Query("email")
 	if err := common.Validate.Var(email, "required,email"); err != nil {
@@ -346,9 +370,10 @@ func SendEmailVerification(c *gin.Context) {
 	}
 	code := common.GenerateVerificationCode(6)
 	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
-	subject := fmt.Sprintf("%s邮箱验证邮件 / Email Verification", common.SystemName)
+	systemName := getRequestSystemName(c)
+	subject := fmt.Sprintf("%s邮箱验证邮件 / Email Verification", systemName)
 	content, err := common.RenderEmailTemplate("verification.html", map[string]any{
-		"SystemName":   common.SystemName,
+		"SystemName":   systemName,
 		"Code":         code,
 		"ValidMinutes": common.VerificationValidMinutes,
 	})
@@ -356,7 +381,8 @@ func SendEmailVerification(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	err = common.SendEmail(subject, email, content)
+
+	err = service.SendProviderMail(providerId, subject, email, content)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -381,17 +407,18 @@ func SendPasswordResetEmail(c *gin.Context) {
 	if model.IsEmailAlreadyTakenInProvider(providerId, email) {
 		code := common.GenerateVerificationCode(0)
 		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
-		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
-		subject := fmt.Sprintf("%s密码重置 / Password Reset", common.SystemName)
+		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", getRequestBaseURLForEmail(c), url.QueryEscape(email), url.QueryEscape(code))
+		systemName := getRequestSystemName(c)
+		subject := fmt.Sprintf("%s密码重置 / Password Reset", systemName)
 		content, tmplErr := common.RenderEmailTemplate("password_reset.html", map[string]any{
-			"SystemName":   common.SystemName,
+			"SystemName":   systemName,
 			"ResetLink":    link,
 			"ValidMinutes": common.VerificationValidMinutes,
 		})
 		if tmplErr != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to render password reset email template: %s", tmplErr.Error()))
 		} else {
-			err := common.SendEmail(subject, email, content)
+			err := service.SendProviderMail(providerId, subject, email, content)
 			if err != nil {
 				logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
 			}

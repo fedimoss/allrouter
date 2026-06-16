@@ -119,9 +119,10 @@ func applyProviderProfitRebatesTx(tx *gorm.DB, record *ProviderProfit, grossProf
 	}
 
 	type inviteUserRef struct {
-		Id         int `gorm:"column:id"`
-		InviterId  int `gorm:"column:inviter_id"`
-		ProviderId int `gorm:"column:provider_id"`
+		Id                         int  `gorm:"column:id"`
+		InviterId                  int  `gorm:"column:inviter_id"`
+		ProviderId                 int  `gorm:"column:provider_id"`
+		InviteConsumeRebateEnabled bool `gorm:"column:invite_consume_rebate_enabled"`
 	}
 
 	var invitee inviteUserRef
@@ -149,11 +150,14 @@ func applyProviderProfitRebatesTx(tx *gorm.DB, record *ProviderProfit, grossProf
 	}
 
 	var level1Inviter inviteUserRef
-	if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id").Where("id = ?", invitee.InviterId).Take(&level1Inviter).Error; err != nil {
+	if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id", "invite_consume_rebate_enabled").Where("id = ?", invitee.InviterId).Take(&level1Inviter).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, nil, nil, nil
 		}
 		return 0, nil, nil, err
+	}
+	if !level1Inviter.InviteConsumeRebateEnabled {
+		return 0, nil, nil, nil
 	}
 
 	totalRebateQuota := 0
@@ -225,11 +229,14 @@ func applyProviderProfitRebatesTx(tx *gorm.DB, record *ProviderProfit, grossProf
 	}
 	if level1Inviter.InviterId > 0 && level2Ratio > 0 {
 		var level2Inviter inviteUserRef
-		if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id").Where("id = ?", level1Inviter.InviterId).Take(&level2Inviter).Error; err != nil {
+		if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id", "invite_consume_rebate_enabled").Where("id = ?", level1Inviter.InviterId).Take(&level2Inviter).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return totalRebateQuota, receiverRebates, rebateLogs, nil
 			}
 			return 0, nil, nil, err
+		}
+		if !level2Inviter.InviteConsumeRebateEnabled {
+			return totalRebateQuota, receiverRebates, rebateLogs, nil
 		}
 		if err := applyLevel(2, level2Inviter.Id, level2Ratio); err != nil {
 			return 0, nil, nil, err
