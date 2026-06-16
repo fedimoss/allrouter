@@ -56,6 +56,10 @@ type providerConfigRequest struct {
 	QQSupport       string `json:"qq_support"`
 }
 
+type providerNavModulesRequest struct {
+	NavModules string `json:"nav_modules"`
+}
+
 var (
 	errProviderDomainRequired   = errors.New("domain is required")
 	errProviderDomainConflict   = errors.New("domain or equivalent www/apex domain is already used")
@@ -718,6 +722,57 @@ func AdminUpsertProviderConfig(c *gin.Context) {
 	upsertProviderConfig(c, id)
 }
 
+func AdminUpdateProviderNavModules(c *gin.Context) {
+	id, ok := parseProviderAdminId(c)
+	if !ok {
+		return
+	}
+	var req providerNavModulesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var providerCount int64
+	if err := model.DB.Model(&model.Provider{}).Where("id = ?", id).Count(&providerCount).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if providerCount == 0 {
+		common.ApiErrorMsg(c, "provider not found")
+		return
+	}
+	now := common.GetTimestamp()
+	var cfg model.ProviderConfig
+	err := model.DB.Where("provider_id = ?", id).First(&cfg).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		cfg = model.ProviderConfig{
+			ProviderId:       id,
+			NavModules:       req.NavModules,
+			ImportPriceRatio: 1,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		}
+		if err := model.DB.Create(&cfg).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, gin.H{"nav_modules": cfg.NavModules})
+		return
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.DB.Model(&cfg).Updates(map[string]interface{}{
+		"nav_modules": req.NavModules,
+		"updated_at":  now,
+	}).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"nav_modules": req.NavModules})
+}
+
 func AdminUploadProviderLogo(c *gin.Context) {
 	logoURL, ok := saveUploadedLogo(c)
 	if !ok {
@@ -1005,6 +1060,9 @@ func listProviderModelPricing(c *gin.Context, providerId int) {
 		common.ApiError(c, err)
 		return
 	}
+	for i := range rows {
+		rows[i].ConsumeRebateRatioLevel2 = 0
+	}
 	common.ApiSuccess(c, rows)
 }
 
@@ -1168,7 +1226,8 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 	if req.Ratio == 0 {
 		req.Ratio = 1
 	}
-	if !validateProviderRebateRatio(req.ConsumeRebateRatioLevel1) || !validateProviderRebateRatio(req.ConsumeRebateRatioLevel2) {
+	req.ConsumeRebateRatioLevel2 = 0
+	if !validateProviderRebateRatio(req.ConsumeRebateRatioLevel1) {
 		common.ApiErrorMsg(c, "consume rebate ratio must be between 0 and 100")
 		return
 	}
@@ -1191,7 +1250,7 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 			"delta_model_ratio":           req.DeltaModelRatio,
 			"delta_model_price":           req.DeltaModelPrice,
 			"consume_rebate_ratio_level1": req.ConsumeRebateRatioLevel1,
-			"consume_rebate_ratio_level2": req.ConsumeRebateRatioLevel2,
+			"consume_rebate_ratio_level2": 0,
 			"updated_at":                  common.GetTimestamp(),
 		}).Error; err != nil {
 		common.ApiError(c, err)

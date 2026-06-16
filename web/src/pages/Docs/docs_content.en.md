@@ -239,7 +239,7 @@ Step 5:After completing the configuration, the system automatically saves the se
 
 ## Invite Reward
 
-Feature Description: The Referral Rewards Program allows you to invite new users to register באמצעות your exclusive referral link. You can earn a share of their compute usage revenue, with support for reward transfer, invitation tracking, and multi\-channel sharing.
+Feature Description: Referral Reward Program. Invite new users to register through an exclusive referral link. New users can receive a certain amount of registration bonus. Supports reward transfer, referral details viewing, and sharing through multiple channels.
 
 Steps:
 
@@ -396,12 +396,12 @@ Important Notes:
 
 \# Add or Modify the env Field in settings.json
 
-\# Be sure to replace "your\_allrouter\_api\_key" in the env field with the actual API Key you obtained from the previous step on AllRouter.AI.
+\# Be sure to replace "your\_api\_key" in the env field with the actual API Key you obtained from the previous step on AllRouter.AI.
 
 ```json
 {
   "env": {
-    "ANTHROPIC_AUTH_TOKEN": "your_allrouter_api_key",
+    "ANTHROPIC_AUTH_TOKEN": "your_api_key",
     "ANTHROPIC_BASE_URL": "https://allrouter.ai/v1",
     "API_TIMEOUT_MS": "3000000",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1

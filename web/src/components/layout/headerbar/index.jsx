@@ -30,7 +30,11 @@ import ThemeToggle from './ThemeToggle';
 import LanguageSelector from './LanguageSelector';
 import NotificationButton from './NotificationButton';
 import UserArea from './UserArea';
-import { isAdmin, withBrowserBaseUrl } from '../../../helpers';
+import {
+  isAdmin,
+  shouldShowProviderAgentPartner,
+  withBrowserBaseUrl,
+} from '../../../helpers';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const {
@@ -73,6 +77,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const consoleNavTarget = isLoggedIn ? '/console' : '/login';
   const pricingNavTarget =
     !isLoggedIn && pricingRequireAuth ? '/login' : '/pricing';
+  const showAgentPartnerNav = shouldShowProviderAgentPartner(
+    statusState?.status,
+  );
   const headerClassName = isPublicRoute
     ? 'landing-v2-nav landing-v2-nav-shell'
     : 'landing-v2-nav landing-v2-nav-shell landing-v2-nav-console';
@@ -155,9 +162,11 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             <Link to={pricingNavTarget} className={location.pathname === '/pricing' ? 'landing-v2-nav-link-active' : ''}>
               {t('模型广场')}
             </Link>
-            <Link to='/agent-partner' className={location.pathname === '/agent-partner' ? 'landing-v2-nav-link-active' : ''}>
-              {t('代理加盟')}
-            </Link>
+            {showAgentPartnerNav ? (
+              <Link to='/agent-partner' className={location.pathname === '/agent-partner' ? 'landing-v2-nav-link-active' : ''}>
+                {t('代理加盟')}
+              </Link>
+            ) : null}
             <a href={docsHref} target='_blank' rel='noreferrer' className={location.pathname === '/docs' ? 'landing-v2-nav-link-active' : ''}>
               {t('文档')}
             </a>

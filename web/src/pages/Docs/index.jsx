@@ -108,7 +108,7 @@ const DOCS_UI_TEXT_MAP = {
 const DOC_NAV_ITEMS = [
   { key: 'usage', labelKey: 'usageLabel' },
   { key: 'openclaw', labelKey: 'openclawLabel' },
-  { key: 'platform', labelKey: 'platformLabel' },
+  // { key: 'platform', labelKey: 'platformLabel' },
 ];
 
 const generateAnchorId = (rawText, anchorCountMap) => {

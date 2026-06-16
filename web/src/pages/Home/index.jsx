@@ -28,6 +28,7 @@ import { ArrowRight } from 'lucide-react';
 import {
   API,
   setStatusData,
+  shouldShowProviderAgentPartner,
   showError,
   withBrowserBaseUrl,
 } from '../../helpers';
@@ -215,6 +216,9 @@ const Home = () => {
   const consoleNavTarget = isLoggedIn ? '/console' : '/login';
   const pricingNavTarget =
     !isLoggedIn && pricingRequireAuth ? '/login' : '/pricing';
+  const showAgentPartnerNav = shouldShowProviderAgentPartner(
+    statusState?.status,
+  );
   const normalizedUserState = { user: currentUser };
 
   const handleThemeToggle = useCallback(
@@ -496,7 +500,9 @@ const Home = () => {
               </Link>
               <Link to={consoleNavTarget}>{t('控制台')}</Link>
               <Link to={pricingNavTarget}>{t('模型广场')}</Link>
-              <Link to='/agent-partner'>{t('代理加盟')}</Link>
+              {showAgentPartnerNav ? (
+                <Link to='/agent-partner'>{t('代理加盟')}</Link>
+              ) : null}
               <a href={docsHref} target='_blank' rel='noreferrer'>
                 {t('文档')}
               </a>

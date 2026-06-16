@@ -49,11 +49,11 @@
 1. 第4步:创建成功后，复制生成的令牌\(Key\)，即可在您的应用中使用。
 2. 第5步：复制并保存base\_url、api\_key、ModelName的值。如下：
 
-base\_url=https://allrouter.ai/v1（该模型分组下的模型均可使用这个baseurl）
+`base_url=https://allrouter.ai/v1`（该模型分组下的模型均可使用这个baseurl）
 
-api\_key=sk\-xxxxxxxxxxxxxxxxxxxxxxxxxx
+`api_key=sk\-xxxxxxxxxxxxxxxxxxxxxxxxxx`
 
-ModelName（modelID）=gpt\-5.4（可在模型广场中直接复制）
+`modelname=gpt\-5.4`（可在模型广场中直接复制）
 
 ![image 4](/docs_images/openclaw_4.png)
 

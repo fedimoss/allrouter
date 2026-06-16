@@ -143,7 +143,7 @@ func applyProviderProfitRebatesTx(tx *gorm.DB, record *ProviderProfit, grossProf
 		return 0, nil, nil, err
 	}
 	level1Ratio := pricing.ConsumeRebateRatioLevel1
-	level2Ratio := pricing.ConsumeRebateRatioLevel2
+	level2Ratio := 0.0
 	if level1Ratio <= 0 && level2Ratio <= 0 {
 		return 0, nil, nil, nil
 	}
