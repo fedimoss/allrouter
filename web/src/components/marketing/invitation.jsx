@@ -242,20 +242,20 @@ const Invitation = () => {
     {
       num: 1,
       color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30',
-      title: t('永久分成'),
-      desc: t('您将获得被邀请人算力产生的 15% 收益作为佣金。'),
+      title: t('邀新激励'),
+      desc: t('邀请新用户完成注册,即可获得单笔邀新激励。'),
     },
     {
       num: 2,
       color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/30',
-      title: t('即时结算'),
-      desc: t('佣金随被邀请人收益实时同步至您的待领取账户。'),
+      title: t('可持续增收'),
+      desc: t('加入合伙人计划,可获得受邀用户算力消耗额外激励。'),
     },
     {
       num: 3,
       color: 'text-green-600 bg-green-50 dark:bg-green-900/30',
-      title: t('多级激励'),
-      desc: t('若被邀请人再次邀请他人，您可获得二级 5% 的额外激励。'),
+      title: t('即时结算'),
+      desc: t('收益实时同步至您的待领取账户,兑付及时清晰。'),
     },
   ];
 
@@ -360,9 +360,7 @@ const Invitation = () => {
           className='px-2 text-[18px] font-medium text-slate-500 dark:text-slate-400'
           style={{ width: 'min(657px,100%)' }}
         >
-          {t(
-            '邀请您的合作伙伴加入 Emerald Matrix AI 矩阵，开启算力共享新时代。每成功邀请一位新用户，您将获得其算力收益的 15% 作为永久激励奖励。',
-          )}
+          {t('每成功邀请一位新用户完成注册,您将获得额外积分奖励。')}
         </div>
       </div>
 
