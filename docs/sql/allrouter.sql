@@ -5074,3 +5074,9 @@ ALTER TABLE users
 
 ALTER TABLE tokens
     ADD COLUMN IF NOT EXISTS total_token_used bigint NOT NULL DEFAULT 0;
+
+--新增是否可以获取返利字段
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS invite_consume_rebate_enabled boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN users.invite_consume_rebate_enabled IS '该用户能否从受邀者处获得消费返利';

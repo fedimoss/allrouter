@@ -130,9 +130,10 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, re
 	var rebateLogs []rebateLog
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		type inviteUserRef struct {
-			Id         int `gorm:"column:id"`
-			InviterId  int `gorm:"column:inviter_id"`
-			ProviderId int `gorm:"column:provider_id"`
+			Id                         int  `gorm:"column:id"`
+			InviterId                  int  `gorm:"column:inviter_id"`
+			ProviderId                 int  `gorm:"column:provider_id"`
+			InviteConsumeRebateEnabled bool `gorm:"column:invite_consume_rebate_enabled"`
 		}
 
 		var invitee inviteUserRef
@@ -169,11 +170,14 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, re
 		baseModelName := pricing.BaseModelName
 
 		var level1Inviter inviteUserRef
-		if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id").Where("id = ?", invitee.InviterId).Take(&level1Inviter).Error; err != nil {
+		if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id", "invite_consume_rebate_enabled").Where("id = ?", invitee.InviterId).Take(&level1Inviter).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
 			}
 			return err
+		}
+		if !level1Inviter.InviteConsumeRebateEnabled {
+			return nil
 		}
 
 		applyLevel := func(level int, receiverId int, ratio float64) error {
@@ -238,11 +242,14 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, re
 
 		if level1Inviter.InviterId > 0 && level2Ratio > 0 {
 			var level2Inviter inviteUserRef
-			if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id").Where("id = ?", level1Inviter.InviterId).Take(&level2Inviter).Error; err != nil {
+			if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id", "invite_consume_rebate_enabled").Where("id = ?", level1Inviter.InviterId).Take(&level2Inviter).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return nil
 				}
 				return err
+			}
+			if !level2Inviter.InviteConsumeRebateEnabled {
+				return nil
 			}
 			if err := applyLevel(2, level2Inviter.Id, level2Ratio); err != nil {
 				return err
