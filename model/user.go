@@ -44,7 +44,7 @@ type User struct {
 	TotalTokenUsed             int64          `json:"total_token_used" gorm:"type:bigint;default:0;column:total_token_used"`
 	RequestCount               int            `json:"request_count" gorm:"type:int;default:0;"` // request number
 	Group                      string         `json:"group" gorm:"type:varchar(64);default:'default'"`
-	InviteConsumeRebateEnabled bool           `json:"invite_consume_rebate_enabled" gorm:"type:boolean;default:false;column:invite_consume_rebate_enabled"`
+	InviteConsumeRebateEnabled int            `json:"invite_consume_rebate_enabled" gorm:"type:int;default:0;column:invite_consume_rebate_enabled"`
 	AffCode                    string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex:ux_user_provider_aff"`
 	AffCount                   int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
 	AffQuota                   int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
@@ -1062,6 +1062,9 @@ func (user *User) Edit(updatePassword bool) error {
 		if err != nil {
 			return err
 		}
+	}
+	if user.InviteConsumeRebateEnabled != 1 {
+		user.InviteConsumeRebateEnabled = 0
 	}
 
 	newUser := *user

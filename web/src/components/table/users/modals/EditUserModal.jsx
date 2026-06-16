@@ -79,7 +79,7 @@ const EditUserModal = (props) => {
     quota: 0,
     quota_amount: 0,
     group: 'default',
-    invite_consume_rebate_enabled: false,
+    invite_consume_rebate_enabled: 0,
     remark: '',
   });
 
@@ -109,7 +109,15 @@ const EditUserModal = (props) => {
       data.quota_amount = Number(
         quotaToDisplayAmount(data.quota || 0).toFixed(6),
       );
-      setInputs({ ...getInitValues(), ...data });
+      setInputs({
+        ...getInitValues(),
+        ...data,
+        invite_consume_rebate_enabled:
+          data.invite_consume_rebate_enabled === 1 ||
+          data.invite_consume_rebate_enabled === true
+            ? 1
+            : 0,
+      });
     } else {
       showError(message);
     }
@@ -145,6 +153,10 @@ const EditUserModal = (props) => {
     if (props.providerMode) {
       delete payload.group;
     }
+    payload.invite_consume_rebate_enabled = payload
+      .invite_consume_rebate_enabled
+      ? 1
+      : 0;
     if (userId) {
       payload.id = parseInt(userId);
     }
