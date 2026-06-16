@@ -188,7 +188,8 @@ const AgentPartner = () => {
 
   const docsLink = statusState?.status?.docs_link || '';
   const docsLangPrefix = i18n.language.startsWith('zh') ? 'zh' : 'en';
-  const docsHref = docsLink || withBrowserBaseUrl(`/${docsLangPrefix}/docs`);
+  // const docsHref = docsLink || withBrowserBaseUrl(`/${docsLangPrefix}/docs`);
+  const docsHref = docsLink || withBrowserBaseUrl(`/docs`);
   const apiReferenceHref = withBrowserBaseUrl(`/${docsLangPrefix}/docs/api`);
   const communityHref = withBrowserBaseUrl(
     `/${docsLangPrefix}/docs/support/community-interaction`,

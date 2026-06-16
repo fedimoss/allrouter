@@ -142,19 +142,25 @@ const PricingVendorIntro = memo(
       [resetBaseFilters, setSortMode, sidebarProps],
     );
 
+    const toDocs = useCallback(() => {
+      window.open('/docs', '_blank');
+    }, []);
+
     return (
       <div className='pricing-market-top-shell'>
         {!isMobile && (
           <div className='pricing-market-recommend-section' style={{backgroundImage: `url(${pricingBannerImg})`, backgroundSize: 'cover', backgroundPosition: 'center'}}>
             <div className='pricing-banner-cont'>
-              <div className='pricing-banner-cont-title'>GPT-5.5 & Gemini 3.1 Pro</div>
+              {/* <div className='pricing-banner-cont-title'>GPT-5.5 & Gemini 3.1 Pro</div> */}
               <div className='pricing-banner-cont-title color'>{t('现已全面接入')} {systemName}</div>
               <div className='pricing-banner-cont-description'>
                 {t('更快的响应速度，更低的网络延迟，通过')} {systemName} {t('智能路由引擎，自动为您选择最优渠道。')}
               </div>
               <div className='pricing-banner-cont-action'>
                 <div className='pricing-banner-cont-action-btn'>{t('立即调用')}</div>
-                <div className='pricing-banner-cont-action-btn'>{t('查看文档')}</div>
+                <div className='pricing-banner-cont-action-btn' onClick={() => toDocs() }>
+                  {t('查看文档')}
+                </div>
               </div>
             </div>
           </div>
