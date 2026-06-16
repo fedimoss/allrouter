@@ -5077,6 +5077,6 @@ ALTER TABLE tokens
 
 --新增是否可以获取返利字段
 ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS invite_consume_rebate_enabled boolean NOT NULL DEFAULT false;
+    ADD COLUMN IF NOT EXISTS invite_consume_rebate_enabled integer NOT NULL DEFAULT 0;
 
-COMMENT ON COLUMN users.invite_consume_rebate_enabled IS '该用户能否从受邀者处获得消费返利';
+COMMENT ON COLUMN users.invite_consume_rebate_enabled IS '0：无法领取邀请消费返利，1：可领取邀请消费返利';

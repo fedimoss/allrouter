@@ -567,15 +567,21 @@ func ensureInviteConsumeRebateEnabledColumn() error {
 	hasColumn := DB.Migrator().HasColumn(&User{}, columnName)
 	if common.UsingPostgreSQL {
 		if !hasColumn {
-			if err := DB.Exec(fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s boolean NOT NULL DEFAULT false`, tableName, columnName)).Error; err != nil {
+			if err := DB.Exec(fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s integer NOT NULL DEFAULT 0`, tableName, columnName)).Error; err != nil {
 				return fmt.Errorf("failed to add %s.%s: %w", tableName, columnName, err)
 			}
 			return nil
 		}
-		if err := DB.Exec(fmt.Sprintf(`UPDATE %s SET %s = false WHERE %s IS NULL`, tableName, columnName, columnName)).Error; err != nil {
+		if err := DB.Exec(fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT`, tableName, columnName)).Error; err != nil {
+			return fmt.Errorf("failed to drop default for %s.%s: %w", tableName, columnName, err)
+		}
+		if err := DB.Exec(fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s TYPE integer USING CASE WHEN %s::text IN ('true', 't', '1') THEN 1 ELSE 0 END`, tableName, columnName, columnName)).Error; err != nil {
+			return fmt.Errorf("failed to convert %s.%s to integer: %w", tableName, columnName, err)
+		}
+		if err := DB.Exec(fmt.Sprintf(`UPDATE %s SET %s = 0 WHERE %s IS NULL`, tableName, columnName, columnName)).Error; err != nil {
 			return fmt.Errorf("failed to backfill %s.%s: %w", tableName, columnName, err)
 		}
-		if err := DB.Exec(fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s SET DEFAULT false`, tableName, columnName)).Error; err != nil {
+		if err := DB.Exec(fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s SET DEFAULT 0`, tableName, columnName)).Error; err != nil {
 			return fmt.Errorf("failed to set default for %s.%s: %w", tableName, columnName, err)
 		}
 		if err := DB.Exec(fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s SET NOT NULL`, tableName, columnName)).Error; err != nil {
@@ -585,21 +591,21 @@ func ensureInviteConsumeRebateEnabledColumn() error {
 	}
 	if common.UsingMySQL {
 		if !hasColumn {
-			if err := DB.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` boolean NOT NULL DEFAULT false", tableName, columnName)).Error; err != nil {
+			if err := DB.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` integer NOT NULL DEFAULT 0", tableName, columnName)).Error; err != nil {
 				return fmt.Errorf("failed to add %s.%s: %w", tableName, columnName, err)
 			}
 			return nil
 		}
-		if err := DB.Exec(fmt.Sprintf("UPDATE `%s` SET `%s` = false WHERE `%s` IS NULL", tableName, columnName, columnName)).Error; err != nil {
+		if err := DB.Exec(fmt.Sprintf("UPDATE `%s` SET `%s` = 0 WHERE `%s` IS NULL", tableName, columnName, columnName)).Error; err != nil {
 			return fmt.Errorf("failed to backfill %s.%s: %w", tableName, columnName, err)
 		}
-		if err := DB.Exec(fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` boolean NOT NULL DEFAULT false", tableName, columnName)).Error; err != nil {
+		if err := DB.Exec(fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` integer NOT NULL DEFAULT 0", tableName, columnName)).Error; err != nil {
 			return fmt.Errorf("failed to normalize %s.%s: %w", tableName, columnName, err)
 		}
 		return nil
 	}
 	if common.UsingSQLite && !hasColumn {
-		if err := DB.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` boolean NOT NULL DEFAULT false", tableName, columnName)).Error; err != nil {
+		if err := DB.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` integer NOT NULL DEFAULT 0", tableName, columnName)).Error; err != nil {
 			return fmt.Errorf("failed to add %s.%s: %w", tableName, columnName, err)
 		}
 	}

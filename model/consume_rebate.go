@@ -130,10 +130,10 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, re
 	var rebateLogs []rebateLog
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		type inviteUserRef struct {
-			Id                         int  `gorm:"column:id"`
-			InviterId                  int  `gorm:"column:inviter_id"`
-			ProviderId                 int  `gorm:"column:provider_id"`
-			InviteConsumeRebateEnabled bool `gorm:"column:invite_consume_rebate_enabled"`
+			Id                         int `gorm:"column:id"`
+			InviterId                  int `gorm:"column:inviter_id"`
+			ProviderId                 int `gorm:"column:provider_id"`
+			InviteConsumeRebateEnabled int `gorm:"column:invite_consume_rebate_enabled"`
 		}
 
 		var invitee inviteUserRef
@@ -176,7 +176,7 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, re
 			}
 			return err
 		}
-		if !level1Inviter.InviteConsumeRebateEnabled {
+		if level1Inviter.InviteConsumeRebateEnabled != 1 {
 			return nil
 		}
 
@@ -248,7 +248,7 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, re
 				}
 				return err
 			}
-			if !level2Inviter.InviteConsumeRebateEnabled {
+			if level2Inviter.InviteConsumeRebateEnabled != 1 {
 				return nil
 			}
 			if err := applyLevel(2, level2Inviter.Id, level2Ratio); err != nil {
