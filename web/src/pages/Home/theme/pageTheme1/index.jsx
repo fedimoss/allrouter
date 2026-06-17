@@ -832,7 +832,7 @@ const Home = () => {
                 </div>
               </div>
 
-              <div className='home-gpu-arm-card'>
+              {/* <div className='home-gpu-arm-card'>
                 <div className='home-gpu-arm-left'>
                   <div className='home-gpu-arm-tag'>GPU + ARM AI CPU</div>
                   <h3>GPU + Arm AI CPU</h3>
@@ -852,7 +852,7 @@ const Home = () => {
                 <div className='home-gpu-arm-right'>
                   <img src={refinedImg} alt='refined' className='home-refined-img' />
                 </div>
-              </div>
+              </div> */}
             </div>
           </section>
 
@@ -892,7 +892,7 @@ const Home = () => {
                     <h4>{systemName}</h4>
                     <p>
                       {t(
-                        'GPU + Arm AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关',
+                        'GPU AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关',
                       )}
                     </p>
                   </div>

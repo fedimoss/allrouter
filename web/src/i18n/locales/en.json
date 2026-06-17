@@ -4731,7 +4731,7 @@
     "AI 基础设施": "AI Infrastructure",
     "算力调度": "Compute Power Scheduling",
     "模型接入": "Model Access",
-    "GPU + Arm AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关": "GPU + Arm AI CPU Hybrid Architecture + Enterprise-level API Routing Gateway for Next-generation Compute Power Foundation",
+    "GPU AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关": "GPU AI CPU Hybrid Architecture + Enterprise-level API Routing Gateway for Next-generation Compute Power Foundation",
     "统一模型网关，为全球开发者提供高可用、低成本的 AI 基础设施服务。": "Unified Model Gateway, Providing High Availability and Low-Cost AI Infrastructure Services for Global Developers.",
     "控制面板": "Control Panel"
   }

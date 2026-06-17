@@ -4655,7 +4655,7 @@
     "AI 基础设施": "Infrastructures d'IA",
     "算力调度": "Distribution de calcul",
     "模型接入": "Accès aux modèles",
-    "GPU + Arm AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关": "Nouvelle génération de base de calcul alimentée par une architecture hybride GPU + CPU Arm IA + passerelle de routage API d'entreprise",
+    "GPU AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关": "Nouvelle génération de base de calcul alimentée par une architecture hybride GPU AI CPU + passerelle de routage API d'entreprise",
     "统一模型网关，为全球开发者提供高可用、低成本的 AI 基础设施服务。": "Passerelle de modèles unifiée offrant une haute disponibilité et un coût bas pour les développeurs globaux.",
     "控制面板": "Console de contrôle"
   }
