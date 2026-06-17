@@ -209,7 +209,7 @@ func getWechatTradeBillReasonText(reason string) string {
 	case model.PaymentReconcileReasonMatched:
 		return "对账一致"
 	case model.PaymentReconcileReasonChannelNotFound:
-		return "本地成功单未在微信账单中找到"
+		return "本地成功单未在渠道账单中找到"
 	case model.PaymentReconcileReasonLocalNotFound:
 		return "本地订单不存在"
 	case model.PaymentReconcileReasonDuplicateLocal:
@@ -244,6 +244,8 @@ func getWechatTradeBillPaymentMethodText(method string) string {
 	switch strings.ToLower(strings.TrimSpace(method)) {
 	case "wxpay", "wechat", "wechatpay":
 		return "微信支付"
+	case "alipay":
+		return "支付宝"
 	case "stripe":
 		return "Stripe"
 	case "epay":
@@ -344,6 +346,9 @@ func (s *WechatTradeBillQueryService) GetDashboard(filter *WechatTradeBillListFi
 	// crypto 分支
 	case "crypto":
 		return s.getCryptoDashboard(filter)
+	// alipay 分支
+	case "alipay":
+		return s.getAlipayDashboard(filter)
 	// wxpay 分支
 	default:
 		return s.getWechatDashboard(filter)
@@ -353,6 +358,15 @@ func (s *WechatTradeBillQueryService) GetDashboard(filter *WechatTradeBillListFi
 // getWechatDashboard 微信支付 dashboard（全部人民币，无需币种换算）。
 func (s *WechatTradeBillQueryService) getWechatDashboard(filter *WechatTradeBillListFilter) (*WechatTradeBillDashboardResponse, error) {
 	overview, err := model.GetPaymentBillReconcileOverview(model.PaymentChannelTypeWechat, normalizeWechatTradeBillListFilter(filter))
+	if err != nil {
+		return nil, err
+	}
+	return buildDashboardResponse(overview, "¥"), nil
+}
+
+// getAlipayDashboard 支付宝 dashboard（全部人民币，无需币种换算）。
+func (s *WechatTradeBillQueryService) getAlipayDashboard(filter *WechatTradeBillListFilter) (*WechatTradeBillDashboardResponse, error) {
+	overview, err := model.GetPaymentBillReconcileOverview(model.PaymentChannelTypeAlipay, normalizeWechatTradeBillListFilter(filter))
 	if err != nil {
 		return nil, err
 	}
@@ -510,6 +524,9 @@ func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter 
 	// Crypto 分支
 	case "crypto":
 		rows, total, err = model.GetPaymentBillReconciles(model.PaymentChannelTypeCrypto, pageInfo, normalizeWechatTradeBillListFilter(filter))
+	// Alipay 分支
+	case "alipay":
+		rows, total, err = model.GetPaymentBillReconciles(model.PaymentChannelTypeAlipay, pageInfo, normalizeWechatTradeBillListFilter(filter))
 	// wxpay 分支
 	default:
 		rows, total, err = model.GetPaymentBillReconciles(model.PaymentChannelTypeWechat, pageInfo, normalizeWechatTradeBillListFilter(filter))
@@ -555,8 +572,8 @@ func (s *WechatTradeBillQueryService) GetList(pageInfo *common.PageInfo, filter 
 			item.PaymentMethod = "wxpay"
 			item.PaymentMethodText = getWechatTradeBillPaymentMethodText(item.PaymentMethod)
 		}
-		// wxpay 老数据兜底：币种字段为空时默认为人民币
-		if strings.TrimSpace(item.ChannelCurrency) == "" && item.PaymentMethod == "wxpay" {
+		// wxpay/alipay 老数据兜底：币种字段为空时默认为人民币
+		if strings.TrimSpace(item.ChannelCurrency) == "" && (item.PaymentMethod == "wxpay" || item.PaymentMethod == "alipay") {
 			item.ChannelCurrency = "CNY"
 			item.LocalCurrency = "¥"
 		}
