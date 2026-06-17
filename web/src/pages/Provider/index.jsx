@@ -109,10 +109,16 @@ const emptyConfig = {
   logo: '',
   theme_color: DEFAULT_THEME_PRIMARY_COLOR,
   secondary_color: DEFAULT_THEME_SECONDARY_COLOR,
+  home_page_theme: 'default',
   wechat_support: '',
   qq_support: '',
   footer_text: '',
 };
+
+const HOME_PAGE_OPTIONS = [
+  { label: '默认', value: 'default' },
+  { label: '风格一', value: 'style_a' },
+];
 
 const emptyDomain = {
   domain: '',
@@ -291,6 +297,7 @@ const getConfigFormValues = (config) => {
     ...values,
     theme_color: values.theme_color || DEFAULT_THEME_PRIMARY_COLOR,
     secondary_color: values.secondary_color || DEFAULT_THEME_SECONDARY_COLOR,
+    home_page_theme: values.home_page_theme || 'default',
   };
 };
 
@@ -1908,6 +1915,11 @@ const ProviderPage = () => {
               </div>
             </div>
           </div>
+          <Form.Select
+            field='home_page_theme'
+            label='首页主题'
+            optionList={HOME_PAGE_OPTIONS}
+          />
           <Form.TextArea field='footer_text' label={t('页脚文案')} autosize />
           <div style={{ marginBottom: 8, fontWeight: 600 }}>
             {t('客服设置')}

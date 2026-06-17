@@ -46,6 +46,7 @@ type providerConfigRequest struct {
 	ThemeColor      string `json:"theme_color"`
 	SecondaryColor  string `json:"secondary_color"`
 	LoginBackground string `json:"login_background"`
+	HomePageTheme   string `json:"home_page_theme"`
 	HomeModules     string `json:"home_modules"`
 	NavModules      string `json:"nav_modules"`
 	PricingDisplay  string `json:"pricing_display"`
@@ -154,6 +155,7 @@ func providerConfigResponse(c *gin.Context, cfg *model.ProviderConfig) gin.H {
 	resp["logo"] = cfg.Logo
 	resp["theme_color"] = cfg.ThemeColor
 	resp["login_background"] = cfg.LoginBackground
+	resp["home_page_theme"] = cfg.HomePageTheme
 	resp["home_modules"] = cfg.HomeModules
 	resp["nav_modules"] = cfg.NavModules
 	resp["pricing_display"] = cfg.PricingDisplay
@@ -656,12 +658,16 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 	}
 	req.ThemeColor = themeColor
 	req.SecondaryColor = secondaryColor
+	if !common.IsAdmin(c) {
+		req.HomePageTheme = ""
+	}
 	updates := map[string]interface{}{
 		"site_name":        strings.TrimSpace(req.SiteName),
 		"logo":             strings.TrimSpace(req.Logo),
 		"theme_color":      req.ThemeColor,
 		"secondary_color":  req.SecondaryColor,
 		"login_background": strings.TrimSpace(req.LoginBackground),
+		"home_page_theme":  strings.TrimSpace(req.HomePageTheme),
 		"home_modules":     req.HomeModules,
 		"nav_modules":      req.NavModules,
 		"pricing_display":  req.PricingDisplay,
@@ -684,6 +690,7 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 			ThemeColor:       req.ThemeColor,
 			SecondaryColor:   req.SecondaryColor,
 			LoginBackground:  strings.TrimSpace(req.LoginBackground),
+			HomePageTheme:    strings.TrimSpace(req.HomePageTheme),
 			HomeModules:      req.HomeModules,
 			NavModules:       req.NavModules,
 			PricingDisplay:   req.PricingDisplay,

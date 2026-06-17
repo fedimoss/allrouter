@@ -153,10 +153,12 @@ const Home = () => {
   const [typedCodeLines, setTypedCodeLines] = useState([]);
   const [versionLogVisible, setVersionLogVisible] = useState(false);
   const isMobile = useIsMobile();
-  
+
   const docsLink = statusState?.status?.docs_link || '';
   const serverAddress = `${window.location.origin}`;
-  const showDefaultHome = homePageContentLoaded && homePageContent === '';
+  const providerHomePageKey =
+    statusState?.status?.provider_config?.home_page_theme || 'default';
+  const showDefaultHome = providerHomePageKey === 'default';
   const docsLangPrefix = i18n.language.startsWith('zh') ? 'zh' : 'en';
 
   const docsHref = docsLink || withBrowserBaseUrl(`/${docsLangPrefix}/docs`);
@@ -268,6 +270,11 @@ const Home = () => {
   }, [navigate, userDispatch]);
 
   const displayHomePageContent = async () => {
+    if (showDefaultHome) {
+      setHomePageContent('');
+      setHomePageContentLoaded(true);
+      return;
+    }
     setHomePageContent(localStorage.getItem('home_page_content') || '');
     const res = await API.get('/api/home_page_content');
     const { success, message, data } = res.data;
@@ -318,7 +325,7 @@ const Home = () => {
 
   useEffect(() => {
     displayHomePageContent().then();
-  }, []);
+  }, [showDefaultHome]);
 
   useEffect(() => {
     let cancelled = false;

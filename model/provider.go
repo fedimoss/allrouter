@@ -49,6 +49,7 @@ type ProviderConfig struct {
 	ThemeColor       string  `json:"theme_color" gorm:"type:varchar(32);default:''"`
 	SecondaryColor   string  `json:"secondary_color" gorm:"type:varchar(32);default:''"`
 	LoginBackground  string  `json:"login_background" gorm:"type:text"`
+	HomePageTheme    string  `json:"home_page_theme" gorm:"type:varchar(64);default:''"`
 	HomeModules      string  `json:"home_modules" gorm:"type:text"`
 	NavModules       string  `json:"nav_modules" gorm:"type:text"`
 	PricingDisplay   string  `json:"pricing_display" gorm:"type:text"`
