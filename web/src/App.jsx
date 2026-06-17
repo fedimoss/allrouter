@@ -70,8 +70,8 @@ import SetupCheck from './components/layout/SetupCheck';
 
 const HomeThemes = {
   default: lazy(() => import('./pages/Home')),
-  a: lazy(() => import('./pages/Home/theme/pageTheme1')),
-  b: lazy(() => import('./pages/Home/theme/pageTheme2')),
+  style_a: lazy(() => import('./pages/Home/theme/pageTheme1')),
+  style_b: lazy(() => import('./pages/Home/theme/pageTheme2')),
 };
 
 const getHomeThemeKey = (theme) => {
