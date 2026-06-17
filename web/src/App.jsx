@@ -68,7 +68,37 @@ import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
 
-const Home = lazy(() => import('./pages/Home'));
+const HomeThemes = {
+  default: lazy(() => import('./pages/Home')),
+  a: lazy(() => import('./pages/Home/theme/pageTheme1')),
+  b: lazy(() => import('./pages/Home/theme/pageTheme2')),
+};
+
+const getHomeThemeKey = (theme) => {
+  if (theme && Object.prototype.hasOwnProperty.call(HomeThemes, theme)) {
+    return theme;
+  }
+  return 'default';
+};
+
+const HomeRoute = () => {
+  const [statusState] = useContext(StatusContext);
+  const statusLoaded = statusState?.status !== undefined;
+  const themeKey = getHomeThemeKey(
+    statusState?.status?.provider_config?.home_page_theme,
+  );
+  const HomeComp = HomeThemes[themeKey];
+
+  if (!statusLoaded) {
+    return <Loading />;
+  }
+
+  return (
+    <Suspense fallback={<Loading />}>
+      <HomeComp />
+    </Suspense>
+  );
+};
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
 const AgentPartner = lazy(() => import('./pages/AgentPartner'));
@@ -118,14 +148,7 @@ function App() {
             </Suspense>
           }
         />
-        <Route
-          path='/'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <Home />
-            </Suspense>
-          }
-        />
+        <Route path='/' element={<HomeRoute />} />
         <Route
           path='/setup'
           element={
