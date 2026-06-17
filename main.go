@@ -121,8 +121,8 @@ func main() {
 	// Crypto 对账定时任务
 	service.StartCryptoTradeBillTask()
 
-	// Alipay 账单下载定时任务
-	service.StartAlipayTradeBillTask()
+	// Alipay 账单下载定时任务（暂不开放，后续启用时取消注释即可）
+	// service.StartAlipayTradeBillTask()
 
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
