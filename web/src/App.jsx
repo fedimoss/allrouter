@@ -87,7 +87,7 @@ const HomeRoute = () => {
   const themeKey = getHomeThemeKey(
     statusState?.status?.provider_config?.home_page_theme,
   );
-  const HomeComp = HomeThemes[themeKey];
+  const HomeComp = HomeThemes['style_a'];
 
   if (!statusLoaded) {
     return <Loading />;

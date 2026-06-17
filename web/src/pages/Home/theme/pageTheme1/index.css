@@ -302,9 +302,10 @@ html.dark .home-hero {
 }
 
 .home-hero-title {
+  width: 320px;
   font-size: 56px;
   font-weight: 800;
-  line-height: 1.15;
+  line-height: 1.3;
   color: var(--home-text-main);
   margin-bottom: 24px;
   letter-spacing: -1px;
@@ -569,7 +570,7 @@ html.dark .home-hero {
   line-height: 1.6;
   white-space: pre-wrap;
   color: #d1d5db;
-  max-height: 180px;
+  height: 150px;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
@@ -1512,6 +1513,7 @@ html.dark .home-icon-wrapper.red {
     min-height: auto;
   }
   .home-hero-title {
+    width: 100%;
     font-size: 34px;
     line-height: 1.2;
   }

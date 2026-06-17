@@ -566,9 +566,7 @@ const Home = () => {
                   {versionLabel} {t('现已上线')}
                 </div>
                 <h1 className='home-hero-title'>
-                  {t('一套 API，')}
-                  <br />
-                  {t('畅连所有 AI')}
+                  {t('一套 API，畅连所有 AI')}
                 </h1>
                 <p className='home-hero-subtitle'>
                   {t(
@@ -696,8 +694,8 @@ const Home = () => {
                         <div className='home-savings-amount'>¥ 8,420</div>
                         <div className='home-savings-desc'>
                           {t(
-                            '过去 30 天自动选择更优模型与渠道，成本下降 37%。',
-                          )}
+                            '过去 30 天自动选择更优模型与渠道，成本下降',
+                          )}{'37%。'}
                         </div>
                         <div className='home-savings-bar'>
                           <div
@@ -731,7 +729,7 @@ const Home = () => {
                 </h2>
                 <p className='home-section-subtitle'>
                   {t(
-                    '更低接入、适配、维护成本，助力业务快速搭建高可用的大模型落地应用。',
+                    '把接入、路由、成本和生态能力收束到一套统一接口，面向开发者和企业团队提供稳定的大模型基础设施。',
                   )}
                 </p>
               </div>
@@ -894,7 +892,7 @@ const Home = () => {
                     <h4>{systemName}</h4>
                     <p>
                       {t(
-                        'GPU + Arm AI CPU 混合架构驱动的新一代算力底座 + 企业级 API 路由网关',
+                        'GPU + Arm AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关',
                       )}
                     </p>
                   </div>
