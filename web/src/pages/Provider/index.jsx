@@ -1915,11 +1915,13 @@ const ProviderPage = () => {
               </div>
             </div>
           </div>
-          <Form.Select
-            field='home_page_theme'
-            label='首页主题'
-            optionList={HOME_PAGE_OPTIONS}
-          />
+          {adminMode && (
+            <Form.Select
+              field='home_page_theme'
+              label='首页主题'
+              optionList={HOME_PAGE_OPTIONS}
+            />
+          )}
           <Form.TextArea field='footer_text' label={t('页脚文案')} autosize />
           <div style={{ marginBottom: 8, fontWeight: 600 }}>
             {t('客服设置')}
