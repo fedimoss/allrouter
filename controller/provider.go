@@ -658,14 +658,12 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 	}
 	req.ThemeColor = themeColor
 	req.SecondaryColor = secondaryColor
-	if !common.IsAdmin(c) {
+	if c.GetInt("role") < common.RoleAdminUser {
 		req.HomePageTheme = ""
 	}
 	updates := map[string]interface{}{
 		"site_name":        strings.TrimSpace(req.SiteName),
 		"logo":             strings.TrimSpace(req.Logo),
-		"theme_color":      req.ThemeColor,
-		"secondary_color":  req.SecondaryColor,
 		"login_background": strings.TrimSpace(req.LoginBackground),
 		"home_page_theme":  strings.TrimSpace(req.HomePageTheme),
 		"home_modules":     req.HomeModules,
@@ -677,6 +675,10 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 		"updated_at":       common.GetTimestamp(),
 		"wechat_support":   strings.TrimSpace(req.WechatSupport), // 微信客服
 		"qq_support":       strings.TrimSpace(req.QQSupport),     // QQ客服
+	}
+	if c.GetInt("role") >= common.RoleAdminUser {
+		updates["theme_color"] = req.ThemeColor
+		updates["secondary_color"] = req.SecondaryColor
 	}
 	var cfg model.ProviderConfig
 	err := model.DB.Where("provider_id = ?", providerId).First(&cfg).Error
