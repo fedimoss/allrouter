@@ -119,10 +119,10 @@ func applyProviderProfitRebatesTx(tx *gorm.DB, record *ProviderProfit, grossProf
 	}
 
 	type inviteUserRef struct {
-		Id                         int  `gorm:"column:id"`
-		InviterId                  int  `gorm:"column:inviter_id"`
-		ProviderId                 int  `gorm:"column:provider_id"`
-		InviteConsumeRebateEnabled bool `gorm:"column:invite_consume_rebate_enabled"`
+		Id                         int `gorm:"column:id"`
+		InviterId                  int `gorm:"column:inviter_id"`
+		ProviderId                 int `gorm:"column:provider_id"`
+		InviteConsumeRebateEnabled int `gorm:"column:invite_consume_rebate_enabled"`
 	}
 
 	var invitee inviteUserRef
@@ -156,7 +156,7 @@ func applyProviderProfitRebatesTx(tx *gorm.DB, record *ProviderProfit, grossProf
 		}
 		return 0, nil, nil, err
 	}
-	if !level1Inviter.InviteConsumeRebateEnabled {
+	if level1Inviter.InviteConsumeRebateEnabled != 1 {
 		return 0, nil, nil, nil
 	}
 
@@ -235,7 +235,7 @@ func applyProviderProfitRebatesTx(tx *gorm.DB, record *ProviderProfit, grossProf
 			}
 			return 0, nil, nil, err
 		}
-		if !level2Inviter.InviteConsumeRebateEnabled {
+		if level2Inviter.InviteConsumeRebateEnabled != 1 {
 			return totalRebateQuota, receiverRebates, rebateLogs, nil
 		}
 		if err := applyLevel(2, level2Inviter.Id, level2Ratio); err != nil {
