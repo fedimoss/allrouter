@@ -5087,7 +5087,7 @@ COMMENT ON COLUMN users.invite_consume_rebate_enabled IS '0：无法领取邀请
 BEGIN;
 
 ALTER TABLE provider_configs
-    ADD COLUMN IF NOT EXISTS home_page_theme VARCHAR(64) NOT NULL DEFAULT '';
+    ADD COLUMN IF NOT EXISTS home_page_theme VARCHAR(64) NOT NULL DEFAULT 'default';
 
 COMMENT ON COLUMN provider_configs.home_page_theme IS '服务商首页选择键，例如 default、b、c，用于对应不同首页内容';
 
