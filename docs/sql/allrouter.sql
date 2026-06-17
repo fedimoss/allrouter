@@ -5080,3 +5080,15 @@ ALTER TABLE users
     ADD COLUMN IF NOT EXISTS invite_consume_rebate_enabled integer NOT NULL DEFAULT 0;
 
 COMMENT ON COLUMN users.invite_consume_rebate_enabled IS '0：无法领取邀请消费返利，1：可领取邀请消费返利';
+
+
+
+-- 新增选择首页接口
+BEGIN;
+
+ALTER TABLE provider_configs
+    ADD COLUMN IF NOT EXISTS home_page_theme VARCHAR(64) NOT NULL DEFAULT '';
+
+COMMENT ON COLUMN provider_configs.home_page_theme IS '服务商首页选择键，例如 default、b、c，用于对应不同首页内容';
+
+COMMIT;
