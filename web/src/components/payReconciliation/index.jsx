@@ -209,7 +209,15 @@ const PayReconciliationList = () => {
       });
       const { success, message, data } = res.data;
       if (success) {
-        showSuccess(data?.message || message || t('同步成功'));
+        // 支付宝"当天无账单"：后端返回 has_bill=false，前端按当前语言本地化提示，
+        // 避免直接展示后端英文 message（如 "no bill for bill_date=..."）。
+        if (channelTab === PAYMENT_METHODS.alipay && data?.has_bill === false) {
+          showSuccess(
+            t('当天无账单：{{date}}', { date: formatDate(billDate) }),
+          );
+        } else {
+          showSuccess(data?.message || message || t('同步成功'));
+        }
         loadStats().then();
         loadList(page).then();
       } else {
@@ -284,7 +292,7 @@ const PayReconciliationList = () => {
             >
               <span className='inline-flex items-center gap-1.5 text-[13px] leading-none font-semibold'>
                 <Icon size={13} />
-                {record?.status_text || cfg.text}
+                {t(record?.status_text) || t(cfg.text)}
               </span>
             </Tag>
           );
@@ -342,7 +350,7 @@ const PayReconciliationList = () => {
             return (
               <span className='inline-flex items-center gap-2 text-[16px] leading-[22px] text-[#475569] font-medium'>
                 <Coins size={16} className='text-[#F59E0B]' />
-                {text || t('加密货币')}
+                {t(text) || t('加密货币')}
               </span>
             );
           }
@@ -350,7 +358,7 @@ const PayReconciliationList = () => {
             return (
               <span className='inline-flex items-center gap-2 text-[16px] leading-[22px] text-[#475569] font-medium'>
                 <SiAlipay size={16} className='text-[#1677FF]' />
-                {text || t('支付宝')}
+                {t(text) || t('支付宝')}
               </span>
             );
           }
@@ -361,7 +369,7 @@ const PayReconciliationList = () => {
               ) : (
                 <img src={weChatImg} alt='微信支付' className='w-4 h-4' />
               )}
-              {text || (isStripe ? 'Stripe' : '微信支付')}
+              {t(text) || (isStripe ? t('Stripe') : t('微信支付'))}
             </span>
           );
         },
