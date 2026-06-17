@@ -528,6 +528,7 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
 
+		// 支付对账
 		wechatTradeBillRoute := apiRouter.Group("/wechat_trade_bill")
 		wechatTradeBillRoute.Use(middleware.AdminAuth())
 		{

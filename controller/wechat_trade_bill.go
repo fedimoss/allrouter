@@ -63,6 +63,10 @@ func RunWechatTradeBill(c *gin.Context) {
 		}
 		// 执行加密货币支付账单拉取与对账流程
 		result, err = service.RunCryptoBillWorkflow(billDate)
+	// Alipay 分支：下载账单、解析入库、对账。当天数据的清空在 workflow 内部完成
+	// （仅在确认有账单时执行），避免"当天无账单"时误删已有数据。
+	case "alipay":
+		result, err = service.RunAlipayBillWorkflow(billDate)
 	// wxpay 分支
 	default:
 		result, err = service.RunWechatTradeBillWorkflowWithDBConfig(billDate)

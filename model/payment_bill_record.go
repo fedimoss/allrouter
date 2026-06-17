@@ -13,6 +13,7 @@ const (
 	PaymentChannelTypeWechat = "wxpay"  // 微信支付
 	PaymentChannelTypeStripe = "stripe" // Stripe 支付
 	PaymentChannelTypeCrypto = "crypto" // 加密货币支付
+	PaymentChannelTypeAlipay = "alipay" // 支付宝
 )
 
 // PaymentBillRecord 通用支付渠道账单明细表。

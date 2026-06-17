@@ -121,6 +121,9 @@ func main() {
 	// Crypto 对账定时任务
 	service.StartCryptoTradeBillTask()
 
+	// Alipay 账单下载定时任务
+	service.StartAlipayTradeBillTask()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)
