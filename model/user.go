@@ -677,8 +677,27 @@ func HardDeleteUserById(id int) error {
 	if id == 0 {
 		return errors.New("id 为空！")
 	}
-	err := DB.Unscoped().Delete(&User{}, "id = ?", id).Error
-	return err
+	var user User
+	// 使用 Unscoped 绕过软删除过滤，查询出包含已软删除记录在内的用户（硬删除需作用于实际存在的记录）
+	if err := DB.Unscoped().First(&user, "id = ?", id).Error; err != nil {
+		// 若查询错误为“记录不存在”，说明数据库中根本没有该用户（含软删除），
+		// 此时只需清理可能残留的用户主体缓存即可，无需继续执行删除
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return invalidateUserCache(id)
+		}
+		// 其它数据库错误直接向上返回
+		return err
+	}
+	// 使用 Unscoped 执行物理删除（硬删除），真正从数据库移除该记录（不进入软删除回收站）
+	if err := DB.Unscoped().Delete(&User{}, "id = ?", id).Error; err != nil {
+		return err
+	}
+	// 删除数据库记录成功后，同步清理该用户的主体缓存（基于 userId 的缓存）
+	if err := invalidateUserCache(id); err != nil {
+		return err
+	}
+	// 同时清理该用户访问令牌对应的缓存，防止删除后旧令牌仍能通过缓存鉴权
+	return invalidateUserAccessTokenCache(user.ProviderId, user.GetAccessToken())
 }
 
 func inviteUser(inviterId int) (err error) {
@@ -1025,13 +1044,36 @@ func (user *User) Update(updatePassword bool) error {
 		}
 	}
 	newUser := *user
-	DB.First(&user, user.Id)
-	if err = DB.Model(user).Updates(newUser).Error; err != nil {
+	var oldUser User
+	// 先查询数据库中用户的旧记录，用于稍后比较供应商 ID 与访问令牌是否发生变化
+	if err = DB.First(&oldUser, user.Id).Error; err != nil {
 		return err
 	}
+	// 记录更新前的供应商 ID 和访问令牌；更新后若二者发生变化，需要同时清理旧键与新键两份缓存
+	oldProviderId := oldUser.ProviderId
+	oldAccessToken := oldUser.GetAccessToken()
+	// 使用 GORM 的 Updates 将 newUser 中的非零字段更新到数据库（基于旧记录主键定位）
+	if err = DB.Model(&oldUser).Updates(newUser).Error; err != nil {
+		return err
+	}
+	// 更新完成后重新从数据库读取最新数据，确保回写到调用方与缓存的是最新状态
+	if err = DB.First(&oldUser, user.Id).Error; err != nil {
+		return err
+	}
+	// 将数据库中的最新值整体赋给入参 user，使调用方能拿到更新后的结果
+	*user = oldUser
 
 	// Update cache
-	return updateUserCache(*user)
+	// 同步更新基于 userId 的用户主体缓存
+	if err = updateUserCache(*user); err != nil {
+		return err
+	}
+	// 使旧的访问令牌缓存失效（处理令牌或供应商变更后旧键残留的情况）
+	if err = invalidateUserAccessTokenCache(oldProviderId, oldAccessToken); err != nil {
+		return err
+	}
+	// 使新的访问令牌缓存也失效，强制下次请求重新从数据库加载最新数据
+	return invalidateUserAccessTokenCache(user.ProviderId, user.GetAccessToken())
 }
 
 // UpdateUserProfile 更新用户个人资料字段（支持空字符串以实现清空效果）
@@ -1046,13 +1088,27 @@ func UpdateUserProfile(userId int, updates map[string]interface{}) error {
 	if err := DB.First(&user, userId).Error; err != nil {
 		return err
 	}
+	// 记录更新前的供应商 ID 与访问令牌，用于更新后判断是否需要清理旧键缓存
+	oldProviderId := user.ProviderId
+	oldAccessToken := user.GetAccessToken()
+	// 将传入的 updates 字段映射批量更新到数据库（支持空字符串以实现字段清空效果）
 	if err := DB.Model(&user).Updates(updates).Error; err != nil {
 		return err
 	}
+	// 更新后重新查询，拿到数据库中的最新数据用于回填缓存
 	if err := DB.First(&user, userId).Error; err != nil {
 		return err
 	}
-	return updateUserCache(user)
+	// 同步更新基于 userId 的用户主体缓存，保证后续读取到最新资料
+	if err := updateUserCache(user); err != nil {
+		return err
+	}
+	// 使旧的访问令牌缓存失效（防止令牌或供应商变更后旧缓存仍可鉴权）
+	if err := invalidateUserAccessTokenCache(oldProviderId, oldAccessToken); err != nil {
+		return err
+	}
+	// 使新的访问令牌缓存也失效，强制下次以新令牌访问时重新加载
+	return invalidateUserAccessTokenCache(user.ProviderId, user.GetAccessToken())
 }
 
 func (user *User) Edit(updatePassword bool) error {
@@ -1079,13 +1135,33 @@ func (user *User) Edit(updatePassword bool) error {
 		updates["password"] = newUser.Password
 	}
 
-	DB.First(&user, user.Id)
+	// 更新前先查询用户旧记录，便于记录旧的供应商 ID 与访问令牌
+	if err = DB.First(&user, user.Id).Error; err != nil {
+		return err
+	}
+	// 记录更新前的供应商 ID 与访问令牌，用于更新后判断是否需要清理旧键缓存
+	oldProviderId := user.ProviderId
+	oldAccessToken := user.GetAccessToken()
+	// 将构造好的 updates 字段映射批量更新到数据库
 	if err = DB.Model(user).Updates(updates).Error; err != nil {
+		return err
+	}
+	// 更新完成后重新查询，确保回写调用方与缓存的是数据库最新值
+	if err = DB.First(&user, user.Id).Error; err != nil {
 		return err
 	}
 
 	// Update cache
-	return updateUserCache(*user)
+	// 同步更新基于 userId 的用户主体缓存
+	if err = updateUserCache(*user); err != nil {
+		return err
+	}
+	// 使旧的访问令牌缓存失效（处理令牌或供应商变更后旧键残留的情况）
+	if err = invalidateUserAccessTokenCache(oldProviderId, oldAccessToken); err != nil {
+		return err
+	}
+	// 使新的访问令牌缓存失效，强制下次请求重新从数据库加载最新数据
+	return invalidateUserAccessTokenCache(user.ProviderId, user.GetAccessToken())
 }
 
 func (user *User) ClearBinding(bindingType string) error {
@@ -1112,31 +1188,81 @@ func (user *User) ClearBinding(bindingType string) error {
 		return err
 	}
 
+	// 记录解绑前的供应商 ID 与访问令牌（注意：此时 user 仍是解绑前的旧值）
+	oldProviderId := user.ProviderId
+	oldAccessToken := user.GetAccessToken()
+	// 解绑字段已写入数据库，这里重新查询用户，拿到解绑后的最新数据用于回填缓存
 	if err := DB.Where("id = ?", user.Id).First(user).Error; err != nil {
 		return err
 	}
 
-	return updateUserCache(*user)
+	// 同步更新基于 userId 的用户主体缓存，反映解绑后的最新状态
+	if err := updateUserCache(*user); err != nil {
+		return err
+	}
+	// 使旧的访问令牌缓存失效（防止旧令牌缓存仍带着解绑前的身份信息）
+	if err := invalidateUserAccessTokenCache(oldProviderId, oldAccessToken); err != nil {
+		return err
+	}
+	// 使新的访问令牌缓存也失效，强制下次以当前令牌访问时重新加载最新身份
+	return invalidateUserAccessTokenCache(user.ProviderId, user.GetAccessToken())
 }
 
 func (user *User) Delete() error {
 	if user.Id == 0 {
 		return errors.New("id 为空！")
 	}
+	// 先从数据库查询用户（遵循软删除过滤，已软删除的记录不会命中）
+	if err := DB.First(user, "id = ?", user.Id).Error; err != nil {
+		// 若查询错误为“记录不存在”（含已被软删除），说明无需再执行删除，
+		// 只需清理可能残留的用户主体缓存即可
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return invalidateUserCache(user.Id)
+		}
+		// 其它数据库错误直接向上返回
+		return err
+	}
+	// 删除前先取出访问令牌与供应商 ID；删除后用户对象可能不再可用，用于稍后清理令牌缓存
+	accessToken := user.GetAccessToken()
+	providerId := user.ProviderId
 	if err := DB.Delete(user).Error; err != nil {
 		return err
 	}
 
 	// 清除缓存
-	return invalidateUserCache(user.Id)
+	if err := invalidateUserCache(user.Id); err != nil {
+		return err
+	}
+	return invalidateUserAccessTokenCache(providerId, accessToken)
 }
 
 func (user *User) HardDelete() error {
 	if user.Id == 0 {
 		return errors.New("id 为空！")
 	}
-	err := DB.Unscoped().Delete(user).Error
-	return err
+	// 使用 Unscoped 绕过软删除过滤，查询出包含已软删除记录在内的用户（硬删除需作用于实际记录）
+	if err := DB.Unscoped().First(user, "id = ?", user.Id).Error; err != nil {
+		// 若查询错误为“记录不存在”，说明数据库中根本没有该用户（含软删除），
+		// 只需清理可能残留的用户主体缓存即可，无需继续执行删除
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return invalidateUserCache(user.Id)
+		}
+		// 其它数据库错误直接向上返回
+		return err
+	}
+	// 删除前先取出访问令牌与供应商 ID；删除后用户对象将不可用，用于稍后清理令牌缓存
+	accessToken := user.GetAccessToken()
+	providerId := user.ProviderId
+	// 使用 Unscoped 执行物理删除（硬删除），真正从数据库移除该记录（不进入软删除回收站）
+	if err := DB.Unscoped().Delete(user).Error; err != nil {
+		return err
+	}
+	// 删除成功后清理该用户的主体缓存（基于 userId）
+	if err := invalidateUserCache(user.Id); err != nil {
+		return err
+	}
+	// 同时清理该用户访问令牌对应的缓存，防止删除后旧令牌仍能通过缓存鉴权
+	return invalidateUserAccessTokenCache(providerId, accessToken)
 }
 
 // ValidateAndFill check password & user status
@@ -1368,14 +1494,35 @@ func ValidateAccessTokenInProvider(token string, providerId int) (*User, error) 
 	if token == "" {
 		return nil, nil
 	}
-	token = strings.Replace(token, "Bearer ", "", 1)
+	// 对令牌进行标准化（去首尾空白、去除 Bearer 前缀），保证后续缓存键与数据库查询条件的一致性
+	token = normalizeUserAccessToken(token)
+	// 标准化后若令牌为空，说明调用方未提供有效令牌，视为匿名访问，返回 nil 用户且无错误
+	if token == "" {
+		return nil, nil
+	}
+	// 若启用了 Redis，优先尝试从访问令牌缓存中读取用户，命中则直接返回，避免查询数据库
+	if common.RedisEnabled {
+		user, err := cacheGetUserByAccessToken(providerId, token)
+		// 缓存命中（err == nil）时直接返回缓存的用户；未命中或出错则继续回退到数据库查询
+		if err == nil {
+			return user, nil
+		}
+	}
+	// 缓存未命中，回退到数据库：按供应商 ID 与访问令牌精确匹配查询用户
 	user := &User{}
 	err := DB.Where("provider_id = ? AND access_token = ?", providerId, token).First(user).Error
 	if err != nil {
+		// 若数据库返回“记录不存在”，说明令牌无效，视为匿名访问，返回 nil 用户且无错误
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
+		// 其它数据库错误包装为统一的 ErrDatabase 后向上返回
 		return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
+	}
+	// 数据库命中后，将用户信息回填到访问令牌缓存，使后续相同令牌的请求可直接命中缓存；
+	// 此处仅记录日志而不返回错误，避免缓存写入失败影响正常鉴权流程
+	if err := cacheSetUserAccessToken(token, user); err != nil {
+		common.SysLog("failed to update user access token cache: " + err.Error())
 	}
 	return user, nil
 }
