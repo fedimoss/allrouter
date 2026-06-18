@@ -42,7 +42,7 @@ const statusBadgeClass =
 
 const Exchange = () => {
   const { t } = useTranslation();
-  const [userState, userDispatch] = useContext(UserContext);
+  const [, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
   const [redemptionCode, setRedemptionCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,6 +74,15 @@ const Exchange = () => {
     loadRecords();
   }, []);
 
+  const refreshUser = async () => {
+    const res = await API.get('/api/user/self');
+    const { success, data } = res.data;
+    if (success) {
+      localStorage.setItem('user', JSON.stringify(data));
+      userDispatch({ type: 'login', payload: data });
+    }
+  };
+
   const openTopUpLink = () => {
     if (!topUpLink) {
       showError(t('超级管理员未设置充值链接！'));
@@ -102,15 +111,7 @@ const Exchange = () => {
           okText: t('确定'),
           cancelText: t('取消'),
         });
-        if (userState.user) {
-          userDispatch({
-            type: 'login',
-            payload: {
-              ...userState.user,
-              quota: userState.user.quota + data,
-            },
-          });
-        }
+        await refreshUser();
         setRedemptionCode('');
         loadRecords();
       } else {
@@ -224,7 +225,9 @@ const Exchange = () => {
             </div>
           </div>
           <div className='text-[16px] font-medium text-[#94A3B8] dark:text-slate-200 mt-2'>
-            {t('输入您的专属兑换码，立即激活矩阵算力、扩充令牌余额或解锁高级模型使用权限。')}
+            {t(
+              '输入您的专属兑换码，立即激活矩阵算力、扩充令牌余额或解锁高级模型使用权限。',
+            )}
           </div>
         </div>
 
@@ -257,8 +260,7 @@ const Exchange = () => {
                 onClick={handleRedeem}
                 className='!rounded-xl !h-[56px] !min-w-[160px] !font-bold !text-base hover:!shadow-lg hover:!-translate-y-0.5 !transition-all'
                 style={{
-                  background:
-                    'var(--theme-gradient-135)',
+                  background: 'var(--theme-gradient-135)',
                   borderColor: 'transparent',
                   color: 'var(--theme-primary-btn-color)',
                 }}
@@ -317,16 +319,30 @@ const Exchange = () => {
               <div
                 key={index}
                 className={`group bg-white dark:bg-[#FFFFFF08] dark:border-gray-800 rounded-2xl border p-6 cursor-pointer`}
-                style={{backgroundImage:`url(${card.bgImgUrl})`, backgroundPosition: 'bottom right', backgroundRepeat: 'no-repeat'}}
+                style={{
+                  backgroundImage: `url(${card.bgImgUrl})`,
+                  backgroundPosition: 'bottom right',
+                  backgroundRepeat: 'no-repeat',
+                }}
                 onClick={() => {
                   if (card.link) window.location.href = card.link;
                 }}
               >
-                <div className='text-[12px] text-[color:var(--theme-primary)] font-bold mb-2'>{card.subTitle}</div>
-                <div className='text-[20px] text-[#475569] font-bold mb-2'>{card.title}</div>
-                <div className='text-[14px] text-[#94A3B8] mb-4'>{card.desc}</div>
-                <span className="text-[12px] text-[color:var(--theme-primary)] font-bold flex items-center">
-                  {card.linkText} <ArrowRight size={14} className='inline-block ml-1 transition-transform group-hover:translate-x-1' />
+                <div className='text-[12px] text-[color:var(--theme-primary)] font-bold mb-2'>
+                  {card.subTitle}
+                </div>
+                <div className='text-[20px] text-[#475569] font-bold mb-2'>
+                  {card.title}
+                </div>
+                <div className='text-[14px] text-[#94A3B8] mb-4'>
+                  {card.desc}
+                </div>
+                <span className='text-[12px] text-[color:var(--theme-primary)] font-bold flex items-center'>
+                  {card.linkText}{' '}
+                  <ArrowRight
+                    size={14}
+                    className='inline-block ml-1 transition-transform group-hover:translate-x-1'
+                  />
                 </span>
               </div>
             ))}
