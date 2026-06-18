@@ -694,9 +694,9 @@ const Home = () => {
                         <div className='home-savings-title'>
                           {t('智能路由节省')}
                         </div>
-                        <div className='home-savings-amount'>¥ 8,420</div>
+                        <div className='home-savings-amount'>{t('快速构建')}</div>
                         <div className='home-savings-desc'>
-                          {t('预计每月可节省')}{'¥ 8,420，'}{t('估算数据，仅供参考')}
+                          {t('通过智能路由策略，帮助优化模型调用成本。')}
                         </div>
                         <div className='home-savings-bar'>
                           <div

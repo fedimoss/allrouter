@@ -642,13 +642,14 @@ html.dark .home-hero {
 .home-savings-title {
   font-size: 14px;
   margin-bottom: 8px;
-  opacity: 0.9;
+  color: #fff;
 }
 
 .home-savings-amount {
   font-size: 32px;
   font-weight: 800;
   margin-bottom: 12px;
+  color: #fff;
 }
 
 .home-savings-desc {
@@ -656,6 +657,7 @@ html.dark .home-hero {
   opacity: 0.9;
   line-height: 1.5;
   margin-bottom: 16px;
+  color: #fff;
 }
 
 .home-savings-bar {
