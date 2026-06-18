@@ -145,13 +145,7 @@ const TopUp = () => {
           okText: t('确定'),
           cancelText: t('取消'),
         });
-        if (userState.user) {
-          const updatedUser = {
-            ...userState.user,
-            quota: userState.user.quota + data,
-          };
-          userDispatch({ type: 'login', payload: updatedUser });
-        }
+        await getUserQuota();
         setRedemptionCode('');
       } else {
         showError(message);
@@ -408,6 +402,7 @@ const TopUp = () => {
     );
     const { success, message, data } = res.data;
     if (success) {
+      localStorage.setItem('user', JSON.stringify(data));
       userDispatch({ type: 'login', payload: data });
     } else {
       showError(message);

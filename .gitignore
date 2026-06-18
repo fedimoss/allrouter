@@ -37,3 +37,4 @@ data/
 .gotmp_test/
 .tmp/
 .gocache_codex/
+docs/modelcontent/*
