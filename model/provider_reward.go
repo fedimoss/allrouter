@@ -2,9 +2,14 @@ package model
 
 import (
 	"errors"
+	"strconv"
+	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/samber/hot"
 	"gorm.io/gorm"
 )
 
@@ -26,6 +31,36 @@ type ProviderRewardConfig struct {
 
 func (ProviderRewardConfig) TableName() string {
 	return "provider_reward_configs"
+}
+
+const (
+	providerRewardConfigCacheNamespace = "new-api:provider_reward_config:v1"
+	providerRewardConfigCacheTTL       = 5 * time.Minute
+)
+
+var (
+	providerRewardConfigCacheOnce sync.Once
+	providerRewardConfigCache     *cachex.HybridCache[ProviderRewardConfig]
+)
+
+func getProviderRewardConfigCache() *cachex.HybridCache[ProviderRewardConfig] {
+	providerRewardConfigCacheOnce.Do(func() {
+		providerRewardConfigCache = cachex.NewHybridCache[ProviderRewardConfig](cachex.HybridCacheConfig[ProviderRewardConfig]{
+			Namespace:  cachex.Namespace(providerRewardConfigCacheNamespace),
+			Redis:      common.RDB,
+			RedisCodec: cachex.JSONCodec[ProviderRewardConfig]{},
+			RedisEnabled: func() bool {
+				return common.RedisEnabled && common.RDB != nil
+			},
+			Memory: func() *hot.HotCache[string, ProviderRewardConfig] {
+				return hot.NewHotCache[string, ProviderRewardConfig](hot.LRU, 10000).
+					WithTTL(providerRewardConfigCacheTTL).
+					WithJanitor().
+					Build()
+			},
+		})
+	})
+	return providerRewardConfigCache
 }
 
 func (p *ProviderRewardConfig) BeforeCreate(tx *gorm.DB) error {
@@ -64,8 +99,20 @@ func GetProviderRewardConfig(providerId int) (*ProviderRewardConfig, error) {
 	if providerId <= 0 {
 		return defaultProviderRewardConfig(0), nil
 	}
+	key := strconv.Itoa(providerId)
+	cache := getProviderRewardConfigCache()
+	cached, found, err := cache.Get(key)
+	if err != nil {
+		common.SysLog("failed to get provider reward config cache: " + err.Error())
+	} else if found {
+		if cached.ProviderId == 0 {
+			cached.ProviderId = providerId
+		}
+		return &cached, nil
+	}
+
 	var cfg ProviderRewardConfig
-	err := DB.Where("provider_id = ?", providerId).First(&cfg).Error
+	err = DB.Where("provider_id = ?", providerId).First(&cfg).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return defaultProviderRewardConfig(providerId), nil
@@ -75,7 +122,19 @@ func GetProviderRewardConfig(providerId int) (*ProviderRewardConfig, error) {
 	if cfg.ProviderId == 0 {
 		cfg.ProviderId = providerId
 	}
+	if err := cache.SetWithTTL(key, cfg, providerRewardConfigCacheTTL); err != nil {
+		common.SysLog("failed to set provider reward config cache: " + err.Error())
+	}
 	return &cfg, nil
+}
+
+func InvalidateProviderRewardConfigCache(providerId int) {
+	if providerId <= 0 {
+		return
+	}
+	if _, err := getProviderRewardConfigCache().DeleteMany([]string{strconv.Itoa(providerId)}); err != nil {
+		common.SysLog("failed to invalidate provider reward config cache: " + err.Error())
+	}
 }
 
 // UpsertProviderRewardConfig saves provider reward config.
@@ -83,7 +142,11 @@ func UpsertProviderRewardConfig(cfg *ProviderRewardConfig) error {
 	if cfg == nil || cfg.ProviderId <= 0 {
 		return errors.New("provider id is empty")
 	}
-	return DB.Save(cfg).Error
+	if err := DB.Save(cfg).Error; err != nil {
+		return err
+	}
+	InvalidateProviderRewardConfigCache(cfg.ProviderId)
+	return nil
 }
 
 type ProviderRewardSummary struct {

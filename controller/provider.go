@@ -560,6 +560,8 @@ func AdminUpdateProvider(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderDomainCache(id)
+	model.InvalidateProviderPublicConfigCache(id)
 	common.ApiSuccess(c, nil)
 }
 
@@ -575,6 +577,8 @@ func AdminDisableProvider(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderDomainCache(id)
+	model.InvalidateProviderPublicConfigCache(id)
 	common.ApiSuccess(c, nil)
 }
 
@@ -601,6 +605,7 @@ func AdminDeleteProvider(c *gin.Context) {
 		common.ApiErrorMsg(c, "provider has users and cannot be deleted")
 		return
 	}
+	model.InvalidateProviderDomainCache(id)
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("provider_id = ?", id).Delete(&model.ProviderDomain{}).Error; err != nil {
 			return err
@@ -622,6 +627,8 @@ func AdminDeleteProvider(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderPublicConfigCache(id)
+	model.InvalidateProviderRewardConfigCache(id)
 	common.ApiSuccess(c, nil)
 }
 
@@ -637,6 +644,8 @@ func AdminEnableProvider(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderDomainCache(id)
+	model.InvalidateProviderPublicConfigCache(id)
 	common.ApiSuccess(c, nil)
 }
 
@@ -709,6 +718,7 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 			common.ApiError(c, err)
 			return
 		}
+		model.InvalidateProviderPublicConfigCache(providerId)
 		common.ApiSuccess(c, cfg)
 		return
 	}
@@ -720,6 +730,7 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderPublicConfigCache(providerId)
 	common.ApiSuccess(c, nil)
 }
 
@@ -765,6 +776,7 @@ func AdminUpdateProviderNavModules(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+		model.InvalidateProviderPublicConfigCache(id)
 		common.ApiSuccess(c, gin.H{"nav_modules": cfg.NavModules})
 		return
 	}
@@ -779,6 +791,7 @@ func AdminUpdateProviderNavModules(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderPublicConfigCache(id)
 	common.ApiSuccess(c, gin.H{"nav_modules": req.NavModules})
 }
 
@@ -915,6 +928,7 @@ func saveProviderDomains(c *gin.Context, providerId int, allowVerified bool) {
 		return
 	}
 
+	model.InvalidateProviderDomainCache(providerId)
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("provider_id = ?", providerId).Delete(&model.ProviderDomain{}).Error; err != nil {
 			return err
@@ -940,6 +954,7 @@ func saveProviderDomains(c *gin.Context, providerId int, allowVerified bool) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderDomainCache(providerId)
 	common.ApiSuccess(c, refreshed)
 }
 
@@ -974,6 +989,7 @@ func createProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderDomainCacheByDomain(domain.Domain)
 	common.ApiSuccess(c, domain)
 }
 
@@ -988,12 +1004,14 @@ func updateProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderDomainCache(providerId)
 	req.Domain = model.NormalizeProviderDomain(req.Domain)
 	if req.Domain == "" {
 		if err := model.DB.Where("id = ? AND provider_id = ?", domainId, providerId).Delete(&model.ProviderDomain{}).Error; err != nil {
 			common.ApiError(c, err)
 			return
 		}
+		model.InvalidateProviderDomainCache(providerId)
 		common.ApiSuccess(c, nil)
 		return
 	}
@@ -1015,6 +1033,8 @@ func updateProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderDomainCache(providerId)
+	model.InvalidateProviderDomainCacheByDomain(req.Domain)
 	common.ApiSuccess(c, nil)
 }
 
@@ -1024,10 +1044,12 @@ func deleteProviderDomain(c *gin.Context, providerId int) {
 		common.ApiErrorMsg(c, "invalid domain id")
 		return
 	}
+	model.InvalidateProviderDomainCache(providerId)
 	if err := model.DB.Where("id = ? AND provider_id = ?", domainId, providerId).Delete(&model.ProviderDomain{}).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderDomainCache(providerId)
 	common.ApiSuccess(c, nil)
 }
 
@@ -1373,6 +1395,8 @@ func UpdateProviderSelf(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateProviderDomainCache(provider.Id)
+	model.InvalidateProviderPublicConfigCache(provider.Id)
 	common.ApiSuccess(c, nil)
 }
 
