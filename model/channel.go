@@ -449,7 +449,12 @@ func BatchInsertChannels(channels []Channel) error {
 			}
 		}
 	}
-	return tx.Commit().Error
+	// 提交事务；若提交失败直接返回错误（事务内的渠道插入与能力写入随之回滚）
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	// 批量新增渠道及能力后，失效模型列表缓存，使后续查询能读到新增的模型
+	return InvalidateModelListCache()
 }
 
 func BatchDeleteChannels(ids []int) error {
@@ -471,7 +476,12 @@ func BatchDeleteChannels(ids []int) error {
 			return err
 		}
 	}
-	return tx.Commit().Error
+	// 提交事务；若提交失败直接返回错误（事务内的渠道与能力删除随之回滚）
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	// 批量删除渠道及其能力后，失效模型列表缓存，使后续查询不再返回已删渠道的模型
+	return InvalidateModelListCache()
 }
 
 func (channel *Channel) GetPriority() int64 {
@@ -838,12 +848,22 @@ func updateChannelUsedQuota(id int, quota int) {
 
 func DeleteChannelByStatus(status int64) (int64, error) {
 	result := DB.Where("status = ?", status).Delete(&Channel{})
-	return result.RowsAffected, result.Error
+	// 删除失败时，返回受影响行数与错误（此时不动缓存）
+	if result.Error != nil {
+		return result.RowsAffected, result.Error
+	}
+	// 删除成功后失效模型列表缓存，使后续查询不再返回该状态渠道的模型
+	return result.RowsAffected, InvalidateModelListCache()
 }
 
 func DeleteDisabledChannel() (int64, error) {
 	result := DB.Where("status = ? or status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled).Delete(&Channel{})
-	return result.RowsAffected, result.Error
+	// 删除失败时，返回受影响行数与错误（此时不动缓存）
+	if result.Error != nil {
+		return result.RowsAffected, result.Error
+	}
+	// 清理被禁用渠道后失效模型列表缓存，使后续查询不再返回这些渠道的模型
+	return result.RowsAffected, InvalidateModelListCache()
 }
 
 func GetPaginatedTags(offset int, limit int) ([]*string, error) {
@@ -1019,7 +1039,12 @@ func BatchSetChannelTag(ids []int, tag *string) error {
 	}
 
 	// 提交事务
-	return tx.Commit().Error
+	// 若提交失败直接返回错误（事务内的标签更新与能力重建随之回滚）
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	// 批量修改渠道标签会触发能力重建，提交后失效模型列表缓存以反映最新能力
+	return InvalidateModelListCache()
 }
 
 // CountAllChannels returns total channels in DB
