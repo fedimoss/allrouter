@@ -330,7 +330,7 @@ const Invitation = () => {
       key: 'status',
       render: (_, record) => (
         <span
-          className='text-[color:var(--theme-primary)] bg-[color:var(--theme-primary-20)] border border-[color:var(--theme-primary)] rounded-md px-3 py-1 text-[14px] font-bold cursor-pointer'
+          className='text-[color:var(--theme-primary-btn-color)] bg-[color:var(--theme-primary-20)] border border-[color:var(--theme-primary)] rounded-md px-3 py-1 text-[14px] font-bold cursor-pointer'
           onClick={() => {
             setSelectedInvite(record);
             setOpenInviteDetail(true);

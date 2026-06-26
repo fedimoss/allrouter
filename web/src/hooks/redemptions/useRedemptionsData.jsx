@@ -204,9 +204,9 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
 
     if (record.status !== REDEMPTION_STATUS.UNUSED || isExpired(record)) {
       return {
-        style: {
-          background: 'var(--semi-color-disabled-border)',
-        },
+        // style: {
+        //   background: 'var(--semi-color-disabled-border)',
+        // },
       };
     } else {
       return {};
