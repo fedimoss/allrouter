@@ -155,6 +155,7 @@ func main() {
 			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
 		})
 		go common.Monitor()
+		common.StartMemoryWatcher()
 		common.SysLog("pprof enabled")
 	}
 
