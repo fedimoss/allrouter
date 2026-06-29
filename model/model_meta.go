@@ -155,7 +155,41 @@ func normalizeLookupValues(values []string) []string {
 	return normalized
 }
 
+// GetPreferredModelOwnerChannelTypes 查询每个模型“优先归属”的渠道类型（owner channel type）。
+// 采用“先读缓存、未命中再查库并回填”的策略：用标准化后的模型名与分组生成缓存键，
+// 命中则直接返回，未命中则回退到 getPreferredModelOwnerChannelTypesFromDB 查询并回填缓存，
+// 避免重复执行较重的 JOIN 查询。
 func GetPreferredModelOwnerChannelTypes(modelNames []string, groups []string) (map[string]int, error) {
+	// 标准化模型名并据此提前拦截空查询
+	modelNames = normalizeLookupValues(modelNames)
+	if len(modelNames) == 0 {
+		return map[string]int{}, nil
+	}
+	// 标准化分组；必须在生成缓存键之前完成，以保证相同语义入参命中同一缓存键
+	groups = normalizeLookupValues(groups)
+
+	// 根据标准化后的模型名与分组生成缓存键
+	key := getPreferredOwnerCacheKey(modelNames, groups)
+	// 优先尝试从缓存中读取结果
+	if cachedOwners, ok := getPreferredOwnerModelListCache(key); ok {
+		// 缓存命中，直接返回，跳过数据库查询
+		return cachedOwners, nil
+	}
+
+	// 缓存未命中，回退到数据库查询
+	result, err := getPreferredModelOwnerChannelTypesFromDB(modelNames, groups)
+	if err != nil {
+		return nil, err
+	}
+	// 将数据库查询结果回填到缓存，供后续相同入参的请求命中
+	setPreferredOwnerModelListCache(key, result)
+	return result, nil
+}
+
+// getPreferredModelOwnerChannelTypesFromDB 直接从数据库查询每个模型优先归属的渠道类型。
+// 通过 abilities JOIN channels，按优先级（priority）、权重（weight）、渠道 ID 排序，
+// 为每个模型选出排序最靠前的渠道类型。由 GetPreferredModelOwnerChannelTypes 在缓存未命中时调用。
+func getPreferredModelOwnerChannelTypesFromDB(modelNames []string, groups []string) (map[string]int, error) {
 	result := make(map[string]int)
 	modelNames = normalizeLookupValues(modelNames)
 	if len(modelNames) == 0 {
@@ -176,7 +210,6 @@ func GetPreferredModelOwnerChannelTypes(modelNames []string, groups []string) (m
 		Order("abilities.weight DESC").
 		Order("abilities.channel_id ASC")
 
-	groups = normalizeLookupValues(groups)
 	if len(groups) > 0 {
 		query = query.Where("abilities."+commonGroupCol+" IN ?", groups)
 	}

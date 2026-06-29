@@ -147,7 +147,7 @@ const workflowSteps = [
 ];
 
 const heroStats = [
-  { value: '50%+', label: '大幅度成本节省' },
+  { value: '50%+', label: '基于典型场景估算',tag:'节省' },
   { value: '48+', label: '可用模型渠道' },
   { value: '99.99%', label: '高可用路由' },
   { value: '1 API', label: '统一接入入口' },
@@ -593,10 +593,13 @@ const Home = () => {
                 </div>
                 <div className='home-hero-stats'>
                   {heroStats.map((stat) => (
+                    <>
                     <div className='home-stat-item' key={stat.value}>
-                      <h3>{t(stat.value)}</h3>
+                      <h3>{ stat.tag && <span className='home-stat-tag'>{t(stat.tag)}</span>} {t(stat.value)}</h3>
                       <p>{t(stat.label)}</p>
                     </div>
+                    <div className='home-stat-item-line'></div>
+                    </>
                   ))}
                 </div>
               </div>
@@ -691,11 +694,9 @@ const Home = () => {
                         <div className='home-savings-title'>
                           {t('智能路由节省')}
                         </div>
-                        <div className='home-savings-amount'>¥ 8,420</div>
+                        <div className='home-savings-amount'>{t('快速构建')}</div>
                         <div className='home-savings-desc'>
-                          {t(
-                            '过去 30 天自动选择更优模型与渠道，成本下降',
-                          )}{'37%。'}
+                          {t('通过智能路由策略，帮助优化模型调用成本。')}
                         </div>
                         <div className='home-savings-bar'>
                           <div
@@ -880,7 +881,7 @@ const Home = () => {
                 </div>
                 <div className='home-brand-right'>
                   <div className='home-brand-system-header'>
-                    <span>BRAND SYSTEM</span>
+                    <span>Agentic Infra</span>
                     <div className='home-brand-badge'>● AI Infra Brand</div>
                   </div>
                   <div className='home-brand-visual'>

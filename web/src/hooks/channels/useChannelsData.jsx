@@ -632,9 +632,9 @@ export const useChannelsData = () => {
   const handleRow = (record, index) => {
     if (record.status !== 1) {
       return {
-        style: {
-          background: 'var(--semi-color-disabled-border)',
-        },
+        // style: {
+        //   background: 'var(--semi-color-disabled-border)',
+        // },
       };
     } else {
       return {};

@@ -35,12 +35,13 @@ import {
   Pagination,
 } from '@douyinfe/semi-ui';
 import {
-  IconDelete,
+  IconDeleteStroked,
   IconEdit,
   IconGiftStroked,
   IconPlus,
   IconRefresh,
   IconUpload,
+  IconMinusCircleStroked
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import {
@@ -1262,7 +1263,7 @@ const ProviderPage = () => {
                     )}
                     onConfirm={() => disableProvider(record)}
                   >
-                    <Button size='small' type='danger' icon={<IconDelete />}>
+                    <Button size='small' type='warning' icon={<IconMinusCircleStroked />}>
                       {t('禁用')}
                     </Button>
                   </Popconfirm>
@@ -1284,7 +1285,7 @@ const ProviderPage = () => {
                   )}
                   onConfirm={() => deleteProvider(record)}
                 >
-                  <Button size='small' type='danger' icon={<IconDelete />}>
+                  <Button size='small' type='danger' icon={<IconDeleteStroked />}>
                     {t('删除')}
                   </Button>
                 </Popconfirm>
@@ -1342,7 +1343,6 @@ const ProviderPage = () => {
     },
     {
       title: t('操作'),
-      width: 160,
       render: (_, record) => (
         <Space>
           <Button
@@ -1350,13 +1350,12 @@ const ProviderPage = () => {
             icon={<IconEdit />}
             onClick={() => openPricingModal(record)}
           >
-            {t('编辑')}
           </Button>
           <Popconfirm
             title={t('确认删除？')}
             onConfirm={() => deletePricing(record)}
           >
-            <Button size='small' type='danger' icon={<IconDelete />} />
+            <Button size='small' type='danger' icon={<IconDeleteStroked />} />
           </Popconfirm>
         </Space>
       ),
@@ -1715,7 +1714,7 @@ const ProviderPage = () => {
             </Space>
           </div>
         }
-        width={900}
+        width={1000}
       >
         <div
           style={{
@@ -1790,8 +1789,7 @@ const ProviderPage = () => {
               >
                 <Button
                   type='danger'
-                  theme='borderless'
-                  icon={<IconDelete />}
+                  icon={<IconDeleteStroked />}
                 />
               </Popconfirm>
             </div>

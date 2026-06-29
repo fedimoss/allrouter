@@ -297,8 +297,7 @@ html.dark .home-hero {
 }
 
 .home-hero-left {
-  flex: 1;
-  max-width: 600px;
+  flex: 1.1;
 }
 
 .home-hero-title {
@@ -329,25 +328,50 @@ html.dark .home-hero {
 .home-hero-stats {
   display: flex;
   justify-content: space-between;
-  gap: 32px;
   background-color: var(--home-bg-card);
-  padding: 24px;
+  padding: 24px 20px;
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
   border: 1px solid var(--home-border);
   flex-wrap: nowrap;
   align-items: center;
+  overflow: hidden;
 }
-
+.home-hero-stats div:last-of-type{
+  display: none;
+}
+.home-hero-stats .home-stat-item{
+  flex: 1;
+  flex-shrink: 0;
+}
+.home-hero-stats .home-stat-item-line{
+  width: 1px;
+  height: 40px;
+  background-color: var(--home-border);
+  margin: 0 10px;
+}
 .home-stat-item h3 {
   font-size: 24px;
   font-weight: 800;
   color: var(--home-text-main);
   margin-bottom: 4px;
 }
+.home-stat-item h3 .home-stat-tag{
+  font-size: 12px;
+  font-weight: 500;
+  background-color: var(--home-primary-color);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 8px;
+  position:relative;
+  top:-4px;
+}
 
 .home-stat-item:first-child h3 {
   color: var(--home-primary-color);
+}
+.home-stat-item:last-child .home-stat-item-line{
+  display: none;
 }
 
 .home-stat-item p {
@@ -359,17 +383,6 @@ html.dark .home-hero {
   position: relative;
   flex: 0 0 auto;
   text-align: center;
-}
-
-.home-stat-item:not(:first-child)::before {
-  content: '';
-  position: absolute;
-  left: -50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 1px;
-  height: 40px;
-  background-color: var(--home-border);
 }
 
 @media (max-width: 768px) {
@@ -387,7 +400,7 @@ html.dark .home-hero {
 
 /* Mockup window */
 .home-hero-right {
-  flex: 1.2;
+  flex: 1;
   width: 100%;
 }
 
@@ -453,6 +466,7 @@ html.dark .home-hero {
 }
 
 .home-mockup-left-panel {
+  flex-shrink: 0;
   flex: 1;
   background-color: var(--home-bg-soft);
   border-radius: 12px;
@@ -544,10 +558,11 @@ html.dark .home-hero {
 }
 
 .home-mockup-right-panel {
-  flex: 0.8;
+  width: 190px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex-shrink: 0;
 }
 
 .home-code-card {
@@ -627,13 +642,14 @@ html.dark .home-hero {
 .home-savings-title {
   font-size: 14px;
   margin-bottom: 8px;
-  opacity: 0.9;
+  color: #fff;
 }
 
 .home-savings-amount {
   font-size: 32px;
   font-weight: 800;
   margin-bottom: 12px;
+  color: #fff;
 }
 
 .home-savings-desc {
@@ -641,6 +657,7 @@ html.dark .home-hero {
   opacity: 0.9;
   line-height: 1.5;
   margin-bottom: 16px;
+  color: #fff;
 }
 
 .home-savings-bar {

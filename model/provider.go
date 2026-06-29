@@ -4,10 +4,14 @@ import (
 	"errors"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/cachex"
+	"github.com/samber/hot"
 	"gorm.io/gorm"
 )
 
@@ -87,6 +91,20 @@ type ProviderContext struct {
 	Config      *ProviderConfig
 }
 
+type providerContextCacheEntry struct {
+	Found       bool            `json:"found"`
+	ProviderId  int             `json:"provider_id"`
+	OwnerUserId int             `json:"owner_user_id"`
+	Name        string          `json:"name"`
+	Domain      string          `json:"domain"`
+	Config      *ProviderConfig `json:"config,omitempty"`
+}
+
+type providerPublicConfigCacheEntry struct {
+	Found  bool           `json:"found"`
+	Config ProviderConfig `json:"config"`
+}
+
 type TreeProvider struct {
 	*User
 
@@ -99,6 +117,62 @@ type TreeProvider struct {
 type childCountRow struct {
 	InviterId int
 	Count     int64
+}
+
+const (
+	providerDomainContextCacheNamespace = "new-api:provider_domain_context:v1"
+	providerPublicConfigCacheNamespace  = "new-api:provider_public_config:v1"
+	providerDomainContextCacheTTL       = 5 * time.Minute
+	providerDomainContextMissCacheTTL   = 1 * time.Minute
+	providerPublicConfigCacheTTL        = 5 * time.Minute
+)
+
+var (
+	providerDomainContextCacheOnce sync.Once
+	providerDomainContextCache     *cachex.HybridCache[providerContextCacheEntry]
+
+	providerPublicConfigCacheOnce sync.Once
+	providerPublicConfigCache     *cachex.HybridCache[providerPublicConfigCacheEntry]
+)
+
+func getProviderDomainContextCache() *cachex.HybridCache[providerContextCacheEntry] {
+	providerDomainContextCacheOnce.Do(func() {
+		providerDomainContextCache = cachex.NewHybridCache[providerContextCacheEntry](cachex.HybridCacheConfig[providerContextCacheEntry]{
+			Namespace:  cachex.Namespace(providerDomainContextCacheNamespace),
+			Redis:      common.RDB,
+			RedisCodec: cachex.JSONCodec[providerContextCacheEntry]{},
+			RedisEnabled: func() bool {
+				return common.RedisEnabled && common.RDB != nil
+			},
+			Memory: func() *hot.HotCache[string, providerContextCacheEntry] {
+				return hot.NewHotCache[string, providerContextCacheEntry](hot.LRU, 10000).
+					WithTTL(providerDomainContextCacheTTL).
+					WithJanitor().
+					Build()
+			},
+		})
+	})
+	return providerDomainContextCache
+}
+
+func getProviderPublicConfigCache() *cachex.HybridCache[providerPublicConfigCacheEntry] {
+	providerPublicConfigCacheOnce.Do(func() {
+		providerPublicConfigCache = cachex.NewHybridCache[providerPublicConfigCacheEntry](cachex.HybridCacheConfig[providerPublicConfigCacheEntry]{
+			Namespace:  cachex.Namespace(providerPublicConfigCacheNamespace),
+			Redis:      common.RDB,
+			RedisCodec: cachex.JSONCodec[providerPublicConfigCacheEntry]{},
+			RedisEnabled: func() bool {
+				return common.RedisEnabled && common.RDB != nil
+			},
+			Memory: func() *hot.HotCache[string, providerPublicConfigCacheEntry] {
+				return hot.NewHotCache[string, providerPublicConfigCacheEntry](hot.LRU, 10000).
+					WithTTL(providerPublicConfigCacheTTL).
+					WithJanitor().
+					Build()
+			},
+		})
+	})
+	return providerPublicConfigCache
 }
 
 func NormalizeProviderDomain(domain string) string {
@@ -172,6 +246,134 @@ func GetProviderContextByDomain(domain string) (*ProviderContext, error) {
 		ctx.Config = &cfg
 	}
 	return ctx, nil
+}
+
+func GetProviderContextByDomainCached(domain string) (*ProviderContext, error) {
+	domain = NormalizeProviderDomain(domain)
+	if domain == "" {
+		return nil, nil
+	}
+
+	cache := getProviderDomainContextCache()
+	entry, found, err := cache.Get(domain)
+	if err != nil {
+		common.SysLog("failed to get provider domain context cache: " + err.Error())
+	} else if found {
+		if !entry.Found {
+			return nil, nil
+		}
+		ctx := &ProviderContext{
+			ProviderId:  entry.ProviderId,
+			OwnerUserId: entry.OwnerUserId,
+			Name:        entry.Name,
+			Domain:      entry.Domain,
+		}
+		if cfg, err := GetProviderPublicConfigCached(entry.ProviderId); err == nil && cfg != nil {
+			ctx.Config = cfg
+		}
+		return ctx, nil
+	}
+
+	ctx, err := GetProviderContextByDomain(domain)
+	if err != nil {
+		return nil, err
+	}
+	if ctx == nil {
+		if err := cache.SetWithTTL(domain, providerContextCacheEntry{Found: false}, providerDomainContextMissCacheTTL); err != nil {
+			common.SysLog("failed to set provider domain context miss cache: " + err.Error())
+		}
+		return nil, nil
+	}
+
+	entry = providerContextCacheEntry{
+		Found:       true,
+		ProviderId:  ctx.ProviderId,
+		OwnerUserId: ctx.OwnerUserId,
+		Name:        ctx.Name,
+		Domain:      ctx.Domain,
+	}
+	if err := cache.SetWithTTL(domain, entry, providerDomainContextCacheTTL); err != nil {
+		common.SysLog("failed to set provider domain context cache: " + err.Error())
+	}
+	if ctx.Config != nil {
+		if err := getProviderPublicConfigCache().SetWithTTL(strconv.Itoa(ctx.ProviderId), providerPublicConfigCacheEntry{Found: true, Config: *ctx.Config}, providerPublicConfigCacheTTL); err != nil {
+			common.SysLog("failed to set provider public config cache: " + err.Error())
+		}
+	} else {
+		if cfg, err := GetProviderPublicConfigCached(ctx.ProviderId); err == nil && cfg != nil {
+			ctx.Config = cfg
+		}
+	}
+	return ctx, nil
+}
+
+func GetProviderPublicConfigCached(providerId int) (*ProviderConfig, error) {
+	if providerId <= 0 {
+		return nil, nil
+	}
+	key := strconv.Itoa(providerId)
+	cache := getProviderPublicConfigCache()
+	entry, found, err := cache.Get(key)
+	if err != nil {
+		common.SysLog("failed to get provider public config cache: " + err.Error())
+	} else if found {
+		if !entry.Found {
+			return nil, nil
+		}
+		cfg := entry.Config
+		return &cfg, nil
+	}
+
+	var cfg ProviderConfig
+	err = DB.Where("provider_id = ?", providerId).First(&cfg).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		if cacheErr := cache.SetWithTTL(key, providerPublicConfigCacheEntry{Found: false}, providerPublicConfigCacheTTL); cacheErr != nil {
+			common.SysLog("failed to set provider public config miss cache: " + cacheErr.Error())
+		}
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := cache.SetWithTTL(key, providerPublicConfigCacheEntry{Found: true, Config: cfg}, providerPublicConfigCacheTTL); err != nil {
+		common.SysLog("failed to set provider public config cache: " + err.Error())
+	}
+	return &cfg, nil
+}
+
+func InvalidateProviderDomainCache(providerId int) {
+	if providerId <= 0 {
+		return
+	}
+	domains, err := GetProviderVerifiedDomains(providerId)
+	if err != nil {
+		common.SysLog("failed to list provider domains for cache invalidation: " + err.Error())
+		return
+	}
+	for _, domain := range domains {
+		InvalidateProviderDomainCacheByDomain(domain)
+	}
+}
+
+func InvalidateProviderDomainCacheByDomain(domain string) {
+	cache := getProviderDomainContextCache()
+	for _, candidate := range ProviderDomainLookupCandidates(domain) {
+		if candidate == "" {
+			continue
+		}
+		if _, err := cache.DeleteMany([]string{candidate}); err != nil {
+			common.SysLog("failed to invalidate provider domain cache: " + err.Error())
+		}
+	}
+}
+
+func InvalidateProviderPublicConfigCache(providerId int) {
+	if providerId <= 0 {
+		return
+	}
+	if _, err := getProviderPublicConfigCache().DeleteMany([]string{strconv.Itoa(providerId)}); err != nil {
+		common.SysLog("failed to invalidate provider public config cache: " + err.Error())
+	}
 }
 
 func GetProviderVerifiedDomains(providerId int) ([]string, error) {
