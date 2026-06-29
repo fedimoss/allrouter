@@ -214,6 +214,60 @@ func TestApplyUpstreamUserAgentPolicy_RewritesBlockedOpenAIJS(t *testing.T) {
 	require.Equal(t, upstreamSafeUserAgent, header.Get("User-Agent"))
 }
 
+func TestApplyUpstreamUserAgentPolicy_RewritesBlockedOpenAIPython(t *testing.T) {
+	t.Parallel()
+
+	header := http.Header{}
+	header.Set("User-Agent", "OpenAI/Python 1.62.0")
+
+	applyUpstreamUserAgentPolicy(header)
+
+	require.Equal(t, upstreamSafeUserAgent, header.Get("User-Agent"))
+}
+
+func TestApplyUpstreamUserAgentPolicy_RewritesGenericSdkUserAgents(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{
+		"openai-java/1.0.0",
+		"okhttp/4.12.0",
+		"Java/17.0.10",
+		"curl/8.5.0",
+		"Go-http-client/1.1",
+		"python-requests/2.32.0",
+		"axios/1.6.0",
+	}
+
+	for _, ua := range cases {
+		header := http.Header{}
+		header.Set("User-Agent", ua)
+
+		applyUpstreamUserAgentPolicy(header)
+
+		require.Equal(t, upstreamSafeUserAgent, header.Get("User-Agent"), ua)
+	}
+}
+
+func TestApplyUpstreamUserAgentPolicy_PreservesCodexAndClaudeCodeUserAgents(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{
+		"codex-cli/0.1.0",
+		"Codex CLI",
+		"claude-code/1.0.0",
+		"Claude Code/1.0.0",
+	}
+
+	for _, ua := range cases {
+		header := http.Header{}
+		header.Set("User-Agent", ua)
+
+		applyUpstreamUserAgentPolicy(header)
+
+		require.Equal(t, ua, header.Get("User-Agent"), ua)
+	}
+}
+
 func TestApplyUpstreamUserAgentPolicy_SetsDefaultWhenMissing(t *testing.T) {
 	t.Parallel()
 

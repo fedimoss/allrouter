@@ -49,12 +49,23 @@ const (
 	upstreamSafeUserAgent = "Mozilla/5.0"
 )
 
-// blockedUserAgentMarkers 需要被屏蔽的 User-Agent 特征标记列表
-// 当客户端 User-Agent 包含这些标记时，会被替换为通用的浏览器 User-Agent，
-// 避免上游服务商识别为 SDK 调用而拒绝请求
-var blockedUserAgentMarkers = []string{
-	"anthropic/js",
-	"openai/js",
+// allowedUserAgentMarkers 允许透传到上游的 User-Agent 特征。
+// 默认保留浏览器类 UA；SDK/CLI/脚本类 UA（openai-python、openai-java、okhttp、
+// curl、Go-http-client 等）很难穷举，统一替换为通用浏览器 UA，避免被上游按 UA 拒绝。
+// Codex 与 Claude Code 是需要保留身份特征的官方/CLI 类客户端，因此作为显式例外保留。
+var allowedUserAgentMarkers = []string{
+	"mozilla/",
+	"chrome/",
+	"safari/",
+	"firefox/",
+	"edge/",
+	"edg/",
+	"opera/",
+	"opr/",
+
+	"codex",
+	"claude-code",
+	"claude code",
 }
 
 var passthroughSkipHeaderNamesLower = map[string]struct{}{
@@ -297,25 +308,24 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 	}
 }
 
-// shouldRewriteUserAgent 判断是否需要重写 User-Agent
-// 当 User-Agent 为空或包含被屏蔽的 SDK 标记时返回 true
+// shouldRewriteUserAgent 判断是否需要重写 User-Agent。
+// 默认只保留浏览器类 UA，其它 SDK/CLI/脚本类 UA 统一改成 upstreamSafeUserAgent。
 func shouldRewriteUserAgent(userAgent string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(userAgent))
 	// User-Agent 为空时需要重写
 	if normalized == "" {
 		return true
 	}
-	// 检查是否包含被屏蔽的 SDK 标记
-	for _, marker := range blockedUserAgentMarkers {
+	for _, marker := range allowedUserAgentMarkers {
 		if strings.Contains(normalized, marker) {
-			return true
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 // applyUpstreamUserAgentPolicy 对上游请求应用 User-Agent 策略
-// 如果当前 User-Agent 需要被重写，则替换为安全的通用浏览器 User-Agent
+// 如果当前 User-Agent 不是浏览器类 UA，则替换为安全的通用浏览器 User-Agent。
 func applyUpstreamUserAgentPolicy(header http.Header) {
 	if header == nil {
 		return

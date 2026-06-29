@@ -38,3 +38,4 @@ data/
 .tmp/
 .gocache_codex/
 docs/modelcontent/*
+.gotmp_codex/
