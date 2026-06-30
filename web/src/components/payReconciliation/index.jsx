@@ -39,7 +39,7 @@ const PAYMENT_METHODS = {
 const PAYMENT_METHOD_TABS = [
   { key: PAYMENT_METHODS.wxpay, label: '微信支付' },
   // 支付宝对账暂不开放，后续启用时取消注释即可
-  // { key: PAYMENT_METHODS.alipay, label: '支付宝' },
+  { key: PAYMENT_METHODS.alipay, label: '支付宝' },
   { key: PAYMENT_METHODS.stripe, label: 'Stripe' },
   { key: PAYMENT_METHODS.crypto, label: '加密货币' },
 ];
