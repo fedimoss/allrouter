@@ -3702,7 +3702,7 @@ CREATE INDEX idx_channels_tag ON channels USING btree (tag);
 --
 
 CREATE INDEX idx_created_at_id ON logs USING btree (id, created_at);
-
+CREATE INDEX IF NOT EXISTS idx_created_at_id ON logs (created_at, id);
 
 --
 -- Name: idx_created_at_type; Type: INDEX; Schema: public; Owner: allrouter

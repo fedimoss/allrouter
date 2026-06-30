@@ -3,6 +3,7 @@ package common
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -19,6 +20,8 @@ var (
 	// maskApiKeyPattern matches patterns like 'api_key:xxx' or "api_key:xxx" to mask the API key value
 	maskApiKeyPattern = regexp.MustCompile(`(['"]?)api_key:([^\s'"]+)(['"]?)`)
 )
+
+const LocalLogContentLimit = 2048
 
 func GetStringIfEmpty(str string, defaultValue string) string {
 	if str == "" {
@@ -104,6 +107,13 @@ func GetJsonString(data any) string {
 	}
 	b, _ := json.Marshal(data)
 	return string(b)
+}
+
+func LocalLogPreview(content string) string {
+	if DebugEnabled || len(content) <= LocalLogContentLimit {
+		return content
+	}
+	return fmt.Sprintf("%s... [truncated, original_length=%d, limit=%d]", content[:LocalLogContentLimit], len(content), LocalLogContentLimit)
 }
 
 // NormalizeBillingPreference clamps the billing preference to valid values.

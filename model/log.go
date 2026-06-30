@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -19,11 +20,25 @@ import (
 	"gorm.io/gorm"
 )
 
+func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm.DB, error) {
+	if value == "" {
+		return tx, nil
+	}
+	if strings.Contains(value, "%") {
+		pattern, err := sanitizeLikePattern(value)
+		if err != nil {
+			return nil, err
+		}
+		return tx.Where(column+" LIKE ? ESCAPE '!'", pattern), nil
+	}
+	return tx.Where(column+" = ?", value), nil
+}
+
 type Log struct {
-	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:1;index:idx_user_id_id,priority:2"`
+	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2"`
 	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
 	ProviderId        int    `json:"provider_id" gorm:"type:int;default:0;index"`
-	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type"`
 	Type              int    `json:"type" gorm:"index:idx_created_at_type"`
 	Content           string `json:"content"`
 	Username          string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
@@ -459,11 +474,11 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		tx = LOG_DB.Where("logs.type = ?", logType)
 	}
 
-	if modelName != "" {
-		tx = tx.Where("logs.model_name like ?", modelName)
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+		return nil, 0, err
 	}
-	if username != "" {
-		tx = tx.Where("logs.username = ?", username)
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", username); err != nil {
+		return nil, 0, err
 	}
 	if tokenName != "" {
 		tx = tx.Where("logs.token_name = ?", tokenName)
@@ -494,7 +509,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		return nil, 0, err
 	}
 	findTx := tx.Session(&gorm.Session{})
-	err = findTx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	err = findTx.Order("logs.created_at desc, logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -513,15 +528,12 @@ func buildAdminCallLogsQuery(startTimestamp int64, endTimestamp int64, modelName
 		Where("logs.type = ?", LogTypeConsume).
 		Where("(logs.billing_side = ? OR logs.billing_side = ? OR logs.billing_side IS NULL)", "", "provider_user")
 
-	if modelName != "" {
-		modelNamePattern, err := sanitizeLikePattern(modelName)
-		if err != nil {
-			return nil, err
-		}
-		tx = tx.Where("logs.model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	var err error
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+		return nil, err
 	}
-	if username != "" {
-		tx = tx.Where("logs.username = ?", username)
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", username); err != nil {
+		return nil, err
 	}
 	if tokenName != "" {
 		tx = tx.Where("logs.token_name = ?", tokenName)
@@ -556,7 +568,7 @@ func GetAdminCallLogs(startTimestamp int64, endTimestamp int64, modelName string
 	if err = tx.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	if err = tx.Session(&gorm.Session{}).Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error; err != nil {
+	if err = tx.Session(&gorm.Session{}).Order("logs.created_at desc, logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error; err != nil {
 		return nil, 0, err
 	}
 	if err = fillLogChannelNames(logs); err != nil {
@@ -576,12 +588,8 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
 	}
 
-	if modelName != "" {
-		modelNamePattern, err := sanitizeLikePattern(modelName)
-		if err != nil {
-			return nil, 0, err
-		}
-		tx = tx.Where("logs.model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+		return nil, 0, err
 	}
 	if tokenName != "" {
 		tx = tx.Where("logs.token_name = ?", tokenName)
@@ -606,7 +614,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		common.SysError("failed to count user logs: " + err.Error())
 		return nil, 0, errors.New("查询日志失败")
 	}
-	err = tx.Session(&gorm.Session{}).Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	err = tx.Session(&gorm.Session{}).Order("logs.created_at desc, logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
 	if err != nil {
 		common.SysError("failed to search user logs: " + err.Error())
 		return nil, 0, errors.New("查询日志失败")
@@ -625,15 +633,11 @@ func GetProviderUserLogs(providerId int, logType int, startTimestamp int64, endT
 	}
 	tx = tx.Where("(logs.billing_side = ? OR logs.billing_side = ? OR logs.billing_side IS NULL)", "", "provider_user")
 
-	if modelName != "" {
-		modelNamePattern, err := sanitizeLikePattern(modelName)
-		if err != nil {
-			return nil, 0, err
-		}
-		tx = tx.Where("logs.model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+		return nil, 0, err
 	}
-	if username != "" {
-		tx = tx.Where("logs.username = ?", username)
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", username); err != nil {
+		return nil, 0, err
 	}
 	if tokenName != "" {
 		tx = tx.Where("logs.token_name = ?", tokenName)
@@ -655,7 +659,7 @@ func GetProviderUserLogs(providerId int, logType int, startTimestamp int64, endT
 		common.SysError("failed to count provider user logs: " + err.Error())
 		return nil, 0, errors.New("查询服务商使用日志失败")
 	}
-	err = tx.Session(&gorm.Session{}).Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	err = tx.Session(&gorm.Session{}).Order("logs.created_at desc, logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
 	if err != nil {
 		common.SysError("failed to search provider user logs: " + err.Error())
 		return nil, 0, errors.New("查询服务商使用日志失败")
@@ -677,9 +681,11 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
 
-	if username != "" {
-		tx = tx.Where("username = ?", username)
-		rpmTpmQuery = rpmTpmQuery.Where("username = ?", username)
+	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
+		return stat, err
+	}
+	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
+		return stat, err
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)
@@ -691,13 +697,11 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if endTimestamp != 0 {
 		tx = tx.Where("created_at <= ?", endTimestamp)
 	}
-	if modelName != "" {
-		modelNamePattern, err := sanitizeLikePattern(modelName)
-		if err != nil {
-			return stat, err
-		}
-		tx = tx.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
-		rpmTpmQuery = rpmTpmQuery.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
+		return stat, err
+	}
+	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "model_name", modelName); err != nil {
+		return stat, err
 	}
 	if channel != 0 {
 		tx = tx.Where("channel_id = ?", channel)
@@ -736,9 +740,11 @@ func SumAdminCallUsedQuota(startTimestamp int64, endTimestamp int64, modelName s
 	tx = tx.Where("(billing_side = ? OR billing_side = ? OR billing_side IS NULL)", "", "provider_user")
 	rpmTpmQuery = rpmTpmQuery.Where("(billing_side = ? OR billing_side = ? OR billing_side IS NULL)", "", "provider_user")
 
-	if username != "" {
-		tx = tx.Where("username = ?", username)
-		rpmTpmQuery = rpmTpmQuery.Where("username = ?", username)
+	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
+		return stat, err
+	}
+	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
+		return stat, err
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)
@@ -752,13 +758,11 @@ func SumAdminCallUsedQuota(startTimestamp int64, endTimestamp int64, modelName s
 		tx = tx.Where("created_at <= ?", endTimestamp)
 		rpmTpmQuery = rpmTpmQuery.Where("created_at <= ?", endTimestamp)
 	}
-	if modelName != "" {
-		modelNamePattern, err := sanitizeLikePattern(modelName)
-		if err != nil {
-			return stat, err
-		}
-		tx = tx.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
-		rpmTpmQuery = rpmTpmQuery.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
+		return stat, err
+	}
+	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "model_name", modelName); err != nil {
+		return stat, err
 	}
 	if channel != 0 {
 		tx = tx.Where("channel_id = ?", channel)
@@ -791,9 +795,11 @@ func SumProviderUserUsedQuota(providerId int, logType int, startTimestamp int64,
 	rpmTpmQuery = rpmTpmQuery.Where("provider_id = ?", providerId)
 	tx = tx.Where("(billing_side = ? OR billing_side = ? OR billing_side IS NULL)", "", "provider_user")
 	rpmTpmQuery = rpmTpmQuery.Where("(billing_side = ? OR billing_side = ? OR billing_side IS NULL)", "", "provider_user")
-	if username != "" {
-		tx = tx.Where("username = ?", username)
-		rpmTpmQuery = rpmTpmQuery.Where("username = ?", username)
+	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
+		return stat, err
+	}
+	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
+		return stat, err
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)
@@ -807,13 +813,11 @@ func SumProviderUserUsedQuota(providerId int, logType int, startTimestamp int64,
 		tx = tx.Where("created_at <= ?", endTimestamp)
 		rpmTpmQuery = rpmTpmQuery.Where("created_at <= ?", endTimestamp)
 	}
-	if modelName != "" {
-		modelNamePattern, err := sanitizeLikePattern(modelName)
-		if err != nil {
-			return stat, err
-		}
-		tx = tx.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
-		rpmTpmQuery = rpmTpmQuery.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
+		return stat, err
+	}
+	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "model_name", modelName); err != nil {
+		return stat, err
 	}
 	if group != "" {
 		tx = tx.Where(logGroupCol+" = ?", group)

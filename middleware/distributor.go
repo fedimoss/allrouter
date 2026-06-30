@@ -298,6 +298,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		} else if c.Request.Method == http.MethodGet {
 			relayMode = relayconstant.RelayModeVideoFetchByID
 			shouldSelectChannel = false
+			modelRequest.Model = getTaskOriginModelName(c)
 		}
 		c.Set("relay_mode", relayMode)
 	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
@@ -312,6 +313,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		} else if c.Request.Method == http.MethodGet {
 			relayMode = relayconstant.RelayModeVideoFetchByID
 			shouldSelectChannel = false
+			modelRequest.Model = getTaskOriginModelName(c)
 		}
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
@@ -394,6 +396,29 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 	}
 	return &modelRequest, shouldSelectChannel, nil
+}
+
+// getTaskOriginModelName backfills the original model for task fetch routes when
+// token model limits are enabled. Without this, GET task status requests can be
+// rejected because the request body does not carry a model field.
+func getTaskOriginModelName(c *gin.Context) string {
+	if !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
+		return ""
+	}
+
+	taskId := c.Param("task_id")
+	if taskId == "" {
+		taskId = c.GetString("task_id")
+	}
+	if taskId == "" {
+		return ""
+	}
+
+	userId := c.GetInt("id")
+	if task, exist, err := model.GetByTaskId(userId, taskId); err == nil && exist && task != nil {
+		return task.Properties.OriginModelName
+	}
+	return ""
 }
 
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {

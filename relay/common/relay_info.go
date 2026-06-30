@@ -160,6 +160,10 @@ type RelayInfo struct {
 	UseRuntimeHeadersOverride             bool
 	ParamOverrideAudit                    []string
 
+	// UpstreamRequestBodySize is the byte size of the marshaled upstream request body.
+	// 0 means "let net/http decide".
+	UpstreamRequestBodySize int64
+
 	PriceData types.PriceData
 
 	// TieredBillingSnapshot is a frozen snapshot of tiered billing rules
