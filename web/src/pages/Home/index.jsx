@@ -785,7 +785,7 @@ const Home = () => {
 
             <div className='landing-v2-footer-bottom'>
               {/* <span>© {new Date().getFullYear()} {systemName}. All rights reserved.</span> */}
-              <span dangerouslySetInnerHTML={{ __html: statusState?.status.footer_html || '' }} />
+              <span dangerouslySetInnerHTML={{ __html: statusState?.status.footer_html || `© ${new Date().getFullYear()} ${systemName}. All rights reserved.` }} />
             </div>
           </footer>
         </>
