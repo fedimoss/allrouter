@@ -47,6 +47,7 @@ import NotificationButton from '../../components/layout/headerbar/NotificationBu
 import UserArea from '../../components/layout/headerbar/UserArea';
 import MarqueeLogos from '../../components/common/MarqueeLogos';
 import FloatingSupport from '../../components/common/FloatingSupport';
+import PageTheme1Home from './theme/pageTheme1';
 
 import {
   getLogo,
@@ -156,9 +157,19 @@ const Home = () => {
 
   const docsLink = statusState?.status?.docs_link || '';
   const serverAddress = `${window.location.origin}`;
-  const providerHomePageKey =
-    statusState?.status?.provider_config?.home_page_theme || 'default';
-  const showDefaultHome = providerHomePageKey === 'default';
+  const providerConfig = statusState?.status?.provider_config;
+  const homePageTheme =
+    providerConfig?.enabled
+      ? providerConfig?.home_page_theme || 'default'
+      : statusState?.status?.home_page_theme || 'default';
+  const hasCustomHomePageContent =
+    homePageContentLoaded && String(homePageContent || '').trim() !== '';
+  const showStyleAHome =
+    homePageContentLoaded &&
+    !hasCustomHomePageContent &&
+    homePageTheme === 'style_a';
+  const showDefaultHome =
+    homePageContentLoaded && !hasCustomHomePageContent && !showStyleAHome;
   const docsLangPrefix = i18n.language.startsWith('zh') ? 'zh' : 'en';
 
   const docsHref = docsLink || withBrowserBaseUrl(`/${docsLangPrefix}/docs`);
@@ -270,11 +281,6 @@ const Home = () => {
   }, [navigate, userDispatch]);
 
   const displayHomePageContent = async () => {
-    if (showDefaultHome) {
-      setHomePageContent('');
-      setHomePageContentLoaded(true);
-      return;
-    }
     setHomePageContent(localStorage.getItem('home_page_content') || '');
     const res = await API.get('/api/home_page_content');
     const { success, message, data } = res.data;
@@ -325,7 +331,7 @@ const Home = () => {
 
   useEffect(() => {
     displayHomePageContent().then();
-  }, [showDefaultHome]);
+  }, [homePageTheme]);
 
   useEffect(() => {
     let cancelled = false;
@@ -460,6 +466,14 @@ const Home = () => {
       window.clearTimeout(timeoutId);
     };
   }, [showDefaultHome, serverAddress, i18n.language, t]);
+
+  if (!homePageContentLoaded) {
+    return null;
+  }
+
+  if (showStyleAHome) {
+    return <PageTheme1Home />;
+  }
 
   return (
     <div

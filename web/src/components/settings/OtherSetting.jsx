@@ -49,6 +49,10 @@ import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
+const HOME_PAGE_THEME_OPTIONS = [
+  { label: '默认', value: 'default' },
+  { label: '风格一', value: 'style_a' },
+];
 
 const OtherSetting = () => {
   const { t } = useTranslation();
@@ -63,6 +67,7 @@ const OtherSetting = () => {
     WebButtonTextColor: '#FFFFFF',
     Footer: '',
     About: '',
+    HomePageTheme: 'default',
     HomePageContent: '',
     WechatSupport: '',
     QQSupport: '',
@@ -97,6 +102,7 @@ const OtherSetting = () => {
     SystemName: false,
     Logo: false,
     WebColors: false,
+    HomePageTheme: false,
     HomePageContent: false,
     About: false,
     Footer: false,
@@ -408,6 +414,26 @@ const OtherSetting = () => {
       }));
     }
   };
+  // 个性化设置 - 首页主题
+  const submitHomePageTheme = async () => {
+    try {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        HomePageTheme: true,
+      }));
+      await updateOption('HomePageTheme', inputs.HomePageTheme || 'default');
+      showSuccess(t('首页主题已更新'));
+    } catch (error) {
+      console.error(t('首页主题更新失败'), error);
+      showError(t('首页主题更新失败'));
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        HomePageTheme: false,
+      }));
+    }
+  };
+
   // 个性化设置 - 首页内容
   const submitOption = async (key) => {
     try {
@@ -1002,6 +1028,26 @@ const OtherSetting = () => {
                 loading={loadingInput['WebColors']}
               >
                 {t('确定设置')}
+              </Button>
+              <Form.Select
+                label={t('首页主题')}
+                field={'HomePageTheme'}
+                optionList={HOME_PAGE_THEME_OPTIONS.map((option) => ({
+                  ...option,
+                  label: t(option.label),
+                }))}
+                onChange={(value) =>
+                  setInputs((inputs) => ({
+                    ...inputs,
+                    HomePageTheme: value || 'default',
+                  }))
+                }
+              />
+              <Button
+                onClick={submitHomePageTheme}
+                loading={loadingInput['HomePageTheme']}
+              >
+                {t('设置首页主题')}
               </Button>
               <Form.TextArea
                 label={t('首页内容')}
