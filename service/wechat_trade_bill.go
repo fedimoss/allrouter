@@ -147,8 +147,14 @@ func (s *WechatTradeBillService) GetTradeBill(config *wxpay_utility.MchConfig, r
 		return nil, wxpay_utility.NewAPIException(httpResponse.StatusCode, httpResponse.Header, respBody)
 	}
 
-	if err := wxpay_utility.ValidateResponseWithPlatformCertificate(config, &httpResponse.Header, respBody); err != nil {
-		return nil, err
+	if config.UsesWechatPayPublicKey() {
+		if err := wxpay_utility.ValidateResponse(config.WechatPayPublicKeyId(), config.WechatPayPublicKey(), &httpResponse.Header, respBody); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := wxpay_utility.ValidateResponseWithPlatformCertificate(config, &httpResponse.Header, respBody); err != nil {
+			return nil, err
+		}
 	}
 
 	response := &QueryBillEntity{}
