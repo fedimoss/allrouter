@@ -65,6 +65,10 @@ func (c *MchConfig) WechatPayPublicKey() *rsa.PublicKey {
 	return c.wechatPayPublicKey
 }
 
+func (c *MchConfig) UsesWechatPayPublicKey() bool {
+	return c != nil && c.wechatPayPublicKey != nil && len(c.platformCertificates) == 0
+}
+
 func (c *MchConfig) PlatformCertificates() map[string]*x509.Certificate {
 	return c.platformCertificates
 }
@@ -97,6 +101,27 @@ func CreateMchConfig(
 	wechatPayPublicKeyId string,
 	wechatPayPublicKeyFilePath string,
 ) (*MchConfig, error) {
+	return createMchConfig(mchId, certificateSerialNo, privateKeyFilePath, wechatPayPublicKeyId, wechatPayPublicKeyFilePath, false)
+}
+
+func CreateMchConfigWithWechatPayPublicKey(
+	mchId string,
+	certificateSerialNo string,
+	privateKeyFilePath string,
+	wechatPayPublicKeyId string,
+	wechatPayPublicKeyFilePath string,
+) (*MchConfig, error) {
+	return createMchConfig(mchId, certificateSerialNo, privateKeyFilePath, wechatPayPublicKeyId, wechatPayPublicKeyFilePath, true)
+}
+
+func createMchConfig(
+	mchId string,
+	certificateSerialNo string,
+	privateKeyFilePath string,
+	wechatPayPublicKeyId string,
+	wechatPayPublicKeyFilePath string,
+	useWechatPayPublicKey bool,
+) (*MchConfig, error) {
 	mchConfig := &MchConfig{
 		mchId:                      mchId,
 		certificateSerialNo:        certificateSerialNo,
@@ -113,6 +138,15 @@ func CreateMchConfig(
 	mchConfig.privateKey = privateKey
 
 	if wechatPayPublicKeyFilePath != "" {
+		if useWechatPayPublicKey {
+			publicKey, err := LoadPublicKeyWithPath(wechatPayPublicKeyFilePath)
+			if err != nil {
+				return nil, err
+			}
+			mchConfig.wechatPayPublicKey = publicKey
+			return mchConfig, nil
+		}
+
 		cert, err := LoadCertificateWithPath(wechatPayPublicKeyFilePath)
 		if err != nil {
 			return nil, err

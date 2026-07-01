@@ -308,6 +308,7 @@ func migrateDB() error {
 		&ProviderModelPricing{},
 		&ProviderProfit{},
 		&ProviderWithdraw{},
+		&ServiceConfig{},
 		&VersionLog{},
 		&ProviderOption{},
 	)
@@ -379,6 +380,7 @@ func migrateDBFast() error {
 		{&ProviderModelPricing{}, "ProviderModelPricing"},
 		{&ProviderProfit{}, "ProviderProfit"},
 		{&ProviderWithdraw{}, "ProviderWithdraw"},
+		{&ServiceConfig{}, "ServiceConfig"},
 		{&VersionLog{}, "VersionLog"},
 		{&ProviderOption{}, "ProviderOption"},
 	}

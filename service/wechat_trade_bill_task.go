@@ -107,6 +107,7 @@ func LoadWechatTradeBillConfig() (*wxpay_utility.MchConfig, error) {
 	mchID := strings.TrimSpace(serviceConfig.WechatMchID)
 	certSerialNo := strings.TrimSpace(serviceConfig.WechatMchSerialNo)
 	privateKeyPath := strings.TrimSpace(serviceConfig.WechatPrivateKeyPath)
+	publicKeyPath := strings.TrimSpace(serviceConfig.WechatPublicKeyPath)
 	platformCertSerialNo, err := model.GetLatestServiceConfigColumn("wechat_serial_no")
 	if err != nil {
 		return nil, fmt.Errorf("load service_configs.wechat_serial_no failed: %w", err)
@@ -129,7 +130,16 @@ func LoadWechatTradeBillConfig() (*wxpay_utility.MchConfig, error) {
 		return nil, fmt.Errorf("service_configs.wechat_serial_no is empty")
 	}
 	if platformCertPath == "" {
-		return nil, fmt.Errorf("service_configs.wechat_cert_path is empty")
+		if publicKeyPath == "" {
+			return nil, fmt.Errorf("service_configs.wechat_public_key_path is empty")
+		}
+		return wxpay_utility.CreateMchConfigWithWechatPayPublicKey(
+			mchID,
+			certSerialNo,
+			privateKeyPath,
+			platformCertSerialNo,
+			publicKeyPath,
+		)
 	}
 
 	return wxpay_utility.CreateMchConfig(
