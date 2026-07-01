@@ -76,6 +76,7 @@ import iconOne from '../../../../../public/theme/theme1/icon01.png';
 import iconTwo from '../../../../../public/theme/theme1/icon02.png';
 import iconThree from '../../../../../public/theme/theme1/icon03.png';
 import iconFour from '../../../../../public/theme/theme1/icon04.png';
+import fedimoossLogo from '../../../../../public/theme/theme2/fedimoss-logo.svg';
 
 
 const logo = getLogo();
@@ -154,9 +155,9 @@ const heroStats = [
 ];
 
 const explorePills = [
-  { name: 'Agentic', desc: '智能体执行' },
-  { name: 'Infra+', desc: '基础设施探索' },
-  { name: 'Workflow', desc: '企业工作流' },
+  { name: '1M', desc: '长文本推理' },
+  { name: 'S+H', desc: '软硬协同' },
+  { name: 'Token', desc: '产品交付' },
 ];
 
 const escapeHtml = (content = '') =>
@@ -721,6 +722,79 @@ const Home = () => {
             </div>
           </section>
 
+          <section className='home-token-section'>
+            <div className="w-full mx-auto bg-white rounded-[24px] border border-gray-100 p-6 md:p-12 shadow-sm font-sans flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 md:gap-12 relative overflow-hidden">
+
+              {/* 右上角淡橙色渐变背景装饰 */}
+              <div className="absolute w-[460px] h-[460px] home-token-bg-gradient" />
+
+              {/* 左侧文字区块 */}
+              <div className="flex-1 z-10">
+                <h1 className="text-[28px] md:text-[38px] font-bold text-gray-900 leading-[1.3] tracking-wide">
+                  {t('生产 AGENTIC 时代的高效 Token，')}
+                  <br className="hidden md:inline" />
+                  {t('致力于实现 AI 平权')} 
+                </h1>
+                <p className="mt-4 md:mt-6 text-sm md:text-base text-gray-500 leading-relaxed max-w-[540px]">
+                  {t('打造新时期的推理底座：面向复杂推理、长上下文与代码专家场景，满足AGENTIC复杂推理（1M长文本）任务的代码专家。')}
+                </p>
+              </div>
+
+              {/* 右侧交互与卡片区块 */}
+              <div className="flex-1 flex flex-col items-start lg:items-end gap-6 z-10 lg:w-auto">
+
+                {/* 四个白色胶囊标签 - 移动端自动换行/平铺 */}
+                <div className="flex flex-wrap gap-2 md:gap-3 w-full justify-start lg:justify-end">
+                  {['智能', '高效', '性价比', '1M 长文本'].map((tag, index) => (
+                    <span
+                      key={index}
+                      className="px-8 py-2 bg-white border border-[#E2E6ED] rounded-full text-xs md:text-sm font-[700] text-[#111621] whitespace-nowrap"
+                    >
+                      {t(tag)}
+                    </span>
+                  ))}
+                </div>
+
+                {/* 黑色核心特性卡片 */}
+                <div className="w-full lg:w-[610px] bg-[#0D1117] rounded-[20px] p-5 md:p-6 shadow-[0_15px_30px_rgba(0,0,0,0.15)] flex justify-between items-center gap-4 border border-gray-800">
+                  {/* 黑色卡片左侧文本 */}
+                  <div className="flex-1">
+                    <h3 className="text-white text-base md:text-[18px] font-semibold tracking-wide mb-3">
+                      {t('面向 1M 长文本与代码专家的复杂推理')}
+                    </h3>
+                    {/* 点状分隔的英文标签组 */}
+                    <div className="text-[11px] md:text-xs text-gray-400 font-mono flex flex-wrap gap-x-2 gap-y-1 leading-normal">
+                      <span>agentic reasoning</span>
+                      <span className="text-gray-600">•</span>
+                      <span>code expert</span>
+                      <span className="text-gray-600">•</span>
+                      <span>hybrid inference</span>
+                      <span>cost-aware routing</span>
+                      <span className="text-gray-600">•</span>
+                      <span>token production</span>
+                    </div>
+                  </div>
+
+                  {/* 黑色卡片右侧图标组 */}
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className="w-11 h-11 md:w-12 md:h-12 bg-[#FF5700] rounded-[12px] flex items-center justify-center font-bold text-white text-sm shadow-lg shadow-orange-700/20">
+                        {`</>`}
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium">Code</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className="w-11 h-11 md:w-12 md:h-12 bg-[#00C06B] rounded-[12px] flex items-center justify-center font-bold text-white text-sm md:text-base tracking-tighter shadow-lg shadow-green-700/20">
+                        1M
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium">Context</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section className='home-features-section'>
             <div className='home-container'>
               <div className='home-section-header'>
@@ -785,11 +859,11 @@ const Home = () => {
             <div className='home-container'>
               <div className='home-section-header'>
                 <h2 className='home-section-title'>
-                  {systemName} & Agentic AI
+                  {t('公司的产品定位')}
                 </h2>
                 <p className='home-section-subtitle'>
                   {t(
-                    '业务定位于 Agentic AI 的基础设施演进，围绕模型调度、智能体协作、推理成本优化与企业级工作流，探索下一代 AI 应用的系统底座。',
+                    '在 AGENTIC 驱动 AI 产业变化的当下，通过软硬一体化的深度协同，重点产出能够满足 AGENTIC 时代复杂推理（1M 长文本）任务的、具备高性价比的 TOKEN 产品。',
                   )}
                 </p>
               </div>
@@ -798,12 +872,12 @@ const Home = () => {
                 <div className='home-agentic-left-card'>
                   <div className='home-agentic-info-block'>
                     <div className='home-pill-tag'>
-                      {t('AGENTIC AI 探索')}
+                      {t('TOKEN PRODUCT')}
                     </div>
-                    <h3>{t('让智能体从“会对话”走向“能执行”')}</h3>
+                    <h3>{t('高性价比的TOKEN产品')}</h3>
                     <p>
                       {t(
-                        '把模型能力、工具调用、任务编排和企业数据连接成可持续运行的 Agentic 系统。不只是单次响应，而是智能体在复杂业务中持续感知、决策、执行与反馈的完整链路。',
+                        '以模型路由、推理优化与异构算力协同为核心，把 1M 长文本、代码专家等复杂推理任务转化为稳定、可计量、可规模化交付的高效 Token。',
                       )}
                     </p>
                   </div>
@@ -813,10 +887,10 @@ const Home = () => {
                 </div>
 
                 <div className='home-agentic-right-card'>
-                  <h3>{t('探索&研究')}</h3>
+                  <h3>{t('核心定位')}</h3>
                   <p>
                     {t(
-                      '在 Agentic AI、模型路由、企业工作流与生态合作上的探索方向。',
+                      '智能 · 高效 · 性价比，围绕复杂推理任务构建新时期 AI Inference 底座。',
                     )}
                   </p>
                   <div className='home-explore-pills'>
@@ -825,7 +899,7 @@ const Home = () => {
                         className='home-explore-pill'
                         key={pill.name}
                       >
-                        <span>{pill.name}</span>
+                        <span>{t(pill.name)}</span>
                         <small>{t(pill.desc)}</small>
                       </div>
                     ))}
@@ -857,11 +931,92 @@ const Home = () => {
             </div>
           </section>
 
+          <section>
+            <div className="home-token-section">
+              <div className="relative w-full mx-auto bg-[#14161a] rounded-[28px] border border-[#22252a] p-4 sm:p-6 md:p-12 flex flex-col lg:flex-row items-center justify-between gap-10 lg:gap-16 overflow-hidden">
+                <div className="absolute -top-40 -right-40 w-[600px] h-[600px] bg-gradient-to-bl from-orange-500/10 to-transparent rounded-full blur-[130px] pointer-events-none" />
+                <div className="w-full lg:flex-1 flex flex-col justify-center z-10">
+                  <span className="text-[16px] md:text-xs font-mono font-bold tracking-[0.18em] text-[#D4C39E] uppercase block mb-4 md:mb-5">
+                    AI Inference Base
+                  </span>
+                  <h1 className="text-[56px] sm:text-4xl md:text-[48px] font-bold text-white tracking-tight leading-[1.15] mb-5">
+                    GPU + Arm AI CPU
+                  </h1>
+                  <p className="text-[22px] sm:text-sm text-[#A3ADC2] leading-relaxed max-w-[580px] font-normal mb-8 md:mb-14">
+                    {t('GPU + Arm AI CPU 全新混合架构，重新定义 AI Agentic 计算基础设施。')}
+                  </p>
+                  <div className="w-full max-w-[640px] bg-[#090C11] border border-[#2E3745] rounded-[16px] p-5 sm:p-6 font-mono text-[18px] mt-10 sm:text-xs md:text-[14px] leading-[1.8] tracking-wide shadow-inner">
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-[#00c06b] shrink-0 font-bold">&gt;</span>
+                      <p className="text-[#86868b]">
+                        <span className="text-[#00c06b]">product: efficient token for agentic era</span>
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2.5 mt-2">
+                      <span className="text-[#00c06b] shrink-0 font-bold">&gt;</span>
+                      <p className="text-[#86868b]">
+                        <span className="text-white">context_window: 1M long-context reasoning</span>
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2.5 mt-2">
+                      <span className="text-[#00c06b] shrink-0 font-bold">&gt;</span>
+                      <p className="text-[#86868b]">
+                        <span className="text-[#D4C39E]">architecture: GPU + Arm AI CPU co-optimization</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="w-full lg:w-[620px] xl:w-[680px] h-[330px] shrink-0 z-10 flex flex-col gap-8 items-center lg:items-end">
+                  <div className="relative w-full aspect-[1.65/1] bg-[#1a1d24] border border-[#2d3139] rounded-[24px] flex flex-col justify-center items-center shadow-[0_16px_40px_rgba(0,0,0,0.5)] px-6 sm:px-12 overflow-hidden">
+                    <div className="flex items-center justify-between w-full max-w-[440px] relative mb-10">
+                      <div className="flex flex-col gap-2 opacity-40">
+                        {[...Array(6)].map((_, i) => (
+                          <div key={i} className="w-12 h-[1.2px] bg-gradient-to-r from-transparent to-white" />
+                        ))}
+                      </div>
+                      {/* 中央 ARM 核心高亮橙色块 */}
+                      <div className="relative z-10 w-24 h-24 sm:w-28 sm:h-28 bg-[var(--home-primary)] rounded-[24px] flex items-center justify-center text-white font-bold text-[24px] sm:text-[28px] tracking-wide shadow-[0_10px_30px_rgba(255,87,0,0.4)] transition-transform duration-300 hover:scale-105">
+                        ARM
+                      </div>
+
+                      {/* 右侧 6 条平行渐变线条 */}
+                      <div className="flex flex-col gap-2 opacity-40">
+                        {[...Array(6)].map((_, i) => (
+                          <div key={i} className="w-12 h-[1.2px] bg-gradient-to-l from-transparent to-white" />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="w-full flex flex-wrap justify-center lg:justify-end gap-2.5 sm:gap-3">
+                      <span className="px-4 py-2 sm:px-5 sm:py-2.5 bg-[var(--home-primary)] text-white font-bold text-[11px] sm:text-xs rounded-full shadow-[0_4px_12px_rgba(255,87,0,0.25)] whitespace-nowrap">
+                        GPU Compute
+                      </span>
+                      {[
+                        'Arm AI CPU',
+                        'Hybrid Arch',
+                        'Agentic Compute',
+                        'AI Infrastructure',
+                        'Hybrid Nodes'
+                      ].map((text, idx) => (
+                        <span
+                          key={idx}
+                          className="px-4 py-2 sm:px-5 sm:py-2.5 bg-white text-[#0f1115] font-bold text-[11px] sm:text-xs rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.1)] whitespace-nowrap transition-transform duration-200 hover:-translate-y-0.5"
+                        >
+                          {text}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section className='home-brand-section'>
             <div className='home-container'>
               <div className='home-brand-card'>
                 <div className='home-brand-left'>
-                  <h2>新易算</h2>
+                  <h2>{t('新易算')}</h2>
                   <h4>
                     {t(
                       '面向企业智能化场景的新一代算力与 AI 基础设施服务商',
@@ -897,6 +1052,102 @@ const Home = () => {
                       )}
                     </p>
                   </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="home-token-section">
+            <div className="w-full bg-white rounded-[32px] border border-gray-100 p-6 sm:p-10 md:p-14 lg:p-16 flex flex-col lg:flex-row items-stretch justify-between gap-10 lg:gap-14 shadow-[0_10px_50px_rgba(0,0,0,0.03)]">
+              <div className="w-full lg:flex-1 flex flex-col justify-between py-1 z-10">
+                <div>
+                  <h1 className="text-[56px] font-bold text-[#111621] tracking-tight mb-5">
+                    {t('合作方介绍')}
+                  </h1>
+                  <h3 className="text-[26px] font-semibold text-[#29303D] tracking-normal mb-5 leading-snug">
+                    {t('FEDIMOSS × 之江易算，共建 AGENTIC 时代 AI Inference 生产底座')}
+                  </h3>
+
+                  <div className="text-[22px] text-[#656E7C] leading-[1.75] tracking-wide mb-8">
+                    {t('一侧负责 AI 基础设施软件栈研究与异构推理优化，一侧负责算力技术集成应用与企业场景交付。能力互补，把复杂推理能力转化为稳定、可规模化的高效 Token 供给。')}
+                  </div>
+                  <div className="w-full bg-[#F6F7F9] rounded-[16px] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 border border-[#E2E6ED] mb-8 lg:mb-12">
+                    <span className="text-[20px] font-bold text-gray-900 shrink-0">
+                      {t('强强联合')}
+                    </span>
+                    <div className="hidden sm:block w-[1px] h-4 bg-gray-300" />
+                    <p className="text-[18px] text-[#656E7C] leading-relaxed">
+                      {t('打造高性价比 Token 产品 · 1M 长文本复杂推理 · AI Inference 底座')}
+                    </p>
+                  </div>
+                </div>
+                <div className="w-full flex flex-wrap gap-2.5 sm:gap-3">
+                  <span className="px-5 py-2 bg-white border border-gray-100 rounded-full text-[14px] sm:text-xs font-medium text-[var(--home-primary)] shadow-[0_2px_8px_rgba(0,0,0,0.02)] whitespace-nowrap">
+                    {t('AI 软件栈')}
+                  </span>
+                  {['异构推理', '算力集成', '企业交付'].map((text, idx) => (
+                    <span
+                      key={idx}
+                      className="px-5 py-2 bg-white border border-gray-100 rounded-full text-[11px] sm:text-xs font-medium text-gray-600 shadow-[0_2px_8px_rgba(0,0,0,0.02)] whitespace-nowrap"
+                    >
+                      {t(text)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* =================【右侧：黑底深邃架构卡片区域】================= */}
+              <div className="w-full lg:w-[690px] xl:w-[690px] bg-[#0c0e12] rounded-[24px] border border-[#1b1e24] p-6 sm:p-8 flex flex-col gap-5 shadow-[0_20px_50px_rgba(0,0,0,0.3)] shrink-0">
+
+                {/* 卡片头部的小型英文字缀 */}
+                <div className="border-b border-[#1c1f26] pb-4 mb-1">
+                  <span className="text-[14px] sm:text-[15px] font-mono font-bold tracking-[0.18em] text-[var(--home-primary)] uppercase block">
+                    PARTNERSHIP STACK
+                  </span>
+                </div>
+
+                {/* 1. FEDIMOSS 内层子卡片 */}
+                <div className="w-full bg-[#14171d] border border-[#222730] rounded-[16px] p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300 hover:border-[#313845]">
+                  <div className="flex items-center gap-4">
+                    {/* 蓝色模拟 Logo 块 */}
+                    <div className="w-12 h-12 rounded-[12px] flex items-center justify-center text-white font-black text-xl shadow-[0_4px_12px_rgba(29,78,216,0.3)] shrink-0">
+                      <img src={fedimoossLogo} alt="FEDIMOSS" />
+                    </div>
+                    <div>
+                      <h4 className="text-white text-[16px] sm:text-[18px] font-bold tracking-wide">
+                        FEDIMOSS
+                      </h4>
+                      <p className="text-[11px] sm:text-xs text-gray-400 mt-1">
+                        {t('AI 基础设施软件栈研究')}
+                      </p>
+                    </div>
+                  </div>
+                  {/* 右侧解析细字描述 */}
+                  <p className="text-[11px] sm:text-xs text-gray-400 leading-relaxed sm:max-w-[240px] border-t sm:border-t-0 border-[#222730] pt-3 sm:pt-0 w-full sm:w-auto">
+                    {t('Arm架构CPU 高性能推理优化、CPU+GPU 异构方案，已和北美知名 AI 处理器芯片机构技术合作。')}
+                  </p>
+                </div>
+
+                {/* 2. 之江易算 内层子卡片 */}
+                <div className="w-full bg-[#14171d] border border-[#222730] rounded-[16px] p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300 hover:border-[#313845]">
+                  <div className="flex items-center gap-4">
+                    {/* 青蓝色模拟 Logo 块 */}
+                    <div className="w-12 h-12 bg-white rounded-[12px] flex items-center justify-center border border-gray-200 shadow-sm shrink-0">
+                      <img src={newLogo} alt="之江易算" className="w-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-white text-[16px] sm:text-[18px] font-bold tracking-wide">
+                        {t('之江易算')}
+                      </h4>
+                      <p className="text-[11px] sm:text-xs text-gray-400 mt-1">
+                        {t('算力技术集成应用')}
+                      </p>
+                    </div>
+                  </div>
+                  {/* 右侧解析细字描述 */}
+                  <p className="text-[11px] sm:text-xs text-gray-400 leading-relaxed sm:max-w-[240px] border-t sm:border-t-0 border-[#222730] pt-3 sm:pt-0 w-full sm:w-auto">
+                    {t('面向企业场景提供算力集成、应用落地与工程化交付能力。为上市公司集智股份的全资子公司。')}
+                  </p>
                 </div>
               </div>
             </div>

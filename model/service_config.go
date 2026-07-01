@@ -20,6 +20,7 @@ type ServiceConfig struct {
 	WechatMchID          string `json:"wechat_mch_id" gorm:"column:wechat_mch_id"`
 	WechatMchSerialNo    string `json:"wechat_mch_serial_no" gorm:"column:wechat_mch_serial_no"`
 	WechatPrivateKeyPath string `json:"wechat_private_key_path" gorm:"column:wechat_private_key_path"`
+	WechatPublicKeyPath  string `json:"wechat_public_key_path" gorm:"column:wechat_public_key_path"`
 	WechatAPIV3Key       string `json:"wechat_apiv3_key" gorm:"column:wechat_apiv3_key"`
 	WechatNotifyURL      string `json:"wechat_notify_url" gorm:"column:wechat_notify_url"`
 

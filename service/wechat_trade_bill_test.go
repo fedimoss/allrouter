@@ -1,66 +1,114 @@
 package service
 
 import (
-	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/pkg/wxpay_utility"
 )
 
-func TestWechatTradeBill(t *testing.T) {
-	config, err := wxpay_utility.CreateMchConfig(
-		"1666798226",
-		"19A8C175995982710E46B1B8C0E6E8225ED5448A",
-		"F:\\cert\\1666798226_20240129_cert\\apiclient_key.pem", ///data/geo/geo_sourcecode/cert/1666798226_20240129_cert/wechatpay_21F15DB4A01786411777E5861D594E2F1D218359.pem
-		"21F15DB4A01786411777E5861D594E2F1D218359",
-		"F:\\cert\\1666798226_20240129_cert\\wechatpay_21F15DB4A01786411777E5861D594E2F1D218359.pem",
-	)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+const (
+	// Fill these values locally when you want to call the real WeChat trade bill API.
+	wechatMchID          = ""
+	wechatMchSerialNo    = ""
+	wechatPrivateKeyPath = ""
 
+	// Public-key mode.
+	wechatPublicKeyID   = ""
+	wechatPublicKeyPath = ""
+
+	// Certificate mode.
+	wechatPlatformCertSerialNo = ""
+	wechatPlatformCertPath     = ""
+
+	// Leave empty to use yesterday.
+	wechatBillDate = "2026-06-23"
+)
+
+func testBillDate() string {
+	if strings.TrimSpace(wechatBillDate) != "" {
+		return strings.TrimSpace(wechatBillDate)
+	}
+	return time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+}
+
+func requireHardcodedWechatConfig(t *testing.T, pairs map[string]string) {
+	t.Helper()
+	for name, value := range pairs {
+		if strings.TrimSpace(value) == "" {
+			t.Skipf("%s is empty; fill the constants at the top of service/wechat_trade_bill_test.go to call the real WeChat API", name)
+		}
+	}
+}
+
+func requestWechatTradeBillForTest(t *testing.T, config *wxpay_utility.MchConfig) *QueryBillEntity {
+	t.Helper()
 	request := &GetTradeBillRequest{
-		BillDate: wxpay_utility.String("2026-04-07"),
+		BillDate: wxpay_utility.String(testBillDate()),
 		BillType: BILLTYPE_ALL.Ptr(),
 		TarType:  TARTYPE_GZIP.Ptr(),
 	}
 
 	response, err := GetTradeBill(config, request)
 	if err != nil {
-		fmt.Printf("请求失败: %+v\n", err)
-		return
+		t.Fatalf("GetTradeBill failed: %+v", err)
 	}
+	if response == nil {
+		t.Fatal("GetTradeBill returned nil response")
+	}
+	if response.DownloadUrl == nil || strings.TrimSpace(*response.DownloadUrl) == "" {
+		t.Fatalf("download_url is empty: %+v", response)
+	}
+	if response.HashValue == nil || strings.TrimSpace(*response.HashValue) == "" {
+		t.Fatalf("hash_value is empty: %+v", response)
+	}
+	t.Logf("trade bill ok: bill_date=%s hash_type=%v download_url=%s", *request.BillDate, response.HashType, *response.DownloadUrl)
+	return response
+}
 
-	fmt.Printf("请求成功: hash_type=%v, hash_value=%v, download_url=%v\n",
-		*response.HashType,
-		*response.HashValue,
-		*response.DownloadUrl,
+func TestWechatTradeBillPublicKeyIntegration(t *testing.T) {
+	requireHardcodedWechatConfig(t, map[string]string{
+		"wechatMchID":          wechatMchID,
+		"wechatMchSerialNo":    wechatMchSerialNo,
+		"wechatPrivateKeyPath": wechatPrivateKeyPath,
+		"wechatPublicKeyID":    wechatPublicKeyID,
+		"wechatPublicKeyPath":  wechatPublicKeyPath,
+	})
+
+	config, err := wxpay_utility.CreateMchConfigWithWechatPayPublicKey(
+		wechatMchID,
+		wechatMchSerialNo,
+		wechatPrivateKeyPath,
+		wechatPublicKeyID,
+		wechatPublicKeyPath,
 	)
-
-	billFile, err := DownloadAndVerifyTradeBill(config, request.TarType, response)
 	if err != nil {
-		fmt.Printf("下载并校验账单失败: %+v\n", err)
-		return
+		t.Fatalf("create public-key config failed: %v", err)
 	}
 
-	fmt.Printf("账单下载并校验成功: raw_bytes=%d, verified_bytes=%d, hash_type=%s, hash_value=%s\n",
-		len(billFile.Content),
-		len(billFile.VerifiedBytes),
-		billFile.HashType,
-		billFile.HashValue,
-	)
+	requestWechatTradeBillForTest(t, config)
+}
 
-	imported, err := DownloadExtractSaveAndImportTradeBill(config, *request.BillDate, request.TarType, response)
+func TestWechatTradeBillCertificateIntegration(t *testing.T) {
+	requireHardcodedWechatConfig(t, map[string]string{
+		"wechatMchID":                wechatMchID,
+		"wechatMchSerialNo":          wechatMchSerialNo,
+		"wechatPrivateKeyPath":       wechatPrivateKeyPath,
+		"wechatPlatformCertSerialNo": wechatPlatformCertSerialNo,
+		"wechatPlatformCertPath":     wechatPlatformCertPath,
+	})
+
+	config, err := wxpay_utility.CreateMchConfig(
+		wechatMchID,
+		wechatMchSerialNo,
+		wechatPrivateKeyPath,
+		wechatPlatformCertSerialNo,
+		wechatPlatformCertPath,
+	)
 	if err != nil {
-		fmt.Printf("解压、保存并入库失败: %+v\n", err)
-		return
+		t.Fatalf("create certificate config failed: %v", err)
 	}
 
-	fmt.Printf("账单入库成功: csv_path=%s, parsed_rows=%d, inserted_rows=%d, duplicate_rows=%d\n",
-		imported.CSVPath,
-		imported.ParsedRows,
-		imported.InsertedRows,
-		imported.DuplicateRows,
-	)
+	requestWechatTradeBillForTest(t, config)
 }
