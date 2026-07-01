@@ -770,7 +770,8 @@ const Home = () => {
             </div>
 
             <div className='landing-v2-footer-bottom'>
-              <span>© {new Date().getFullYear()} {systemName}. All rights reserved.</span>
+              {/* <span>© {new Date().getFullYear()} {systemName}. All rights reserved.</span> */}
+              <span dangerouslySetInnerHTML={{ __html: statusState?.status.footer_html || '' }} />
             </div>
           </footer>
         </>

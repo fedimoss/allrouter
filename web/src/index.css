@@ -902,7 +902,9 @@ html.dark .sbg-variant-green {
 
 /* 页脚样式 */
 .custom-footer {
-  font-size: 1.1em;
+  font-size: 14px;
+  color: var(--semi-color-text-2);
+  padding-left: 14px;
 }
 .custom-footer.na-cb6feafeb3990c78 {
   position: relative;
@@ -2259,7 +2261,7 @@ html.dark .landing-home.landing-v2 .landing-v2-cta-box {
   padding: 20px 0;
   border-top: 1px solid var(--landing-v2-border);
   color: #b1b5bc;
-  font-size: 0.76rem;
+  font-size: 14px;
 }
 
 .floating-support {

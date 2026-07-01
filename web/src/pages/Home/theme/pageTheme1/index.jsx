@@ -1037,7 +1037,7 @@ const Home = () => {
                 <div className='home-brand-right'>
                   <div className='home-brand-system-header'>
                     <span>Agentic Infra</span>
-                    <div className='home-brand-badge'>● AI Infra Brand</div>
+                    <div className='home-brand-badge'>● AI Infra</div>
                   </div>
                   <div className='home-brand-visual'>
                     <div className='home-brand-logo-mock'>
