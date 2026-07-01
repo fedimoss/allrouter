@@ -80,28 +80,15 @@ func GetTopUpInfo(c *gin.Context) {
 	displayInfo := getDisplayCurrencyForUser(c)
 
 	user, _ := model.GetUserById(c.GetInt("id"), false)
-	// 如果启用了 Stripe 支付，添加到支付方法列表
-	if setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "" {
-		// 检查是否已经包含 Stripe
-		hasStripe := false
-		for _, method := range payMethods {
-			if method["type"] == "stripe" {
-				hasStripe = true
-				break
-			}
-		}
-
-		if !hasStripe {
-			stripeMethod := map[string]string{
-				"name":      "Stripe",
-				"type":      "stripe",
-				"color":     "rgba(var(--semi-purple-5), 1)",
-				"min_topup": strconv.Itoa(setting.StripeMinTopUp),
-			}
-			payMethods = append(payMethods, stripeMethod)
-		}
+	// 根据用户时区解析 Stripe 价格配置
+	var stripeCurrency *model.CurrencyStripeConfig
+	enableStripeTopup := operation_setting.ContainsPayMethod(PaymentMethodStripe) &&
+		setting.StripeApiSecret != "" &&
+		setting.StripeWebhookSecret != ""
+	if enableStripeTopup {
+		stripeCurrency = resolveStripeCurrencyConfig(user)
+		enableStripeTopup = stripeCurrency != nil
 	}
-
 	// 如果启用了 Waffo 支付，添加到支付方法列表
 	enableWaffo := setting.WaffoEnabled &&
 		((!setting.WaffoSandbox &&
@@ -130,14 +117,6 @@ func GetTopUpInfo(c *gin.Context) {
 			}
 			payMethods = append(payMethods, waffoMethod)
 		}
-	}
-
-	// 根据用户时区解析 Stripe 价格配置
-	var stripeCurrency *model.CurrencyStripeConfig
-	enableStripeTopup := setting.StripeApiSecret != "" && setting.StripeWebhookSecret != ""
-	if enableStripeTopup {
-		stripeCurrency = resolveStripeCurrencyConfig(user)
-		enableStripeTopup = stripeCurrency != nil
 	}
 
 	// enableEpayTopUp: 易支付是否可用 —— 需同时配置支付地址、商户ID和商户密钥

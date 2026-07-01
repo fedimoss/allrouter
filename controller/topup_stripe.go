@@ -48,6 +48,10 @@ type StripeAdaptor struct {
 }
 
 func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
+	if !operation_setting.ContainsPayMethod(PaymentMethodStripe) {
+		c.JSON(200, gin.H{"message": "error", "data": "管理员未开启Stripe充值"})
+		return
+	}
 	if req.Amount < getStripeMinTopup() {
 		c.JSON(200, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getStripeMinTopup())})
 		return
@@ -75,6 +79,10 @@ func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	if req.PaymentMethod != PaymentMethodStripe {
 		c.JSON(200, gin.H{"message": "error", "data": "不支持的支付渠道"})
+		return
+	}
+	if !operation_setting.ContainsPayMethod(PaymentMethodStripe) {
+		c.JSON(200, gin.H{"message": "error", "data": "管理员未开启Stripe充值"})
 		return
 	}
 	if req.Amount < getStripeMinTopup() {
