@@ -79,6 +79,7 @@ func GetStatus(c *gin.Context) {
 		"telegram_oauth":              common.TelegramOAuthEnabled,
 		"telegram_bot_name":           common.TelegramBotName,
 		"theme":                       system_setting.GetThemeSettings().Frontend,
+		"home_page_theme":             common.OptionMap["HomePageTheme"],
 		"system_name":                 common.SystemName,
 		"logo":                        common.Logo,
 		"wechat_support":              common.WechatSupport, // 微信客服

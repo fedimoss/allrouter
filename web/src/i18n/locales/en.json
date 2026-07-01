@@ -4767,6 +4767,12 @@
     "Arm架构CPU 高性能推理优化、CPU+GPU 异构方案": "Arm architecture CPU high-performance reasoning optimization, CPU+GPU heterogeneous solution",
     "算力技术集成应用": "Compute Integration Application",
     "Arm架构CPU 高性能推理优化、CPU+GPU 异构方案，已和北美知名 AI 处理器芯片机构技术合作。": "Arm architecture CPU high-performance reasoning optimization, CPU+GPU heterogeneous solution, has collaborated with leading AI processor chip institutions in the North America.",
-    "面向企业场景提供算力集成、应用落地与工程化交付能力。为上市公司集智股份的全资子公司。": "Enterprise-level Intelligent Infrastructure Provider, a wholly-owned subsidiary of the listed company."
+    "面向企业场景提供算力集成、应用落地与工程化交付能力。为上市公司集智股份的全资子公司。": "Enterprise-level Intelligent Infrastructure Provider, a wholly-owned subsidiary of the listed company.",
+    "控制面板": "Control Panel",
+    "首页主题": "Home theme",
+    "设置首页主题": "Set home theme",
+    "首页主题已更新": "Home theme updated",
+    "首页主题更新失败": "Failed to update home theme",
+    "风格一": "Style 1"
   }
 }

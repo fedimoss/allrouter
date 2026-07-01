@@ -671,9 +671,10 @@ const TopUp = () => {
 
   const renderAmount = () => {
     // 有时区币种配置时，直接用用户输入的数量 + 币种符号显示（输入多少显示多少）
-    // 币种符号：中国时区显示 ¥，其他时区都显示 $；金额均为整数
     if (stripeCurrency) {
-      const symbol = stripeCurrency.currency === 'CNY' ? '¥' : '$';
+      const symbol =
+        stripeCurrency.symbol ||
+        (stripeCurrency.currency === 'CNY' ? '¥' : '$');
       return `${symbol}${parseInt(topUpCount) || 0}`;
     }
     return amount + ' ' + t('元');
@@ -814,8 +815,10 @@ const TopUp = () => {
         payMethods={payMethods}
         amountNumber={amount}
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
-        // 币种符号：中国时区显示 ¥，其他时区都显示 $
-        stripeSymbol={stripeCurrency?.currency === 'CNY' ? '¥' : '$'}
+        stripeSymbol={
+          stripeCurrency?.symbol ||
+          (stripeCurrency?.currency === 'CNY' ? '¥' : '$')
+        }
         // 展示币种信息，用于微信/支付宝支付时的 CNY 换算
         displayCurrency={displayCurrency}
       />
@@ -866,7 +869,6 @@ const TopUp = () => {
           selectedPreset={selectedPreset}
           selectPresetAmount={selectPresetAmount}
           formatLargeNumber={formatLargeNumber}
-          priceRatio={priceRatio}
           topUpCount={topUpCount}
           minTopUp={minTopUp}
           renderQuotaWithAmount={renderQuotaWithAmount}

@@ -127,7 +127,6 @@ const RechargeCard = ({
   selectedPreset,
   selectPresetAmount,
   formatLargeNumber,
-  priceRatio,
   topUpCount,
   minTopUp,
   renderQuotaWithAmount,
@@ -195,6 +194,12 @@ const RechargeCard = ({
   // 是否为 Stripe 且有时区币种配置（用于决定输入框 placeholder 的金额展示格式）
   const isStripeCurrencyInput =
     fallbackInputPaymentType === 'stripe' && !!stripeCurrency;
+  const stripeCurrencySymbol =
+    stripeCurrency?.symbol || (stripeCurrency?.currency === 'CNY' ? '¥' : '$');
+  const displayCurrencySymbol =
+    displayCurrency?.symbol ||
+    (displayCurrency?.currency === 'CNY' ? '¥' : '$');
+  const presetCurrencySymbol = stripeCurrency?.symbol || displayCurrencySymbol;
 
   useEffect(() => {
     if (initialTabSetRef.current) return;
@@ -547,7 +552,7 @@ const RechargeCard = ({
                   placeholder={
                     isStripeCurrencyInput
                       ? t('充值数量，最低 ') +
-                        (stripeCurrency.currency === 'CNY' ? '¥' : '$') +
+                        stripeCurrencySymbol +
                         inputMinTopUp
                       : t('充值数量，最低 ') +
                         renderQuotaWithAmount(inputMinTopUp)
@@ -639,9 +644,6 @@ const RechargeCard = ({
                         topupInfo?.discount?.[preset.value] ||
                         1.0;
                       const hasDiscount = discount < 1.0;
-                      // 币种符号：中国时区显示 ¥，其他时区都显示 $
-                      const symbol =
-                        stripeCurrency?.currency === 'CNY' ? '¥' : '$';
 
                       return (
                         <button
@@ -653,23 +655,14 @@ const RechargeCard = ({
                               : 'bg-[#F8FAFC] text-slate-700 dark:bg-gray-800 dark:text-slate-200'
                           }`}
                           onClick={() => {
-                            setTopUpCount(preset.value);
-                            setSelectedPreset(preset.value);
+                            selectPresetAmount(preset);
                             onlineFormApiRef.current?.setValue(
                               'topUpCount',
                               preset.value,
                             );
-                            // 有时区币种配置时无需调后端金额接口
-                            if (!stripeCurrency) {
-                              const disc =
-                                preset.discount ||
-                                topupInfo?.discount?.[preset.value] ||
-                                1.0;
-                              setAmount(preset.value * priceRatio * disc);
-                            }
                           }}
                         >
-                          {symbol} {preset.value}
+                          {presetCurrencySymbol} {preset.value}
                           {hasDiscount && (
                             <Tag
                               style={{ marginLeft: 6 }}
@@ -1107,7 +1100,9 @@ const RechargeCard = ({
             />
           }
         />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+        <div
+          style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}
+        >
           <Pagination
             total={historyTotal}
             hideOnSinglePage
