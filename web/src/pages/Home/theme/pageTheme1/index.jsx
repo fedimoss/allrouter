@@ -918,10 +918,10 @@ const Home = () => {
                     AI Inference Base
                   </span>
                   <h1 className="text-[30px] sm:text-4xl md:text-[48px] font-bold text-white tracking-tight leading-[1.15] mb-5">
-                    GPU + Arm AI CPU
+                    GPU + ARM AI CPU
                   </h1>
                   <p className="text-[14px] sm:text-base md:text-[22px] text-[#A3ADC2] leading-relaxed max-w-[580px] font-normal mb-6 md:mb-14">
-                    {t('GPU + Arm AI CPU 全新混合架构，重新定义 AI Agentic 计算基础设施。')}
+                    {t('GPU + ARM AI CPU 全新混合架构，重新定义 AI Agentic 计算基础设施。')}
                   </p>
                   <div className="w-full max-w-[640px] bg-[#090C11] border border-[#2E3745] rounded-[16px] p-5 sm:p-6 font-mono text-xs mt-8 sm:text-xs md:text-[14px] leading-[1.8] tracking-wide shadow-inner">
                     <div className="flex items-start gap-2.5">
@@ -939,7 +939,7 @@ const Home = () => {
                     <div className="flex items-start gap-2.5 mt-2">
                       <span className="text-[#00c06b] shrink-0 font-bold">&gt;</span>
                       <p className="text-[#86868b]">
-                        <span className="text-[#D4C39E]">architecture: GPU + Arm AI CPU co-optimization</span>
+                        <span className="text-[#D4C39E]">architecture: GPU + ARM AI CPU co-optimization</span>
                       </p>
                     </div>
                   </div>
@@ -970,7 +970,7 @@ const Home = () => {
                         GPU Compute
                       </span>
                       {[
-                        'Arm AI CPU',
+                        'ARM AI CPU',
                         'Hybrid Arch',
                         'Agentic Compute',
                         'AI Infrastructure',
@@ -1023,10 +1023,10 @@ const Home = () => {
                     </div>
                   </div>
                   <div className='home-brand-footer'>
-                    <h4>{systemName}</h4>
+                    <h4>{t('新易算')} | {systemName}</h4>
                     <p>
                       {t(
-                        'GPU AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关',
+                        'GPU + ARM AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关',
                       )}
                     </p>
                   </div>
@@ -1102,7 +1102,7 @@ const Home = () => {
                   </div>
                   {/* 右侧解析细字描述 */}
                   <p className="text-[11px] sm:text-xs text-gray-400 leading-relaxed sm:max-w-[240px] border-t sm:border-t-0 border-[#222730] pt-3 sm:pt-0 w-full sm:w-auto">
-                    {t('Arm架构CPU 高性能推理优化、CPU+GPU 异构方案，已和北美知名 AI 处理器芯片机构技术合作。')}
+                    {t('ARM架构CPU 高性能推理优化、CPU+GPU 异构方案，已和北美知名 AI 处理器芯片机构技术合作。')}
                   </p>
                 </div>
 

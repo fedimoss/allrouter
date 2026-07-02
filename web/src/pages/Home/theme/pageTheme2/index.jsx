@@ -893,7 +893,7 @@ const Home = () => {
                     <h4>{systemName}</h4>
                     <p>
                       {t(
-                        'GPU AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关',
+                        'GPU + ARM AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关',
                       )}
                     </p>
                   </div>
