@@ -906,46 +906,24 @@ const Home = () => {
                   </div>
                 </div>
               </div>
-
-              {/* <div className='home-gpu-arm-card'>
-                <div className='home-gpu-arm-left'>
-                  <div className='home-gpu-arm-tag'>GPU + ARM AI CPU</div>
-                  <h3>GPU + Arm AI CPU</h3>
-                  <p>
-                    {t(
-                      'GPU + Arm AI CPU 全新混合架构，重新定义 AI Agentic 计算基础设施。',
-                    )}
-                  </p>
-                  <div className='home-terminal-box'>
-                    <span>&gt; architecture:</span> GPU + Arm AI CPU
-                    <br />
-                    <span>&gt; compute_mode:</span> hybrid agentic infra
-                    <br />
-                    <span>&gt; redefine:</span> AI Agentic infrastructure
-                  </div>
-                </div>
-                <div className='home-gpu-arm-right'>
-                  <img src={refinedImg} alt='refined' className='home-refined-img' />
-                </div>
-              </div> */}
             </div>
           </section>
 
           <section>
-            <div className="home-token-section">
+            <div className="home-token-section home-gpu">
               <div className="relative w-full mx-auto bg-[#14161a] rounded-[28px] border border-[#22252a] p-4 sm:p-6 md:p-12 flex flex-col lg:flex-row items-center justify-between gap-10 lg:gap-16 overflow-hidden">
                 <div className="absolute -top-40 -right-40 w-[600px] h-[600px] bg-gradient-to-bl from-orange-500/10 to-transparent rounded-full blur-[130px] pointer-events-none" />
                 <div className="w-full lg:flex-1 flex flex-col justify-center z-10">
-                  <span className="text-[16px] md:text-xs font-mono font-bold tracking-[0.18em] text-[#D4C39E] uppercase block mb-4 md:mb-5">
+                  <span className="text-[11px] md:text-xs font-mono font-bold tracking-[0.18em] text-[#D4C39E] uppercase block mb-4 md:mb-5">
                     AI Inference Base
                   </span>
-                  <h1 className="text-[56px] sm:text-4xl md:text-[48px] font-bold text-white tracking-tight leading-[1.15] mb-5">
+                  <h1 className="text-[30px] sm:text-4xl md:text-[48px] font-bold text-white tracking-tight leading-[1.15] mb-5">
                     GPU + Arm AI CPU
                   </h1>
-                  <p className="text-[22px] sm:text-sm text-[#A3ADC2] leading-relaxed max-w-[580px] font-normal mb-8 md:mb-14">
+                  <p className="text-[14px] sm:text-base md:text-[22px] text-[#A3ADC2] leading-relaxed max-w-[580px] font-normal mb-6 md:mb-14">
                     {t('GPU + Arm AI CPU 全新混合架构，重新定义 AI Agentic 计算基础设施。')}
                   </p>
-                  <div className="w-full max-w-[640px] bg-[#090C11] border border-[#2E3745] rounded-[16px] p-5 sm:p-6 font-mono text-[18px] mt-10 sm:text-xs md:text-[14px] leading-[1.8] tracking-wide shadow-inner">
+                  <div className="w-full max-w-[640px] bg-[#090C11] border border-[#2E3745] rounded-[16px] p-5 sm:p-6 font-mono text-xs mt-8 sm:text-xs md:text-[14px] leading-[1.8] tracking-wide shadow-inner">
                     <div className="flex items-start gap-2.5">
                       <span className="text-[#00c06b] shrink-0 font-bold">&gt;</span>
                       <p className="text-[#86868b]">
@@ -967,9 +945,9 @@ const Home = () => {
                   </div>
                 </div>
 
-                <div className="w-full lg:w-[620px] xl:w-[680px] h-[330px] shrink-0 z-10 flex flex-col gap-8 items-center lg:items-end">
-                  <div className="relative w-full aspect-[1.65/1] bg-[#1a1d24] border border-[#2d3139] rounded-[24px] flex flex-col justify-center items-center shadow-[0_16px_40px_rgba(0,0,0,0.5)] px-6 sm:px-12 overflow-hidden">
-                    <div className="flex items-center justify-between w-full max-w-[440px] relative mb-10">
+                <div className="w-full lg:w-[620px] xl:w-[680px] lg:h-[330px] shrink-0 z-10 flex flex-col gap-6 lg:gap-8 items-center lg:items-end">
+                  <div className="relative w-full min-h-[280px] lg:aspect-[1.65/1] bg-[#1a1d24] border border-[#2d3139] rounded-[24px] flex flex-col justify-center items-center shadow-[0_16px_40px_rgba(0,0,0,0.5)] px-6 sm:px-12 py-8 lg:py-0 overflow-hidden">
+                    <div className="flex items-center justify-between w-full max-w-[440px] relative mb-6 lg:mb-10">
                       <div className="flex flex-col gap-2 opacity-40">
                         {[...Array(6)].map((_, i) => (
                           <div key={i} className="w-12 h-[1.2px] bg-gradient-to-r from-transparent to-white" />
@@ -1057,26 +1035,26 @@ const Home = () => {
             </div>
           </section>
 
-          <section className="home-token-section">
+          <section className="home-token-section home-intro">
             <div className="w-full bg-white rounded-[32px] border border-gray-100 p-6 sm:p-10 md:p-14 lg:p-16 flex flex-col lg:flex-row items-stretch justify-between gap-10 lg:gap-14 shadow-[0_10px_50px_rgba(0,0,0,0.03)]">
               <div className="w-full lg:flex-1 flex flex-col justify-between py-1 z-10">
                 <div>
-                  <h1 className="text-[56px] font-bold text-[#111621] tracking-tight mb-5">
+                  <h1 className="text-[28px] md:text-[56px] font-bold text-[#111621] tracking-tight mb-4 md:mb-5">
                     {t('合作方介绍')}
                   </h1>
-                  <h3 className="text-[26px] font-semibold text-[#29303D] tracking-normal mb-5 leading-snug">
+                  <h3 className="text-base md:text-[26px] font-semibold text-[#29303D] tracking-normal mb-4 md:mb-5 leading-snug">
                     {t('FEDIMOSS × 之江易算，共建 AGENTIC 时代 AI Inference 生产底座')}
                   </h3>
 
-                  <div className="text-[22px] text-[#656E7C] leading-[1.75] tracking-wide mb-8">
+                  <div className="text-[15px] md:text-[22px] text-[#656E7C] leading-[1.75] tracking-wide mb-6 md:mb-8">
                     {t('一侧负责 AI 基础设施软件栈研究与异构推理优化，一侧负责算力技术集成应用与企业场景交付。能力互补，把复杂推理能力转化为稳定、可规模化的高效 Token 供给。')}
                   </div>
                   <div className="w-full bg-[#F6F7F9] rounded-[16px] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 border border-[#E2E6ED] mb-8 lg:mb-12">
-                    <span className="text-[20px] font-bold text-gray-900 shrink-0">
+                    <span className="text-sm md:text-[20px] font-bold text-gray-900 shrink-0">
                       {t('强强联合')}
                     </span>
                     <div className="hidden sm:block w-[1px] h-4 bg-gray-300" />
-                    <p className="text-[18px] text-[#656E7C] leading-relaxed">
+                    <p className="text-[13px] md:text-[18px] text-[#656E7C] leading-relaxed">
                       {t('打造高性价比 Token 产品 · 1M 长文本复杂推理 · AI Inference 底座')}
                     </p>
                   </div>
@@ -1153,18 +1131,23 @@ const Home = () => {
             </div>
           </section>
 
-          <footer className='home-footer-section'>
+          <footer className='home-footer-section w-full'>
             <div className='home-footer-container'>
               <div className='home-footer-brand'>
-                <div className='home-footer-logo'>
-                  <img src={logo} alt={systemName} />
-                  <span>{systemName}</span>
+                <div>
+                  <div className='home-footer-logo'>
+                    <img src={logo} alt={systemName} />
+                    <span>{systemName}</span>
+                  </div>
+                  <p>
+                    {t(
+                      '统一模型网关，为全球开发者提供高可用、低成本的 AI 基础设施服务。',
+                    )}
+                  </p>
                 </div>
-                <p>
-                  {t(
-                    '统一模型网关，为全球开发者提供高可用、低成本的 AI 基础设施服务。',
-                  )}
-                </p>
+                <div className='home-footer-bottom'>
+                  <span dangerouslySetInnerHTML={{ __html: statusState?.status.footer_html || `© ${new Date().getFullYear()} ${systemName}. All rights reserved.` }} />
+                </div>
               </div>
 
               <div className='home-footer-links-grid'>
@@ -1246,14 +1229,6 @@ const Home = () => {
                   </ul>
                 </div>
               </div>
-            </div>
-
-            <div className='home-footer-bottom'>
-              {/* <span>
-                © {new Date().getFullYear()} {systemName}. All rights
-                reserved.
-              </span> */}
-              <span dangerouslySetInnerHTML={{ __html: statusState?.status.footer_html || `© ${new Date().getFullYear()} ${systemName}. All rights reserved.'` }} />
             </div>
           </footer>
         </>
