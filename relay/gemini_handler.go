@@ -52,6 +52,14 @@ func trimModelThinking(modelName string) string {
 	return modelName
 }
 
+// GeminiHelper 是 Gemini 接口的请求入口。
+//
+// 模型内容审计链路（第 1 段）：
+//  1. 将请求消息整理成审计字符串（记录 system_instruction 和 contents）
+//  2. 注册 defer，确保请求处理结束时执行入队（第 3 段）
+//  3. 请求处理过程中，上游适配器会调用 Set/AppendModelContentAuditResponseText
+//     将响应内容存入 gin.Context（第 2 段）
+//  4. defer 触发时从 gin.Context 取出完整内容，组装记录并入队
 func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
@@ -64,7 +72,11 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeminiChatRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
+
+	// 【审计链路 第 1 段】从请求中提取审计用的请求消息（记录 system_instruction 和 contents）
 	auditRequestMessages := service.ModelContentAuditGeminiRequestMessages(request)
+
+	// 【审计链路 第 3 段】defer 注册：请求处理结束后，从 gin.Context 取出完整响应内容，组装记录并入队
 	defer func() {
 		service.EnqueueModelContentAuditFromRelay(c, info, auditRequestMessages, newAPIError)
 	}()
