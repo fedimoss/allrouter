@@ -965,8 +965,8 @@ const Home = () => {
                         ))}
                       </div>
                     </div>
-                    <div className="w-full flex flex-wrap justify-center lg:justify-end gap-2.5 sm:gap-3">
-                      <span className="px-4 py-2 sm:px-5 sm:py-2.5 bg-[var(--home-primary)] text-white font-bold text-[11px] sm:text-xs rounded-full shadow-[0_4px_12px_rgba(255,87,0,0.25)] whitespace-nowrap">
+                    <div className="w-full flex flex-wrap">
+                      <span className="px-4 py-2 mr-[22px] mb-[14px] sm:px-10 sm:py-2.5 bg-[var(--home-primary)] text-white font-bold text-[11px] sm:text-xs rounded-full shadow-[0_4px_12px_rgba(255,87,0,0.25)] whitespace-nowrap">
                         GPU Compute
                       </span>
                       {[
@@ -978,7 +978,7 @@ const Home = () => {
                       ].map((text, idx) => (
                         <span
                           key={idx}
-                          className="px-4 py-2 sm:px-5 sm:py-2.5 bg-white text-[#0f1115] font-bold text-[11px] sm:text-xs rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.1)] whitespace-nowrap transition-transform duration-200 hover:-translate-y-0.5"
+                          className="px-4 py-2 mr-[22px] mb-[14px] sm:px-10 sm:py-2.5 bg-white text-[#0f1115] font-bold text-[11px] sm:text-xs rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.1)] whitespace-nowrap transition-transform duration-200 hover:-translate-y-0.5"
                         >
                           {text}
                         </span>

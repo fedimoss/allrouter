@@ -1417,8 +1417,8 @@ html.dark .home-icon-wrapper.red {
 }
 
 .home-footer-logo img {
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
 }
 
@@ -1434,7 +1434,7 @@ html.dark .home-icon-wrapper.red {
   gap: 80px;
 }
 .home-footer-column{
-  width: 10%;
+  width: 150px;
 }
 
 .home-footer-column h5 {
