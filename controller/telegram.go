@@ -170,11 +170,11 @@ func TelegramWebhook(c *gin.Context) {
 		}
 
 		// 回复对应的群成员：把消息回发到群里，并以 reply 形式指向该成员的原消息
-		if update.Message.From != nil && update.Message.Text != "" {
-			if err := replyInGroup(c, update.Message); err != nil {
-				log.Println("[Telegram] 回复失败:", err)
-			}
-		}
+		// if update.Message.From != nil && update.Message.Text != "" {
+		// 	if err := replyInGroup(c, update.Message); err != nil {
+		// 		log.Println("[Telegram] 回复失败:", err)
+		// 	}
+		// }
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true})
