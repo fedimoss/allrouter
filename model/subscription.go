@@ -164,9 +164,10 @@ type SubscriptionPlan struct {
 	AllowPurchase int    `json:"allow_purchase" gorm:"type:int;default:1"`
 	ModelLimits   string `json:"model_limits" gorm:"type:text;default:''"`
 
-	StripePriceId    string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`     // Stripe 缇庡厓锛圲SD锛変环鏍?ID锛岀敤浜庣編鍏冨尯璁㈤槄鏀粯
-	StripePriceCnyId string `json:"stripe_price_cny_id" gorm:"type:varchar(128);default:''"` // Stripe 浜烘皯甯侊紙CNY锛変环鏍?ID锛岀敤浜庝汉姘戝竵鍖鸿闃呮敮浠?	CreemProductId   string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
+	StripePriceId    string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
+	StripePriceCnyId string `json:"stripe_price_cny_id" gorm:"type:varchar(128);default:''"`
 
+	CreemProductId        string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
 	WaffoPancakeProductId string `json:"waffo_pancake_product_id" gorm:"type:varchar(128);default:''"`
 
 	// Max purchases per user (0 = unlimited)
@@ -773,6 +774,46 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 		return fmt.Sprintf("閻劍鍩涢崚鍡欑矋鐏忓棗宕岀痪褍鍩?%s", plan.UpgradeGroup), nil
 	}
 	return "", nil
+}
+
+// GrantAirdropSubscription grants the globally configured airdrop subscription plan to a user.
+func GrantAirdropSubscription(userId int) (string, error) {
+	if userId <= 0 {
+		return "", errors.New("invalid user id")
+	}
+	if common.AirdropSubscriptionPlanId <= 0 {
+		return "", nil
+	}
+	var planTitle string
+	var upgradeGroup string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		plan, err := getSubscriptionPlanByIdTx(tx, common.AirdropSubscriptionPlanId)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if plan == nil || !plan.Enabled {
+			return nil
+		}
+		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "airdrop"); err != nil {
+			return err
+		}
+		planTitle = plan.Title
+		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if upgradeGroup != "" {
+		_ = UpdateUserGroupCache(userId, upgradeGroup)
+	}
+	if planTitle != "" {
+		RecordLog(userId, LogTypeSystem, fmt.Sprintf("airdrop subscription reward %s", planTitle))
+	}
+	return planTitle, nil
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.

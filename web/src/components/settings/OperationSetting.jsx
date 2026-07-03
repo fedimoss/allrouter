@@ -34,6 +34,7 @@ const OperationSetting = () => {
     /* 额度相关 */
     QuotaForNewUser: 0,
     RegisterGiftSubscriptionPlanId: 0,
+    AirdropSubscriptionPlanId: 0,
     PreConsumedQuota: 0,
     QuotaForInviter: 0,
     QuotaForInvitee: 0,

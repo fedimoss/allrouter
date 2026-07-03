@@ -1,5 +1,7 @@
 {
   "translation": {
+    "不空投订阅": "Không airdrop gói đăng ký",
+    "空投订阅方案": "Gói đăng ký dùng để airdrop",
     "不赠送订阅": "Không tặng gói đăng ký",
     "注册赠送订阅": "Gói đăng ký tặng khi đăng ký",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Gọi tạo hình ảnh {{symbol}}{{price}} / 1 lần * {{ratioType}} {{ratio}}",

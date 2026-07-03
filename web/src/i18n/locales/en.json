@@ -1,5 +1,7 @@
 {
   "translation": {
+    "不空投订阅": "Do not airdrop a subscription",
+    "空投订阅方案": "Airdrop subscription plan",
     "不赠送订阅": "Do not gift a subscription",
     "注册赠送订阅": "Registration gift subscription",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Image generation call {{symbol}}{{price}} / 1 time * {{ratioType}} {{ratio}}",

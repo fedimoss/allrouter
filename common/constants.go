@@ -147,6 +147,7 @@ var TelegramMiniAppURL = ""    // Mini App 启动链接（@BotFather /newapp 生
 
 var QuotaForNewUser = 0
 var RegisterGiftSubscriptionPlanId = 0
+var AirdropSubscriptionPlanId = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
 

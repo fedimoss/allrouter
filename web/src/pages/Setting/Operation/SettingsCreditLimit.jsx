@@ -34,6 +34,7 @@ export default function SettingsCreditLimit(props) {
   const [inputs, setInputs] = useState({
     QuotaForNewUser: '',
     RegisterGiftSubscriptionPlanId: '0',
+    AirdropSubscriptionPlanId: '0',
     PreConsumedQuota: '',
     QuotaForInviter: '',
     QuotaForInvitee: '',
@@ -152,6 +153,20 @@ export default function SettingsCreditLimit(props) {
                     setInputs({
                       ...inputs,
                       RegisterGiftSubscriptionPlanId: String(value || 0),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Select
+                  label={t('空投订阅方案')}
+                  field={'AirdropSubscriptionPlanId'}
+                  optionList={subscriptionPlanOptions}
+                  placeholder={t('不空投订阅')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      AirdropSubscriptionPlanId: String(value || 0),
                     })
                   }
                 />

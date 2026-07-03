@@ -1,5 +1,7 @@
 {
   "translation": {
+    "不空投订阅": "Ne pas larguer d'abonnement",
+    "空投订阅方案": "Forfait d'abonnement à distribuer",
     "不赠送订阅": "Ne pas offrir d'abonnement",
     "注册赠送订阅": "Abonnement offert à l'inscription",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Appel de génération d'image {{symbol}}{{price}} / 1 fois * {{ratioType}} {{ratio}}",
