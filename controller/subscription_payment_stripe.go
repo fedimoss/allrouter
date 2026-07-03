@@ -47,6 +47,10 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "该套餐未配置 Stripe PriceId") // 提示管理员需要在套餐中配置 Stripe 价格
 		return
 	}
+	if plan.AllowPurchase != 1 {
+		common.ApiErrorMsg(c, "该套餐暂不允许订阅")
+		return
+	}
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
 		common.ApiErrorMsg(c, "Stripe 未配置或密钥无效")
 		return

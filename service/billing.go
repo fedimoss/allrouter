@@ -38,6 +38,15 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int) error {
 	if relayInfo.Billing != nil {
 		preConsumed := relayInfo.Billing.GetPreConsumedQuota()
+		if relayInfo.BillingSource == BillingSourceSubscription && preConsumed > 0 && actualQuota == 0 {
+			msg := fmt.Sprintf("subscription actual quota is 0 after successful relay, keep pre-consumed quota: %s", logger.FormatQuota(preConsumed))
+			if ctx != nil {
+				logger.LogWarn(ctx, msg)
+			} else {
+				common.SysLog(msg)
+			}
+			actualQuota = preConsumed
+		}
 		delta := actualQuota - preConsumed
 
 		if delta > 0 {

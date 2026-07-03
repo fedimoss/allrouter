@@ -146,6 +146,7 @@ var TelegramWebhookSecret = "" // Telegram webhook 的 secret_token（与 setWeb
 var TelegramMiniAppURL = ""    // Mini App 启动链接（@BotFather /newapp 生成的 t.me/<bot>/<appname>），群里"绑定账号"按钮指向它；为空则不发送
 
 var QuotaForNewUser = 0
+var RegisterGiftSubscriptionPlanId = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
 

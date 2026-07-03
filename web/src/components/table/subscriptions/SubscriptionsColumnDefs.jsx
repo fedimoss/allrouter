@@ -168,6 +168,48 @@ const renderEnabled = (text, record, t) => {
   );
 };
 
+const renderAllowPurchase = (text, record, t) => {
+  const allowed = Number(record?.plan?.allow_purchase ?? 1) === 1;
+  return allowed ? (
+    <Tag
+      color='white'
+      shape='circle'
+      type='light'
+      prefixIcon={<Badge dot type='success' />}
+    >
+      {t('允许订阅')}
+    </Tag>
+  ) : (
+    <Tag
+      color='white'
+      shape='circle'
+      type='light'
+      prefixIcon={<Badge dot type='warning' />}
+    >
+      {t('暂停订阅')}
+    </Tag>
+  );
+};
+
+const renderModelLimits = (text, record, t) => {
+  const models = String(record?.plan?.model_limits || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (models.length === 0) {
+    return <Text type='tertiary'>{t('全部模型')}</Text>;
+  }
+  const label =
+    models.length <= 2
+      ? models.join(', ')
+      : `${models.slice(0, 2).join(', ')} +${models.length - 2}`;
+  return (
+    <Tooltip content={models.join(', ')}>
+      <Text type='secondary'>{label}</Text>
+    </Tooltip>
+  );
+};
+
 const renderTotalAmount = (text, record, t) => {
   const total = Number(record?.plan?.total_amount || 0);
   return (
@@ -333,6 +375,18 @@ export const getSubscriptionsColumns = ({
       dataIndex: ['plan', 'enabled'],
       width: 80,
       render: (text, record) => renderEnabled(text, record, t),
+    },
+    {
+      title: t('订阅开关'),
+      dataIndex: ['plan', 'allow_purchase'],
+      width: 100,
+      render: (text, record) => renderAllowPurchase(text, record, t),
+    },
+    {
+      title: t('适用模型'),
+      dataIndex: ['plan', 'model_limits'],
+      width: 160,
+      render: (text, record) => renderModelLimits(text, record, t),
     },
     {
       title: t('支付渠道'),

@@ -767,6 +767,26 @@ func grantInviterRewardTx(tx *gorm.DB, inviterId int, inviteeId int, rewardQuota
 	})
 }
 
+func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int) (string, error) {
+	if tx == nil || userId <= 0 || common.RegisterGiftSubscriptionPlanId <= 0 {
+		return "", nil
+	}
+	plan, err := getSubscriptionPlanByIdTx(tx, common.RegisterGiftSubscriptionPlanId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	if plan == nil || !plan.Enabled {
+		return "", nil
+	}
+	if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "register_reward"); err != nil {
+		return "", err
+	}
+	return plan.Title, nil
+}
+
 func (user *User) TransferAffQuotaToQuota(quota int) error {
 	// 检查quota是否小于最小额度
 	if float64(quota) < common.QuotaPerUnit {
@@ -858,6 +878,11 @@ func (user *User) Insert(inviterId int) error {
 			return err
 		}
 	}
+	registerGiftSubscriptionTitle, err := grantRegisterGiftSubscriptionTx(tx, user.Id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 	if inviterId != 0 {
 		if rewardCfg.QuotaForInvitee > 0 {
 			if err := recordRewardAndIncreaseQuotaTx(tx, user.ProviderId, user.Id, rewardCfg.QuotaForInvitee, "invitee_reward", inviterId, "invitee reward"); err != nil {
@@ -919,6 +944,9 @@ func (user *User) Insert(inviterId int) error {
 	if rewardCfg.QuotaForNewUser > 0 {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user reward %s", logger.LogQuota(rewardCfg.QuotaForNewUser)))
 	}
+	if registerGiftSubscriptionTitle != "" {
+		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user subscription reward %s", registerGiftSubscriptionTitle))
+	}
 	if inviterId != 0 {
 		if rewardCfg.QuotaForInvitee > 0 {
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("invitee reward %s", logger.LogQuota(rewardCfg.QuotaForInvitee)))
@@ -979,6 +1007,9 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			return err
 		}
 	}
+	if _, err := grantRegisterGiftSubscriptionTx(tx, user.Id); err != nil {
+		return err
+	}
 	if inviterId != 0 {
 		if rewardCfg.QuotaForInvitee > 0 {
 			if err := recordRewardAndIncreaseQuotaTx(tx, user.ProviderId, user.Id, rewardCfg.QuotaForInvitee, "invitee_reward", inviterId, "invitee reward"); err != nil {
@@ -1020,6 +1051,11 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 	if rewardCfg, err := GetProviderRewardConfig(user.ProviderId); err == nil {
 		if rewardCfg.QuotaForNewUser > 0 {
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user reward %s", logger.LogQuota(rewardCfg.QuotaForNewUser)))
+		}
+		if common.RegisterGiftSubscriptionPlanId > 0 {
+			if plan, err := GetSubscriptionPlanById(common.RegisterGiftSubscriptionPlanId); err == nil && plan != nil && plan.Enabled {
+				RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user subscription reward %s", plan.Title))
+			}
 		}
 		if inviterId != 0 {
 			if rewardCfg.QuotaForInvitee > 0 {

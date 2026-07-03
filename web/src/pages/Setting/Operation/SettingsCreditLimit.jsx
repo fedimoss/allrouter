@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import {
@@ -33,13 +33,28 @@ export default function SettingsCreditLimit(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     QuotaForNewUser: '',
+    RegisterGiftSubscriptionPlanId: '0',
     PreConsumedQuota: '',
     QuotaForInviter: '',
     QuotaForInvitee: '',
     'quota_setting.enable_free_model_pre_consume': true,
   });
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
+  const subscriptionPlanOptions = useMemo(
+    () => [
+      { label: t('不赠送订阅'), value: '0' },
+      ...subscriptionPlans.map((item) => {
+        const plan = item?.plan || item;
+        return {
+          label: plan?.title || `#${plan?.id}`,
+          value: String(plan?.id || 0),
+        };
+      }),
+    ],
+    [subscriptionPlans, t],
+  );
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow);
@@ -87,6 +102,20 @@ export default function SettingsCreditLimit(props) {
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);
   }, [props.options]);
+
+  useEffect(() => {
+    const loadSubscriptionPlans = async () => {
+      try {
+        const res = await API.get('/api/subscription/admin/plans');
+        if (res.data?.success) {
+          setSubscriptionPlans(res.data.data || []);
+        }
+      } catch (e) {
+        // ignore, the select can stay empty
+      }
+    };
+    loadSubscriptionPlans();
+  }, []);
   return (
     <>
       <Spin spinning={loading}>
@@ -109,6 +138,20 @@ export default function SettingsCreditLimit(props) {
                     setInputs({
                       ...inputs,
                       QuotaForNewUser: String(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Select
+                  label={t('注册赠送订阅')}
+                  field={'RegisterGiftSubscriptionPlanId'}
+                  optionList={subscriptionPlanOptions}
+                  placeholder={t('不赠送订阅')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      RegisterGiftSubscriptionPlanId: String(value || 0),
                     })
                   }
                 />
