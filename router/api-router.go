@@ -52,6 +52,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/stripe/webhook", anonymousRequestBodyLimit, controller.StripeWebhook)
 		apiRouter.POST("/creem/webhook", anonymousRequestBodyLimit, controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", anonymousRequestBodyLimit, controller.WaffoWebhook)
+		apiRouter.POST("/telegram/webhook", anonymousRequestBodyLimit, controller.TelegramWebhook)
+		apiRouter.POST("/telegram/miniapp/bind", anonymousRequestBodyLimit, controller.TelegramMiniAppBind)
 
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)

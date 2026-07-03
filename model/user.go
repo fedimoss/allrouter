@@ -1399,6 +1399,18 @@ func (user *User) FillUserByTelegramId() error {
 	return nil
 }
 
+// FillUserByUsername 按用户名查询用户（大小写敏感，不含软删除用户）。
+func (user *User) FillUserByUsername() error {
+	if user.Username == "" {
+		return errors.New("用户名为空！")
+	}
+	err := DB.Where(User{Username: user.Username}).First(user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return errors.New("用户名不存在")
+	}
+	return err
+}
+
 func IsWeChatIdAlreadyTaken(wechatId string) bool {
 	return DB.Unscoped().Where("wechat_id = ?", wechatId).Find(&User{}).RowsAffected == 1
 }
