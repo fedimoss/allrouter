@@ -1382,14 +1382,15 @@ html.dark .home-icon-wrapper.red {
 
 /* Footer */
 .home-footer-section {
-  background-color: var(--home-bg-card);
-  border-top: 1px solid var(--home-border);
-  padding: 60px 60px 40px;
+  padding: 0 60px 60px;
 }
 
 .home-footer-container {
+  background-color: var(--home-bg-card);
+  padding: 40px;
+  border: 1px solid #E8EDF3;
+  border-radius: 32px;
   display: flex;
-  justify-content: space-between;
   gap: 40px;
   margin-bottom: 60px;
   max-width: 1700;
@@ -1398,7 +1399,11 @@ html.dark .home-icon-wrapper.red {
 }
 
 .home-footer-brand {
-  max-width: 320px;
+  max-width: 100%;
+  width: 700px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .home-footer-logo {
@@ -1412,8 +1417,8 @@ html.dark .home-icon-wrapper.red {
 }
 
 .home-footer-logo img {
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
 }
 
@@ -1424,8 +1429,12 @@ html.dark .home-icon-wrapper.red {
 }
 
 .home-footer-links-grid {
+  flex: 1;
   display: flex;
   gap: 80px;
+}
+.home-footer-column{
+  width: 150px;
 }
 
 .home-footer-column h5 {
@@ -1456,14 +1465,9 @@ html.dark .home-icon-wrapper.red {
 }
 
 .home-footer-bottom {
-  display: flex;
-  justify-content: space-between;
   font-size: 14px;
   color: var(--home-text-faint);
-  border-top: 1px solid var(--home-border);
-  padding-top: 24px;
   max-width: 1700;
-  margin: 0 auto;
 }
 
 /* Responsive */
@@ -1608,6 +1612,20 @@ html.dark .home-icon-wrapper.red {
   .home-agentic-right-card {
     padding: 24px;
   }
+  .home-agentic-right-card h3 {
+    font-size: 26px;
+  }
+  .home-agentic-right-card p {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .home-agentic-right-card .home-explore-pills .home-explore-pill {
+    padding: 12px 16px;
+  }
+  .home-agentic-right-card .home-explore-pills .home-explore-pill span {
+    font-size: 24px;
+  }
+  
   .home-gpu-arm-card {
     flex-direction: column;
     padding: 32px 16px;
@@ -1643,9 +1661,8 @@ html.dark .home-icon-wrapper.red {
     min-width: 45%;
   }
   .home-footer-bottom {
-    flex-direction: column;
-    gap: 12px;
-    text-align: center;
+    text-align:left;
+    margin-top: 20px;
   }
 }
 
@@ -1653,6 +1670,23 @@ html.dark .home-icon-wrapper.red {
   .home-footer-links-grid {
     flex-direction: column;
     gap: 24px;
+  }
+  .home-agentic-right-card h3 {
+    font-size: 26px;
+  }
+  .home-agentic-right-card p {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .home-agentic-right-card .home-explore-pills .home-explore-pill {
+    padding: 12px 16px;
+  }
+  .home-agentic-right-card .home-explore-pills .home-explore-pill span {
+    font-size: 24px;
+  }
+  .home-footer-bottom {
+    text-align:left;
+    margin-top: 20px;
   }
   .home-footer-column {
     width: 100%;
