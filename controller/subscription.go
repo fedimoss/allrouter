@@ -23,6 +23,13 @@ type BillingPreferenceRequest struct {
 	BillingPreference string `json:"billing_preference"`
 }
 
+// ensureSubscriptionPlanPurchasable 校验套餐是否允许用户自助购买。
+// 检查三项：套餐是否存在、是否启用、是否允许购买（AllowPurchase）。
+//
+// 注意：此函数仅用于用户端自助购买流程的入口校验（支付控制器中调用）。
+// 管理员操作（AdminBindSubscription、AdminGrantAirdropSubscription）和
+// 系统自动授予（注册赠送、空投）不受 AllowPurchase 限制。
+// 返回 false 时已通过 ApiErrorMsg 向前端返回错误信息，调用方直接 return 即可。
 func ensureSubscriptionPlanPurchasable(c *gin.Context, plan *model.SubscriptionPlan) bool {
 	if plan == nil {
 		common.ApiErrorMsg(c, "套餐不存在")
@@ -160,6 +167,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		req.Plan.Currency = "USD"
 	}
 	req.Plan.Currency = "USD"
+	// 规范化模型限制：去重、去空格、排序后再存储，保证数据库格式一致
 	req.Plan.ModelLimits = model.NormalizeSubscriptionPlanModelLimits(req.Plan.ModelLimits)
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
@@ -230,6 +238,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		req.Plan.Currency = "USD"
 	}
 	req.Plan.Currency = "USD"
+	// 规范化模型限制：去重、去空格、排序后再存储，保证数据库格式一致
 	req.Plan.ModelLimits = model.NormalizeSubscriptionPlanModelLimits(req.Plan.ModelLimits)
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
@@ -329,6 +338,15 @@ type AdminBindSubscriptionRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
+// AdminGrantAirdropSubscriptionRequest 管理员空投订阅请求体。
+// 仅需指定目标用户 ID，套餐由全局配置 AirdropSubscriptionPlanId 决定。
+type AdminGrantAirdropSubscriptionRequest struct {
+	UserId int `json:"user_id"`
+}
+
+// AdminBindSubscription 管理员手动为用户绑定订阅套餐（无需支付，可指定任意套餐）。
+// POST /api/admin/subscription/bind
+// 请求体：{"user_id": 123, "plan_id": 5}
 func AdminBindSubscription(c *gin.Context) {
 	// "错误：支付、兑换码、订阅计划和邀请返利功能已禁用。管理员需先确认合规声明后方可启用。"
 	// if !requirePaymentCompliance(c) {
@@ -350,6 +368,34 @@ func AdminBindSubscription(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, nil)
+}
+
+// AdminGrantAirdropSubscription 管理员向指定用户空投全局配置的订阅套餐。
+//
+// POST /api/admin/subscription/airdrop
+//
+// 请求体：{"user_id": 123}
+// 响应：{"user_id": 123, "granted": true, "plan_title": "体验套餐", "success": true}
+//
+// 与 AdminBindSubscription 的区别：
+//   - AdminBindSubscription 可以指定任意 planId
+//   - AdminGrantAirdropSubscription 使用全局运营配置中的 AirdropSubscriptionPlanId
+func AdminGrantAirdropSubscription(c *gin.Context) {
+	var req AdminGrantAirdropSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.UserId <= 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	title, err := model.GrantAirdropSubscription(req.UserId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"user_id":    req.UserId,
+		"granted":    title != "",
+		"plan_title": title,
+	})
 }
 
 // ---- Admin: user subscription management ----

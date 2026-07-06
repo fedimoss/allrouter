@@ -767,6 +767,15 @@ func grantInviterRewardTx(tx *gorm.DB, inviterId int, inviteeId int, rewardQuota
 	})
 }
 
+// grantRegisterGiftSubscriptionTx 在事务中为新注册用户授予注册赠送订阅套餐。
+//
+// 通过全局配置 common.RegisterGiftSubscriptionPlanId 指定赠送的套餐 ID。
+// 当配置值 <= 0 或套餐不存在/未启用时静默跳过，不影响注册流程。
+//
+// 该函数在用户注册事务（Insert / InsertWithTx）中被调用，确保订阅创建与原子的用户注册
+// 在同一事务中完成。如果套餐创建失败会回滚整个注册事务。
+//
+// 返回值：成功授予的套餐标题（用于日志记录），未配置或跳过时返回空字符串。
 func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int) (string, error) {
 	if tx == nil || userId <= 0 || common.RegisterGiftSubscriptionPlanId <= 0 {
 		return "", nil
