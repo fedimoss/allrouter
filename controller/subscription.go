@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"encoding/json"
+	"io"
 	"strconv"
 	"strings"
 
@@ -138,6 +140,38 @@ type AdminUpsertSubscriptionPlanRequest struct {
 	Plan model.SubscriptionPlan `json:"plan"`
 }
 
+type adminUpsertSubscriptionPlanPresence struct {
+	Enabled       bool
+	AllowPurchase bool
+}
+
+type adminUpsertSubscriptionPlanRawRequest struct {
+	Plan map[string]json.RawMessage `json:"plan"`
+}
+
+func bindAdminUpsertSubscriptionPlanRequest(c *gin.Context) (AdminUpsertSubscriptionPlanRequest, adminUpsertSubscriptionPlanPresence, error) {
+	var req AdminUpsertSubscriptionPlanRequest
+	var presence adminUpsertSubscriptionPlanPresence
+
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return req, presence, err
+	}
+	if err := common.Unmarshal(body, &req); err != nil {
+		return req, presence, err
+	}
+
+	var rawReq adminUpsertSubscriptionPlanRawRequest
+	if err := common.Unmarshal(body, &rawReq); err != nil {
+		return req, presence, err
+	}
+	if rawReq.Plan != nil {
+		_, presence.Enabled = rawReq.Plan["enabled"]
+		_, presence.AllowPurchase = rawReq.Plan["allow_purchase"]
+	}
+	return req, presence, nil
+}
+
 func AdminCreateSubscriptionPlan(c *gin.Context) {
 	// 创建套餐订阅计划
 	// "错误：支付、兑换码、订阅计划和邀请返利功能已禁用。管理员需先确认合规声明后方可启用。"
@@ -145,8 +179,8 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	// 	return
 	// }
 
-	var req AdminUpsertSubscriptionPlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	req, presence, err := bindAdminUpsertSubscriptionPlanRequest(c)
+	if err != nil {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
@@ -195,10 +229,36 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
-	err := model.DB.Create(&req.Plan).Error
+	explicitAllowPurchase := req.Plan.AllowPurchase
+	explicitEnabled := req.Plan.Enabled
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&req.Plan).Error; err != nil {
+			return err
+		}
+
+		// GORM applies struct default tags on create for zero values. Preserve
+		// explicit admin choices such as allow_purchase=0 and enabled=false.
+		updateMap := map[string]interface{}{}
+		if presence.AllowPurchase {
+			updateMap["allow_purchase"] = explicitAllowPurchase
+		}
+		if presence.Enabled {
+			updateMap["enabled"] = explicitEnabled
+		}
+		if len(updateMap) > 0 {
+			return tx.Model(&model.SubscriptionPlan{}).Where("id = ?", req.Plan.Id).Updates(updateMap).Error
+		}
+		return nil
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if presence.AllowPurchase {
+		req.Plan.AllowPurchase = explicitAllowPurchase
+	}
+	if presence.Enabled {
+		req.Plan.Enabled = explicitEnabled
 	}
 	model.InvalidateSubscriptionPlanCache(req.Plan.Id)
 	common.ApiSuccess(c, req.Plan)
@@ -216,8 +276,8 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的ID")
 		return
 	}
-	var req AdminUpsertSubscriptionPlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	req, _, err := bindAdminUpsertSubscriptionPlanRequest(c)
+	if err != nil {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
@@ -267,7 +327,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
 			"title":                      req.Plan.Title,
