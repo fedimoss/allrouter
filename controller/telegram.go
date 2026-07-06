@@ -354,5 +354,11 @@ func TelegramMiniAppBind(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
+
+	// 6. 授权 Airdrop 订阅
+	if _, err := model.GrantAirdropSubscription(target.Id); err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "验证成功"})
 }
