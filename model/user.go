@@ -56,11 +56,11 @@ type User struct {
 	Setting                    string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark                     string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer             string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
-	PhoneCountryCode           string         `json:"phone_country_code" gorm:"type:varchar(8);column:phone_country_code" validate:"max=8"` // 手机号国家区号（E.164），如 +86
-	PhoneNumber                string         `json:"phone_number" gorm:"type:varchar(20);column:phone_number" validate:"max=20"`           // 手机号本地号码，不含国家区号，如 13800000000
-	Timezone                   string         `json:"timezone" gorm:"type:varchar(64);column:timezone" validate:"max=64"`                   // 时区标识（IANA），如 Asia/Shanghai
-	Avatar                     string         `json:"avatar" gorm:"type:varchar(255);column:avatar" validate:"max=255"`                     // 头像                   // 头像 URL
-	SignupSource               string         `json:"signup_source" gorm:"type:varchar(64);column:signup_source" validate:"max=64"`         // 注册来源
+	PhoneCountryCode           string         `json:"phone_country_code" gorm:"type:varchar(16);column:phone_country_code" validate:"max=16"` // 手机号国家区号（E.164），如 +86
+	PhoneNumber                string         `json:"phone_number" gorm:"type:varchar(32);column:phone_number" validate:"max=32"`             // 手机号本地号码，不含国家区号，如 13800000000
+	Timezone                   string         `json:"timezone" gorm:"type:varchar(64);column:timezone" validate:"max=64"`                     // 时区标识（IANA），如 Asia/Shanghai
+	Avatar                     string         `json:"avatar" gorm:"type:varchar(2048);column:avatar" validate:"max=2048"`                     // 头像                   // 头像 URL
+	SignupSource               string         `json:"signup_source" gorm:"type:varchar(64);column:signup_source" validate:"max=64"`           // 注册来源
 }
 
 func (user *User) ToBaseUser() *UserBase {
