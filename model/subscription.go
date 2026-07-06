@@ -161,10 +161,13 @@ type SubscriptionPlan struct {
 	Enabled   bool `json:"enabled" gorm:"default:true"`
 	SortOrder int  `json:"sort_order" gorm:"type:int;default:0"`
 
-	StripePriceId    string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`     // Stripe 美元（USD）价格 ID，用于美元区订阅支付
-	StripePriceCnyId string `json:"stripe_price_cny_id" gorm:"type:varchar(128);default:''"` // Stripe 人民币（CNY）价格 ID，用于人民币区订阅支付
-	CreemProductId   string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
+	AllowPurchase int    `json:"allow_purchase" gorm:"type:int;default:1"`
+	ModelLimits   string `json:"model_limits" gorm:"type:text;default:''"`
 
+	StripePriceId    string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
+	StripePriceCnyId string `json:"stripe_price_cny_id" gorm:"type:varchar(128);default:''"`
+
+	CreemProductId        string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
 	WaffoPancakeProductId string `json:"waffo_pancake_product_id" gorm:"type:varchar(128);default:''"`
 
 	// Max purchases per user (0 = unlimited)
@@ -196,21 +199,62 @@ func (p *SubscriptionPlan) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+func ParseSubscriptionPlanModelLimits(modelLimits string) []string {
+	parts := strings.Split(modelLimits, ",")
+	models := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		modelName := strings.TrimSpace(part)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := seen[modelName]; ok {
+			continue
+		}
+		seen[modelName] = struct{}{}
+		models = append(models, modelName)
+	}
+	return models
+}
+
+func NormalizeSubscriptionPlanModelLimits(modelLimits string) string {
+	return strings.Join(ParseSubscriptionPlanModelLimits(modelLimits), ",")
+}
+
+func (p *SubscriptionPlan) AllowsModel(modelName string) bool {
+	if p == nil {
+		return false
+	}
+	limits := ParseSubscriptionPlanModelLimits(p.ModelLimits)
+	if len(limits) == 0 {
+		return true
+	}
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return false
+	}
+	for _, allowed := range limits {
+		if allowed == modelName {
+			return true
+		}
+	}
+	return false
+}
+
 // Subscription order (payment -> webhook -> create UserSubscription)
 type SubscriptionOrder struct {
-	Id            int     `json:"id"`
-	UserId        int     `json:"user_id" gorm:"index"`
-	PlanId        int     `json:"plan_id" gorm:"index"`
-	Money         float64 `json:"money"`
-	Currency      string  `json:"currency" gorm:"type:varchar(10);default:''"`        // 币种符号（￥/$）
-	OriginalMoney float64 `json:"original_money" gorm:"type:decimal(18,6);default:0"` // 用户实际支付的原始金额（用户币种）
-
-	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
-	PaymentProvider string `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	Status          string `json:"status"`
-	CreateTime      int64  `json:"create_time"`
-	CompleteTime    int64  `json:"complete_time"`
+	Id              int     `json:"id"`
+	UserId          int     `json:"user_id" gorm:"index"`
+	PlanId          int     `json:"plan_id" gorm:"index"`
+	Money           float64 `json:"money"`
+	Currency        string  `json:"currency" gorm:"type:varchar(10);default:''"`        // 币种符号（￥/$）
+	OriginalMoney   float64 `json:"original_money" gorm:"type:decimal(18,6);default:0"` // 用户实际支付的原始金额（用户币种）
+	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	Status          string  `json:"status"`
+	CreateTime      int64   `json:"create_time"`
+	CompleteTime    int64   `json:"complete_time"`
 
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 }
@@ -292,6 +336,7 @@ func (s *UserSubscription) BeforeUpdate(tx *gorm.DB) error {
 
 type SubscriptionSummary struct {
 	Subscription *UserSubscription `json:"subscription"`
+	Plan         *SubscriptionPlan `json:"plan,omitempty"`
 }
 
 func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
@@ -370,12 +415,12 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 	return next.Unix()
 }
 
-// GetSubscriptionPlanById 获取订阅套餐详情
+// GetSubscriptionPlanById 閼惧嘲褰囩拋銏ゆ婵傛顦电拠锔藉剰
 func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
 	return getSubscriptionPlanByIdTx(nil, id)
 }
 
-// getSubscriptionPlanByIdTx 获取订阅套餐详情（事务）
+// getSubscriptionPlanByIdTx 閼惧嘲褰囩拋銏ゆ婵傛顦电拠锔藉剰閿涘牅绨ㄩ崝鈽呯礆
 func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	if id <= 0 {
 		return nil, errors.New("invalid plan id")
@@ -531,7 +576,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	return sub, nil
 }
 
-// 订阅成功后处理逻辑
+// 鐠併垽妲勯幋鎰閸氬骸顦╅悶鍡涒偓鏄忕帆
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.
 func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentMethod string, expectedPaymentProvider ...string) error {
 	if tradeNo == "" {
@@ -551,7 +596,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
 		}
-		// 关键防线：订阅补单/回调处理时，必须确认“当前回调网关”和“本地订单支付方式”一致。
+		// 订阅补单/回调处理时，必须确认当前回调网关和本地订单支付方式一致。
 		if expectedPaymentMethod != "" && order.PaymentMethod != expectedPaymentMethod {
 			return ErrPaymentMethodMismatch
 		}
@@ -607,7 +652,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		_ = UpdateUserGroupCache(logUserId, upgradeGroup)
 	}
 	if logUserId > 0 {
-		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
+		msg := fmt.Sprintf("鐠併垽妲勭拹顓濇嫳閹存劕濮涢敍灞筋殰妞? %s閿涘本鏁禒姗€鍣炬０? %.2f閿涘本鏁禒妯绘煙瀵? %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
 	}
 	return nil
@@ -726,9 +771,49 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 	}
 	if strings.TrimSpace(plan.UpgradeGroup) != "" {
 		_ = UpdateUserGroupCache(userId, plan.UpgradeGroup)
-		return fmt.Sprintf("用户分组将升级到 %s", plan.UpgradeGroup), nil
+		return fmt.Sprintf("閻劍鍩涢崚鍡欑矋鐏忓棗宕岀痪褍鍩?%s", plan.UpgradeGroup), nil
 	}
 	return "", nil
+}
+
+// GrantAirdropSubscription grants the globally configured airdrop subscription plan to a user.
+func GrantAirdropSubscription(userId int) (string, error) {
+	if userId <= 0 {
+		return "", errors.New("invalid user id")
+	}
+	if common.AirdropSubscriptionPlanId <= 0 {
+		return "", nil
+	}
+	var planTitle string
+	var upgradeGroup string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		plan, err := getSubscriptionPlanByIdTx(tx, common.AirdropSubscriptionPlanId)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if plan == nil || !plan.Enabled {
+			return nil
+		}
+		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "airdrop"); err != nil {
+			return err
+		}
+		planTitle = plan.Title
+		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if upgradeGroup != "" {
+		_ = UpdateUserGroupCache(userId, upgradeGroup)
+	}
+	if planTitle != "" {
+		RecordLog(userId, LogTypeSystem, fmt.Sprintf("airdrop subscription reward %s", planTitle))
+	}
+	return planTitle, nil
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.
@@ -782,11 +867,34 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 	if len(subs) == 0 {
 		return []SubscriptionSummary{}
 	}
+	planIds := make([]int, 0, len(subs))
+	seenPlanIds := make(map[int]struct{}, len(subs))
+	for _, sub := range subs {
+		if sub.PlanId <= 0 {
+			continue
+		}
+		if _, ok := seenPlanIds[sub.PlanId]; ok {
+			continue
+		}
+		seenPlanIds[sub.PlanId] = struct{}{}
+		planIds = append(planIds, sub.PlanId)
+	}
+	planMap := make(map[int]*SubscriptionPlan, len(planIds))
+	if len(planIds) > 0 {
+		var plans []SubscriptionPlan
+		if err := DB.Where("id IN ?", planIds).Find(&plans).Error; err == nil {
+			for i := range plans {
+				plan := plans[i]
+				planMap[plan.Id] = &plan
+			}
+		}
+	}
 	result := make([]SubscriptionSummary, 0, len(subs))
 	for _, sub := range subs {
 		subCopy := sub
 		result = append(result, SubscriptionSummary{
 			Subscription: &subCopy,
+			Plan:         planMap[sub.PlanId],
 		})
 	}
 	return result
@@ -832,7 +940,7 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 		_ = UpdateUserGroupCache(userId, cacheGroup)
 	}
 	if downgradeGroup != "" {
-		return fmt.Sprintf("用户分组将回退到 %s", downgradeGroup), nil
+		return fmt.Sprintf("閻劍鍩涢崚鍡欑矋鐏忓棗娲栭柅鈧崚?%s", downgradeGroup), nil
 	}
 	return "", nil
 }
@@ -873,7 +981,7 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 		_ = UpdateUserGroupCache(userId, cacheGroup)
 	}
 	if downgradeGroup != "" {
-		return fmt.Sprintf("用户分组将回退到 %s", downgradeGroup), nil
+		return fmt.Sprintf("閻劍鍩涢崚鍡欑矋鐏忓棗娲栭柅鈧崚?%s", downgradeGroup), nil
 	}
 	return "", nil
 }
@@ -1085,6 +1193,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
+			}
+			if !plan.AllowsModel(modelName) {
+				continue
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err

@@ -40,6 +40,10 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "套餐未启用")
 		return
 	}
+	if plan.AllowPurchase != 1 {
+		common.ApiErrorMsg(c, "该套餐暂不允许订阅")
+		return
+	}
 	if strings.TrimSpace(plan.WaffoPancakeProductId) == "" {
 		common.ApiErrorMsg(c, "该套餐未配置 WaffoPancakeProductId")
 		return

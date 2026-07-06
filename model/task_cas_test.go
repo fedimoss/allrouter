@@ -45,6 +45,7 @@ func TestMain(m *testing.M) {
 		&SubscriptionPlan{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
+		&SubscriptionPreConsumeRecord{},
 		&PerfMetric{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
@@ -66,6 +67,7 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM subscription_orders")
 		DB.Exec("DELETE FROM subscription_plans")
 		DB.Exec("DELETE FROM user_subscriptions")
+		DB.Exec("DELETE FROM subscription_pre_consume_records")
 		DB.Exec("DELETE FROM perf_metrics")
 	})
 }
@@ -75,6 +77,46 @@ func insertTask(t *testing.T, task *Task) {
 	task.CreatedAt = time.Now().Unix()
 	task.UpdatedAt = time.Now().Unix()
 	require.NoError(t, DB.Create(task).Error)
+}
+
+func TestPreConsumeUserSubscriptionUpdatesUsedAmountForAllowedModel(t *testing.T) {
+	truncateTables(t)
+
+	now := time.Now().Unix()
+	plan := &SubscriptionPlan{
+		Title:         "model limited plan",
+		Enabled:       true,
+		AllowPurchase: 1,
+		ModelLimits:   "gpt-test",
+		TotalAmount:   10000,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	sub := &UserSubscription{
+		UserId:      1001,
+		PlanId:      plan.Id,
+		AmountTotal: 10000,
+		AmountUsed:  0,
+		StartTime:   now - 60,
+		EndTime:     now + 3600,
+		Status:      "active",
+	}
+	require.NoError(t, DB.Create(sub).Error)
+
+	res, err := PreConsumeUserSubscription("req-allowed-model", 1001, "gpt-test", 0, 1234)
+	require.NoError(t, err)
+	require.Equal(t, sub.Id, res.UserSubscriptionId)
+	require.Equal(t, int64(1234), res.PreConsumed)
+
+	var stored UserSubscription
+	require.NoError(t, DB.Where("id = ?", sub.Id).First(&stored).Error)
+	require.Equal(t, int64(1234), stored.AmountUsed)
+
+	_, err = PreConsumeUserSubscription("req-blocked-model", 1001, "other-model", 0, 100)
+	require.Error(t, err)
+
+	require.NoError(t, DB.Where("id = ?", sub.Id).First(&stored).Error)
+	require.Equal(t, int64(1234), stored.AmountUsed)
 }
 
 // ---------------------------------------------------------------------------

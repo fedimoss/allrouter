@@ -2901,7 +2901,9 @@ CREATE TABLE subscription_plans (
     created_at bigint,
     updated_at bigint,
     stripe_price_cny_id character varying(128) DEFAULT ''::character varying,
-    waffo_pancake_product_id character varying(128) DEFAULT ''::character varying
+    waffo_pancake_product_id character varying(128) DEFAULT ''::character varying,
+    allow_purchase integer NOT NULL DEFAULT 1,
+    model_limits text NOT NULL DEFAULT ''
 );
 
 

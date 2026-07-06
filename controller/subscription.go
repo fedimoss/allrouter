@@ -23,6 +23,22 @@ type BillingPreferenceRequest struct {
 	BillingPreference string `json:"billing_preference"`
 }
 
+func ensureSubscriptionPlanPurchasable(c *gin.Context, plan *model.SubscriptionPlan) bool {
+	if plan == nil {
+		common.ApiErrorMsg(c, "套餐不存在")
+		return false
+	}
+	if !plan.Enabled {
+		common.ApiErrorMsg(c, "套餐未启用")
+		return false
+	}
+	if plan.AllowPurchase != 1 {
+		common.ApiErrorMsg(c, "该套餐暂不允许订阅")
+		return false
+	}
+	return true
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -144,6 +160,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		req.Plan.Currency = "USD"
 	}
 	req.Plan.Currency = "USD"
+	req.Plan.ModelLimits = model.NormalizeSubscriptionPlanModelLimits(req.Plan.ModelLimits)
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}
@@ -213,6 +230,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		req.Plan.Currency = "USD"
 	}
 	req.Plan.Currency = "USD"
+	req.Plan.ModelLimits = model.NormalizeSubscriptionPlanModelLimits(req.Plan.ModelLimits)
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}
@@ -252,6 +270,8 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"custom_seconds":             req.Plan.CustomSeconds,
 			"enabled":                    req.Plan.Enabled,
 			"sort_order":                 req.Plan.SortOrder,
+			"allow_purchase":             req.Plan.AllowPurchase,
+			"model_limits":               req.Plan.ModelLimits,
 			"stripe_price_id":            req.Plan.StripePriceId,    // Stripe 美元价格 ID
 			"stripe_price_cny_id":        req.Plan.StripePriceCnyId, // Stripe 人民币价格 ID
 			"creem_product_id":           req.Plan.CreemProductId,
