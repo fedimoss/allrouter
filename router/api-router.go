@@ -206,6 +206,15 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.DELETE("/delete_version_log/:id", controller.DeleteVersionLogById)      // 删除版本日志
 		}
 
+		// Telegram webhook 管理接口（管理员）
+		telegramAdminRoute := apiRouter.Group("/telegram/admin")
+		telegramAdminRoute.Use(middleware.RootAuth())
+		{
+			telegramAdminRoute.POST("/setWebhook", controller.SetTelegramWebhook)
+			telegramAdminRoute.POST("/deleteWebhook", controller.DeleteTelegramWebhook)
+			telegramAdminRoute.POST("/getWebhookInfo", controller.GetTelegramWebhookInfo)
+		}
+
 		// 加密货币公开读取接口（普通用户登录即可调用）
 		optionReadRoute := apiRouter.Group("/option")
 		optionReadRoute.Use(middleware.UserAuth())
