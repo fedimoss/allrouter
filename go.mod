@@ -63,6 +63,7 @@ require (
 
 require (
 	github.com/alicebob/miniredis/v2 v2.38.0
+	github.com/go-telegram/bot v1.22.0
 	github.com/smartwalle/alipay/v3 v3.2.29
 	github.com/waffo-com/waffo-pancake-sdk-go v0.2.0
 )

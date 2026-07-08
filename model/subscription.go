@@ -161,10 +161,21 @@ type SubscriptionPlan struct {
 	Enabled   bool `json:"enabled" gorm:"default:true"`
 	SortOrder int  `json:"sort_order" gorm:"type:int;default:0"`
 
-	StripePriceId    string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`     // Stripe 美元（USD）价格 ID，用于美元区订阅支付
-	StripePriceCnyId string `json:"stripe_price_cny_id" gorm:"type:varchar(128);default:''"` // Stripe 人民币（CNY）价格 ID，用于人民币区订阅支付
-	CreemProductId   string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
+	// AllowPurchase 控制套餐是否允许用户在前端自助购买。
+	// 1=允许购买（默认），0=禁止购买（仅管理员可手动绑定，如 VIP 专属套餐）。
+	// 该字段不影响管理员通过 AdminBindSubscription / GrantAirdropSubscription 等方式授予订阅。
+	AllowPurchase int `json:"allow_purchase" gorm:"type:int;default:1"`
 
+	// ModelLimits 限制该套餐可使用的模型白名单，逗号分隔的模型名称列表。
+	// 为空表示不限制（所有模型均可使用）。
+	// 非空时，PreConsumeUserSubscription 仅对列表中的模型扣费，其他模型跳过该订阅。
+	// 格式示例: "gpt-4,gpt-4o,claude-sonnet-5"
+	ModelLimits string `json:"model_limits" gorm:"type:text;default:''"`
+
+	StripePriceId    string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
+	StripePriceCnyId string `json:"stripe_price_cny_id" gorm:"type:varchar(128);default:''"`
+
+	CreemProductId        string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
 	WaffoPancakeProductId string `json:"waffo_pancake_product_id" gorm:"type:varchar(128);default:''"`
 
 	// Max purchases per user (0 = unlimited)
@@ -196,21 +207,76 @@ func (p *SubscriptionPlan) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+// ParseSubscriptionPlanModelLimits 将逗号分隔的模型限制字符串解析为去重后的模型名称列表。
+// 自动去除空白字符，跳过空字符串，保持顺序并按首次出现去重。
+// 示例: "gpt-4, gpt-4o, gpt-4" => ["gpt-4", "gpt-4o"]
+func ParseSubscriptionPlanModelLimits(modelLimits string) []string {
+	parts := strings.Split(modelLimits, ",")
+	models := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		modelName := strings.TrimSpace(part)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := seen[modelName]; ok {
+			continue
+		}
+		seen[modelName] = struct{}{}
+		models = append(models, modelName)
+	}
+	return models
+}
+
+// NormalizeSubscriptionPlanModelLimits 规范化模型限制字符串：去重、去空格、排序。
+// 用于 AdminCreateSubscriptionPlan / AdminUpdateSubscriptionPlan 中保存前的数据清洗，
+// 确保数据库中存储的格式始终一致。
+func NormalizeSubscriptionPlanModelLimits(modelLimits string) string {
+	return strings.Join(ParseSubscriptionPlanModelLimits(modelLimits), ",")
+}
+
+// AllowsModel 判断该套餐是否允许使用指定模型。
+// 规则：
+//   - 套餐为 nil 时返回 false
+//   - ModelLimits 为空（白名单为空）时返回 true，表示不限制模型
+//   - ModelLimits 非空时，仅在白名单中匹配到 modelName 时返回 true
+//   - modelName 为空字符串时返回 false
+//
+// 该方法在 PreConsumeUserSubscription 中被调用，用于决定是否从该订阅中扣费。
+func (p *SubscriptionPlan) AllowsModel(modelName string) bool {
+	if p == nil {
+		return false
+	}
+	limits := ParseSubscriptionPlanModelLimits(p.ModelLimits)
+	if len(limits) == 0 {
+		return true
+	}
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return false
+	}
+	for _, allowed := range limits {
+		if allowed == modelName {
+			return true
+		}
+	}
+	return false
+}
+
 // Subscription order (payment -> webhook -> create UserSubscription)
 type SubscriptionOrder struct {
-	Id            int     `json:"id"`
-	UserId        int     `json:"user_id" gorm:"index"`
-	PlanId        int     `json:"plan_id" gorm:"index"`
-	Money         float64 `json:"money"`
-	Currency      string  `json:"currency" gorm:"type:varchar(10);default:''"`        // 币种符号（￥/$）
-	OriginalMoney float64 `json:"original_money" gorm:"type:decimal(18,6);default:0"` // 用户实际支付的原始金额（用户币种）
-
-	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
-	PaymentProvider string `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	Status          string `json:"status"`
-	CreateTime      int64  `json:"create_time"`
-	CompleteTime    int64  `json:"complete_time"`
+	Id              int     `json:"id"`
+	UserId          int     `json:"user_id" gorm:"index"`
+	PlanId          int     `json:"plan_id" gorm:"index"`
+	Money           float64 `json:"money"`
+	Currency        string  `json:"currency" gorm:"type:varchar(10);default:''"`        // 币种符号（￥/$）
+	OriginalMoney   float64 `json:"original_money" gorm:"type:decimal(18,6);default:0"` // 用户实际支付的原始金额（用户币种）
+	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	Status          string  `json:"status"`
+	CreateTime      int64   `json:"create_time"`
+	CompleteTime    int64   `json:"complete_time"`
 
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 }
@@ -290,8 +356,12 @@ func (s *UserSubscription) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+// SubscriptionSummary 聚合用户订阅实例及其对应的套餐信息。
+// Plan 字段为可选（omitempty），当套餐已被删除或查询不到时为 nil。
+// 该结构用于 API 返回，前端可直接展示套餐标题、模型限制等信息而无需额外请求。
 type SubscriptionSummary struct {
 	Subscription *UserSubscription `json:"subscription"`
+	Plan         *SubscriptionPlan `json:"plan,omitempty"`
 }
 
 func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
@@ -370,12 +440,12 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 	return next.Unix()
 }
 
-// GetSubscriptionPlanById 获取订阅套餐详情
+// GetSubscriptionPlanById 根据套餐 ID 获取订阅套餐详情
 func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
 	return getSubscriptionPlanByIdTx(nil, id)
 }
 
-// getSubscriptionPlanByIdTx 获取订阅套餐详情（事务）
+// getSubscriptionPlanByIdTx 根据套餐 ID 从缓存中获取订阅套餐详情
 func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	if id <= 0 {
 		return nil, errors.New("invalid plan id")
@@ -531,7 +601,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	return sub, nil
 }
 
-// 订阅成功后处理逻辑
+// CompleteSubscriptionOrder 完成一个订阅订单（幂等）。从套餐创建 UserSubscription 快照。
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.
 func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentMethod string, expectedPaymentProvider ...string) error {
 	if tradeNo == "" {
@@ -551,7 +621,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
 		}
-		// 关键防线：订阅补单/回调处理时，必须确认“当前回调网关”和“本地订单支付方式”一致。
+		// 订阅补单/回调处理时，必须确认当前回调网关和本地订单支付方式一致。
 		if expectedPaymentMethod != "" && order.PaymentMethod != expectedPaymentMethod {
 			return ErrPaymentMethodMismatch
 		}
@@ -708,7 +778,15 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentMethod string) error
 	})
 }
 
-// Admin bind (no payment). Creates a UserSubscription from a plan.
+// AdminBindSubscription 管理员手动为用户绑定订阅套餐（无需支付）。
+//
+// 与 GrantAirdropSubscription 的区别：
+//   - AdminBindSubscription：管理员指定任意 planId 绑定给用户，source 为 "admin"
+//   - GrantAirdropSubscription：使用全局配置的空投套餐 ID，source 为 "airdrop"
+//
+// 返回值：
+//   - 如果套餐配置了 UpgradeGroup，返回 "用户分组将升级到 xxx" 的提示消息
+//   - 否则返回空字符串
 func AdminBindSubscription(userId int, planId int, sourceNote string) (string, error) {
 	if userId <= 0 || planId <= 0 {
 		return "", errors.New("invalid userId or planId")
@@ -729,6 +807,63 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 		return fmt.Sprintf("用户分组将升级到 %s", plan.UpgradeGroup), nil
 	}
 	return "", nil
+}
+
+// GrantAirdropSubscription 向指定用户授予全局配置的空投订阅计划（common.AirdropSubscriptionPlanId）。
+//
+// 功能说明：
+//   - 管理员在运营设置中配置一个全局的空投套餐 ID（AirdropSubscriptionPlanId）。
+//   - 调用此函数后，直接为该用户创建一个来源为 "airdrop" 的活跃订阅，无需支付。
+//
+// 使用场景：
+//   - 管理员在后台手动向特定用户空投订阅（通过 AdminGrantAirdropSubscription API）。
+//   - 可作为促销活动的运营工具（批量发放体验订阅）。
+//
+// 返回值：
+//   - 返回授予的套餐标题（planTitle），如果未配置空投套餐或套餐不可用则返回空字符串。
+//   - 错误仅在数据库操作失败时返回。
+//
+// 副作用：
+//   - 如果套餐配置了 UpgradeGroup，会更新用户的缓存分组。
+//   - 操作记录写入用户日志（LogTypeSystem）。
+func GrantAirdropSubscription(userId int) (string, error) {
+
+	if userId <= 0 {
+		return "", errors.New("invalid user id")
+	}
+	if common.AirdropSubscriptionPlanId <= 0 {
+		return "", nil
+	}
+	var planTitle string
+	var upgradeGroup string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		plan, err := getSubscriptionPlanByIdTx(tx, common.AirdropSubscriptionPlanId)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if plan == nil || !plan.Enabled {
+			return nil
+		}
+		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "airdrop"); err != nil {
+			return err
+		}
+		planTitle = plan.Title
+		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if upgradeGroup != "" {
+		_ = UpdateUserGroupCache(userId, upgradeGroup)
+	}
+	if planTitle != "" {
+		RecordLog(userId, LogTypeSystem, fmt.Sprintf("airdrop subscription reward %s", planTitle))
+	}
+	return planTitle, nil
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.
@@ -778,15 +913,44 @@ func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	return buildSubscriptionSummaries(subs), nil
 }
 
+// buildSubscriptionSummaries 批量构建订阅摘要列表，附带套餐信息。
+// 优化：先收集所有订阅中涉及的去重 planId，然后一次性批量查询套餐，
+// 避免 N+1 查询问题。对于已删除或查询不到的套餐，Plan 字段为 nil。
 func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 	if len(subs) == 0 {
 		return []SubscriptionSummary{}
 	}
+	// 第一步：收集去重后的 planId 列表
+	planIds := make([]int, 0, len(subs))
+	seenPlanIds := make(map[int]struct{}, len(subs))
+	for _, sub := range subs {
+		if sub.PlanId <= 0 {
+			continue
+		}
+		if _, ok := seenPlanIds[sub.PlanId]; ok {
+			continue
+		}
+		seenPlanIds[sub.PlanId] = struct{}{}
+		planIds = append(planIds, sub.PlanId)
+	}
+	// 第二步：批量查询套餐，构建 id -> plan 映射
+	planMap := make(map[int]*SubscriptionPlan, len(planIds))
+	if len(planIds) > 0 {
+		var plans []SubscriptionPlan
+		if err := DB.Where("id IN ?", planIds).Find(&plans).Error; err == nil {
+			for i := range plans {
+				plan := plans[i]
+				planMap[plan.Id] = &plan
+			}
+		}
+	}
+	// 第三步：组装结果，每个订阅带上对应的套餐信息
 	result := make([]SubscriptionSummary, 0, len(subs))
 	for _, sub := range subs {
 		subCopy := sub
 		result = append(result, SubscriptionSummary{
 			Subscription: &subCopy,
+			Plan:         planMap[sub.PlanId],
 		})
 	}
 	return result
@@ -1033,7 +1197,18 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	return tx.Save(sub).Error
 }
 
-// PreConsumeUserSubscription pre-consumes from any active subscription total quota.
+// PreConsumeUserSubscription 从用户的活跃订阅中预扣配额（幂等）。
+//
+// 扣费逻辑（按 end_time asc 顺序遍历所有活跃订阅）：
+//  1. 首先检查幂等：同一 requestId 已存在预扣记录则直接返回。
+//  2. 遍历用户的活跃订阅列表（按到期时间升序，优先消耗先到期的订阅）。
+//  3. 对每个订阅，通过 AllowsModel 检查该套餐是否允许当前请求的模型。
+//     - 如果套餐有 ModelLimits 白名单且不包含当前模型，跳过该订阅。
+//  4. 检查是否需要重置配额（maybeResetUserSubscriptionWithPlanTx）。
+//  5. 检查剩余配额是否足够（AmountTotal > 0 时 remain >= amount）。
+//  6. 创建 SubscriptionPreConsumeRecord 幂等记录并更新 AmountUsed。
+//
+// 返回值 SubscriptionPreConsumeResult 包含扣费前后的状态快照，供 SettleBilling 使用。
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
@@ -1085,6 +1260,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
+			}
+			if !plan.AllowsModel(modelName) {
+				continue
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err

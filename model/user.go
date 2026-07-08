@@ -56,11 +56,11 @@ type User struct {
 	Setting                    string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark                     string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer             string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
-	PhoneCountryCode           string         `json:"phone_country_code" gorm:"type:varchar(8);column:phone_country_code" validate:"max=8"` // 手机号国家区号（E.164），如 +86
-	PhoneNumber                string         `json:"phone_number" gorm:"type:varchar(20);column:phone_number" validate:"max=20"`           // 手机号本地号码，不含国家区号，如 13800000000
-	Timezone                   string         `json:"timezone" gorm:"type:varchar(64);column:timezone" validate:"max=64"`                   // 时区标识（IANA），如 Asia/Shanghai
-	Avatar                     string         `json:"avatar" gorm:"type:varchar(255);column:avatar" validate:"max=255"`                     // 头像                   // 头像 URL
-	SignupSource               string         `json:"signup_source" gorm:"type:varchar(64);column:signup_source" validate:"max=64"`         // 注册来源
+	PhoneCountryCode           string         `json:"phone_country_code" gorm:"type:varchar(16);column:phone_country_code" validate:"max=16"` // 手机号国家区号（E.164），如 +86
+	PhoneNumber                string         `json:"phone_number" gorm:"type:varchar(32);column:phone_number" validate:"max=32"`             // 手机号本地号码，不含国家区号，如 13800000000
+	Timezone                   string         `json:"timezone" gorm:"type:varchar(64);column:timezone" validate:"max=64"`                     // 时区标识（IANA），如 Asia/Shanghai
+	Avatar                     string         `json:"avatar" gorm:"type:varchar(2048);column:avatar" validate:"max=2048"`                     // 头像                   // 头像 URL
+	SignupSource               string         `json:"signup_source" gorm:"type:varchar(64);column:signup_source" validate:"max=64"`           // 注册来源
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -767,6 +767,35 @@ func grantInviterRewardTx(tx *gorm.DB, inviterId int, inviteeId int, rewardQuota
 	})
 }
 
+// grantRegisterGiftSubscriptionTx 在事务中为新注册用户授予注册赠送订阅套餐。
+//
+// 通过全局配置 common.RegisterGiftSubscriptionPlanId 指定赠送的套餐 ID。
+// 当配置值 <= 0 或套餐不存在/未启用时静默跳过，不影响注册流程。
+//
+// 该函数在用户注册事务（Insert / InsertWithTx）中被调用，确保订阅创建与原子的用户注册
+// 在同一事务中完成。如果套餐创建失败会回滚整个注册事务。
+//
+// 返回值：成功授予的套餐标题（用于日志记录），未配置或跳过时返回空字符串。
+func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int) (string, error) {
+	if tx == nil || userId <= 0 || common.RegisterGiftSubscriptionPlanId <= 0 {
+		return "", nil
+	}
+	plan, err := getSubscriptionPlanByIdTx(tx, common.RegisterGiftSubscriptionPlanId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	if plan == nil || !plan.Enabled {
+		return "", nil
+	}
+	if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "register_reward"); err != nil {
+		return "", err
+	}
+	return plan.Title, nil
+}
+
 func (user *User) TransferAffQuotaToQuota(quota int) error {
 	// 检查quota是否小于最小额度
 	if float64(quota) < common.QuotaPerUnit {
@@ -858,6 +887,11 @@ func (user *User) Insert(inviterId int) error {
 			return err
 		}
 	}
+	registerGiftSubscriptionTitle, err := grantRegisterGiftSubscriptionTx(tx, user.Id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 	if inviterId != 0 {
 		if rewardCfg.QuotaForInvitee > 0 {
 			if err := recordRewardAndIncreaseQuotaTx(tx, user.ProviderId, user.Id, rewardCfg.QuotaForInvitee, "invitee_reward", inviterId, "invitee reward"); err != nil {
@@ -919,6 +953,9 @@ func (user *User) Insert(inviterId int) error {
 	if rewardCfg.QuotaForNewUser > 0 {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user reward %s", logger.LogQuota(rewardCfg.QuotaForNewUser)))
 	}
+	if registerGiftSubscriptionTitle != "" {
+		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user subscription reward %s", registerGiftSubscriptionTitle))
+	}
 	if inviterId != 0 {
 		if rewardCfg.QuotaForInvitee > 0 {
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("invitee reward %s", logger.LogQuota(rewardCfg.QuotaForInvitee)))
@@ -979,6 +1016,9 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			return err
 		}
 	}
+	if _, err := grantRegisterGiftSubscriptionTx(tx, user.Id); err != nil {
+		return err
+	}
 	if inviterId != 0 {
 		if rewardCfg.QuotaForInvitee > 0 {
 			if err := recordRewardAndIncreaseQuotaTx(tx, user.ProviderId, user.Id, rewardCfg.QuotaForInvitee, "invitee_reward", inviterId, "invitee reward"); err != nil {
@@ -1020,6 +1060,11 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 	if rewardCfg, err := GetProviderRewardConfig(user.ProviderId); err == nil {
 		if rewardCfg.QuotaForNewUser > 0 {
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user reward %s", logger.LogQuota(rewardCfg.QuotaForNewUser)))
+		}
+		if common.RegisterGiftSubscriptionPlanId > 0 {
+			if plan, err := GetSubscriptionPlanById(common.RegisterGiftSubscriptionPlanId); err == nil && plan != nil && plan.Enabled {
+				RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user subscription reward %s", plan.Title))
+			}
 		}
 		if inviterId != 0 {
 			if rewardCfg.QuotaForInvitee > 0 {
@@ -1397,6 +1442,18 @@ func (user *User) FillUserByTelegramId() error {
 		return errors.New("该 Telegram 账户未绑定")
 	}
 	return nil
+}
+
+// FillUserByUsername 按用户名查询用户（大小写敏感，不含软删除用户）。
+func (user *User) FillUserByUsername() error {
+	if user.Username == "" {
+		return errors.New("用户名为空！")
+	}
+	err := DB.Where(User{Username: user.Username}).First(user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return errors.New("用户名不存在")
+	}
+	return err
 }
 
 func IsWeChatIdAlreadyTaken(wechatId string) bool {

@@ -54,6 +54,11 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 		return
 	}
 
+	if plan.AllowPurchase != 1 {
+		common.ApiErrorMsg(c, "该套餐暂不允许订阅")
+		return
+	}
+
 	// 根据前端传的 network + token_symbol 查找链配置
 	chainCfg, err := model.GetCryptoChainByNetwork(req.Network, req.TokenSymbol)
 	if err != nil {

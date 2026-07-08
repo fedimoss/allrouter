@@ -2901,7 +2901,9 @@ CREATE TABLE subscription_plans (
     created_at bigint,
     updated_at bigint,
     stripe_price_cny_id character varying(128) DEFAULT ''::character varying,
-    waffo_pancake_product_id character varying(128) DEFAULT ''::character varying
+    waffo_pancake_product_id character varying(128) DEFAULT ''::character varying,
+    allow_purchase integer NOT NULL DEFAULT 1,
+    model_limits text NOT NULL DEFAULT ''
 );
 
 
@@ -6913,3 +6915,31 @@ ALTER TABLE ONLY timezone_currency_map
 
 \unrestrict FIqAjmpw4zcALtpViQTfH3JhEOyV1EoM9Of3mq2OLzJR4Vmvp2YCaeAsTZjY4Nq
 
+
+--
+-- 存储 Telegram 用户与网站用户的绑定关系
+--
+
+CREATE TABLE IF NOT EXISTS telegram_user_bindings (
+    id                SERIAL       PRIMARY KEY,
+    telegram_user_id  VARCHAR(64)  NOT NULL,
+    user_id           INTEGER      NOT NULL,
+    user_name         VARCHAR(50)  NOT NULL,
+    created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_telegram_user_id  UNIQUE (telegram_user_id),
+    CONSTRAINT uq_website_user_id   UNIQUE (user_id),
+    CONSTRAINT fk_website_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
+        ON DELETE CASCADE
+);
+
+-- 表注释
+COMMENT ON TABLE telegram_user_bindings IS '存储 Telegram 用户与网站用户的绑定关系';
+
+-- 列注释
+COMMENT ON COLUMN telegram_user_bindings.id                IS '自增主键，唯一标识每条绑定记录';
+COMMENT ON COLUMN telegram_user_bindings.telegram_user_id IS 'Telegram 平台用户 ID，唯一且不可为空';
+COMMENT ON COLUMN telegram_user_bindings.user_id           IS '关联的网站用户 ID，外键引用 users 表，唯一且不可为空';
+COMMENT ON COLUMN telegram_user_bindings.user_name         IS '绑定的网站用户名（冗余存储，便于快速展示）';
+COMMENT ON COLUMN telegram_user_bindings.created_at        IS '绑定记录的创建时间，默认当前时刻';

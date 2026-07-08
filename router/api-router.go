@@ -52,6 +52,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/stripe/webhook", anonymousRequestBodyLimit, controller.StripeWebhook)
 		apiRouter.POST("/creem/webhook", anonymousRequestBodyLimit, controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", anonymousRequestBodyLimit, controller.WaffoWebhook)
+		apiRouter.POST("/telegram/webhook", anonymousRequestBodyLimit, controller.TelegramWebhook)
+		apiRouter.POST("/telegram/miniapp/bind", anonymousRequestBodyLimit, controller.TelegramMiniAppBind)
 
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
@@ -169,6 +171,8 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.PUT("/plans/:id", controller.AdminUpdateSubscriptionPlan)
 			subscriptionAdminRoute.PATCH("/plans/:id", controller.AdminUpdateSubscriptionPlanStatus)
 			subscriptionAdminRoute.POST("/bind", controller.AdminBindSubscription)
+			// 空投订阅：管理员向指定用户授予全局配置的空投套餐
+			subscriptionAdminRoute.POST("/airdrop", controller.AdminGrantAirdropSubscription)
 
 			// User subscription management (admin)
 			subscriptionAdminRoute.GET("/users/:id/subscriptions", controller.AdminListUserSubscriptions)
@@ -202,6 +206,15 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.GET("/get_version_log/:id", controller.GetVersionLogById)               // 获取版本日志详情
 			optionRoute.PUT("/update_version_log/:id", controller.UpdateVersionLogById)         // 更新版本日志详情
 			optionRoute.DELETE("/delete_version_log/:id", controller.DeleteVersionLogById)      // 删除版本日志
+		}
+
+		// Telegram webhook 管理接口（管理员）
+		telegramAdminRoute := apiRouter.Group("/telegram/admin")
+		telegramAdminRoute.Use(middleware.RootAuth())
+		{
+			telegramAdminRoute.POST("/setWebhook", controller.SetTelegramWebhook)
+			telegramAdminRoute.POST("/deleteWebhook", controller.DeleteTelegramWebhook)
+			telegramAdminRoute.POST("/getWebhookInfo", controller.GetTelegramWebhookInfo)
 		}
 
 		// 加密货币公开读取接口（普通用户登录即可调用）

@@ -39,7 +39,13 @@ import {
   IconSave,
 } from '@douyinfe/semi-icons';
 import { Clock, RefreshCw } from 'lucide-react';
-import { API, showError, showSuccess } from '../../../../helpers';
+import {
+  API,
+  getModelCategories,
+  selectFilter,
+  showError,
+  showSuccess,
+} from '../../../../helpers';
 import {
   quotaToDisplayAmount,
   displayAmountToQuota,
@@ -75,6 +81,8 @@ const AddEditSubscriptionModal = ({
   const [loading, setLoading] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
   const [groupLoading, setGroupLoading] = useState(false);
+  const [modelOptions, setModelOptions] = useState([]);
+  const [modelLoading, setModelLoading] = useState(false);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const isEdit = editingPlan?.plan?.id !== undefined;
@@ -91,6 +99,8 @@ const AddEditSubscriptionModal = ({
     quota_reset_period: 'never',
     quota_reset_custom_seconds: 0,
     enabled: true,
+    allow_purchase: true,
+    model_limits: [],
     sort_order: 0,
     max_purchase_per_user: 0,
     total_amount: 0,
@@ -116,6 +126,11 @@ const AddEditSubscriptionModal = ({
       quota_reset_period: p.quota_reset_period || 'never',
       quota_reset_custom_seconds: Number(p.quota_reset_custom_seconds || 0),
       enabled: p.enabled !== false,
+      allow_purchase: Number(p.allow_purchase ?? 1) === 1,
+      model_limits:
+        typeof p.model_limits === 'string' && p.model_limits !== ''
+          ? p.model_limits.split(',').filter(Boolean)
+          : [],
       sort_order: Number(p.sort_order || 0),
       max_purchase_per_user: Number(p.max_purchase_per_user || 0),
       total_amount: Number(
@@ -143,6 +158,40 @@ const AddEditSubscriptionModal = ({
       .finally(() => setGroupLoading(false));
   }, [visible]);
 
+  useEffect(() => {
+    if (!visible) return;
+    setModelLoading(true);
+    API.get('/api/user/models')
+      .then((res) => {
+        if (!res.data?.success) {
+          setModelOptions([]);
+          return;
+        }
+        const categories = getModelCategories(t);
+        const options = (res.data?.data || []).map((model) => {
+          let icon = null;
+          for (const [key, category] of Object.entries(categories)) {
+            if (key !== 'all' && category.filter({ model_name: model })) {
+              icon = category.icon;
+              break;
+            }
+          }
+          return {
+            label: (
+              <span className='flex items-center gap-1'>
+                {icon}
+                {model}
+              </span>
+            ),
+            value: model,
+          };
+        });
+        setModelOptions(options);
+      })
+      .catch(() => setModelOptions([]))
+      .finally(() => setModelLoading(false));
+  }, [visible, t]);
+
   const submit = async (values) => {
     if (!values.title || values.title.trim() === '') {
       showError(t('套餐标题不能为空'));
@@ -166,6 +215,10 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
+          allow_purchase: values.allow_purchase === false ? 0 : 1,
+          model_limits: Array.isArray(values.model_limits)
+            ? values.model_limits.join(',')
+            : '',
         },
       };
       if (editingPlan?.plan?.id) {
@@ -378,6 +431,31 @@ const AddEditSubscriptionModal = ({
                         field='enabled'
                         label={t('启用状态')}
                         size='large'
+                      />
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.Switch
+                        field='allow_purchase'
+                        label={t('允许订阅')}
+                        size='large'
+                      />
+                    </Col>
+
+                    <Col span={24}>
+                      <Form.Select
+                        field='model_limits'
+                        label={t('适用模型')}
+                        placeholder={t('不选择则支持所有模型')}
+                        multiple
+                        optionList={modelOptions}
+                        loading={modelLoading}
+                        filter={selectFilter}
+                        autoClearSearchValue={false}
+                        searchPosition='dropdown'
+                        showClear
+                        extraText={t('仅这些模型会优先使用该订阅额度')}
+                        style={{ width: '100%' }}
                       />
                     </Col>
                   </Row>
