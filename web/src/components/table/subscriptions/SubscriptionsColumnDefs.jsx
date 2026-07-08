@@ -246,7 +246,8 @@ const renderResetPeriod = (text, record, t) => {
 
 const renderPaymentConfig = (text, record, t, enableEpay) => {
   // 判断是否配置了 Stripe 支付：USD Price ID 或 CNY Price ID 任一存在即可
-  const hasStripe = !!record?.plan?.stripe_price_id || !!record?.plan?.stripe_price_cny_id;
+  const hasStripe =
+    !!record?.plan?.stripe_price_id || !!record?.plan?.stripe_price_cny_id;
   const hasCreem = !!record?.plan?.creem_product_id;
   const hasEpay = !!enableEpay;
 

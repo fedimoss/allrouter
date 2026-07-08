@@ -22,9 +22,16 @@ import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 
-export const useSubscriptionsData = () => {
+// useSubscriptionsData 订阅套餐管理的数据 Hook（Admin 与 Provider 共用）。
+// options.plansApi: 套餐增删改查接口前缀，默认主站 /api/subscription/admin/plans；
+// options.tableKey: 紧凑模式等本地态存储 key，默认 'subscriptions'，服务商页面传 'provider-subscriptions' 以隔离状态。
+export const useSubscriptionsData = (options = {}) => {
   const { t } = useTranslation();
-  const [compactMode, setCompactMode] = useTableCompactMode('subscriptions');
+  const {
+    plansApi = '/api/subscription/admin/plans',
+    tableKey = 'subscriptions',
+  } = options;
+  const [compactMode, setCompactMode] = useTableCompactMode(tableKey);
 
   // State management
   const [allPlans, setAllPlans] = useState([]);
@@ -43,7 +50,8 @@ export const useSubscriptionsData = () => {
   const loadPlans = async () => {
     setLoading(true);
     try {
-      const res = await API.get('/api/subscription/admin/plans');
+      // 通过 plansApi 拉取套餐列表，主站走 admin 接口，服务商走 provider 接口。
+      const res = await API.get(plansApi);
       if (res.data?.success) {
         const next = res.data.data || [];
         setAllPlans(next);
@@ -79,7 +87,8 @@ export const useSubscriptionsData = () => {
     if (!planId) return;
     setLoading(true);
     try {
-      const res = await API.patch(`/api/subscription/admin/plans/${planId}`, {
+      // 切换启停走 PATCH {plansApi}/{id}，后端按当前用户身份(admin/provider)做归属鉴权。
+      const res = await API.patch(`${plansApi}/${planId}`, {
         enabled: !!enabled,
       });
       if (res.data?.success) {

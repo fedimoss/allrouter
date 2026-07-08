@@ -441,6 +441,8 @@ func ensureSubscriptionPlanTableSQLite() error {
 	if !DB.Migrator().HasTable(tableName) {
 		createSQL := `CREATE TABLE ` + "`" + tableName + "`" + ` (
 ` + "`id`" + ` integer,
+// provider_id：订阅套餐归属服务商 ID（0=主站套餐，>0=服务商私有套餐），本次"服务商私有订阅"特性新增列。
+` + "`provider_id`" + ` integer NOT NULL DEFAULT 0,
 ` + "`title`" + ` varchar(128) NOT NULL,
 ` + "`subtitle`" + ` varchar(255) DEFAULT '',
 ` + "`price_amount`" + ` decimal(10,6) NOT NULL,
@@ -477,6 +479,8 @@ PRIMARY KEY (` + "`id`" + `)
 		existing[c.Name] = struct{}{}
 	}
 	required := []sqliteColumnDef{
+		// 老库升级用：若已存在的 subscription_plans 表缺少 provider_id 列，则按此 DDL 自动补列，兼容本次新增字段。
+		{Name: "provider_id", DDL: "`provider_id` integer NOT NULL DEFAULT 0"},
 		{Name: "title", DDL: "`title` varchar(128) NOT NULL"},
 		{Name: "subtitle", DDL: "`subtitle` varchar(255) DEFAULT ''"},
 		{Name: "price_amount", DDL: "`price_amount` decimal(10,6) NOT NULL"},

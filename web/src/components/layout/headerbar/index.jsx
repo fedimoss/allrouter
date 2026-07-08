@@ -104,6 +104,8 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     '/console/provider/reward-report': t('奖励报表'),
     '/console/provider/redemption': t('兑换码管理'),
     '/console/provider/users': t('用户管理'),
+    // 顶栏面包屑/标题映射：服务商订阅管理页显示"订阅管理"。
+    '/console/provider/subscription': t('订阅管理'),
     '/console/provider/profits': t('服务商利润'),
     '/console/provider/logs': t('服务商使用日志'),
     '/console/billing': t('账单中心'),
