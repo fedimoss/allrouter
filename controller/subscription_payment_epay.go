@@ -260,8 +260,8 @@ func SubscriptionEpayReturn(c *gin.Context) {
 			c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
 			return
 		}
-		params = lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
-			r[t] = c.Request.PostForm.Get(t)
+		params = lo.Reduce(lo.Keys(c.Request.Form), func(r map[string]string, t string, i int) map[string]string {
+			r[t] = c.Request.Form.Get(t)
 			return r
 		}, map[string]string{})
 	} else {
@@ -273,7 +273,8 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	}
 
 	if len(params) == 0 {
-		c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
+		// Browser return is only for UX; real settlement is driven by notify, so empty params should not show a false failure.
+		c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=pending")
 		return
 	}
 
