@@ -2446,7 +2446,7 @@ const ProviderPage = () => {
           >
             <Form.InputNumber
               field='consume_rebate_ratio_level1'
-              label={t('消费返佣比例（利润比例）')}
+              label={t('用户返佣比例')}
               min={0}
               max={100}
               step={0.01}
@@ -2456,7 +2456,7 @@ const ProviderPage = () => {
           </div>
           <Text type='tertiary' size='small'>
             {t(
-              '消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生消费返佣。',
+              '用户返佣比例绑定在当前展示模型上，未配置或填 0 时不产生用户返佣。',
             )}
           </Text>
         </Form>

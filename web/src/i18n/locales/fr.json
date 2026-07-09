@@ -3452,9 +3452,7 @@
     "消费返利": "Remboursement de consommation",
     "消费返利比例": "Taux de remboursement de la consommation",
     "消费返佣比例": "Taux de commission de consommation",
-    "消费返佣比例（利润比例）": "Taux de commission de consommation (taux de profit)",
     "消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生对应层级返佣。": "The consumption commission ratio is bound to the current display model. If unset or set to 0, no commission is generated for that level.",
-    "消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生消费返佣。": "Le taux de commission de consommation est lié au modèle affiché actuel. S'il n'est pas configuré ou vaut 0, aucune commission de consommation n'est générée.",
     "消费分佣资格": "Éligibilité à la commission de consommation",
     "消费明细": "Détails de la consommation",
     "消耗": "Consommation",
@@ -4716,6 +4714,8 @@
     "软禁用": "Désactivé en douceur",
     "恢复": "Restauré",
     "主站已下架": "Retiré du site principal",
-    "该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。": "Ce modèle du site principal a été retiré et ne peut pas être activé pour le moment. Attendez sa restauration sur le site principal ou choisissez un autre modèle à appeler."
+    "该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。": "Ce modèle du site principal a été retiré et ne peut pas être activé pour le moment. Attendez sa restauration sur le site principal ou choisissez un autre modèle à appeler.",
+    "用户返佣比例": "Taux de commission utilisateur",
+    "用户返佣比例绑定在当前展示模型上，未配置或填 0 时不产生用户返佣。": "Le taux de commission utilisateur est lié au modèle affiché actuel. S'il n'est pas configuré ou vaut 0, aucune commission utilisateur n'est générée."
   }
 }

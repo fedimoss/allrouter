@@ -3510,9 +3510,7 @@
     "消费返利": "Consumption Rebate",
     "消费返利比例": "Consumption Rebate Ratio",
     "消费返佣比例": "Consumption Commission Ratio",
-    "消费返佣比例（利润比例）": "Consumption Commission Ratio (Profit Ratio)",
     "消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生对应层级返佣。": "The consumption commission ratio is bound to the current display model. If unset or set to 0, no commission is generated for that level.",
-    "消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生消费返佣。": "The consumption commission ratio is bound to the current display model. If unset or set to 0, no consumption commission is generated.",
     "消费分佣资格": "Consumption Commission Eligibility",
     "消费明细": "Consumption Details",
     "消耗": "Consumption",
@@ -4794,6 +4792,8 @@
     "软禁用": "Soft-disabled",
     "恢复": "Restored",
     "主站已下架": "Removed from main site",
-    "该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。": "This main-site model has been removed and cannot be enabled for now. Please wait for it to be restored on the main site, or choose a different model to call."
+    "该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。": "This main-site model has been removed and cannot be enabled for now. Please wait for it to be restored on the main site, or choose a different model to call.",
+    "用户返佣比例": "User Commission Ratio",
+    "用户返佣比例绑定在当前展示模型上，未配置或填 0 时不产生用户返佣。": "The user commission ratio is bound to the current display model. If unset or set to 0, no user commission is generated."
   }
 }

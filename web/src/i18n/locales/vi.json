@@ -3843,9 +3843,7 @@
     "消费返利": "Hoàn trả tiêu dùng",
     "消费返利比例": "Tỷ lệ hoàn trả tiêu dùng",
     "消费返佣比例": "Tỷ lệ hoa hồng tiêu dùng",
-    "消费返佣比例（利润比例）": "Tỷ lệ hoa hồng tiêu dùng (tỷ lệ lợi nhuận)",
     "消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生对应层级返佣。": "Level 2 Consumption Commission Ratio (Profit Ratio)",
-    "消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生消费返佣。": "Tỷ lệ hoa hồng tiêu dùng được gắn với mô hình hiển thị hiện tại. Nếu chưa cấu hình hoặc đặt là 0, sẽ không phát sinh hoa hồng tiêu dùng.",
     "消费分佣资格": "Đủ điều kiện nhận hoa hồng tiêu dùng",
     "消费明细": "Chi tiết tiêu dùng",
     "消耗": "Tiêu thụ",
@@ -5245,6 +5243,8 @@
     "软禁用": "Tạm ngưng mềm",
     "恢复": "Đã khôi phục",
     "主站已下架": "Đã gỡ khỏi trang chủ",
-    "该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。": "Mô hình trang chủ này hiện đã gỡ và tạm không thể kích hoạt. Vui lòng đợi trang chủ khôi phục mô hình rồi mới kích hoạt, hoặc đổi mô hình gọi thực tế."
+    "该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。": "Mô hình trang chủ này hiện đã gỡ và tạm không thể kích hoạt. Vui lòng đợi trang chủ khôi phục mô hình rồi mới kích hoạt, hoặc đổi mô hình gọi thực tế.",
+    "用户返佣比例": "Tỷ lệ hoa hồng người dùng",
+    "用户返佣比例绑定在当前展示模型上，未配置或填 0 时不产生用户返佣。": "Tỷ lệ hoa hồng người dùng được gắn với mô hình hiển thị hiện tại. Nếu chưa cấu hình hoặc đặt là 0, sẽ không phát sinh hoa hồng người dùng."
   }
 }
