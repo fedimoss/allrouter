@@ -77,6 +77,10 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 统一购买前校验：套餐存在/启用/允许购买 + 是否对当前 provider_id 可见（防跨站点订阅）。
+	if !ensureSubscriptionPlanPurchasable(c, plan) {
+		return
+	}
 	if !plan.Enabled {
 		common.ApiErrorMsg(c, "套餐未启用")
 		return
@@ -159,8 +163,10 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	}
 
 	order := &model.SubscriptionOrder{
-		UserId:        userId,
-		PlanId:        plan.Id,
+		UserId: userId,
+		PlanId: plan.Id,
+		// 订单归属服务商（0=主站），完成订单时据此给服务商 owner 结算订阅收入。
+		ProviderId:    c.GetInt("provider_id"),
 		Money:         plan.PriceAmount,
 		Currency:      "￥",         // 易支付固定人民币
 		OriginalMoney: chargeMoney, // 实际支付的人民币金额
@@ -259,13 +265,15 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	returnBaseURL := common.GetTrustedRequestBaseURLWithDomains(c, system_setting.ServerAddress, getPaymentTrustedDomains(c))
 
 	if c.Request.Method == "POST" {
-		// POST 请求：从 POST body 解析参数
+		// POST 请求：从请求体解析参数。
+		// 用 c.Request.Form（而非 PostForm）：易支付 return 回调可能以 GET 查询参数回跳，
+		// ParseForm 后 Form 同时包含 GET 与 POST 参数，兼容两种回跳方式，避免漏取参数。
 		if err := c.Request.ParseForm(); err != nil {
 			c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
 			return
 		}
-		params = lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
-			r[t] = c.Request.PostForm.Get(t)
+		params = lo.Reduce(lo.Keys(c.Request.Form), func(r map[string]string, t string, i int) map[string]string {
+			r[t] = c.Request.Form.Get(t)
 			return r
 		}, map[string]string{})
 	} else {
@@ -277,7 +285,8 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	}
 
 	if len(params) == 0 {
-		c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
+		// Browser return is only for UX; real settlement is driven by notify, so empty params should not show a false failure.
+		c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=pending")
 		return
 	}
 

@@ -40,6 +40,10 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 统一购买前校验：套餐存在/启用/允许购买 + 是否对当前 provider_id 可见（防止跨站点订阅）。
+	if !ensureSubscriptionPlanPurchasable(c, plan) {
+		return
+	}
 	if !plan.Enabled {
 		common.ApiErrorMsg(c, "套餐未启用")
 		return
@@ -104,8 +108,10 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 
 	// create pending order first
 	order := &model.SubscriptionOrder{
-		UserId:        userId,
-		PlanId:        plan.Id,
+		UserId: userId,
+		PlanId: plan.Id,
+		// 记录订单归属服务商：来自请求上下文 provider_id（0=主站），后续完成订单时据此给服务商 owner 结算订阅收入。
+		ProviderId:    c.GetInt("provider_id"),
 		Money:         plan.PriceAmount,
 		Currency:      currencySymbol, // 币种符号
 		OriginalMoney: originalMoney,  // 实际支付金额（用户币种）

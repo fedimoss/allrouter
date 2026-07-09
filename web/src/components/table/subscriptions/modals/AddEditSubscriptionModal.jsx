@@ -77,6 +77,10 @@ const AddEditSubscriptionModal = ({
   placement = 'left',
   refresh,
   t,
+  // plansApi/modelsApi 由父组件注入：主站用 /api/subscription/admin/* 与 /api/user/models，
+  // 服务商用 /api/provider/subscription/*，使同一弹窗在两套管理页复用。
+  plansApi = '/api/subscription/admin/plans',
+  modelsApi = '/api/user/models',
 }) => {
   const [loading, setLoading] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
@@ -161,7 +165,9 @@ const AddEditSubscriptionModal = ({
   useEffect(() => {
     if (!visible) return;
     setModelLoading(true);
-    API.get('/api/user/models')
+    // 拉取模型候选：主站取全量用户模型，服务商取其模型广场上架模型；
+    // 后端 ProviderListSubscriptionPlanModels 已做去重排序，前端直接渲染为多选项。
+    API.get(modelsApi)
       .then((res) => {
         if (!res.data?.success) {
           setModelOptions([]);
@@ -222,8 +228,9 @@ const AddEditSubscriptionModal = ({
         },
       };
       if (editingPlan?.plan?.id) {
+        // 编辑：PUT {plansApi}/{id}，后端按当前用户身份校验套餐归属(服务商只能改自己的)。
         const res = await API.put(
-          `/api/subscription/admin/plans/${editingPlan.plan.id}`,
+          `${plansApi}/${editingPlan.plan.id}`,
           payload,
         );
         if (res.data?.success) {
@@ -234,7 +241,8 @@ const AddEditSubscriptionModal = ({
           showError(res.data?.message || t('更新失败'));
         }
       } else {
-        const res = await API.post('/api/subscription/admin/plans', payload);
+        // 新建：POST {plansApi}，后端会把 provider_id 绑定为当前服务商(服务商接口)或保留请求体(主站接口)。
+        const res = await API.post(plansApi, payload);
         if (res.data?.success) {
           showSuccess(t('创建成功'));
           handleClose();

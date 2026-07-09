@@ -2018,6 +2018,14 @@ func CountTotalUsers() (int64, error) {
 	return count, err
 }
 
+func SumAllUsersTotalTokenUsed() (int64, error) {
+	var total int64
+	err := DB.Unscoped().Model(&User{}).
+		Select("COALESCE(SUM(total_token_used), 0)").
+		Scan(&total).Error
+	return total, err
+}
+
 // CountNewUsersByTimeRange 统计指定时间范围内的新注册用户数
 func CountNewUsersByTimeRange(startTimestamp, endTimestamp int64) (int64, error) {
 	var count int64

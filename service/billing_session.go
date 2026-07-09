@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -310,12 +311,20 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if subConsume <= 0 {
 			subConsume = 1
 		}
+		// 订阅扣费时使用的模型名：优先取服务商映射后的"对外公开模型名"(public_model_name)，
+		// 没有映射时回退到 relay 原始模型名(OriginModelName)。
+		// 这样服务商私有订阅按其模型广场上架的公开名扣费，与套餐 model_limits 白名单匹配一致，
+		// 避免因上游真实模型名与白名单不一致而无法从订阅扣费。
+		subscriptionModelName := relayInfo.OriginModelName
+		if publicModelName := common.GetContextKeyString(c, constant.ContextKeyProviderPublicModel); publicModelName != "" {
+			subscriptionModelName = publicModelName
+		}
 		session := &BillingSession{
 			relayInfo: relayInfo,
 			funding: &SubscriptionFunding{
 				requestId: relayInfo.RequestId,
 				userId:    relayInfo.UserId,
-				modelName: relayInfo.OriginModelName,
+				modelName: subscriptionModelName,
 				amount:    subConsume,
 			},
 		}

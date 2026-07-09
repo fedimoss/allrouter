@@ -4668,6 +4668,7 @@
     "token 会按倍率换算成“额度/次数”，请求结束后再做差额结算（补扣/返还）。": "Les tokens sont convertis en quota/nombre d'utilisations selon le ratio. Après la requête, la différence est réglée (déduction supplémentaire/remboursement).",
     "Token 模型加价倍率": "Token Model Markup Multiplier",
     "Token 消耗总量": "Quantité totale consommée de jetons",
+    "全站 Token 消耗总量": "Consommation totale de jetons du site",
     "Token Endpoint": "Point de terminaison du jeton",
     "Total tokens": "Total tokens",
     "true": "vrai",

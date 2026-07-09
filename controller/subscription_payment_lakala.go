@@ -144,8 +144,10 @@ func requestSubscriptionLakalaPay(c *gin.Context, plan *model.SubscriptionPlan, 
 
 	// 创建本地订阅订单记录
 	order := &model.SubscriptionOrder{
-		UserId:          userId,
-		PlanId:          plan.Id,
+		UserId: userId,
+		PlanId: plan.Id,
+		// 订单归属服务商（0=主站），完成订单时据此给服务商 owner 结算订阅收入。
+		ProviderId:      c.GetInt("provider_id"),
 		Money:           usdPrice,                        // 套餐原价（USD）
 		Currency:        "¥",                             // 拉卡拉固定人民币
 		OriginalMoney:   lakalaPayMoney.InexactFloat64(), // 实际支付的人民币金额

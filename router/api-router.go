@@ -401,6 +401,13 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.PUT("/users", controller.UpdateProviderUser)
 			providerRoute.POST("/users/manage", controller.ManageProviderUser)
 			providerRoute.DELETE("/users/:id", controller.DeleteProviderUser)
+			// 服务商所有者管理其私有订阅套餐：模型候选列表、套餐增改、启停。
+			// 与 Admin 订阅接口并行，但 provider_id 被强制绑定到当前服务商，仅能操作自有套餐。
+			providerRoute.GET("/subscription/models", controller.ProviderListSubscriptionPlanModels)
+			providerRoute.GET("/subscription/plans", controller.ProviderListSubscriptionPlans)
+			providerRoute.POST("/subscription/plans", controller.ProviderCreateSubscriptionPlan)
+			providerRoute.PUT("/subscription/plans/:id", controller.ProviderUpdateSubscriptionPlan)
+			providerRoute.PATCH("/subscription/plans/:id", controller.ProviderUpdateSubscriptionPlanStatus)
 			providerRoute.GET("/base_models", controller.ListProviderBaseModels)
 			// 模型定价自动同步：读取/保存开关、手动立即同步
 			providerRoute.GET("/model_pricing/sync_config", controller.GetProviderModelPricingSyncConfig)

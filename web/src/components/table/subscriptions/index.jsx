@@ -29,8 +29,18 @@ import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
 import { StatusContext } from '../../../context/Status';
 
-const SubscriptionsPage = () => {
-  const subscriptionsData = useSubscriptionsData();
+// SubscriptionsPage 订阅套餐管理页（Admin 与 Provider 服务商共用同一套 UI）。
+// 通过 props 注入不同的接口地址与表格 key，实现"主站订阅管理"与"服务商私有订阅管理"复用：
+//   - plansApi:  套餐列表/增/改/启停的接口前缀，默认主站 /api/subscription/admin/plans；
+//   - modelsApi: 模型候选下拉数据接口，默认 /api/user/models；
+//   - tableKey:  紧凑模式等本地态的存储 key，默认 'subscriptions'。
+// 服务商页面(ProviderSubscriptionPage)传入 /api/provider/subscription/* 复用本组件。
+const SubscriptionsPage = ({
+  plansApi = '/api/subscription/admin/plans',
+  modelsApi = '/api/user/models',
+  tableKey = 'subscriptions',
+}) => {
+  const subscriptionsData = useSubscriptionsData({ plansApi, tableKey });
   const isMobile = useIsMobile();
   const [statusState] = useContext(StatusContext);
   const enableEpay = !!statusState?.status?.enable_online_topup;
@@ -56,6 +66,9 @@ const SubscriptionsPage = () => {
         placement={sheetPlacement}
         refresh={refresh}
         t={t}
+        // 将接口地址透传给弹窗，使弹窗内的模型下拉、增改请求都走对应(admin/provider)接口。
+        plansApi={plansApi}
+        modelsApi={modelsApi}
       />
 
       <CardPro
