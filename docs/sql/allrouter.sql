@@ -2949,8 +2949,13 @@ CREATE TABLE subscription_plans (
     stripe_price_cny_id character varying(128) DEFAULT ''::character varying,
     waffo_pancake_product_id character varying(128) DEFAULT ''::character varying,
     allow_purchase integer NOT NULL DEFAULT 1,
-    model_limits text NOT NULL DEFAULT ''
+    model_limits text NOT NULL DEFAULT '',
+    provider_id bigint NOT NULL DEFAULT 0
 );
+
+
+COMMENT ON COLUMN subscription_plans.provider_id
+    IS '订阅套餐归属服务商 ID，0 表示主站套餐，>0 表示服务商私有套餐';
 
 
 CREATE SEQUENCE subscription_plans_id_seq
@@ -5378,6 +5383,18 @@ ALTER TABLE ONLY subscription_plans
 
 
 --
+-- Name: subscription_plans chk_subscription_plans_provider_id_non_negative; Type: CONSTRAINT;;
+--
+
+ALTER TABLE subscription_plans
+    DROP CONSTRAINT IF EXISTS chk_subscription_plans_provider_id_non_negative;
+
+ALTER TABLE subscription_plans
+    ADD CONSTRAINT chk_subscription_plans_provider_id_non_negative
+    CHECK (provider_id >= 0);
+
+
+--
 -- Name: subscription_pre_consume_records subscription_pre_consume_records_pkey; Type: CONSTRAINT;;
 --
 
@@ -6465,6 +6482,20 @@ CREATE INDEX idx_subscription_pre_consume_records_user_subscription_id ON subscr
 
 
 --
+-- Name: idx_subscription_plans_provider_id; Type: INDEX;;
+--
+
+CREATE INDEX idx_subscription_plans_provider_id ON subscription_plans USING btree (provider_id);
+
+
+--
+-- Name: idx_subscription_plans_provider_enabled_sort; Type: INDEX;;
+--
+
+CREATE INDEX idx_subscription_plans_provider_enabled_sort ON subscription_plans USING btree (provider_id, enabled, sort_order DESC, id DESC);
+
+
+--
 -- Name: idx_tasks_action; Type: INDEX;;
 --
 
@@ -6623,6 +6654,13 @@ CREATE INDEX idx_top_ups_user_id ON top_ups USING btree (user_id);
 --
 
 CREATE INDEX idx_top_ups_user_provider ON top_ups USING btree (user_id, provider_id);
+
+
+--
+-- Name: idx_top_ups_provider_subscription_source; Type: INDEX;;
+--
+
+CREATE INDEX idx_top_ups_provider_subscription_source ON top_ups USING btree (provider_id, source_id) WHERE (payment_method = 'provider_subscription');
 
 
 --

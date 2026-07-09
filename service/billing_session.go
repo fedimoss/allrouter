@@ -268,6 +268,32 @@ func (s *BillingSession) syncRelayInfo() {
 // NewBillingSession 工厂 — 根据计费偏好创建会话并处理回退
 // ---------------------------------------------------------------------------
 
+func billingUnavailableReason(source string, err *types.NewAPIError) string {
+	if err == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s不可用：%s", source, err.Error())
+}
+
+func newBillingUnavailableError(reasons ...string) *types.NewAPIError {
+	parts := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		reason = strings.TrimSpace(reason)
+		if reason != "" {
+			parts = append(parts, reason)
+		}
+	}
+	if len(parts) == 0 {
+		parts = append(parts, "订阅或钱包额度不足")
+	}
+	return types.NewErrorWithStatusCode(
+		fmt.Errorf("可用额度不足：%s", strings.Join(parts, "；")),
+		types.ErrorCodeInsufficientUserQuota,
+		http.StatusForbidden,
+		types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(),
+	)
+}
+
 // NewBillingSession 根据用户计费偏好创建 BillingSession，处理 subscription_first / wallet_first 的回退。
 func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preConsumedQuota int) (*BillingSession, *types.NewAPIError) {
 	if relayInfo == nil {
@@ -342,12 +368,19 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	case "wallet_only":
 		return tryWallet()
 	case "wallet_first":
-		session, err := tryWallet()
-		if err != nil {
-			if err.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
-				return trySubscription()
+		session, walletErr := tryWallet()
+		if walletErr != nil {
+			if walletErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+				subSession, subErr := trySubscription()
+				if subErr != nil && subErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+					return nil, newBillingUnavailableError(
+						billingUnavailableReason("钱包", walletErr),
+						billingUnavailableReason("订阅", subErr),
+					)
+				}
+				return subSession, subErr
 			}
-			return nil, err
+			return nil, walletErr
 		}
 		return session, nil
 	case "subscription_first":
@@ -358,12 +391,26 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
 		if !hasSub {
-			return tryWallet()
+			walletSession, walletErr := tryWallet()
+			if walletErr != nil && walletErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+				return nil, newBillingUnavailableError(
+					"订阅不可用：no active subscription",
+					billingUnavailableReason("钱包", walletErr),
+				)
+			}
+			return walletSession, walletErr
 		}
 		session, apiErr := trySubscription()
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
-				return tryWallet()
+				walletSession, walletErr := tryWallet()
+				if walletErr != nil && walletErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+					return nil, newBillingUnavailableError(
+						billingUnavailableReason("订阅", apiErr),
+						billingUnavailableReason("钱包", walletErr),
+					)
+				}
+				return walletSession, walletErr
 			}
 			return nil, apiErr
 		}
