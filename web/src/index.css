@@ -2831,6 +2831,10 @@ html.dark .floating-support-icon-qq {
   gap: 20px;
 }
 
+.dashboard-stats-v3__grid--six {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .dashboard-stats-v2__compact-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

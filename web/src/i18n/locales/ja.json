@@ -4662,6 +4662,7 @@
     "token 会按倍率换算成“额度/次数”，请求结束后再做差额结算（补扣/返还）。": "トークンは比率に基づいて「クォータ/回数」に換算されます。リクエスト完了後に差額精算（追加控除/返金）が行われます。",
     "Token 模型加价倍率": "Token Model Markup Multiplier",
     "Token 消耗总量": "トークン消費量",
+    "全站 Token 消耗总量": "サイト全体のトークン消費量",
     "Token Endpoint": "Token Endpoint",
     "Total tokens": "Total tokens",
     "true": "true",

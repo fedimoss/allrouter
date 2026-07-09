@@ -5199,6 +5199,7 @@
     "token 会按倍率换算成“额度/次数”，请求结束后再做差额结算（补扣/返还）。": "Token được quy đổi thành hạn mức/số lần theo tỷ lệ. Sau khi yêu cầu hoàn tất, chênh lệch sẽ được quyết toán (trừ thêm/hoàn trả).",
     "Token 模型加价倍率": "Markup Ratio",
     "Token 消耗总量": "Số lượng token được tiêu thụ",
+    "全站 Token 消耗总量": "Tổng token đã tiêu thụ toàn site",
     "Token Endpoint": "Token Endpoint",
     "Total tokens": "Total tokens",
     "true": "đúng",
