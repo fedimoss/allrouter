@@ -1692,6 +1692,9 @@ CREATE TABLE provider_configs (
     qq_support text DEFAULT ''::character varying,
     import_price_ratio numeric(10,6) DEFAULT 1 NOT NULL,
     home_page_theme character varying(64) DEFAULT ''::character varying,
+    model_pricing_sync_enabled boolean DEFAULT false,
+    model_pricing_sync_last_at bigint DEFAULT 0,
+    model_pricing_sync_last_summary text,
     CONSTRAINT chk_provider_configs_import_price_ratio CHECK (((import_price_ratio > (0)::numeric) AND (import_price_ratio <= (1)::numeric)))
 );
 
@@ -1836,6 +1839,27 @@ COMMENT ON COLUMN provider_configs.home_page_theme IS '服务商首页选择键�
 
 
 --
+-- Name: COLUMN provider_configs.model_pricing_sync_enabled; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_configs.model_pricing_sync_enabled IS '模型定价自动同步开关：开启后主站模型新增/下架/恢复时会自动同步该服务商';
+
+
+--
+-- Name: COLUMN provider_configs.model_pricing_sync_last_at; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_configs.model_pricing_sync_last_at IS '上次自动同步时间，Unix 秒级时间戳';
+
+
+--
+-- Name: COLUMN provider_configs.model_pricing_sync_last_summary; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_configs.model_pricing_sync_last_summary IS '上次自动同步结果摘要，JSON 字符串，包含新增/软禁用/恢复/跳过的模型名及计数';
+
+
+--
 -- Name: provider_configs_id_seq; Type: SEQUENCE;;
 --
 
@@ -1961,6 +1985,7 @@ CREATE TABLE provider_model_pricings (
     updated_at bigint,
     consume_rebate_ratio_level1 numeric(10,6) DEFAULT 0 NOT NULL,
     consume_rebate_ratio_level2 numeric(10,6) DEFAULT 0 NOT NULL,
+    sync_disabled boolean DEFAULT false,
     CONSTRAINT chk_provider_model_pricings_rebate_l1_range CHECK (((consume_rebate_ratio_level1 >= (0)::numeric) AND (consume_rebate_ratio_level1 <= (100)::numeric))),
     CONSTRAINT chk_provider_model_pricings_rebate_l2_range CHECK (((consume_rebate_ratio_level2 >= (0)::numeric) AND (consume_rebate_ratio_level2 <= (100)::numeric)))
 );
@@ -2048,6 +2073,27 @@ COMMENT ON COLUMN provider_model_pricings.created_at IS '创建时间，Unix 秒
 --
 
 COMMENT ON COLUMN provider_model_pricings.updated_at IS '更新时间，Unix 秒级时间戳';
+
+
+--
+-- Name: COLUMN provider_model_pricings.consume_rebate_ratio_level1; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_model_pricings.consume_rebate_ratio_level1 IS '一级消费返佣比例，取值 0~100';
+
+
+--
+-- Name: COLUMN provider_model_pricings.consume_rebate_ratio_level2; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_model_pricings.consume_rebate_ratio_level2 IS '二级消费返佣比例，取值 0~100';
+
+
+--
+-- Name: COLUMN provider_model_pricings.sync_disabled; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_model_pricings.sync_disabled IS '同步软禁用标记：true 表示由自动同步（主站模型下架）禁用；手动保存会清为 false，避免同步误改手动状态';
 
 
 --
@@ -6125,6 +6171,13 @@ CREATE INDEX idx_prefill_groups_type ON prefill_groups USING btree (type);
 
 
 --
+-- Name: idx_provider_configs_model_pricing_sync_enabled; Type: INDEX;;
+--
+
+CREATE INDEX idx_provider_configs_model_pricing_sync_enabled ON provider_configs USING btree (model_pricing_sync_enabled);
+
+
+--
 -- Name: idx_provider_configs_provider_id; Type: INDEX;;
 --
 
@@ -6171,6 +6224,13 @@ CREATE INDEX idx_provider_model_pricings_enabled ON provider_model_pricings USIN
 --
 
 CREATE INDEX idx_provider_model_pricings_provider_id ON provider_model_pricings USING btree (provider_id);
+
+
+--
+-- Name: idx_provider_model_pricings_sync_disabled; Type: INDEX;;
+--
+
+CREATE INDEX idx_provider_model_pricings_sync_disabled ON provider_model_pricings USING btree (sync_disabled);
 
 
 --

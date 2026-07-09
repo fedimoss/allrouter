@@ -4783,6 +4783,17 @@
     "Windows": "Windows",
     "Windows 用户使用 setx 命令后需要重新打开命令提示符": "Windows users need to reopen the command prompt after using the setx command",
     "Worker地址": "Worker Address",
-    "Worker密钥": "Worker Key"
+    "Worker密钥": "Worker Key",
+    "自动同步主站模型": "Auto-sync main-site models",
+    "立即同步": "Sync now",
+    "已开启自动同步，并已立即同步一次": "Auto-sync enabled, and synced once immediately",
+    "已关闭自动同步": "Auto-sync disabled",
+    "同步完成：新增 {{a}} 个，软禁用 {{d}} 个，恢复 {{r}} 个": "Sync complete: {{a}} added, {{d}} soft-disabled, {{r}} re-enabled",
+    "开启后，主站模型新增时会自动补齐缺少的模型；主站模型下架时会软禁用对应模型；主站恢复时只恢复由同步禁用的模型。不会覆盖已配置的价格、展示名和返佣。": "When enabled, missing models are auto-added as the main site adds models; corresponding models are soft-disabled when the main site removes them; when the main site restores them, only models disabled by sync are re-enabled. Existing prices, display names and rebates are never overwritten.",
+    "上次同步时间": "Last sync time",
+    "软禁用": "Soft-disabled",
+    "恢复": "Restored",
+    "主站已下架": "Removed from main site",
+    "该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。": "This main-site model has been removed and cannot be enabled for now. Please wait for it to be restored on the main site, or choose a different model to call."
   }
 }

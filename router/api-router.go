@@ -402,6 +402,10 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.POST("/users/manage", controller.ManageProviderUser)
 			providerRoute.DELETE("/users/:id", controller.DeleteProviderUser)
 			providerRoute.GET("/base_models", controller.ListProviderBaseModels)
+			// 模型定价自动同步：读取/保存开关、手动立即同步
+			providerRoute.GET("/model_pricing/sync_config", controller.GetProviderModelPricingSyncConfig)
+			providerRoute.PUT("/model_pricing/sync_config", controller.UpdateProviderModelPricingSyncConfig)
+			providerRoute.POST("/model_pricing/sync", controller.SyncProviderModelPricing)
 			providerRoute.GET("/model_pricing", controller.ListProviderModelPricing)
 			providerRoute.POST("/model_pricing", controller.UpsertProviderModelPricing)
 			providerRoute.PUT("/model_pricing", controller.UpsertProviderModelPricing)
@@ -437,6 +441,10 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.PUT("/:id/domains/:domain_id", controller.AdminUpdateProviderDomain)
 			providerAdminRoute.DELETE("/:id/domains/:domain_id", controller.AdminDeleteProviderDomain)
 			providerAdminRoute.GET("/base_models", controller.AdminListProviderBaseModels)
+			// 模型定价自动同步（管理员）：读取/保存开关、手动立即同步
+			providerAdminRoute.GET("/:id/model_pricing/sync_config", controller.AdminGetProviderModelPricingSyncConfig)
+			providerAdminRoute.PUT("/:id/model_pricing/sync_config", controller.AdminUpdateProviderModelPricingSyncConfig)
+			providerAdminRoute.POST("/:id/model_pricing/sync", controller.AdminSyncProviderModelPricing)
 			providerAdminRoute.GET("/:id/model_pricing", controller.AdminListProviderModelPricing)
 			providerAdminRoute.POST("/:id/model_pricing", controller.AdminUpsertProviderModelPricing)
 			providerAdminRoute.PUT("/:id/model_pricing", controller.AdminUpsertProviderModelPricing)

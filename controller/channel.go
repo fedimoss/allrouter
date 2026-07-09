@@ -677,6 +677,7 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 	service.ResetProxyClientCache()
+	TriggerProviderModelPricingSyncForMainModelChange() // 渠道变更可能影响主站可见模型集合，触发服务商模型定价自动同步
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -693,6 +694,7 @@ func DeleteChannel(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	TriggerProviderModelPricingSyncForMainModelChange() // 渠道变更可能影响主站可见模型集合，触发服务商模型定价自动同步
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -707,6 +709,7 @@ func DeleteDisabledChannel(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	TriggerProviderModelPricingSyncForMainModelChange() // 渠道变更可能影响主站可见模型集合，触发服务商模型定价自动同步
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -743,6 +746,7 @@ func DisableTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	TriggerProviderModelPricingSyncForMainModelChange() // 渠道变更可能影响主站可见模型集合，触发服务商模型定价自动同步
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -766,6 +770,7 @@ func EnableTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	TriggerProviderModelPricingSyncForMainModelChange() // 渠道变更可能影响主站可见模型集合，触发服务商模型定价自动同步
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -818,6 +823,7 @@ func EditTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	TriggerProviderModelPricingSyncForMainModelChange() // 渠道变更可能影响主站可见模型集合，触发服务商模型定价自动同步
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -846,6 +852,7 @@ func DeleteChannelBatch(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	TriggerProviderModelPricingSyncForMainModelChange() // 渠道变更可能影响主站可见模型集合，触发服务商模型定价自动同步
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -983,6 +990,7 @@ func UpdateChannel(c *gin.Context) {
 	service.ResetProxyClientCache()
 	channel.Key = ""
 	clearChannelInfo(&channel.Channel)
+	TriggerProviderModelPricingSyncForMainModelChange() // 渠道变更可能影响主站可见模型集合，触发服务商模型定价自动同步
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

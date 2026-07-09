@@ -4705,6 +4705,17 @@
     "Windows": "Windows",
     "Windows 用户使用 setx 命令后需要重新打开命令提示符": "Les utilisateurs Windows doivent rouvrir l'invite de commandes après avoir utilisé la commande setx",
     "Worker地址": "Adresse du Worker",
-    "Worker密钥": "Clé du Worker"
+    "Worker密钥": "Clé du Worker",
+    "自动同步主站模型": "Synchroniser automatiquement les modèles du site principal",
+    "立即同步": "Synchroniser maintenant",
+    "已开启自动同步，并已立即同步一次": "Synchronisation automatique activée et exécutée une fois immédiatement",
+    "已关闭自动同步": "Synchronisation automatique désactivée",
+    "同步完成：新增 {{a}} 个，软禁用 {{d}} 个，恢复 {{r}} 个": "Synchronisation terminée : {{a}} ajouté(s), {{d}} désactivé(s) en douceur, {{r}} réactivé(s)",
+    "开启后，主站模型新增时会自动补齐缺少的模型；主站模型下架时会软禁用对应模型；主站恢复时只恢复由同步禁用的模型。不会覆盖已配置的价格、展示名和返佣。": "Une fois activé : les modèles manquants sont ajoutés automatiquement quand le site principal en ajoute ; les modèles correspondants sont désactivés en douceur quand le site principal les retire ; seuls les modèles désactivés par la synchronisation sont réactivés quand le site principal les restaure. Les prix, noms d’affichage et remises déjà configurés ne sont jamais écrasés.",
+    "上次同步时间": "Dernière synchronisation",
+    "软禁用": "Désactivé en douceur",
+    "恢复": "Restauré",
+    "主站已下架": "Retiré du site principal",
+    "该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。": "Ce modèle du site principal a été retiré et ne peut pas être activé pour le moment. Attendez sa restauration sur le site principal ou choisissez un autre modèle à appeler."
   }
 }

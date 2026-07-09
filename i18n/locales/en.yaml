@@ -291,6 +291,7 @@ custom_oauth.provider_id_field_invalid: "Could not extract user ID from provider
 provider.withdraw_insufficient_balance: "Provider balance insufficient, cannot approve withdrawal"
 provider.withdraw_not_yours: "Cannot operate another provider's withdrawal request"
 provider.withdraw_cannot_cancel: "Only pending withdrawal requests can be cancelled"
+provider.main_model_unavailable: "This main-site model is currently unavailable and cannot be enabled"
 
 # VersionLog messages
 version_log.not_found: "Version log not found"

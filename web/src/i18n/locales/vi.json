@@ -5234,6 +5234,17 @@
     "Windows": "Windows",
     "Windows 用户使用 setx 命令后需要重新打开命令提示符": "Người dùng Windows cần mở lại command prompt sau khi dùng lệnh setx",
     "Worker地址": "Địa chỉ Worker",
-    "Worker密钥": "Khóa Worker"
+    "Worker密钥": "Khóa Worker",
+    "自动同步主站模型": "Tự động đồng bộ mô hình trang chủ",
+    "立即同步": "Đồng bộ ngay",
+    "已开启自动同步，并已立即同步一次": "Đã bật tự động đồng bộ và đồng bộ ngay một lần",
+    "已关闭自动同步": "Đã tắt tự động đồng bộ",
+    "同步完成：新增 {{a}} 个，软禁用 {{d}} 个，恢复 {{r}} 个": "Đồng bộ xong: đã thêm {{a}}, tạm ngưng mềm {{d}}, kích hoạt lại {{r}}",
+    "开启后，主站模型新增时会自动补齐缺少的模型；主站模型下架时会软禁用对应模型；主站恢复时只恢复由同步禁用的模型。不会覆盖已配置的价格、展示名和返佣。": "Khi bật: mô hình thiếu sẽ được tự động bổ sung khi trang chủ thêm mô hình; mô hình tương ứng sẽ bị tạm ngưng mềm khi trang chủ gỡ bỏ; khi trang chủ khôi phục, chỉ những mô hình do đồng bộ ngưng mới được kích hoạt lại. Giá đã cấu hình, tên hiển thị và hoa hồng sẽ không bị ghi đè.",
+    "上次同步时间": "Thời gian đồng bộ lần trước",
+    "软禁用": "Tạm ngưng mềm",
+    "恢复": "Đã khôi phục",
+    "主站已下架": "Đã gỡ khỏi trang chủ",
+    "该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。": "Mô hình trang chủ này hiện đã gỡ và tạm không thể kích hoạt. Vui lòng đợi trang chủ khôi phục mô hình rồi mới kích hoạt, hoặc đổi mô hình gọi thực tế."
   }
 }

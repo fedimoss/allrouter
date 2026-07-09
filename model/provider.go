@@ -61,18 +61,27 @@ type ProviderConfig struct {
 	FooterText       string  `json:"footer_text" gorm:"type:text"`
 	SupportUrl       string  `json:"support_url" gorm:"type:text"`
 	ImportPriceRatio float64 `json:"import_price_ratio" gorm:"type:decimal(10,6);not null;default:1"`
-	CreatedAt        int64   `json:"created_at" gorm:"bigint"`
-	UpdatedAt        int64   `json:"updated_at" gorm:"bigint"`
-	WechatSupport    string  `json:"wechat_support" gorm:"type:text"`
-	QQSupport        string  `json:"qq_support" gorm:"type:text"`
+	// 模型定价自动同步开关：开启后，主站模型新增/下架/恢复时会自动同步该服务商
+	ModelPricingSyncEnabled bool `json:"model_pricing_sync_enabled" gorm:"default:false;index"`
+	// 上次自动同步的 Unix 时间戳
+	ModelPricingSyncLastAt int64 `json:"model_pricing_sync_last_at" gorm:"bigint;default:0"`
+	// 上次自动同步结果摘要（JSON），包含新增/软禁用/恢复/跳过的模型名及计数
+	ModelPricingSyncLastSummary string `json:"model_pricing_sync_last_summary" gorm:"type:text"`
+	CreatedAt                   int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt                   int64  `json:"updated_at" gorm:"bigint"`
+	WechatSupport               string `json:"wechat_support" gorm:"type:text"`
+	QQSupport                   string `json:"qq_support" gorm:"type:text"`
 }
 
 type ProviderModelPricing struct {
-	Id                       int     `json:"id"`
-	ProviderId               int     `json:"provider_id" gorm:"index;not null;index:idx_provider_public_model,unique"`
-	PublicModelName          string  `json:"public_model_name" gorm:"type:varchar(255);not null;index:idx_provider_public_model,unique"`
-	BaseModelName            string  `json:"base_model_name" gorm:"type:varchar(255);not null;index"`
-	Enabled                  bool    `json:"enabled" gorm:"default:true;index"`
+	Id              int    `json:"id"`
+	ProviderId      int    `json:"provider_id" gorm:"index;not null;index:idx_provider_public_model,unique"`
+	PublicModelName string `json:"public_model_name" gorm:"type:varchar(255);not null;index:idx_provider_public_model,unique"`
+	BaseModelName   string `json:"base_model_name" gorm:"type:varchar(255);not null;index"`
+	Enabled         bool   `json:"enabled" gorm:"default:true;index"`
+	// 同步软禁用标记：true 表示该行是被自动同步逻辑（主站模型下架）禁用的；
+	// 服务商/管理员手动保存时会清为 false，避免后续同步误改服务商的手动状态
+	SyncDisabled             bool    `json:"sync_disabled" gorm:"default:false;index"`
 	PricingType              string  `json:"pricing_type" gorm:"type:varchar(16);not null;default:'ratio'"`
 	Ratio                    float64 `json:"ratio" gorm:"type:decimal(18,8);default:1"`
 	DeltaModelRatio          float64 `json:"delta_model_ratio" gorm:"type:decimal(18,8);default:0"`
