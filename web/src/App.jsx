@@ -104,8 +104,9 @@ const HomeRoute = () => {
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
 const AgentPartner = lazy(() => import('./pages/AgentPartner'));
-const UserAgreement = lazy(() => import('./pages/UserAgreement'));
-const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const UserAgreement = lazy(() => import('./pages/UserAgreement/index_new'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy/index_new'));
+const ServiceClause = lazy(() => import('./pages/serviceClause'));
 const Docs = lazy(() => import('./pages/Docs'));
 
 function DynamicOAuth2Callback() {
@@ -583,6 +584,16 @@ function App() {
             </Suspense>
           }
         />
+        
+        <Route
+          path='/service-clause'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <ServiceClause />
+            </Suspense>
+          }
+        />
+
         <Route
           path='/console/chat/:id?'
           element={

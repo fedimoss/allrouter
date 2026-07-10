@@ -24,6 +24,7 @@ const UserNameMaxLength = 20
 type User struct {
 	Id                         int            `json:"id"`
 	ProviderId                 int            `json:"provider_id" gorm:"type:int;default:0;index;uniqueIndex:ux_user_provider_aff"`
+	ProviderName               string         `json:"provider_name,omitempty" gorm:"-"`
 	Username                   string         `json:"username" gorm:"index" validate:"max=20"`
 	Password                   string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
 	OriginalPassword           string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
@@ -378,6 +379,42 @@ func GetMaxUserId() int {
 	return user.Id
 }
 
+func fillUserProviderNames(tx *gorm.DB, users []*User) error {
+	providerIds := make([]int, 0)
+	seen := make(map[int]struct{})
+	for _, user := range users {
+		if user == nil || user.ProviderId <= 0 {
+			continue
+		}
+		if _, ok := seen[user.ProviderId]; ok {
+			continue
+		}
+		seen[user.ProviderId] = struct{}{}
+		providerIds = append(providerIds, user.ProviderId)
+	}
+	if len(providerIds) == 0 {
+		return nil
+	}
+
+	var providers []struct {
+		Id   int
+		Name string
+	}
+	if err := tx.Model(&Provider{}).Select("id", "name").Where("id IN ?", providerIds).Find(&providers).Error; err != nil {
+		return err
+	}
+	providerNames := make(map[int]string, len(providers))
+	for _, provider := range providers {
+		providerNames[provider.Id] = provider.Name
+	}
+	for _, user := range users {
+		if user != nil {
+			user.ProviderName = providerNames[user.ProviderId]
+		}
+	}
+	return nil
+}
+
 func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err error) {
 	// Start transaction
 	tx := DB.Begin()
@@ -400,6 +437,10 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	// Get paginated users within same transaction
 	err = tx.Unscoped().Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Omit("password").Find(&users).Error
 	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+	if err = fillUserProviderNames(tx, users); err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
@@ -617,6 +658,10 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 	// 获取分页数据
 	err = query.Omit("password").Order("id desc").Limit(num).Offset(startIdx).Find(&users).Error
 	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+	if err = fillUserProviderNames(tx, users); err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}

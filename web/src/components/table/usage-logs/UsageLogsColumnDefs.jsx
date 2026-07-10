@@ -733,8 +733,11 @@ export const getLogsColumns = ({
         if (!(record.type === 2 || record.type === 5)) {
           return <></>;
         }
+        const other = getLogOther(record.other);
+        if (isProviderCostLog(other)) {
+          return <div className='flex w-full justify-center'>_</div>;
+        }
         if (record.is_stream) {
-          let other = getLogOther(record.other);
           return (
             <>
               <Space>
