@@ -50,6 +50,7 @@ const StatsCards = ({
   const totalQuota = formatValue(resource?.[0]?.value, '0');
   const totalTokens = formatValue(resource?.[1]?.value, '0');
   const userTotalTokenUsed = formatValue(resource?.[2]?.value, '0');
+  const allUsersTotalTokenUsed = formatValue(resource?.[3]?.value, null);
   const userTotalTokenUsedTitle = resource?.[2]?.title || `${t('已用')} Tokens`;
   const avgRPM = formatValue(performance?.[0]?.value, '0');
   const avgTPM = formatValue(performance?.[1]?.value, '0');
@@ -113,6 +114,20 @@ const StatsCards = ({
       iconClassName: 'dashboard-stats-v3__icon dashboard-stats-v3__icon--blue',
       onClick: resource?.[2]?.onClick,
     },
+    ...(allUsersTotalTokenUsed !== null
+      ? [
+          {
+            key: 'all-users-token-used',
+            title: '全站 Token 消耗总量',
+            titleTranslated: true,
+            value: allUsersTotalTokenUsed,
+            icon: Hash,
+            iconClassName:
+              'dashboard-stats-v3__icon dashboard-stats-v3__icon--violet',
+            onClick: resource?.[3]?.onClick,
+          },
+        ]
+      : []),
   ];
 
   const renderValue = (value, width = 118) => (
@@ -224,7 +239,11 @@ const StatsCards = ({
 
   return (
     <section className='dashboard-stats-v2 dashboard-stats-v3'>
-      <div className='dashboard-stats-v2__primary-grid dashboard-stats-v3__grid'>
+      <div
+        className={`dashboard-stats-v2__primary-grid dashboard-stats-v3__grid${
+          cards.length > 5 ? ' dashboard-stats-v3__grid--six' : ''
+        }`}
+      >
         {cards.map(renderCard)}
       </div>
     </section>

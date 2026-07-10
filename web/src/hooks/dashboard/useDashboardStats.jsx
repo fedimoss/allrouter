@@ -41,6 +41,7 @@ export const useDashboardStats = (
   trendData,
   performanceMetrics,
   displayCurrency,
+  isAdminUser,
   navigate,
   t,
 ) => {
@@ -121,6 +122,20 @@ export const useDashboardStats = (
             trendData: [],
             trendColor: '#f97316',
           },
+          ...(isAdminUser
+            ? [
+                {
+                  title: t('全站 Token 消耗总量'),
+                  value: Number(
+                    userState?.user?.all_users_total_token_used || 0,
+                  ).toLocaleString(),
+                  icon: <IconTypograph />,
+                  avatarColor: 'indigo',
+                  trendData: [],
+                  trendColor: '#6366f1',
+                },
+              ]
+            : []),
         ],
       },
       {
@@ -150,8 +165,10 @@ export const useDashboardStats = (
       userState?.user?.quota,
       userState?.user?.used_quota,
       userState?.user?.total_token_used,
+      userState?.user?.all_users_total_token_used,
       userState?.user?.request_count,
       userState?.user?.total_count,
+      isAdminUser,
       times,
       consumeQuota,
       consumeTokens,

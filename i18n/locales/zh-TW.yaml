@@ -292,6 +292,7 @@ custom_oauth.provider_id_field_invalid: "無法從供應者響應中提取使用
 provider.withdraw_insufficient_balance: "服務商餘額不足，無法完成提現審核"
 provider.withdraw_not_yours: "無法操作其他服務商的提現申請"
 provider.withdraw_cannot_cancel: "只能取消待審核狀態的提現申請"
+provider.main_model_unavailable: "該主站模型目前不可用，無法啟用"
 
 # VersionLog messages
 version_log.not_found: "版本日誌不存在"

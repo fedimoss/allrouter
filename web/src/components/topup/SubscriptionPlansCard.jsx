@@ -30,7 +30,13 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import { API, showError, showSuccess, renderQuota } from '../../helpers';
+import {
+  API,
+  showError,
+  showSuccess,
+  renderQuota,
+  renderNumber,
+} from '../../helpers';
 // 使用统一的币种格式化工具，替代旧的 getCurrencyConfig 静态方法
 // formatDisplayMoney：将金额格式化为带币种符号的显示字符串
 // normalizeDisplayCurrency：标准化币种配置，确保 symbol / currency / unitPrice 等字段均有合理默认值
@@ -327,10 +333,6 @@ const SubscriptionPlansCard = ({
   const isSubscriptionPreference =
     billingPreference === 'subscription_first' ||
     billingPreference === 'subscription_only';
-  const displayBillingPreference =
-    disableSubscriptionPreference && isSubscriptionPreference
-      ? 'wallet_first'
-      : billingPreference;
   const subscriptionPreferenceLabel =
     billingPreference === 'subscription_only' ? t('仅用订阅') : t('优先订阅');
 
@@ -357,6 +359,23 @@ const SubscriptionPlansCard = ({
   const getPlanPurchaseCount = (planId) =>
     planPurchaseCountMap.get(planId) || 0;
 
+  const formatPlanModelLimits = (plan) => {
+    const models = String(plan?.model_limits || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (models.length === 0) {
+      return { label: t('全部模型'), tooltip: '' };
+    }
+    return {
+      label:
+        models.length <= 3
+          ? models.join(', ')
+          : `${models.slice(0, 3).join(', ')} +${models.length - 3}`,
+      tooltip: models.join(', '),
+    };
+  };
+
   // 计算单个订阅的剩余天数
   const getRemainingDays = (sub) => {
     if (!sub?.subscription?.end_time) return 0;
@@ -370,7 +389,11 @@ const SubscriptionPlansCard = ({
     const total = Number(sub?.subscription?.amount_total || 0);
     const used = Number(sub?.subscription?.amount_used || 0);
     if (total <= 0) return 0;
-    return Math.round((used / total) * 100);
+    const percent = (used / total) * 100;
+    if (percent > 0 && percent < 1) {
+      return percent.toFixed(2);
+    }
+    return Math.round(percent);
   };
 
   const cardContent = (
@@ -451,7 +474,7 @@ const SubscriptionPlansCard = ({
               </div>
               <div className='flex items-center gap-2'>
                 <Select
-                  value={displayBillingPreference}
+                  value={billingPreference}
                   onChange={onChangeBillingPreference}
                   size='small'
                   optionList={[
@@ -488,13 +511,15 @@ const SubscriptionPlansCard = ({
                 />
               </div>
             </div>
-            {disableSubscriptionPreference && isSubscriptionPreference && (
-              <Text type='tertiary' size='small'>
-                {t('已保存偏好为')}
-                {subscriptionPreferenceLabel}
-                {t('，当前无生效订阅，将自动使用钱包')}
-              </Text>
-            )}
+            {disableSubscriptionPreference &&
+              isSubscriptionPreference &&
+              billingPreference === 'subscription_first' && (
+                <Text type='tertiary' size='small'>
+                  {t('已保存偏好为')}
+                  {subscriptionPreferenceLabel}
+                  {t('，当前无生效订阅，将自动使用钱包')}
+                </Text>
+              )}
 
             {hasAnySubscription ? (
               <>
@@ -518,6 +543,7 @@ const SubscriptionPlansCard = ({
                     const isCancelled = subscription?.status === 'cancelled';
                     const isActive =
                       subscription?.status === 'active' && !isExpired;
+                    const modelLimit = formatPlanModelLimits(sub?.plan);
 
                     return (
                       <div key={subscription?.id || subIndex}>
@@ -578,10 +604,19 @@ const SubscriptionPlansCard = ({
                             <Tooltip
                               content={`${t('原生额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
                             >
-                              <span>
-                                {renderQuota(usedAmount)}/
-                                {renderQuota(totalAmount)} · {t('剩余')}{' '}
-                                {renderQuota(remainAmount)}
+                              <span className='inline-flex flex-col gap-0.5 align-top'>
+                                <span>
+                                  {renderQuota(usedAmount)}/
+                                  {renderQuota(totalAmount)} · {t('剩余')}{' '}
+                                  {renderQuota(remainAmount)}
+                                </span>
+                                {usedAmount > 0 && (
+                                  <span className='text-[11px] text-gray-400'>
+                                    {t('原生额度')}:{' '}
+                                    {renderNumber(usedAmount)} /{' '}
+                                    {renderNumber(totalAmount)}
+                                  </span>
+                                )}
                               </span>
                             </Tooltip>
                           ) : (
@@ -591,6 +626,16 @@ const SubscriptionPlansCard = ({
                             <span className='ml-2'>
                               {t('已用')} {usagePercent}%
                             </span>
+                          )}
+                        </div>
+                        <div className='text-xs text-gray-500 mb-2'>
+                          {t('适用模型')}:{' '}
+                          {modelLimit.tooltip ? (
+                            <Tooltip content={modelLimit.tooltip}>
+                              <span>{modelLimit.label}</span>
+                            </Tooltip>
+                          ) : (
+                            <span>{modelLimit.label}</span>
                           )}
                         </div>
                         {!isLast && <Divider margin={12} />}
@@ -729,23 +774,32 @@ const SubscriptionPlansCard = ({
                         {(() => {
                           const count = getPlanPurchaseCount(p?.plan?.id);
                           const reached = limit > 0 && count >= limit;
-                          const tip = reached
-                            ? t('已达到购买上限') + ` (${count}/${limit})`
-                            : '';
+                          const notPurchasable =
+                            Number(plan?.allow_purchase ?? 1) !== 1;
+                          const disabled = reached || notPurchasable;
+                          const tip = notPurchasable
+                            ? t('该套餐暂不允许订阅')
+                            : reached
+                              ? t('已达到购买上限') + ` (${count}/${limit})`
+                              : '';
                           const buttonEl = (
                             <Button
                               theme='outline'
                               type='primary'
                               block
-                              disabled={reached}
+                              disabled={disabled}
                               onClick={() => {
-                                if (!reached) openBuy(p);
+                                if (!disabled) openBuy(p);
                               }}
                             >
-                              {reached ? t('已达上限') : t('立即订阅')}
+                              {notPurchasable
+                                ? t('暂不可订阅')
+                                : reached
+                                  ? t('已达上限')
+                                  : t('立即订阅')}
                             </Button>
                           );
-                          return reached ? (
+                          return disabled ? (
                             <Tooltip content={tip} position='top'>
                               {buttonEl}
                             </Tooltip>

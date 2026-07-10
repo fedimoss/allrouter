@@ -377,6 +377,14 @@ const ProviderPage = () => {
   const [selectedOwnerId, setSelectedOwnerId] = useState(undefined);
   const [selectedOwner, setSelectedOwner] = useState(null);
   const [agentPartnerSwitchingIds, setAgentPartnerSwitchingIds] = useState({});
+  // 模型定价自动同步：配置（开关/上次同步时间/摘要）+ 开关保存中 + 立即同步中
+  const [modelPricingSyncConfig, setModelPricingSyncConfig] = useState({
+    enabled: false,
+    last_sync_at: 0,
+    last_summary: null,
+  });
+  const [modelPricingSyncSaving, setModelPricingSyncSaving] = useState(false);
+  const [modelPricingSyncing, setModelPricingSyncing] = useState(false);
 
   const providerFormRef = useRef(null);
   const configFormRef = useRef(null);
@@ -462,6 +470,96 @@ const ProviderPage = () => {
       showError(error);
     }
     setPricingLoading(false);
+  };
+
+  // 模型定价自动同步接口地址：管理员用 :id 路由，服务商 owner 用固定路由
+  const modelPricingSyncConfigUrl = (provider) =>
+    adminMode
+      ? `/api/provider/admin/${provider.id}/model_pricing/sync_config`
+      : '/api/provider/model_pricing/sync_config';
+
+  const modelPricingSyncUrl = (provider) =>
+    adminMode
+      ? `/api/provider/admin/${provider.id}/model_pricing/sync`
+      : '/api/provider/model_pricing/sync';
+
+  // 拉取自动同步开关与上次同步摘要
+  const fetchModelPricingSyncConfig = async (provider) => {
+    if (!provider?.id) return;
+    try {
+      const res = await API.get(modelPricingSyncConfigUrl(provider));
+      if (res.data.success) {
+        setModelPricingSyncConfig(res.data.data || {});
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  // 切换自动同步开关；后端在“由关变开”时会立即同步一次，前端随之刷新定价列表
+  const toggleModelPricingSync = async (provider, enabled) => {
+    if (!provider?.id) return;
+    setModelPricingSyncSaving(true);
+    try {
+      const res = await API.put(modelPricingSyncConfigUrl(provider), {
+        enabled,
+      });
+      if (res.data.success) {
+        setModelPricingSyncConfig((config) => ({
+          ...config,
+          ...(res.data.data || {}),
+        }));
+        if (enabled) {
+          showSuccess(t('已开启自动同步，并已立即同步一次'));
+          fetchPricingRows(provider);
+        } else {
+          showSuccess(t('已关闭自动同步'));
+        }
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(error);
+    } finally {
+      setModelPricingSyncSaving(false);
+    }
+  };
+
+  // 手动“立即同步”：无论开关是否开启都强制执行一次，并刷新定价列表与上次同步结果
+  const syncModelPricingNow = async (provider) => {
+    if (!provider?.id) return;
+    setModelPricingSyncing(true);
+    try {
+      const res = await API.post(modelPricingSyncUrl(provider));
+      if (res.data.success) {
+        const summary = res.data.data || {};
+        setModelPricingSyncConfig((config) => ({
+          ...config,
+          last_sync_at: summary.last_sync_at || 0,
+          last_summary: summary,
+          enabled: config.enabled,
+        }));
+        const added = summary.added_count || 0;
+        const disabled = summary.disabled_count || 0;
+        const reenabled = summary.reenabled_count || 0;
+        showSuccess(
+          t('同步完成：新增 {{a}} 个，软禁用 {{d}} 个，恢复 {{r}} 个', {
+            a: added,
+            d: disabled,
+            r: reenabled,
+          }),
+        );
+        fetchPricingRows(provider);
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(error);
+    } finally {
+      setModelPricingSyncing(false);
+    }
   };
 
   const fetchBaseModels = async (provider = currentProvider) => {
@@ -619,6 +717,8 @@ const ProviderPage = () => {
     setCurrentProvider(provider);
     setPricingListVisible(true);
     fetchPricingRows(provider);
+    // 打开模型定价弹窗时一并拉取自动同步配置，用于展示开关与上次同步结果
+    fetchModelPricingSyncConfig(provider);
   };
 
   const openRewardModal = (provider) => {
@@ -672,6 +772,25 @@ const ProviderPage = () => {
     await fetchProviders();
   };
 
+  // 当前主站可见模型集合；判断“编辑中的实际模型是否已被主站下架”
+  const baseModelVisibleSet = useMemo(
+    () => new Set((baseModels || []).map((name) => String(name))),
+    [baseModels],
+  );
+
+  // 仅在“当前服务商的主站模型列表已加载完成”时才判定下架，避免列表未到位时的误判
+  const baseModelsLoadedForCurrentProvider =
+    baseModelPriceProviderId === (currentProvider?.id || 0) && !baseModelsLoading;
+
+  // 当前选中的实际模型是否已被主站下架（不可启用）
+  const selectedBaseModelUnavailable = Boolean(
+    pricingModalVisible &&
+      selectedBaseModel &&
+      baseModelsLoadedForCurrentProvider &&
+      !baseModelVisibleSet.has(selectedBaseModel),
+  );
+
+  // 实际模型下拉项：已下架的模型仍保留（供编辑旧行），但标注“主站已下架”
   const baseModelOptions = useMemo(() => {
     const names = new Set(baseModels || []);
     if (editingPricing?.base_model_name) {
@@ -679,8 +798,14 @@ const ProviderPage = () => {
     }
     return Array.from(names)
       .sort((a, b) => String(a).localeCompare(String(b)))
-      .map((name) => ({ label: name, value: name }));
-  }, [baseModels, editingPricing]);
+      .map((name) => ({
+        label:
+          baseModelsLoadedForCurrentProvider && !baseModelVisibleSet.has(name)
+            ? `${name}（${t('主站已下架')}）`
+            : name,
+        value: name,
+      }));
+  }, [baseModelVisibleSet, baseModels, baseModelsLoadedForCurrentProvider, editingPricing, t]);
 
   const selectedBaseModelPrices = useMemo(
     () =>
@@ -689,6 +814,13 @@ const ProviderPage = () => {
       ),
     [baseModelPrices, selectedBaseModel],
   );
+
+  // 若当前实际模型已被主站下架，强制把“启用”置为 false，避免提交一个无法启用的配置
+  useEffect(() => {
+    if (selectedBaseModelUnavailable) {
+      pricingFormRef.current?.setValue?.('enabled', false);
+    }
+  }, [selectedBaseModelUnavailable]);
 
   const handleBaseModelChange = (value) => {
     setSelectedBaseModel(value || '');
@@ -999,6 +1131,11 @@ const ProviderPage = () => {
       ),
       consume_rebate_ratio_level2: 0,
     };
+    // 前端拦截：已下架的主站模型不允许启用（后端亦有同样校验，这里先给即时提示）
+    if (payload.enabled && selectedBaseModelUnavailable) {
+      showError(t('该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。'));
+      return;
+    }
     const url = adminMode
       ? `/api/provider/admin/${currentProvider.id}/model_pricing`
       : '/api/provider/model_pricing';
@@ -2083,6 +2220,60 @@ const ProviderPage = () => {
         }
         width={1200}
       >
+        {/* 自动同步设置区：开关（由关变开时后端立即同步一次）+ 立即同步按钮 + 规则说明 + 上次同步结果 */}
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 12,
+            border: '1px solid var(--semi-color-border)',
+            borderRadius: 6,
+          }}
+        >
+          <Space style={{ width: '100%' }} align='center'>
+            <Switch
+              checked={Boolean(modelPricingSyncConfig.enabled)}
+              loading={modelPricingSyncSaving}
+              onChange={(checked) =>
+                toggleModelPricingSync(currentProvider, checked)
+              }
+            />
+            <Text strong>{t('自动同步主站模型')}</Text>
+            <Button
+              icon={<IconRefresh />}
+              loading={modelPricingSyncing}
+              onClick={() => syncModelPricingNow(currentProvider)}
+            >
+              {t('立即同步')}
+            </Button>
+          </Space>
+          <div style={{ marginTop: 6 }}>
+            <Text type='tertiary' size='small'>
+              {t(
+                '开启后，主站模型新增时会自动补齐缺少的模型；主站模型下架时会软禁用对应模型；主站恢复时只恢复由同步禁用的模型。不会覆盖已配置的价格、展示名和返佣。',
+              )}
+            </Text>
+          </div>
+          {modelPricingSyncConfig.last_sync_at ? (
+            <div style={{ marginTop: 6 }}>
+              <Text type='tertiary' size='small'>
+                {t('上次同步时间')}：
+                {timestamp2string(modelPricingSyncConfig.last_sync_at)}
+              </Text>
+              {modelPricingSyncConfig.last_summary ? (
+                <Text type='tertiary' size='small'>
+                  {' ｜ '}
+                  {t('新增')} {modelPricingSyncConfig.last_summary.added_count || 0}
+                  {' ｜ '}
+                  {t('软禁用')}{' '}
+                  {modelPricingSyncConfig.last_summary.disabled_count || 0}
+                  {' ｜ '}
+                  {t('恢复')}{' '}
+                  {modelPricingSyncConfig.last_summary.reenabled_count || 0}
+                </Text>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
         <Table
           rowKey='id'
           columns={pricingColumns}
@@ -2132,6 +2323,24 @@ const ProviderPage = () => {
             )}
           </Text>
           <div style={{ marginTop: 12, marginBottom: 12 }}>
+            {/* 实际模型已被主站下架：显示告警，且下方“启用”开关会被禁用 */}
+            {selectedBaseModelUnavailable ? (
+              <div
+                style={{
+                  marginBottom: 8,
+                  padding: 10,
+                  border: '1px solid var(--semi-color-warning-light-default)',
+                  borderRadius: 6,
+                  background: 'var(--semi-color-warning-light-hover)',
+                }}
+              >
+                <Text type='warning' size='small'>
+                  {t(
+                    '该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。',
+                  )}
+                </Text>
+              </div>
+            ) : null}
             {selectedBaseModel ? (
               selectedBaseModelPrices.length > 0 ? (
                 <>
@@ -2164,7 +2373,12 @@ const ProviderPage = () => {
               </Text>
             )}
           </div>
-          <Form.Switch field='enabled' label={t('启用')} />
+          {/* 主站已下架的模型禁止启用，避免启用后实际无法调用 */}
+          <Form.Switch
+            field='enabled'
+            label={t('启用')}
+            disabled={selectedBaseModelUnavailable}
+          />
           <Form.Select
             field='pricing_type'
             label={t('计价方式')}
@@ -2232,7 +2446,7 @@ const ProviderPage = () => {
           >
             <Form.InputNumber
               field='consume_rebate_ratio_level1'
-              label={t('消费返佣比例（利润比例）')}
+              label={t('用户返佣比例')}
               min={0}
               max={100}
               step={0.01}
@@ -2242,7 +2456,7 @@ const ProviderPage = () => {
           </div>
           <Text type='tertiary' size='small'>
             {t(
-              '消费返佣比例绑定在当前展示模型上，未配置或填 0 时不产生消费返佣。',
+              '用户返佣比例绑定在当前展示模型上，未配置或填 0 时不产生用户返佣。',
             )}
           </Text>
         </Form>

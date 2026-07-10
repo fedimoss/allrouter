@@ -55,6 +55,8 @@ const routerMap = {
   providerRewardReport: '/console/provider/reward-report',
   providerRedemption: '/console/provider/redemption',
   providerUsers: '/console/provider/users',
+  // 服务商控制台-订阅管理：服务商在此管理其私有订阅套餐，对应路由由本次特性新增。
+  providerSubscription: '/console/provider/subscription',
   providerProfits: '/console/provider/profits',
   providerLogs: '/console/provider/logs',
   providerWithdraw: '/console/provider/withdraw',
@@ -270,6 +272,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('用户管理'),
         itemKey: 'providerUsers',
         to: '/provider/users',
+      },
+      // 服务商侧边栏新增"订阅管理"入口，跳转到服务商私有套餐管理页。
+      {
+        text: t('订阅管理'),
+        itemKey: 'providerSubscription',
+        to: '/provider/subscription',
       },
       {
         text: t('服务商利润'),

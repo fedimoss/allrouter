@@ -38,6 +38,21 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int) error {
 	if relayInfo.Billing != nil {
 		preConsumed := relayInfo.Billing.GetPreConsumedQuota()
+		// 订阅计费保护：当 relay 成功但上游渠道返回的 actualQuota 为 0 时，
+		// 保留预扣额度不退还（防止因上游计费统计不准确导致订阅配额被错误返还）。
+		//
+		// 典型场景：某些渠道在流式响应中未正确返回 usage/token 统计，
+		// 导致 SettleBilling 收到 actualQuota=0。此时如果退还预扣配额，
+		// 用户可无限免费使用。此保护确保至少按预扣值扣费。
+		if relayInfo.BillingSource == BillingSourceSubscription && preConsumed > 0 && actualQuota == 0 {
+			msg := fmt.Sprintf("subscription actual quota is 0 after successful relay, keep pre-consumed quota: %s", logger.FormatQuota(preConsumed))
+			if ctx != nil {
+				logger.LogWarn(ctx, msg)
+			} else {
+				common.SysLog(msg)
+			}
+			actualQuota = preConsumed
+		}
 		delta := actualQuota - preConsumed
 
 		if delta > 0 {

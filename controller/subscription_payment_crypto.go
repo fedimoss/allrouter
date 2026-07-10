@@ -48,9 +48,17 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 		return
 	}
 
-	// 校验套餐是否启用
+	// 校验套餐是否启用（同时校验是否对当前 provider_id 可见，防跨站点订阅）
+	if !ensureSubscriptionPlanPurchasable(c, plan) {
+		return
+	}
 	if !plan.Enabled {
 		common.ApiErrorMsg(c, "套餐未启用")
+		return
+	}
+
+	if plan.AllowPurchase != 1 {
+		common.ApiErrorMsg(c, "该套餐暂不允许订阅")
 		return
 	}
 
@@ -119,8 +127,10 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		// 创建订阅订单
 		order = &model.SubscriptionOrder{
-			UserId:        userId,                      // 用户 ID
-			PlanId:        plan.Id,                     // 订阅套餐 ID
+			UserId: userId,  // 用户 ID
+			PlanId: plan.Id, // 订阅套餐 ID
+			// 订单归属服务商（0=主站），完成订单时据此给服务商 owner 结算订阅收入。
+			ProviderId:    c.GetInt("provider_id"),
 			Money:         usdtAmount.InexactFloat64(), // 换算后的代币金额（USDT）
 			Currency:      currencySymbol,              // 用户币种符号（$ / ￥）
 			OriginalMoney: plan.PriceAmount,            // 套餐原价

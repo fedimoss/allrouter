@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -61,6 +62,31 @@ type providerNavModulesRequest struct {
 	NavModules string `json:"nav_modules"`
 }
 
+// providerModelPricingSyncConfigRequest 模型定价自动同步开关的保存请求
+type providerModelPricingSyncConfigRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+// providerModelPricingSyncSummary 一次自动同步的结果摘要，回传前端展示
+type providerModelPricingSyncSummary struct {
+	ProviderId      int      `json:"provider_id"`
+	AddedModels     []string `json:"added_models"`     // 新增（补齐缺失）的模型名
+	DisabledModels  []string `json:"disabled_models"`  // 因主站下架被软禁用的模型名
+	ReenabledModels []string `json:"reenabled_models"` // 主站恢复后重新启用的模型名
+	SkippedModels   []string `json:"skipped_models"`   // 因展示名冲突被跳过的模型名
+	AddedCount      int      `json:"added_count"`
+	DisabledCount   int      `json:"disabled_count"`
+	ReenabledCount  int      `json:"reenabled_count"`
+	SkippedCount    int      `json:"skipped_count"`
+	LastSyncAt      int64    `json:"last_sync_at"`
+	SyncEnabled     bool     `json:"sync_enabled"`
+}
+
+// providerModelPricingSyncAllMu 全量同步互斥锁：
+// 同一进程内只允许同时运行一次“同步所有已开启自动同步的服务商”，
+// 其余触发若抢锁失败则直接跳过，避免主站变更引发并发重复同步
+var providerModelPricingSyncAllMu sync.Mutex
+
 var (
 	errProviderDomainRequired   = errors.New("domain is required")
 	errProviderDomainConflict   = errors.New("domain or equivalent www/apex domain is already used")
@@ -109,8 +135,9 @@ type providerBaseModelPriceAbility struct {
 }
 
 const (
-	defaultProviderPrimaryColor   = "#09FEF7"
-	defaultProviderSecondaryColor = "#BAFF29"
+	defaultProviderPrimaryColor      = "#09FEF7"
+	defaultProviderSecondaryColor    = "#BAFF29"
+	defaultProviderModelPricingRatio = 1.5 // 自动同步新增模型时的默认加价倍率（= 50% 加价）
 )
 
 var providerHexColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$`)
@@ -245,13 +272,15 @@ func createDefaultProviderModelPricing(tx *gorm.DB, providerId int, models []str
 			continue
 		}
 		seen[modelName] = struct{}{}
+		// 新建服务商时的默认定价：展示名=实际名、启用、非同步禁用、按百分比加价 50%
 		rows = append(rows, model.ProviderModelPricing{
 			ProviderId:      providerId,
 			PublicModelName: modelName,
 			BaseModelName:   modelName,
 			Enabled:         true,
+			SyncDisabled:    false,
 			PricingType:     model.ProviderPricingTypeRatio,
-			Ratio:           1.5,
+			Ratio:           defaultProviderModelPricingRatio,
 		})
 	}
 	if len(rows) == 0 {
@@ -1117,6 +1146,41 @@ func getPricingByModelName() map[string]model.Pricing {
 	return pricingMap
 }
 
+// isMarketplaceModelVisible 判断某个模型名是否在主站当前可见模型集合内（去空白后精确匹配）
+func isMarketplaceModelVisible(modelName string, visibleModels []string) bool {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return false
+	}
+	for _, visibleModelName := range visibleModels {
+		if strings.TrimSpace(visibleModelName) == modelName {
+			return true
+		}
+	}
+	return false
+}
+
+// getMarketplaceVisibleModelNamesForUserGroup 按指定用户分组（服务商主账号分组）
+// 计算其在主站市场可见的模型名集合（去重+排序）。不依赖 *gin.Context，便于后台 goroutine 调用
+func getMarketplaceVisibleModelNamesForUserGroup(userGroup string) []string {
+	pricing := getMarketplaceVisiblePricingForUserGroup(userGroup)
+	models := make([]string, 0, len(pricing))
+	seen := make(map[string]struct{}, len(pricing))
+	for _, item := range pricing {
+		modelName := strings.TrimSpace(item.ModelName)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := seen[modelName]; ok {
+			continue
+		}
+		seen[modelName] = struct{}{}
+		models = append(models, modelName)
+	}
+	sort.Strings(models)
+	return models
+}
+
 func getMarketplaceVisibleModelNames(c *gin.Context) []string {
 	pricing := getMarketplaceVisiblePricing(c)
 	models := make([]string, 0, len(pricing))
@@ -1211,8 +1275,24 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 	return result, nil
 }
 
+// getProviderMarketplaceVisibleModelNames 取“该服务商主账号”在主站可见的模型集合。
+// 自动同步、手动新增/编辑定价都以服务商主账号分组为准，保证前后口径一致；
+// 取不到服务商或主账号分组时退回当前请求上下文的可见集合
+func getProviderMarketplaceVisibleModelNames(c *gin.Context, providerId int) []string {
+	if providerId > 0 {
+		var provider model.Provider
+		if err := model.DB.Select("owner_user_id").Where("id = ?", providerId).First(&provider).Error; err == nil {
+			ownerGroup, err := model.GetUserGroup(provider.OwnerUserId, false)
+			if err == nil {
+				return getMarketplaceVisibleModelNamesForUserGroup(ownerGroup)
+			}
+		}
+	}
+	return getMarketplaceVisibleModelNames(c)
+}
+
 func listProviderBaseModels(c *gin.Context, providerId int) {
-	models := getMarketplaceVisibleModelNames(c)
+	models := getProviderMarketplaceVisibleModelNames(c, providerId)
 	if c.Query("with_price") == "true" || c.Query("with_price") == "1" {
 		items, err := buildProviderBaseModelChannelPrices(providerId)
 		if err != nil {
@@ -1258,8 +1338,15 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 		req.Ratio = 1
 	}
 	req.ConsumeRebateRatioLevel2 = 0
+	// 手动保存视为服务商主动操作，清除同步软禁用标记，避免后续同步误改服务商的手动状态
+	req.SyncDisabled = false
 	if !validateProviderRebateRatio(req.ConsumeRebateRatioLevel1) {
 		common.ApiErrorMsg(c, "consume rebate ratio must be between 0 and 100")
+		return
+	}
+	// 启用校验：主站已下架的模型不允许启用，避免服务商启用后实际无法调用
+	if req.Enabled && !isMarketplaceModelVisible(req.BaseModelName, getProviderMarketplaceVisibleModelNames(c, providerId)) {
+		common.ApiErrorI18n(c, i18n.MsgProviderMainModelUnavailable)
 		return
 	}
 	if req.Id == 0 {
@@ -1276,6 +1363,7 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 			"public_model_name":           req.PublicModelName,
 			"base_model_name":             req.BaseModelName,
 			"enabled":                     req.Enabled,
+			"sync_disabled":               false,
 			"pricing_type":                req.PricingType,
 			"ratio":                       req.Ratio,
 			"delta_model_ratio":           req.DeltaModelRatio,

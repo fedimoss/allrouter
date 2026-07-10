@@ -122,6 +122,8 @@ func CreateModelMeta(c *gin.Context) {
 		return
 	}
 	model.RefreshPricing()
+	// 模型元数据变更可能影响主站可见模型集合，触发已开启自动同步的服务商同步
+	TriggerProviderModelPricingSyncForMainModelChange()
 	common.ApiSuccess(c, &m)
 }
 
@@ -168,6 +170,8 @@ func UpdateModelMeta(c *gin.Context) {
 		}
 	}
 	model.RefreshPricing()
+	// 模型元数据变更可能影响主站可见模型集合，触发已开启自动同步的服务商同步
+	TriggerProviderModelPricingSyncForMainModelChange()
 	common.ApiSuccess(c, &m)
 }
 
@@ -264,6 +268,8 @@ func DeleteModelMeta(c *gin.Context) {
 		return
 	}
 	model.RefreshPricing()
+	// 删除模型可能缩小主站可见模型集合，触发已开启自动同步的服务商同步
+	TriggerProviderModelPricingSyncForMainModelChange()
 	common.ApiSuccess(c, nil)
 }
 

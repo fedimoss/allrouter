@@ -137,12 +137,16 @@ func InitOptionMap() {
 	common.OptionMap["GitHubClientSecret"] = ""
 	common.OptionMap["TelegramBotToken"] = ""
 	common.OptionMap["TelegramBotName"] = ""
+	common.OptionMap["TelegramMiniAppURL"] = ""
+	common.OptionMap["TelegramWebhookSecret"] = ""
 	common.OptionMap["WeChatServerAddress"] = ""
 	common.OptionMap["WeChatServerToken"] = ""
 	common.OptionMap["WeChatAccountQRCodeImageURL"] = ""
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
+	common.OptionMap["RegisterGiftSubscriptionPlanId"] = strconv.Itoa(common.RegisterGiftSubscriptionPlanId)
+	common.OptionMap["AirdropSubscriptionPlanId"] = strconv.Itoa(common.AirdropSubscriptionPlanId)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["InviteTopupRebateRatio"] = strconv.FormatFloat(common.InviteTopupRebateRatio, 'f', -1, 64)
@@ -525,12 +529,20 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TelegramBotToken = value
 	case "TelegramBotName":
 		common.TelegramBotName = value
+	case "TelegramMiniAppURL":
+		common.TelegramMiniAppURL = value
+	case "TelegramWebhookSecret":
+		common.TelegramWebhookSecret = value
 	case "TurnstileSiteKey":
 		common.TurnstileSiteKey = value
 	case "TurnstileSecretKey":
 		common.TurnstileSecretKey = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
+	case "RegisterGiftSubscriptionPlanId":
+		common.RegisterGiftSubscriptionPlanId, _ = strconv.Atoi(value)
+	case "AirdropSubscriptionPlanId":
+		common.AirdropSubscriptionPlanId, _ = strconv.Atoi(value)
 	case "QuotaForInviter":
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":

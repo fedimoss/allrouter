@@ -39,7 +39,13 @@ import {
   IconSave,
 } from '@douyinfe/semi-icons';
 import { Clock, RefreshCw } from 'lucide-react';
-import { API, showError, showSuccess } from '../../../../helpers';
+import {
+  API,
+  getModelCategories,
+  selectFilter,
+  showError,
+  showSuccess,
+} from '../../../../helpers';
 import {
   quotaToDisplayAmount,
   displayAmountToQuota,
@@ -71,10 +77,16 @@ const AddEditSubscriptionModal = ({
   placement = 'left',
   refresh,
   t,
+  // plansApi/modelsApi 由父组件注入：主站用 /api/subscription/admin/* 与 /api/user/models，
+  // 服务商用 /api/provider/subscription/*，使同一弹窗在两套管理页复用。
+  plansApi = '/api/subscription/admin/plans',
+  modelsApi = '/api/user/models',
 }) => {
   const [loading, setLoading] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
   const [groupLoading, setGroupLoading] = useState(false);
+  const [modelOptions, setModelOptions] = useState([]);
+  const [modelLoading, setModelLoading] = useState(false);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const isEdit = editingPlan?.plan?.id !== undefined;
@@ -91,6 +103,8 @@ const AddEditSubscriptionModal = ({
     quota_reset_period: 'never',
     quota_reset_custom_seconds: 0,
     enabled: true,
+    allow_purchase: true,
+    model_limits: [],
     sort_order: 0,
     max_purchase_per_user: 0,
     total_amount: 0,
@@ -116,6 +130,11 @@ const AddEditSubscriptionModal = ({
       quota_reset_period: p.quota_reset_period || 'never',
       quota_reset_custom_seconds: Number(p.quota_reset_custom_seconds || 0),
       enabled: p.enabled !== false,
+      allow_purchase: Number(p.allow_purchase ?? 1) === 1,
+      model_limits:
+        typeof p.model_limits === 'string' && p.model_limits !== ''
+          ? p.model_limits.split(',').filter(Boolean)
+          : [],
       sort_order: Number(p.sort_order || 0),
       max_purchase_per_user: Number(p.max_purchase_per_user || 0),
       total_amount: Number(
@@ -143,6 +162,42 @@ const AddEditSubscriptionModal = ({
       .finally(() => setGroupLoading(false));
   }, [visible]);
 
+  useEffect(() => {
+    if (!visible) return;
+    setModelLoading(true);
+    // 拉取模型候选：主站取全量用户模型，服务商取其模型广场上架模型；
+    // 后端 ProviderListSubscriptionPlanModels 已做去重排序，前端直接渲染为多选项。
+    API.get(modelsApi)
+      .then((res) => {
+        if (!res.data?.success) {
+          setModelOptions([]);
+          return;
+        }
+        const categories = getModelCategories(t);
+        const options = (res.data?.data || []).map((model) => {
+          let icon = null;
+          for (const [key, category] of Object.entries(categories)) {
+            if (key !== 'all' && category.filter({ model_name: model })) {
+              icon = category.icon;
+              break;
+            }
+          }
+          return {
+            label: (
+              <span className='flex items-center gap-1'>
+                {icon}
+                {model}
+              </span>
+            ),
+            value: model,
+          };
+        });
+        setModelOptions(options);
+      })
+      .catch(() => setModelOptions([]))
+      .finally(() => setModelLoading(false));
+  }, [visible, t]);
+
   const submit = async (values) => {
     if (!values.title || values.title.trim() === '') {
       showError(t('套餐标题不能为空'));
@@ -166,11 +221,16 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
+          allow_purchase: values.allow_purchase === false ? 0 : 1,
+          model_limits: Array.isArray(values.model_limits)
+            ? values.model_limits.join(',')
+            : '',
         },
       };
       if (editingPlan?.plan?.id) {
+        // 编辑：PUT {plansApi}/{id}，后端按当前用户身份校验套餐归属(服务商只能改自己的)。
         const res = await API.put(
-          `/api/subscription/admin/plans/${editingPlan.plan.id}`,
+          `${plansApi}/${editingPlan.plan.id}`,
           payload,
         );
         if (res.data?.success) {
@@ -181,7 +241,8 @@ const AddEditSubscriptionModal = ({
           showError(res.data?.message || t('更新失败'));
         }
       } else {
-        const res = await API.post('/api/subscription/admin/plans', payload);
+        // 新建：POST {plansApi}，后端会把 provider_id 绑定为当前服务商(服务商接口)或保留请求体(主站接口)。
+        const res = await API.post(plansApi, payload);
         if (res.data?.success) {
           showSuccess(t('创建成功'));
           handleClose();
@@ -378,6 +439,31 @@ const AddEditSubscriptionModal = ({
                         field='enabled'
                         label={t('启用状态')}
                         size='large'
+                      />
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.Switch
+                        field='allow_purchase'
+                        label={t('允许订阅')}
+                        size='large'
+                      />
+                    </Col>
+
+                    <Col span={24}>
+                      <Form.Select
+                        field='model_limits'
+                        label={t('适用模型')}
+                        placeholder={t('不选择则支持所有模型')}
+                        multiple
+                        optionList={modelOptions}
+                        loading={modelLoading}
+                        filter={selectFilter}
+                        autoClearSearchValue={false}
+                        searchPosition='dropdown'
+                        showClear
+                        extraText={t('仅这些模型会优先使用该订阅额度')}
+                        style={{ width: '100%' }}
                       />
                     </Col>
                   </Row>

@@ -64,6 +64,8 @@ const PageLayout = () => {
     '/console/provider/reward-report',
     '/console/provider/redemption',
     '/console/provider/users',
+    // 服务商订阅管理页纳入布局白名单（决定是否渲染完整 PageLayout 框架），新增特性页需在此登记。
+    '/console/provider/subscription',
     '/console/provider/profits',
     '/console/provider/logs',
     '/pricing',

@@ -349,6 +349,7 @@ const (
 	MsgProviderWithdrawInsufficientBalance = "provider.withdraw_insufficient_balance"
 	MsgProviderWithdrawNotYours            = "provider.withdraw_not_yours"
 	MsgProviderWithdrawCannotCancel        = "provider.withdraw_cannot_cancel"
+	MsgProviderMainModelUnavailable        = "provider.main_model_unavailable"
 )
 
 // VersionLog related messages

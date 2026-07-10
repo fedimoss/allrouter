@@ -94,6 +94,8 @@ const defaultInputs = {
   TelegramOAuthEnabled: '',
   TelegramBotToken: '',
   TelegramBotName: '',
+  TelegramMiniAppURL: '',
+  TelegramWebhookSecret: '',
   LinuxDOOAuthEnabled: '',
   LinuxDOClientId: '',
   LinuxDOClientSecret: '',
@@ -604,8 +606,57 @@ const SystemSetting = () => {
     const options = [
       { key: 'TelegramBotToken', value: inputs.TelegramBotToken },
       { key: 'TelegramBotName', value: inputs.TelegramBotName },
+      { key: 'TelegramMiniAppURL', value: inputs.TelegramMiniAppURL || '' },
+      { key: 'TelegramWebhookSecret', value: inputs.TelegramWebhookSecret || '' },
     ];
     await updateOptions(options);
+  };
+
+  // ----- Telegram webhook -----
+  const [webhookCpolar, setWebhookCpolar] = useState('');
+  const [webhookSecret, setWebhookSecret] = useState('');
+  const [webhookLoading, setWebhookLoading] = useState(false);
+  const [webhookResult, setWebhookResult] = useState(null);
+
+  const callTelegramAdmin = async (endpoint, body) => {
+    setWebhookLoading(true);
+    setWebhookResult(null);
+    try {
+      const res = await API.post(endpoint, body);
+      const d = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+      setWebhookResult(d);
+      if (d.ok || d.success) {
+        showSuccess(endpoint === '/api/telegram/admin/setWebhook'
+          ? t('Webhook 设置成功')
+          : endpoint === '/api/telegram/admin/deleteWebhook'
+            ? t('Webhook 已删除')
+            : t('获取成功'));
+      } else {
+        showError(d.description || JSON.stringify(d));
+      }
+    } catch (e) {
+      showError(t('请求失败') + ': ' + (e.response?.data?.message || e.message));
+    } finally {
+      setWebhookLoading(false);
+    }
+  };
+
+  const handleSetWebhook = () => {
+    callTelegramAdmin('/api/telegram/admin/setWebhook', {
+      bot_token: (inputs.TelegramBotToken || '').trim(),
+      cpolar_domain: (webhookCpolar || '').trim(),
+      secret_token: (webhookSecret || '').trim(),
+    });
+  };
+  const handleDeleteWebhook = () => {
+    callTelegramAdmin('/api/telegram/admin/deleteWebhook', {
+      bot_token: (inputs.TelegramBotToken || '').trim(),
+    });
+  };
+  const handleGetWebhookInfo = () => {
+    callTelegramAdmin('/api/telegram/admin/getWebhookInfo', {
+      bot_token: (inputs.TelegramBotToken || '').trim(),
+    });
   };
 
   const submitTurnstile = async () => {
@@ -1121,15 +1172,6 @@ const SystemSetting = () => {
                         {t('允许通过微信登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
-                        field='TelegramOAuthEnabled'
-                        noLabel
-                        onChange={(e) =>
-                          handleCheckboxChange('TelegramOAuthEnabled', e)
-                        }
-                      >
-                        {t('允许通过 Telegram 进行登录')}
-                      </Form.Checkbox>
-                      <Form.Checkbox
                         field="['oidc.enabled']"
                         noLabel
                         onChange={(e) =>
@@ -1629,11 +1671,14 @@ const SystemSetting = () => {
               </Card>
 
               <Card>
-                <Form.Section text={t('配置 Telegram 登录')}>
-                  <Text>{t('用以支持通过 Telegram 进行登录注册')}</Text>
-                  <Row
-                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-                  >
+                <Form.Section text={t('配置 Telegram 机器人')}>
+                  <Text style={{marginBottom:16}}>
+                    {t('用以支持 Telegram 群聊入群欢迎、Mini App 账号绑定与通知消息发送。')}
+                  </Text>
+
+                  {/* ====== 基础配置 ====== */}
+                  <Typography.Title heading={6}>{t('基础配置')}</Typography.Title>
+                  <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='TelegramBotToken'
@@ -1645,13 +1690,131 @@ const SystemSetting = () => {
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='TelegramBotName'
-                        label={t('Telegram Bot 名称')}
+                        label={t('Telegram Bot 名称（@用户名，不带 @）')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Input
+                        field='TelegramMiniAppURL'
+                        label={t('Mini App 启动链接')}
+                        placeholder={t('@BotFather /newapp 生成的链接')}
                       />
                     </Col>
                   </Row>
-                  <Button onClick={submitTelegramSettings}>
-                    {t('保存 Telegram 登录设置')}
+                  <Button onClick={submitTelegramSettings} style={{marginBottom:16}}>
+                    {t('保存基础配置')}
                   </Button>
+
+                  {/* ====== 第一步：Webhook ====== */}
+                  <Typography.Title heading={6}>{t('第一步：设置 Webhook')}</Typography.Title>
+                  <Text type='tertiary' style={{display:'block',marginBottom:8}}>
+                    {t('让 Telegram 把群消息、入群事件等实时推送到你的服务器。填好下方信息后点“设置 Webhook”。')}
+                  </Text>
+                  <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        label={t('域名')}
+                        placeholder='https://example.com'
+                        value={webhookCpolar}
+                        onChange={(v) => setWebhookCpolar(v)}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        label={t('Webhook Secret')}
+                        placeholder=''
+                        type='password'
+                        value={webhookSecret}
+                        onChange={(v) => setWebhookSecret(v)}
+                      />
+                    </Col>
+                  </Row>
+                  <div style={{display:'flex',gap:8,marginBottom:8}}>
+                    <Button onClick={handleSetWebhook} loading={webhookLoading}>
+                      {t('设置 Webhook')}
+                    </Button>
+                    <Button onClick={handleGetWebhookInfo} loading={webhookLoading} theme='light'>
+                      {t('查询状态')}
+                    </Button>
+                    <Button onClick={handleDeleteWebhook} loading={webhookLoading} theme='light' type='danger'>
+                      {t('删除 Webhook')}
+                    </Button>
+                  </div>
+                  {webhookResult && (
+                    <Banner
+                      type={webhookResult.ok ? 'success' : 'warning'}
+                      title={webhookResult.ok ? t('Webhook 状态') : t('返回结果')}
+                      description={JSON.stringify(webhookResult)}
+                      fullMode={false}
+                      closeable
+                      onClose={() => setWebhookResult(null)}
+                    />
+                  )}
+
+                  {/* ====== 第二步 ====== */}
+                  <Typography.Title heading={6} style={{marginTop:24}}>
+                    {t('第二步：配置菜单按钮（可选）')}
+                  </Typography.Title>
+                  <Text type='tertiary' style={{display:'block',marginBottom:8}}>
+                    {t('机器人在私聊窗口左下角会显示一个菜单按钮，点击可直接打开 Mini App。群聊里不需要这一项。')}
+                  </Text>
+                  <Banner type='info' title={t('操作步骤')} fullMode={false} closeIcon={null}>
+                    <ol style={{margin:0,paddingLeft:18}}>
+                      <li>{t('打开 @BotFather → 发送 /mybots → 选择你的机器人')}</li>
+                      <li>{t('Bot Settings → Menu Button → Edit menu button')}</li>
+                      <li>{t('发送你的 Mini App 完整链接（https://<你的域名>/telegram/miniapp）')}</li>
+                      <li>{t('发送按钮标题（如“绑定用户”）。不需要时可发送 /empty 清除。')}</li>
+                    </ol>
+                  </Banner>
+
+                  {/* ====== 第三步 ====== */}
+                  <Typography.Title heading={6} style={{marginTop:24}}>
+                    {t('第三步：创建 Mini App（@BotFather /newapp）')}
+                  </Typography.Title>
+                  <Text type='tertiary' style={{display:'block',marginBottom:8}}>
+                    {t('注册 Mini App 后，群里的“绑定账号”按钮才能启动 Mini App（拿到 Telegram 用户身份）。')}
+                  </Text>
+                  <Banner type='info' title={t('操作步骤')} fullMode={false} closeIcon={null}>
+                    <ol style={{margin:0,paddingLeft:18}}>
+                      <li>{t('@BotFather → 发送 /newapp → 选择你的机器人')}</li>
+                      <li>{t('Title（名称）：账号绑定')}</li>
+                      <li>{t('Description（描述）：绑定网站账号')}</li>
+                      <li>{t('Web App URL（页面地址）：https://<你的域名>/telegram/miniapp')}</li>
+                      <li>{t('Short name（短名称）：如 test_allrouter（全小写，用于 t.me 链接）')}</li>
+                    </ol>
+                  </Banner>
+                  <Text type='success' style={{display:'block',marginTop:8}}>
+                    {t('完成后把生成的链接（t.me/你的bot/短名称）填回上面的「Mini App 启动链接」，点保存即可。')}
+                  </Text>
+
+                  {/* ====== 关闭群组隐私模式 ====== */}
+                  <Typography.Title heading={6} style={{marginTop:24}}>
+                    {t('关闭群组隐私模式')}
+                  </Typography.Title>
+                  <Text type='tertiary' style={{display:'block',marginBottom:8}}>
+                    {t('默认情况下，机器人在群里只能收到 @提及 和 /命令。关闭该模式后机器人才能收到普通群消息（如 @bot 回复、文本消息等）。')}
+                  </Text>
+                  <Banner type='warning' title={t('操作步骤')} fullMode={false} closeIcon={null}>
+                    <ol style={{margin:0,paddingLeft:18}}>
+                      <li>{t('打开 @BotFather → 发送 /mybots → 选择你的机器人')}</li>
+                      <li>{t('Bot Settings → Group Privacy → Turn Off')}</li>
+                    </ol>
+                  </Banner>
+
+                  {/* ====== Telegram 登录开关 ====== */}
+                  <Typography.Title heading={6} style={{marginTop:24}}>
+                    {t('Telegram 登录')}
+                  </Typography.Title>
+                  <Text type='tertiary' style={{display:'block',marginBottom:8}}>
+                    {t('允许用户通过 Telegram 登录/注册网站。需要先配置好上方的基础配置和 Webhook，且在 @BotFather 中 /setdomain 登记网站域名。')}
+                  </Text>
+                  <Form.Checkbox
+                    field='TelegramOAuthEnabled'
+                    noLabel
+                    onChange={(e) => handleCheckboxChange('TelegramOAuthEnabled', e)}
+                  >
+                    {t('允许通过 Telegram 进行登录')}
+                  </Form.Checkbox>
                 </Form.Section>
               </Card>
 

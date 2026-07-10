@@ -63,6 +63,8 @@ import ProviderLogsPage from './pages/Provider/Logs';
 import ProviderUsersPage from './pages/Provider/Users';
 import ProviderWithdrawPage from './pages/Provider/Withdraw';
 import ProviderSettingPage from './pages/Provider/Setting';
+// 服务商私有订阅管理页（复用主站订阅组件，注入服务商接口）。
+import ProviderSubscriptionPage from './pages/Provider/Subscription';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
@@ -236,6 +238,16 @@ function App() {
           element={
             <PrivateRoute>
               <ProviderUsersPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/provider/subscription'
+          element={
+            // 服务商控制台-订阅管理页路由，本次"服务商私有订阅"特性新增。
+            // 复用主站 SubscriptionsPage，由 ProviderSubscriptionPage 注入服务商接口地址。
+            <PrivateRoute>
+              <ProviderSubscriptionPage />
             </PrivateRoute>
           }
         />

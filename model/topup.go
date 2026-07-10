@@ -53,7 +53,13 @@ const (
 	TopUpBizTypeRedemption   = "redemption"   // 兑换码充值（不支持返利）
 )
 
-const TopUpPaymentMethodProviderProfit = "provider_profit"
+const (
+	// 服务商分润：来自用户消费时按比例分给服务商 owner 的收入（已在历史代码中存在）。
+	TopUpPaymentMethodProviderProfit = "provider_profit"
+	// 服务商订阅收入：用户购买服务商私有套餐后，套餐金额全额结算给服务商 owner 的收入（本次新增）。
+	// 与 provider_profit 区分，便于在充值流水中按来源聚合统计；二者都走"直接使用 Amount 作为额度"的换算路径。
+	TopUpPaymentMethodProviderSubscription = "provider_subscription"
+)
 
 const (
 	PaymentMethodStripe       = "stripe"
@@ -230,7 +236,9 @@ func (topUp *TopUp) GetQuotaToAdd() (int, error) {
 	case TopUpBizTypePayment:
 		// 在线支付充值：根据不同支付方式计算额度
 		switch topUp.PaymentMethod {
-		case TopUpPaymentMethodProviderProfit:
+		// 服务商两类收入(provider_profit 分润、provider_subscription 订阅收入)都把最终额度直接存在 Amount 字段，
+		// 因此直接返回 Amount，不走 Money × QuotaPerUnit 的换算路径。
+		case TopUpPaymentMethodProviderProfit, TopUpPaymentMethodProviderSubscription:
 			if topUp.Amount <= 0 {
 				return 0, errors.New("无效的服务商分账额度")
 			}
@@ -313,7 +321,8 @@ func applyInviteTopupRebateTx(tx *gorm.DB, topUp *TopUp, quotaToAdd int) (int, i
 	if topUp.GetBizType() != TopUpBizTypePayment || quotaToAdd <= 0 {
 		return 0, 0, nil
 	}
-	if topUp.PaymentMethod == TopUpPaymentMethodProviderProfit {
+	// 服务商两类收入(分润/订阅收入)不参与邀请返利：这些钱本就是结算给服务商 owner 的，不应再触发邀请返利链路。
+	if topUp.PaymentMethod == TopUpPaymentMethodProviderProfit || topUp.PaymentMethod == TopUpPaymentMethodProviderSubscription {
 		return 0, 0, nil
 	}
 

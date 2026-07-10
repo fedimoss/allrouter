@@ -71,3 +71,24 @@ func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "stream").Exists())
 	require.True(t, gjson.GetBytes(encoded, "top_p").Exists())
 }
+
+func TestTokenCountMetaClampsHugeMaxTokenValues(t *testing.T) {
+	huge := ^uint(0)
+
+	openAIReq := GeneralOpenAIRequest{MaxTokens: &huge}
+	require.Equal(t, common.MaxQuota, openAIReq.GetTokenCountMeta().MaxTokens)
+
+	openAIReq = GeneralOpenAIRequest{MaxCompletionTokens: &huge}
+	require.Equal(t, common.MaxQuota, openAIReq.GetTokenCountMeta().MaxTokens)
+
+	responsesReq := OpenAIResponsesRequest{MaxOutputTokens: &huge}
+	require.Equal(t, common.MaxQuota, responsesReq.GetTokenCountMeta().MaxTokens)
+
+	claudeReq := ClaudeRequest{MaxTokens: &huge}
+	require.Equal(t, common.MaxQuota, claudeReq.GetTokenCountMeta().MaxTokens)
+
+	geminiReq := GeminiChatRequest{
+		GenerationConfig: GeminiChatGenerationConfig{MaxOutputTokens: &huge},
+	}
+	require.Equal(t, common.MaxQuota, geminiReq.GetTokenCountMeta().MaxTokens)
+}

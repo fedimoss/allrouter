@@ -749,6 +749,14 @@ func GetSelf(c *gin.Context) {
 
 	// 获取展示币种信息，计算各项展示金额
 	displayInfo := getDisplayCurrencyForUser(c)
+	var allUsersTotalTokenUsed int64
+	if userRole == common.RoleRootUser || userRole == common.RoleAdminUser {
+		if total, err := model.SumAllUsersTotalTokenUsed(); err == nil {
+			allUsersTotalTokenUsed = total
+		} else {
+			common.SysError("failed to get all users total token used: " + err.Error())
+		}
+	}
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
@@ -792,6 +800,9 @@ func GetSelf(c *gin.Context) {
 		"timezone":                  user.Timezone,
 		"sidebar_modules":           userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":               permissions,                // 新增权限字段
+	}
+	if userRole == common.RoleRootUser || userRole == common.RoleAdminUser {
+		responseData["all_users_total_token_used"] = allUsersTotalTokenUsed
 	}
 
 	responseData["is_provider_owner"] = model.IsProviderOwner(user.Id)

@@ -74,7 +74,7 @@ func ApplyProviderPricingQuota(ctx *gin.Context, baseQuota int, usePrice bool, g
 	if importPriceRatio <= 0 {
 		importPriceRatio = 1
 	}
-	importCostQuota = int(decimal.NewFromInt(int64(baseQuota)).Mul(decimal.NewFromFloat(importPriceRatio)).Round(0).IntPart())
+	importCostQuota = common.QuotaFromDecimal(decimal.NewFromInt(int64(baseQuota)).Mul(decimal.NewFromFloat(importPriceRatio)))
 	if baseQuota > 0 && importCostQuota == 0 {
 		importCostQuota = 1
 	}
@@ -82,22 +82,20 @@ func ApplyProviderPricingQuota(ctx *gin.Context, baseQuota int, usePrice bool, g
 	pricingType := common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
 	if pricingType == model.ProviderPricingTypeDelta {
 		if usePrice {
-			providerQuota += int(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaPrice)).
+			providerQuota += common.QuotaFromDecimal(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaPrice)).
 				Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
-				Mul(decimal.NewFromFloat(groupRatio)).
-				Round(0).IntPart())
+				Mul(decimal.NewFromFloat(groupRatio)))
 		} else {
-			providerQuota += int(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaRatio)).
+			providerQuota += common.QuotaFromDecimal(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaRatio)).
 				Mul(decimal.NewFromInt(int64(unitCount))).
-				Mul(decimal.NewFromFloat(groupRatio)).
-				Round(0).IntPart())
+				Mul(decimal.NewFromFloat(groupRatio)))
 		}
 	} else {
 		ratio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderPricingRatio)
 		if ratio == 0 {
 			ratio = 1
 		}
-		providerQuota = int(decimal.NewFromInt(int64(importCostQuota)).Mul(decimal.NewFromFloat(ratio)).Round(0).IntPart())
+		providerQuota = common.QuotaFromDecimal(decimal.NewFromInt(int64(importCostQuota)).Mul(decimal.NewFromFloat(ratio)))
 	}
 	if providerQuota < 0 {
 		providerQuota = 0
@@ -143,6 +141,22 @@ func ApplyProviderPricingDisplay(ctx *gin.Context, modelRatio float64, modelPric
 		displayModelPrice = 0
 	}
 	return displayModelRatio, displayModelPrice, true
+}
+
+func noteQuotaClamp(relayInfo *relaycommon.RelayInfo, clamp *common.QuotaClamp) {
+	if clamp == nil || relayInfo == nil || relayInfo.QuotaClamp != nil {
+		return
+	}
+	relayInfo.QuotaClamp = clamp
+}
+
+func attachQuotaSaturation(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || relayInfo.QuotaClamp == nil || other == nil {
+		return
+	}
+	other["quota_saturation"] = relayInfo.QuotaClamp.AuditMap()
+	logger.LogError(ctx, fmt.Sprintf("quota conversion saturated for userId %d, channelId %d, model %s: %+v",
+		relayInfo.UserId, relayInfo.ChannelId, relayInfo.OriginModelName, *relayInfo.QuotaClamp))
 }
 
 func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) bool {
@@ -328,16 +342,14 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dImageGenerationCallQuota)
 
-		if len(relayInfo.PriceData.OtherRatios) > 0 {
-			for _, otherRatio := range relayInfo.PriceData.OtherRatios {
-				quotaCalculateDecimal = quotaCalculateDecimal.Mul(decimal.NewFromFloat(otherRatio))
-			}
-		}
+		quotaCalculateDecimal = relayInfo.PriceData.ApplyOtherRatiosToDecimal(quotaCalculateDecimal)
 
 		if !ratio.IsZero() && quotaCalculateDecimal.LessThanOrEqual(decimal.Zero) {
 			quotaCalculateDecimal = decimal.NewFromInt(1)
 		}
-		summary.Quota = int(quotaCalculateDecimal.Round(0).IntPart())
+		quota, clamp := common.QuotaFromDecimalChecked(quotaCalculateDecimal)
+		summary.Quota = quota
+		noteQuotaClamp(relayInfo, clamp)
 	} else {
 		quotaCalculateDecimal := dModelPrice.Mul(dQuotaPerUnit).Mul(dGroupRatio)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dWebSearchQuota)
@@ -345,12 +357,10 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dFileSearchQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dImageGenerationCallQuota)
-		if len(relayInfo.PriceData.OtherRatios) > 0 {
-			for _, otherRatio := range relayInfo.PriceData.OtherRatios {
-				quotaCalculateDecimal = quotaCalculateDecimal.Mul(decimal.NewFromFloat(otherRatio))
-			}
-		}
-		summary.Quota = int(quotaCalculateDecimal.Round(0).IntPart())
+		quotaCalculateDecimal = relayInfo.PriceData.ApplyOtherRatiosToDecimal(quotaCalculateDecimal)
+		quota, clamp := common.QuotaFromDecimalChecked(quotaCalculateDecimal)
+		summary.Quota = quota
+		noteQuotaClamp(relayInfo, clamp)
 	}
 
 	if summary.TotalTokens == 0 {
@@ -542,6 +552,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		// prompt/cache fields here, otherwise old upstream payloads may be double-counted.
 		other["input_tokens_total"] = usage.InputTokens
 	}
+	attachQuotaSaturation(ctx, relayInfo, other)
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,

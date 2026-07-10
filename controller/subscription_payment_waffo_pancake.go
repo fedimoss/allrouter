@@ -36,8 +36,16 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 统一购买前校验：套餐存在/启用/允许购买 + 是否对当前 provider_id 可见（防跨站点订阅）。
+	if !ensureSubscriptionPlanPurchasable(c, plan) {
+		return
+	}
 	if !plan.Enabled {
 		common.ApiErrorMsg(c, "套餐未启用")
+		return
+	}
+	if plan.AllowPurchase != 1 {
+		common.ApiErrorMsg(c, "该套餐暂不允许订阅")
 		return
 	}
 	if strings.TrimSpace(plan.WaffoPancakeProductId) == "" {
@@ -80,8 +88,10 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	tradeNo := fmt.Sprintf("WAFFO_PANCAKE_SUB-%d-%d-%s", userId, time.Now().UnixMilli(), randstr.String(6))
 
 	order := &model.SubscriptionOrder{
-		UserId:          userId,
-		PlanId:          plan.Id,
+		UserId: userId,
+		PlanId: plan.Id,
+		// 订单归属服务商（0=主站），完成订单时据此给服务商 owner 结算订阅收入。
+		ProviderId:      c.GetInt("provider_id"),
 		Money:           plan.PriceAmount,
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodWaffoPancake,
