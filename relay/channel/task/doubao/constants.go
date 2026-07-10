@@ -1,5 +1,7 @@
 package doubao
 
+import "strings"
+
 var ModelList = []string{
 	"doubao-seedance-1-0-pro-250528",
 	"doubao-seedance-1-0-lite-t2v",
@@ -11,15 +13,52 @@ var ModelList = []string{
 
 var ChannelName = "doubao-video"
 
-// videoInputRatioMap 视频输入折扣比率（含视频单价 / 不含视频单价）。
-// 管理员应将 ModelRatio 设置为"不含视频"的较高费率，
-// 系统在检测到视频输入时自动乘以此折扣。
-var videoInputRatioMap = map[string]float64{
-	"doubao-seedance-2-0-260128":      28.0 / 46.0, // ~0.6087
-	"doubao-seedance-2-0-fast-260128": 22.0 / 37.0, // ~0.5946
+type seedanceBillingPrice struct {
+	Text2Video720p  float64
+	Image2Video720p float64
+	Text2Video4K    float64
+	Image2Video4K   float64
 }
 
-func GetVideoInputRatio(modelName string) (float64, bool) {
-	r, ok := videoInputRatioMap[modelName]
-	return r, ok
+var seedanceBillingPrices = map[string]seedanceBillingPrice{
+	"doubao-seedance-2-0-260128": {
+		Text2Video720p:  46,
+		Image2Video720p: 28,
+		Text2Video4K:    196,
+		Image2Video4K:   119,
+	},
+	"doubao-seedance-2-0-fast-260128": {
+		Text2Video720p:  37,
+		Image2Video720p: 22,
+		Text2Video4K:    158,
+		Image2Video4K:   95,
+	},
+}
+
+func GetVideoInputRatio(modelName string, resolution string, hasVideoInput bool) (float64, bool) {
+	price, ok := seedanceBillingPrices[modelName]
+	if !ok {
+		return 0, false
+	}
+
+	base := price.Text2Video720p
+	target := price.Text2Video720p
+	if is4KResolution(resolution) {
+		target = price.Text2Video4K
+	}
+	if hasVideoInput {
+		target = price.Image2Video720p
+		if is4KResolution(resolution) {
+			target = price.Image2Video4K
+		}
+	}
+	if base <= 0 || target <= 0 {
+		return 0, false
+	}
+	return target / base, true
+}
+
+func is4KResolution(resolution string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(resolution))
+	return normalized == "4k" || normalized == "2160p" || normalized == "3840x2160"
 }

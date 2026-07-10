@@ -187,7 +187,7 @@ func main() {
 		Path:     "/",
 		MaxAge:   common.SessionMaxAgeDefault, // 7 days
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   common.SessionCookieSecure,
 		SameSite: http.SameSiteStrictMode,
 	})
 	server.Use(sessions.Sessions("session", store))
