@@ -350,6 +350,10 @@ html.dark .personal-setting-v2 .text-gray-400 {
   .personal-setting-v2-col {
     gap: 16px;
   }
+
+  .personal-setting-v2-board--single {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 1279px) {
@@ -484,10 +488,10 @@ html.dark .personal-setting-v2 .semi-tabs-tab:hover {
 }
 
 .personal-v3-main-grid {
-  display: grid;
+  /* display: grid;
   grid-template-columns: minmax(0, 1.22fr) minmax(320px, 0.78fr);
   gap: 16px;
-  align-items: start;
+  align-items: start; */
 }
 
 .personal-v3-card {
@@ -499,7 +503,7 @@ html.dark .personal-setting-v2 .semi-tabs-tab:hover {
 }
 
 .personal-v3-card .semi-card-body {
-  padding: 0 !important;
+  /* padding: 0 !important; */
 }
 
 .personal-v3-card-body {

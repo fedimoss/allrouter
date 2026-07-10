@@ -1663,8 +1663,8 @@ html.dark .landing-home.landing-v2 .landing-v2-nav-tools .semi-button {
 .landing-v2-btn-text:hover {
   color: #53f3b2;
 }
-
-.landing-home.landing-v2 .landing-v2-btn-primary,
+/* .landing-home.landing-v2  */
+.landing-v2-btn-primary,
 .landing-home.landing-v2 .landing-v2-btn-secondary {
   display: inline-flex;
   align-items: center;
@@ -1682,7 +1682,8 @@ html.dark .landing-home.landing-v2 .landing-v2-nav-tools .semi-button {
     background-color 0.2s ease;
 }
 
-.landing-home.landing-v2 .landing-v2-btn-primary {
+/* .landing-home.landing-v2 */
+ .landing-v2-btn-primary {
   border: none;
   background: var(--landing-v2-gradient-primary);
   color: var(--landing-v2-btn-color);
@@ -1690,12 +1691,14 @@ html.dark .landing-home.landing-v2 .landing-v2-nav-tools .semi-button {
   /* box-shadow: 0 10px 24px var(--landing-v2-glow); */
 }
 
-.landing-home.landing-v2 .landing-v2-btn-primary:hover {
+/* .landing-home.landing-v2 */
+.landing-v2-btn-primary:hover {
   transform: translateY(-2px);
   /* box-shadow: 0 16px 32px var(--landing-v2-glow-hover); */
 }
 
-.landing-home.landing-v2 .landing-v2-btn-primary::before {
+/* .landing-home.landing-v2 */
+.landing-v2-btn-primary::before {
   content: '';
   position: absolute;
   top: 0;
@@ -1712,12 +1715,14 @@ html.dark .landing-home.landing-v2 .landing-v2-nav-tools .semi-button {
   transition: 0.6s ease;
 }
 
-.landing-home.landing-v2 .landing-v2-btn-primary:hover::before {
+/* .landing-home.landing-v2 */
+.landing-v2-btn-primary:hover::before {
   left: 100%;
   opacity: 1;
 }
 
-.landing-home.landing-v2 .landing-v2-btn-secondary {
+/* .landing-home.landing-v2 */
+.landing-v2-btn-secondary {
   /* border: 1px solid var(--landing-v2-border); */
   /* background: rgba(255, 255, 255, 0.92); */
   color: var(--landing-v2-text-main);
@@ -2429,7 +2434,8 @@ html.dark .floating-support-icon-qq {
     align-items: stretch;
   }
 
-  .landing-home.landing-v2 .landing-v2-btn-primary,
+  /* .landing-home.landing-v2  */
+  .landing-v2-btn-primary,
   .landing-home.landing-v2 .landing-v2-btn-secondary,
   .landing-home.landing-v2 .landing-v2-btn-lg {
     width: 100%;

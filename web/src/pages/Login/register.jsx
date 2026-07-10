@@ -571,7 +571,7 @@ export default function RegisterPage() {
             <div className='terms'>
               {t('点击注册即代表您同意我们的')}
               <a
-                href='/user-agreement'
+                href='/service-clause'
                 target='_blank'
                 rel='noopener noreferrer'
               >

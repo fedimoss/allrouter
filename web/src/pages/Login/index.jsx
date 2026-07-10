@@ -502,6 +502,13 @@ export default function LoginPage() {
                 target='_blank'
                 rel='noopener noreferrer'
               >
+                {t('用户协议')}
+              </a>{'、 '}
+              <a
+                href='/service-clause'
+                target='_blank'
+                rel='noopener noreferrer'
+              >
                 {t('服务条款')}
               </a>{' '}
               {t('和')}{' '}
