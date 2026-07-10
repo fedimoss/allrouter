@@ -916,6 +916,10 @@ CREATE TABLE midjourneys (
     fail_reason text,
     channel_id bigint,
     quota bigint,
+    wallet_reward_used bigint DEFAULT 0 NOT NULL,
+    wallet_paid_used bigint DEFAULT 0 NOT NULL,
+    wallet_quota_breakdown_recorded bigint DEFAULT 0 NOT NULL,
+    consume_rebate_settled bigint DEFAULT 0 NOT NULL,
     buttons text,
     properties text
 );

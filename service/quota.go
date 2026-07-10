@@ -437,7 +437,12 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 			//兼容旧的 PostConsumeQuota 路径：没有 BillingSession 的钱包扣费也改成奖励优先，并对充值额度消费部分触发返利。
 			breakdown, decreaseErr := model.DecreaseUserQuotaPreferReward(relayInfo.UserId, quota)
 			err = decreaseErr
-			if err == nil && breakdown.PaidUsed > 0 && relayInfo.ProviderId <= 0 {
+			if err == nil {
+				relayInfo.WalletRewardConsumed = breakdown.RewardUsed
+				relayInfo.WalletPaidConsumed = breakdown.PaidUsed
+			}
+			// 同步请求直接触发消费返利；异步任务（ForcePreConsume）和违规扣费（DisableConsumeRebate）跳过。
+			if err == nil && breakdown.PaidUsed > 0 && relayInfo.ProviderId <= 0 && !relayInfo.ForcePreConsume && !relayInfo.DisableConsumeRebate {
 				rebateRequestId := fmt.Sprintf("%s:post:%s", relayInfo.RequestId, common.GetRandomString(8))
 				if _, _, rebateErr := model.ApplyInviteConsumeRebate(relayInfo.UserId, rebateRequestId, breakdown.PaidUsed, consumeRebateContextFromRelay(nil, relayInfo)); rebateErr != nil {
 					common.SysLog("error applying consume rebate: " + rebateErr.Error())

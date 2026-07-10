@@ -688,24 +688,20 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 	return &user, err
 }
 
+// GetUserIdByAffCode 通过推广码获取主站用户 ID（provider_id=0）。
+// 内部委托给 GetUserIdByAffCodeInProvider 实现，确保与主站推广码查询逻辑一致。
 func GetUserIdByAffCode(affCode string) (int, error) {
-	if affCode == "" {
-		return 0, errors.New("affCode 为空！")
-	}
-	var user User
-	err := DB.Select("id").First(&user, "aff_code = ?", affCode).Error
-	return user.Id, err
+	return GetUserIdByAffCodeInProvider(0, affCode)
 }
 
+// GetUserIdByAffCodeInProvider 在指定服务商站点内通过推广码查询用户 ID。
+// providerId 和 affCode 同时作为查询条件，确保推广码仅在所属站点内生效。
 func GetUserIdByAffCodeInProvider(providerId int, affCode string) (int, error) {
 	if affCode == "" {
 		return 0, errors.New("affCode 涓虹┖锛?")
 	}
 	var user User
-	query := DB.Select("id").Where("aff_code = ?", affCode)
-	if providerId > 0 {
-		query = query.Where("provider_id = ?", providerId)
-	}
+	query := DB.Select("id").Where("provider_id = ? AND aff_code = ?", providerId, affCode)
 	err := query.First(&user).Error
 	return user.Id, err
 }

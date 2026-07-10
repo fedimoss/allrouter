@@ -686,6 +686,13 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
+		// 钱包计费的异步任务：持久化奖励/充值消费拆分快照。
+		// 此快照用于后续差额结算和退款时按原路返回额度（奖励退回奖励，充值退回充值）。
+		if relayInfo.BillingSource == service.BillingSourceWallet && relayInfo.Billing != nil {
+			task.PrivateData.WalletQuotaBreakdownRecorded = true
+			task.PrivateData.WalletRewardUsed = relayInfo.WalletRewardConsumed
+			task.PrivateData.WalletPaidUsed = relayInfo.WalletPaidConsumed
+		}
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
 			ModelPrice:          relayInfo.PriceData.ModelPrice,
 			GroupRatio:          relayInfo.PriceData.GroupRatioInfo.GroupRatio,

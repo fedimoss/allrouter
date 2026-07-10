@@ -226,24 +226,52 @@ func updateSunoTasks(ctx context.Context, channelId int, taskIds []string, taskM
 			continue
 		}
 
+		// 记录轮询前的状态，用于判断本次是否发生了终态转换。
+		oldStatus := task.Status
+		// shouldRefund 和 shouldFinalizeRebate 先计算后执行，确保 UpdateWithStatus CAS 成功后才触发。
+		shouldRefund := false
+		shouldFinalizeRebate := false
 		task.Status = lo.If(model.TaskStatus(responseItem.Status) != "", model.TaskStatus(responseItem.Status)).Else(task.Status)
 		task.FailReason = lo.If(responseItem.FailReason != "", responseItem.FailReason).Else(task.FailReason)
 		task.SubmitTime = lo.If(responseItem.SubmitTime != 0, responseItem.SubmitTime).Else(task.SubmitTime)
 		task.StartTime = lo.If(responseItem.StartTime != 0, responseItem.StartTime).Else(task.StartTime)
 		task.FinishTime = lo.If(responseItem.FinishTime != 0, responseItem.FinishTime).Else(task.FinishTime)
+		// 失败：标记退款（仅在首次进入 FAILURE 时触发，避免重复退款）。
 		if responseItem.FailReason != "" || task.Status == model.TaskStatusFailure {
 			logger.LogInfo(ctx, task.TaskID+" 构建失败，"+task.FailReason)
 			task.Progress = "100%"
-			RefundTaskQuota(ctx, task, task.FailReason)
+			shouldRefund = task.Quota != 0 && oldStatus != model.TaskStatusFailure
 		}
+		// 成功：标记消费返利终态结算（仅在首次进入 SUCCESS 时触发）。
 		if responseItem.Status == model.TaskStatusSuccess {
 			task.Progress = "100%"
+			shouldFinalizeRebate = oldStatus != model.TaskStatusSuccess
 		}
 		task.Data = responseItem.Data
 
-		err = task.Update()
-		if err != nil {
+		// 终态转换使用 UpdateWithStatus CAS 保护，防止并发轮询重复触发计费操作。
+		isDone := task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure
+		if isDone && oldStatus != task.Status {
+			won, updateErr := task.UpdateWithStatus(oldStatus)
+			if updateErr != nil {
+				common.SysLog("UpdateSunoTask task error: " + updateErr.Error())
+				continue
+			}
+			if !won {
+				// 另一个轮询实例已抢先处理了此任务的状态转换，跳过计费操作。
+				logger.LogWarn(ctx, fmt.Sprintf("Suno task %s already transitioned, skip billing", task.TaskID))
+				continue
+			}
+		} else if err = task.Update(); err != nil {
 			common.SysLog("UpdateSunoTask task error: " + err.Error())
+			continue
+		}
+		// 只有在 CAS 成功（won=true）后才执行计费操作，确保终态转换和计费是一对一的。
+		if shouldRefund {
+			RefundTaskQuota(ctx, task, task.FailReason)
+		}
+		if shouldFinalizeRebate {
+			FinalizeTaskConsumeRebate(ctx, task)
 		}
 	}
 	return nil
@@ -541,6 +569,10 @@ func truncateBase64(s string) string {
 //  2. taskResult.TotalTokens > 0 → 按 token 重算
 //  3. 都不满足 → 保持预扣额度不变
 func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
+	// 无论哪种结算路径（按次/按token/adaptor），任务完成后都需要触发消费返利终态结算。
+	// 使用 defer 确保 FinalizeTaskConsumeRebate 在所有差额调整完成后执行，
+	// 此时 task.PrivateData.WalletPaidUsed 已经是最终的充值消耗值。
+	defer FinalizeTaskConsumeRebate(ctx, task)
 	RecordTaskTotalTokenUsage(ctx, task, taskResult.TotalTokens)
 
 	// 0. 按次计费的任务不做差额结算

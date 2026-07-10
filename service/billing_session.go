@@ -142,19 +142,28 @@ func (s *BillingSession) GetPreConsumedQuota() int {
 	return s.preConsumedQuota
 }
 
-// 确保一次请求结算后只会取一次“充值额度消费部分”，避免重复返利
+// ClaimPaidConsumedForRebate 确保一次请求结算后只会取一次”充值额度消费部分”，避免重复返利。
+// 实际委托给 ClaimWalletConsumedForRebate，仅保留 paid 部分兼容旧调用方。
 func (s *BillingSession) ClaimPaidConsumedForRebate() int {
+	_, paid := s.ClaimWalletConsumedForRebate()
+	return paid
+}
+
+// ClaimWalletConsumedForRebate 返回结算后钱包消费的奖励/充值完整拆分，且仅允许调用一次。
+// 异步任务将此完整拆分持久化到 task.PrivateData 中，
+// 后续退款和差额调整即可按原资金来源比例退回。
+func (s *BillingSession) ClaimWalletConsumedForRebate() (reward int, paid int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.rebateApplied || !s.settled {
-		return 0
+		return 0, 0
 	}
 	wallet, ok := s.funding.(*WalletFunding)
 	if !ok {
-		return 0
+		return 0, 0
 	}
 	s.rebateApplied = true
-	return wallet.PaidConsumed()
+	return wallet.RewardConsumed(), wallet.PaidConsumed()
 }
 
 // ---------------------------------------------------------------------------

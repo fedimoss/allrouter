@@ -64,6 +64,15 @@ const EditUserModal = (props) => {
   const [inputs, setInputs] = useState(null);
 
   const isEdit = Boolean(userId);
+  // displayedUser: 编辑模式下优先使用表单当前值（inputs），以确保最新修改后的
+  // provider_id 能正确反映用户所属站点。新增模式下回退到 props.editingUser。
+  const displayedUser =
+    Number(inputs?.id) === Number(userId) ? inputs : props.editingUser;
+  // isProviderUser: 判断当前编辑的用户是否属于服务商站点。
+  // 服务商模式（providerMode）下所有用户都视为服务商用户；
+  // 主站模式下，根据用户的 provider_id > 0 判断是否为服务商子站用户。
+  const isProviderUser =
+    props.providerMode || Number(displayedUser?.provider_id ?? 0) > 0;
 
   const getInitValues = () => ({
     username: '',
@@ -153,10 +162,16 @@ const EditUserModal = (props) => {
     if (props.providerMode) {
       delete payload.group;
     }
-    payload.invite_consume_rebate_enabled = payload
-      .invite_consume_rebate_enabled
-      ? 1
-      : 0;
+    if (isProviderUser) {
+      // 服务商站点用户：使用表单中的开关值，支持开启/关闭消费分佣资格。
+      payload.invite_consume_rebate_enabled =
+        payload.invite_consume_rebate_enabled ? 1 : 0;
+    } else {
+      // 主站用户：消费分佣资格不由用户自主控制（主站使用全局比例，不校验个人资格）。
+      // 保留原有值不变，编辑时传递已持久化的值，新增时默认 0。
+      payload.invite_consume_rebate_enabled =
+        inputs?.invite_consume_rebate_enabled ? 1 : 0;
+    }
     if (userId) {
       payload.id = parseInt(userId);
     }
@@ -366,13 +381,20 @@ const EditUserModal = (props) => {
                         </>
                       )}
 
-                      <Col span={24}>
-                        <Form.Switch
-                          field='invite_consume_rebate_enabled'
-                          label={t('消费分佣资格')}
-                          extraText={t('开启后，该用户作为邀请人时可获得被邀请人消费产生的分佣。')}
-                        />
-                      </Col>
+                      {/* 消费分佣资格开关：仅服务商站点用户显示。
+                          主站使用全局返佣比例（InviteTopupRebateRatio），不按个人资格校验，
+                          因此主站用户编辑页不展示此开关。 */}
+                      {isProviderUser && (
+                        <Col span={24}>
+                          <Form.Switch
+                            field='invite_consume_rebate_enabled'
+                            label={t('消费分佣资格')}
+                            extraText={t(
+                              '开启后，该用户作为邀请人时可获得被邀请人消费产生的分佣。',
+                            )}
+                          />
+                        </Col>
+                      )}
                     </Row>
                   </Card>
                 )}

@@ -106,6 +106,12 @@ type TaskPrivateData struct {
 	SubscriptionId    int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
 	TokenId           int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
 	BillingContext    *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	// New async wallet tasks persist the funding split so terminal refunds and
+	// adjustments preserve reward/paid balance semantics.
+	WalletQuotaBreakdownRecorded bool `json:"wallet_quota_breakdown_recorded,omitempty"`
+	WalletRewardUsed             int  `json:"wallet_reward_used,omitempty"`
+	WalletPaidUsed               int  `json:"wallet_paid_used,omitempty"`
+	ConsumeRebateSettled         bool `json:"consume_rebate_settled,omitempty"`
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。

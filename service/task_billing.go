@@ -99,35 +99,99 @@ func RecordTaskTotalTokenUsage(ctx context.Context, task *model.Task, totalToken
 	}
 }
 
-// taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示扣费，delta < 0 表示退还。
+// taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示补扣，delta < 0 表示退还。
+//
+// 补扣 (delta > 0)：
+//   - 奖励优先扣费，并将本次扣费明细累加到 task 的资金快照中（供后续退款原路返回）。
+//   - 异步任务补扣时不触发消费返利，统一延迟到任务 SUCCESS 后由 FinalizeTaskConsumeRebate 处理。
+//
+// 退还 (delta < 0)：
+//   - 新任务（有 WalletQuotaBreakdownRecorded）：按快照中的奖励/充值比例原路退回。
+//   - 旧任务（无快照）：回退到 IncreaseUserQuota 全部加到 quota（兼容旧行为）。
 func taskAdjustFunding(task *model.Task, delta int) error {
 	if taskIsSubscription(task) {
 		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
 	}
 	if delta > 0 {
-		//异步任务的差额补扣也改成奖励优先。
-		//如果补扣里使用了充值额度，也会触发消费返利。
+		// Async task adjustments keep using reward balance first. Rebates are
+		// deferred until the task reaches SUCCESS, so only update the persisted
+		// funding snapshot here.
 		breakdown, err := model.DecreaseUserQuotaPreferReward(task.UserId, delta)
 		if err != nil {
 			return err
 		}
-		if breakdown.PaidUsed > 0 && consumeRebateContextFromTask(task) == nil {
-			rebateRequestId := fmt.Sprintf("%s:adjust:%s", task.TaskID, common.GetRandomString(8))
-			if _, _, rebateErr := model.ApplyInviteConsumeRebate(task.UserId, rebateRequestId, breakdown.PaidUsed, consumeRebateContextFromTask(task)); rebateErr != nil {
-				logger.LogWarn(context.Background(), fmt.Sprintf("消费返利失败 task %s: %s", task.TaskID, rebateErr.Error()))
-			}
+		if task.PrivateData.WalletQuotaBreakdownRecorded {
+			task.PrivateData.WalletRewardUsed += breakdown.RewardUsed
+			task.PrivateData.WalletPaidUsed += breakdown.PaidUsed
 		}
 		return nil
 	}
-	return model.IncreaseUserQuota(task.UserId, -delta, false)
-}
-
-func consumeRebateContextFromTask(task *model.Task) *model.ConsumeRebateContext {
-	if task == nil || task.PrivateData.BillingContext == nil {
+	if delta == 0 {
 		return nil
 	}
+
+	refundTotal := -delta
+	if !task.PrivateData.WalletQuotaBreakdownRecorded {
+		// 旧任务兼容：无资金来源快照时无法区分奖励/充值，全部退回到 quota。
+		return model.IncreaseUserQuota(task.UserId, refundTotal, false)
+	}
+	// 新任务原路退回：优先退充值部分（先退 paid 再退 reward），确保退款后
+	// 剩余的 WalletPaidUsed 可用于后续消费返利结算。
+	consumedTotal := task.PrivateData.WalletRewardUsed + task.PrivateData.WalletPaidUsed
+	if refundTotal > consumedTotal {
+		return fmt.Errorf("task wallet refund exceeds consumed quota: refund=%d consumed=%d", refundTotal, consumedTotal)
+	}
+	// 充值优先退回：先尽量用 paid 额度退，不够再从 reward 额度补。
+	paidRefund := refundTotal
+	if paidRefund > task.PrivateData.WalletPaidUsed {
+		paidRefund = task.PrivateData.WalletPaidUsed
+	}
+	rewardRefund := refundTotal - paidRefund
+	if rewardRefund > task.PrivateData.WalletRewardUsed {
+		return fmt.Errorf("task reward refund exceeds consumed reward quota: refund=%d consumed=%d", rewardRefund, task.PrivateData.WalletRewardUsed)
+	}
+	// 使用 IncreaseUserQuotaByBreakdown 分别恢复 quota 和 reward_quota，
+	// 实现严格的原路返回。
+	if err := model.IncreaseUserQuotaByBreakdown(task.UserId, refundTotal, rewardRefund); err != nil {
+		return err
+	}
+	// 更新内存快照，使后续操作（如差额结算后的 FinalizeTaskConsumeRebate）
+	// 基于剩余的实际充值消耗计算返利。
+	task.PrivateData.WalletPaidUsed -= paidRefund
+	task.PrivateData.WalletRewardUsed -= rewardRefund
+	return nil
+}
+
+// consumeRebateContextFromTask 从异步任务的上下文中构建消费返利所需的模型和站点信息。
+// 与 consumeRebateContextFromRelay（同步请求版本）对应，专门用于异步任务的终态返利结算。
+//
+// 主站（providerId<=0）使用 OriginModelName 兜底，即使 BillingContext 为 nil 也能参与返利；
+// 服务商站点必须配置了 ProviderPublicModel 才能参与。
+func consumeRebateContextFromTask(task *model.Task) *model.ConsumeRebateContext {
+	if task == nil {
+		return nil
+	}
+	// BillingContext 为 nil 时（如旧数据），主站仍可用 Properties.OriginModelName 兜底参与返利。
+	if task.PrivateData.BillingContext == nil {
+		return &model.ConsumeRebateContext{
+			ProviderId:      0,
+			PublicModelName: task.Properties.OriginModelName,
+			BaseModelName:   task.Properties.OriginModelName,
+		}
+	}
 	bc := task.PrivateData.BillingContext
-	if bc.ProviderId <= 0 || bc.ProviderPublicModel == "" {
+	if bc.ProviderId <= 0 {
+		modelName := bc.OriginModelName
+		if modelName == "" {
+			modelName = task.Properties.OriginModelName
+		}
+		return &model.ConsumeRebateContext{
+			ProviderId:      0,
+			PublicModelName: modelName,
+			BaseModelName:   modelName,
+		}
+	}
+	if bc.ProviderPublicModel == "" {
 		return nil
 	}
 	return &model.ConsumeRebateContext{
@@ -136,6 +200,128 @@ func consumeRebateContextFromTask(task *model.Task) *model.ConsumeRebateContext 
 		PublicModelName:   bc.ProviderPublicModel,
 		BaseModelName:     bc.ProviderBaseModel,
 	}
+}
+
+// stableConsumeRebateRequestId 生成确定性的返利请求 ID。
+// 使用 SHA256(scope:id) 确保同一任务无论被多少轮询实例处理，
+// 生成的 request_id 都一致，配合 ConsumeRebates 表的 INSERT ON CONFLICT DO NOTHING
+// 实现终态返利的全局幂等。
+func stableConsumeRebateRequestId(scope string, id string) string {
+	return fmt.Sprintf("%x", common.Sha256Raw([]byte(scope+":"+id)))
+}
+
+// persistTaskBillingState 持久化任务的 quota 和 private_data 列。
+// 用于在终态返利结算后标记 ConsumeRebateSettled=true，防止后续重复处理。
+func persistTaskBillingState(task *model.Task) error {
+	if task == nil || task.ID <= 0 {
+		return nil
+	}
+	return model.DB.Model(&model.Task{}).Where("id = ?", task.ID).Updates(map[string]interface{}{
+		"quota":        task.Quota,
+		"private_data": task.PrivateData,
+	}).Error
+}
+
+// FinalizeTaskConsumeRebate credits the main-site inviter exactly once after
+// an async wallet task reaches SUCCESS and all quota adjustments are complete.
+func FinalizeTaskConsumeRebate(ctx context.Context, task *model.Task) {
+	if task == nil || task.PrivateData.BillingSource != BillingSourceWallet ||
+		!task.PrivateData.WalletQuotaBreakdownRecorded || task.PrivateData.ConsumeRebateSettled {
+		return
+	}
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.ProviderId > 0 {
+		// Provider-site rebates are settled by the existing provider-profit path.
+		return
+	}
+	if task.PrivateData.WalletPaidUsed > 0 {
+		requestId := stableConsumeRebateRequestId("task-final", task.TaskID)
+		if _, _, err := model.ApplyInviteConsumeRebate(task.UserId, requestId, task.PrivateData.WalletPaidUsed, consumeRebateContextFromTask(task)); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("failed to apply final task consume rebate (task=%s): %s", task.TaskID, err.Error()))
+			return
+		}
+	}
+	task.PrivateData.ConsumeRebateSettled = true
+	if err := persistTaskBillingState(task); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("failed to persist final task rebate state (task=%s): %s", task.TaskID, err.Error()))
+	}
+}
+
+func persistMidjourneyBillingState(task *model.Midjourney) error {
+	if task == nil || task.Id <= 0 {
+		return nil
+	}
+	return model.DB.Model(&model.Midjourney{}).Where("id = ?", task.Id).Updates(map[string]interface{}{
+		"wallet_reward_used":              task.WalletRewardUsed,
+		"wallet_paid_used":                task.WalletPaidUsed,
+		"wallet_quota_breakdown_recorded": task.WalletQuotaBreakdownRecorded,
+		"consume_rebate_settled":          task.ConsumeRebateSettled,
+	}).Error
+}
+
+// RecordMidjourneyWalletFunding 在 Midjourney 任务提交成功后持久化钱包消费的奖励/充值拆分。
+// 这是 Midjourney 退款原路返回和消费返利终态结算的数据基础。
+// 仅在 PostConsumeQuota 成功后调用，此时 relayInfo.WalletRewardConsumed/WalletPaidConsumed 已经填充。
+func RecordMidjourneyWalletFunding(task *model.Midjourney, rewardUsed int, paidUsed int) error {
+	if task == nil {
+		return nil
+	}
+	task.WalletRewardUsed = rewardUsed
+	task.WalletPaidUsed = paidUsed
+	task.WalletQuotaBreakdownRecorded = 1
+	return persistMidjourneyBillingState(task)
+}
+
+// FinalizeMidjourneyConsumeRebate applies the same terminal-success policy to
+// legacy Midjourney tasks, which are stored outside the generic tasks table.
+func FinalizeMidjourneyConsumeRebate(ctx context.Context, task *model.Midjourney) {
+	if task == nil || task.WalletQuotaBreakdownRecorded != 1 || task.ConsumeRebateSettled == 1 {
+		return
+	}
+	if task.WalletPaidUsed > 0 {
+		requestId := stableConsumeRebateRequestId("midjourney-final", task.MjId)
+		modelName := CovertMjpActionToModelName(task.Action)
+		rebateCtx := &model.ConsumeRebateContext{
+			ProviderId:      0,
+			PublicModelName: modelName,
+			BaseModelName:   modelName,
+		}
+		if _, _, err := model.ApplyInviteConsumeRebate(task.UserId, requestId, task.WalletPaidUsed, rebateCtx); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("failed to apply final Midjourney consume rebate (task=%s): %s", task.MjId, err.Error()))
+			return
+		}
+	}
+	task.ConsumeRebateSettled = 1
+	if err := persistMidjourneyBillingState(task); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("failed to persist Midjourney rebate state (task=%s): %s", task.MjId, err.Error()))
+	}
+}
+
+// RefundMidjourneyQuota 按原路返回 Midjourney 任务消费的额度。
+//
+//   - 新任务（有 WalletQuotaBreakdownRecorded）：按 WalletRewardUsed/WalletPaidUsed 原路退回，
+//     奖励部分退回 reward_quota，充值部分退回 quota，防止用户通过退款将奖励额度洗成充值额度。
+//     同时验证 consumedTotal == Quota 确保快照一致性，不一致则报错拒绝退款。
+//   - 旧任务（无快照）：兼容旧行为，全部退回 quota。
+//
+// 退款成功后清零快照字段并标记 ConsumeRebateSettled=1，防止重复处理。
+func RefundMidjourneyQuota(task *model.Midjourney) error {
+	if task == nil || task.Quota <= 0 {
+		return nil
+	}
+	if task.WalletQuotaBreakdownRecorded != 1 {
+		return model.IncreaseUserQuota(task.UserId, task.Quota, false)
+	}
+	consumedTotal := task.WalletRewardUsed + task.WalletPaidUsed
+	if consumedTotal != task.Quota {
+		return fmt.Errorf("Midjourney wallet snapshot mismatch: quota=%d consumed=%d", task.Quota, consumedTotal)
+	}
+	if err := model.IncreaseUserQuotaByBreakdown(task.UserId, consumedTotal, task.WalletRewardUsed); err != nil {
+		return err
+	}
+	task.WalletRewardUsed = 0
+	task.WalletPaidUsed = 0
+	task.ConsumeRebateSettled = 1
+	return persistMidjourneyBillingState(task)
 }
 
 // taskAdjustTokenQuota 调整任务的令牌额度，delta > 0 表示扣费，delta < 0 表示退还。
@@ -198,6 +384,13 @@ func taskModelName(task *model.Task) string {
 
 // RefundTaskQuota 统一的任务失败退款逻辑。
 // 当异步任务失败时，将预扣的 quota 退还给用户（支持钱包和订阅），并退还令牌额度。
+//
+// 退款策略：
+//   - 新任务（有 WalletQuotaBreakdownRecorded）：按消费快照原路退回
+//     （奖励部分退回 reward_quota，充值部分退回 quota），防止用户通过
+//     任务失败将奖励额度洗成充值额度。退款后标记 ConsumeRebateSettled
+//     阻止后续误触发返利。
+//   - 旧任务（无快照）：兼容旧行为，全部退到 quota。
 func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	quota := task.Quota
 	if quota == 0 {
@@ -208,6 +401,14 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	if err := taskAdjustFunding(task, -quota); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("退还资金来源失败 task %s: %s", task.TaskID, err.Error()))
 		return
+	}
+	// 退款后标记 ConsumeRebateSettled=true，防止后续轮询误触发消费返利。
+	// 任务失败不产生返利，仅成功任务在 FinalizeTaskConsumeRebate 中触发。
+	if task.PrivateData.WalletQuotaBreakdownRecorded {
+		task.PrivateData.ConsumeRebateSettled = true
+		if err := persistTaskBillingState(task); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("failed to persist task refund funding state (task=%s): %s", task.TaskID, err.Error()))
+		}
 	}
 
 	// 2. 退还令牌额度

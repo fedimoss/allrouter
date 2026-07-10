@@ -100,6 +100,12 @@ func (w *WalletFunding) PaidConsumed() int {
 	return w.paidConsumed
 }
 
+// RewardConsumed 返回本次消费中使用的奖励额度。
+// 与 PaidConsumed 一起构成完整的钱包消费明细，供异步任务持久化资金来源快照。
+func (w *WalletFunding) RewardConsumed() int {
+	return w.rewardConsumed
+}
+
 // ---------------------------------------------------------------------------
 // SubscriptionFunding — 订阅资金来源实现
 // ---------------------------------------------------------------------------
