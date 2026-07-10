@@ -1,6 +1,10 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/shopspring/decimal"
+)
 
 type GroupRatioInfo struct {
 	GroupRatio        float64
@@ -35,6 +39,16 @@ func (p *PriceData) AddOtherRatio(key string, ratio float64) {
 		return
 	}
 	p.OtherRatios[key] = ratio
+}
+
+func (p *PriceData) ApplyOtherRatiosToDecimal(value decimal.Decimal) decimal.Decimal {
+	if p == nil || len(p.OtherRatios) == 0 {
+		return value
+	}
+	for _, otherRatio := range p.OtherRatios {
+		value = value.Mul(decimal.NewFromFloat(otherRatio))
+	}
+	return value
 }
 
 func (p *PriceData) ToSetting() string {
