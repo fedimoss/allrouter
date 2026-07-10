@@ -41,6 +41,16 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 	}
 
+	// /v1/provider/models —— 面向 OpenRouter(for-providers) 的模型列表接口。
+	// 与 /v1/models 共用 TokenAuth，但只返回固定的 GLM5.2(OpenRouter provider 格式)。
+	// 详见 controller.ListProviderModels 与 controller/openrouter_provider.go。
+	providerModelsRouter := router.Group("/v1/provider/models")
+	providerModelsRouter.Use(middleware.RouteTag("relay"))
+	providerModelsRouter.Use(middleware.TokenAuth())
+	{
+		providerModelsRouter.GET("", controller.ListProviderModels)
+	}
+
 	geminiRouter := router.Group("/v1beta/models")
 	geminiRouter.Use(middleware.RouteTag("relay"))
 	geminiRouter.Use(middleware.TokenAuth())
