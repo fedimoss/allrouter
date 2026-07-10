@@ -2306,6 +2306,12 @@ html.dark .landing-home.landing-v2 .landing-v2-cta-box {
   font-size: 20px;
 }
 
+.floating-support-icon-telegram {
+  background: #229ED9;
+  color: #ffffff;
+  font-size: 20px;
+}
+
 .floating-support-icon-qq {
   width: 40px;
   height: 40px;

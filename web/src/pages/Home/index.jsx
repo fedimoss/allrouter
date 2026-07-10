@@ -50,10 +50,9 @@ import FloatingSupport from '../../components/common/FloatingSupport';
 import PageTheme1Home from './theme/pageTheme1';
 
 import {
+  buildSupportConfig,
   getLogo,
-  getQQSupport,
   getSystemName,
-  getWechatSupport,
 } from '../../helpers';
 
 import openaiLogo from '../../../public/logos/openai.svg';
@@ -177,26 +176,10 @@ const Home = () => {
   const communityHref = withBrowserBaseUrl(
     `/${docsLangPrefix}/docs/support/community-interaction`,
   );
-  const supportConfig = useMemo(() => {
-    const status = statusState?.status;
-    if (!status) {
-      return {
-        wechatQRCode: getWechatSupport(),
-        qqSupport: getQQSupport(),
-      };
-    }
-    const providerConfig = status.provider_config;
-    if (providerConfig?.enabled) {
-      return {
-        wechatQRCode: providerConfig.wechat_support || '',
-        qqSupport: providerConfig.qq_support || '',
-      };
-    }
-    return {
-      wechatQRCode: status.wechat_support || '',
-      qqSupport: status.qq_support || '',
-    };
-  }, [statusState?.status]);
+  const supportConfig = useMemo(
+    () => buildSupportConfig(statusState?.status),
+    [statusState?.status],
+  );
   const currentUser = userState?.user || getStoredUser();
   const isLoggedIn = Boolean(currentUser?.id);
   const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
@@ -490,7 +473,11 @@ const Home = () => {
       />
       <FloatingSupport
         wechatQRCode={supportConfig.wechatQRCode}
+        wechatDesc={supportConfig.wechatDesc}
+        qqQrcode={supportConfig.qqQrcode}
         qqSupport={supportConfig.qqSupport}
+        telegramQRCode={supportConfig.telegramQRCode}
+        telegramDesc={supportConfig.telegramDesc}
       />
       <Modal
         title={`${statusState?.status?.version?.version || 'v2.0'} ${t('更新日志')}`}

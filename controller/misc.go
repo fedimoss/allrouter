@@ -82,8 +82,12 @@ func GetStatus(c *gin.Context) {
 		"home_page_theme":             common.OptionMap["HomePageTheme"],
 		"system_name":                 common.SystemName,
 		"logo":                        common.Logo,
-		"wechat_support":              common.WechatSupport, // 微信客服
-		"qq_support":                  common.QQSupport,     // QQ客服
+		"wechat_support":              common.WechatSupport,       // 微信客服
+		"wechat_support_desc":         common.WechatSupportDesc,   // 微信客服文本描述
+		"qq_support":                  common.QQSupport,           // QQ客服
+		"qq_support_qrcode":           common.QQSupportQrcode,     // QQ客服二维码
+		"telegram_support":            common.TelegramSupport,     // Telegram客服
+		"telegram_support_desc":       common.TelegramSupportDesc, // Telegram客服文本描述
 		"footer_html":                 common.Footer,
 		"wechat_qrcode":               common.WeChatAccountQRCodeImageURL,
 		"wechat_login":                common.WeChatAuthEnabled,

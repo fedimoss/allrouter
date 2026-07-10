@@ -261,6 +261,14 @@ const (
 	// Wechat customer qrcode upload
 	MsgWechatCustomerQrcodeSizeExceeded      = "setting.wechat_customer_qrcode_size_exceeded"      // 微信客服二维码大小超过 5MB
 	MsgWechatCustomerQrcodeFormatUnsupported = "setting.wechat_customer_qrcode_format_unsupported" // 微信客服二维码仅支持 JPG/PNG/GIF/SVG 格式
+
+	// Telegram customer qrcode upload
+	MsgTelegramCustomerQrcodeSizeExceeded      = "setting.telegram_customer_qrcode_size_exceeded"      // Telegram客服二维码大小超过 5MB
+	MsgTelegramCustomerQrcodeFormatUnsupported = "setting.telegram_customer_qrcode_format_unsupported" // Telegram客服二维码仅支持 JPG/PNG/GIF/SVG 格式
+
+	// QQ customer qrcode upload
+	MsgQQCustomerQrcodeSizeExceeded      = "setting.qq_customer_qrcode_size_exceeded"      // QQ客服二维码大小超过 5MB
+	MsgQQCustomerQrcodeFormatUnsupported = "setting.qq_customer_qrcode_format_unsupported" // QQ客服二维码仅支持 JPG/PNG/GIF/SVG 格式
 )
 
 // Deployment related messages (io.net)

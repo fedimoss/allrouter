@@ -49,10 +49,9 @@ import FloatingSupport from '../../../../components/common/FloatingSupport';
 import MarqueeLogos from '../../../../components/common/MarqueeLogos';
 
 import {
+  buildSupportConfig,
   getLogo,
-  getQQSupport,
   getSystemName,
-  getWechatSupport,
 } from '../../../../helpers';
 
 import './index.css';
@@ -77,7 +76,6 @@ import iconTwo from '../../../../../public/theme/theme1/icon02.png';
 import iconThree from '../../../../../public/theme/theme1/icon03.png';
 import iconFour from '../../../../../public/theme/theme1/icon04.png';
 import fedimoossLogo from '../../../../../public/theme/theme2/fedimoss-logo.svg';
-
 
 const logo = getLogo();
 const systemName = getSystemName();
@@ -205,26 +203,10 @@ const Home = () => {
   const communityHref = withBrowserBaseUrl(
     `/${docsLangPrefix}/docs/support/community-interaction`,
   );
-  const supportConfig = useMemo(() => {
-    const status = statusState?.status;
-    if (!status) {
-      return {
-        wechatQRCode: getWechatSupport(),
-        qqSupport: getQQSupport(),
-      };
-    }
-    const providerConfig = status.provider_config;
-    if (providerConfig?.enabled) {
-      return {
-        wechatQRCode: providerConfig.wechat_support || '',
-        qqSupport: providerConfig.qq_support || '',
-      };
-    }
-    return {
-      wechatQRCode: status.wechat_support || '',
-      qqSupport: status.qq_support || '',
-    };
-  }, [statusState?.status]);
+  const supportConfig = useMemo(
+    () => buildSupportConfig(statusState?.status),
+    [statusState?.status],
+  );
   const currentUser = userState?.user || getStoredUser();
   const isLoggedIn = Boolean(currentUser?.id);
   const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
@@ -481,7 +463,11 @@ const Home = () => {
       />
       <FloatingSupport
         wechatQRCode={supportConfig.wechatQRCode}
+        wechatDesc={supportConfig.wechatDesc}
+        qqQrcode={supportConfig.qqQrcode}
         qqSupport={supportConfig.qqSupport}
+        telegramQRCode={supportConfig.telegramQRCode}
+        telegramDesc={supportConfig.telegramDesc}
       />
       <Modal
         title={`${versionLabel} ${t('更新日志')}`}

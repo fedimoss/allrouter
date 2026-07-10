@@ -71,6 +71,10 @@ type ProviderConfig struct {
 	UpdatedAt                   int64  `json:"updated_at" gorm:"bigint"`
 	WechatSupport               string `json:"wechat_support" gorm:"type:text"`
 	QQSupport                   string `json:"qq_support" gorm:"type:text"`
+	WechatSupportDesc           string `json:"wechat_support_desc" gorm:"type:text"`
+	QQSupportQrcode             string `json:"qq_support_qrcode" gorm:"type:text"`
+	TelegramSupport             string `json:"telegram_support" gorm:"type:text"`
+	TelegramSupportDesc         string `json:"telegram_support_desc" gorm:"type:text"`
 }
 
 type ProviderModelPricing struct {

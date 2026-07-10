@@ -75,7 +75,11 @@ func InitOptionMap() {
 	common.OptionMap["WebSecondaryColor"] = "#BAFF29"
 	common.OptionMap["WebButtonTextColor"] = "#FFFFFF"
 	common.OptionMap["WechatSupport"] = common.WechatSupport
+	common.OptionMap["WechatSupportDesc"] = common.WechatSupportDesc
 	common.OptionMap["QQSupport"] = common.QQSupport
+	common.OptionMap["QQSupportQrcode"] = common.QQSupportQrcode
+	common.OptionMap["TelegramSupport"] = common.TelegramSupport
+	common.OptionMap["TelegramSupportDesc"] = common.TelegramSupportDesc
 	common.OptionMap["ServerAddress"] = ""
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = system_setting.WorkerValidKey
@@ -517,8 +521,16 @@ func updateOptionMap(key string, value string) (err error) {
 		common.Logo = value
 	case "WechatSupport":
 		common.WechatSupport = value // 微信客服
+	case "WechatSupportDesc":
+		common.WechatSupportDesc = value // 微信客服文本描述
 	case "QQSupport":
 		common.QQSupport = value // QQ客服
+	case "QQSupportQrcode":
+		common.QQSupportQrcode = value // QQ客服二维码
+	case "TelegramSupport":
+		common.TelegramSupport = value // Telegram客服
+	case "TelegramSupportDesc":
+		common.TelegramSupportDesc = value // Telegram客服文本描述
 	case "WeChatServerAddress":
 		common.WeChatServerAddress = value
 	case "WeChatServerToken":

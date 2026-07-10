@@ -221,9 +221,11 @@ func SetApiRouter(router *gin.Engine) {
 		optionReadRoute := apiRouter.Group("/option")
 		optionReadRoute.Use(middleware.UserAuth())
 		{
-			optionReadRoute.GET("/get_crypto_chain_config", controller.GetCryptoChainConfig) // 获取加密货币链配置
-			optionReadRoute.GET("/get_crypto_rate", controller.GetCryptoRate)                // 获取加密货币汇率
-			optionReadRoute.POST("/wechat_qrcode", controller.UploadWechatCustomerQrcode)    // 上传微信客服二维码
+			optionReadRoute.GET("/get_crypto_chain_config", controller.GetCryptoChainConfig)  // 获取加密货币链配置
+			optionReadRoute.GET("/get_crypto_rate", controller.GetCryptoRate)                 // 获取加密货币汇率
+			optionReadRoute.POST("/wechat_qrcode", controller.UploadWechatCustomerQrcode)     // 上传微信客服二维码
+			optionReadRoute.POST("/telegram_qrcode", controller.UploadTelegramCustomerQrcode) // 上传Telegram客服二维码
+			optionReadRoute.POST("/qq_qrcode", controller.UploadQQCustomerQrcode)             // 上传QQ客服二维码
 		}
 
 		// 币种 Stripe 价格配置（管理后台）

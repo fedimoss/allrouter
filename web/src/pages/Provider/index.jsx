@@ -112,9 +112,59 @@ const emptyConfig = {
   secondary_color: DEFAULT_THEME_SECONDARY_COLOR,
   home_page_theme: 'default',
   wechat_support: '',
+  wechat_support_desc: '',
   qq_support: '',
+  qq_support_qrcode: '',
+  telegram_support: '',
+  telegram_support_desc: '',
   footer_text: '',
 };
+
+// 客服渠道配置（与 OtherSetting 客服设置一致）：驱动「页面配置」弹窗里的客服设置卡片。
+const supportChannels = [
+  {
+    key: 'wechat',
+    icon: 'fab fa-weixin',
+    color: '#07c160',
+    titleKey: '微信客服',
+    imageField: 'wechat_support',
+    descField: 'wechat_support_desc',
+    altKey: '微信二维码',
+    endpoint: '/api/option/wechat_qrcode',
+    formDataName: 'wechat_qrcode',
+    errorKey: '微信二维码上传失败',
+    invalidKey: '微信二维码上传返回地址无效',
+    successKey: '微信二维码上传成功',
+  },
+  {
+    key: 'telegram',
+    icon: 'fab fa-telegram',
+    color: '#229ed9',
+    titleKey: 'Telegram客服',
+    imageField: 'telegram_support',
+    descField: 'telegram_support_desc',
+    altKey: 'Telegram二维码',
+    endpoint: '/api/option/telegram_qrcode',
+    formDataName: 'telegram_qrcode',
+    errorKey: 'Telegram二维码上传失败',
+    invalidKey: 'Telegram二维码上传返回地址无效',
+    successKey: 'Telegram二维码上传成功',
+  },
+  {
+    key: 'qq',
+    icon: 'fab fa-qq',
+    color: '#12b7f5',
+    titleKey: 'QQ客服',
+    imageField: 'qq_support_qrcode',
+    descField: 'qq_support',
+    altKey: 'QQ二维码',
+    endpoint: '/api/option/qq_qrcode',
+    formDataName: 'qq_qrcode',
+    errorKey: 'QQ二维码上传失败',
+    invalidKey: 'QQ二维码上传返回地址无效',
+    successKey: 'QQ二维码上传成功',
+  },
+];
 
 const HOME_PAGE_OPTIONS = [
   { label: '默认', value: 'default' },
@@ -355,7 +405,11 @@ const ProviderPage = () => {
   const [smtpSaving, setSmtpSaving] = useState(false);
   const [smtpFormKey, setSmtpFormKey] = useState(0);
   const [logoUploading, setLogoUploading] = useState(false);
-  const [wechatQRCodeUploading, setWechatQRCodeUploading] = useState(false);
+  const [qrUploading, setQrUploading] = useState({
+    wechat: false,
+    telegram: false,
+    qq: false,
+  });
   const [baseModels, setBaseModels] = useState([]);
   const [baseModelPrices, setBaseModelPrices] = useState([]);
   const [baseModelPriceProviderId, setBaseModelPriceProviderId] =
@@ -366,6 +420,11 @@ const ProviderPage = () => {
   const [configColors, setConfigColors] = useState({
     theme_color: DEFAULT_THEME_PRIMARY_COLOR,
     secondary_color: DEFAULT_THEME_SECONDARY_COLOR,
+  });
+  const [configQrImages, setConfigQrImages] = useState({
+    wechat_support: '',
+    telegram_support: '',
+    qq_support_qrcode: '',
   });
   const [ownerModalVisible, setOwnerModalVisible] = useState(false);
   const [ownerCandidates, setOwnerCandidates] = useState([]);
@@ -627,6 +686,11 @@ const ProviderPage = () => {
     setConfigColors({
       theme_color: values.theme_color,
       secondary_color: values.secondary_color,
+    });
+    setConfigQrImages({
+      wechat_support: values.wechat_support || '',
+      telegram_support: values.telegram_support || '',
+      qq_support_qrcode: values.qq_support_qrcode || '',
     });
   }, [configModalVisible, currentProvider]);
 
@@ -909,42 +973,131 @@ const ProviderPage = () => {
     }
   };
 
-  const handleWeChatQRCodeUpload = async ({
+  // 客服二维码统一上传：复用全局 /api/option/{wechat,telegram,qq}_qrcode 接口，
+  // 上传成功后回写 configQrImages（驱动 dropzone 预览）与表单字段。
+  const handleSupportQrcodeUpload = (channel) => async ({
     file,
     fileInstance,
     onSuccess,
     onError,
   }) => {
     try {
-      setWechatQRCodeUploading(true);
+      setQrUploading((prev) => ({ ...prev, [channel.key]: true }));
       const uploadFile = fileInstance || file?.fileInstance;
       if (!uploadFile) {
         throw new Error(t('请选择图片'));
       }
       const formData = new FormData();
-      formData.append('wechat_qrcode', uploadFile);
-      const res = await API.post('/api/option/wechat_qrcode', formData, {
+      formData.append(channel.formDataName, uploadFile);
+      const res = await API.post(channel.endpoint, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
       const { success, message, data } = res.data || {};
       if (!success) {
-        throw new Error(message || t('微信二维码上传失败'));
+        throw new Error(message || t(channel.errorKey));
       }
-      const wechatQRCodePath = getLogoUploadPath(data);
-      if (!wechatQRCodePath) {
-        throw new Error(t('微信二维码上传返回地址无效'));
+      const qrcodePath = getLogoUploadPath(data);
+      if (!qrcodePath) {
+        throw new Error(t(channel.invalidKey));
       }
-      configFormRef.current?.setValue?.('wechat_support', wechatQRCodePath);
-      showSuccess(t('微信二维码上传成功'));
+      setConfigQrImages((prev) => ({ ...prev, [channel.imageField]: qrcodePath }));
+      configFormRef.current?.setValue?.(channel.imageField, qrcodePath);
+      showSuccess(t(channel.successKey));
       onSuccess?.(data || {});
     } catch (error) {
-      showError(error?.message || t('微信二维码上传失败'));
+      showError(error?.message || t(channel.errorKey));
       onError?.({ status: 500 }, error);
     } finally {
-      setWechatQRCodeUploading(false);
+      setQrUploading((prev) => ({ ...prev, [channel.key]: false }));
     }
+  };
+
+  // 客服二维码上传区：虚线方框既是上传触发区又是预览区。
+  const renderSupportDropzone = (channel) => {
+    const image = configQrImages[channel.imageField] || '';
+    const uploading = qrUploading[channel.key];
+    return (
+      <Upload
+        action='/'
+        accept='image/*'
+        showUploadList={false}
+        uploadTrigger='auto'
+        customRequest={handleSupportQrcodeUpload(channel)}
+      >
+        <div
+          style={{
+            position: 'relative',
+            width: 100,
+            height: 100,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            border: `1px dashed ${uploading ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`,
+            borderRadius: 6,
+            cursor: 'pointer',
+            overflow: 'hidden',
+            color: 'var(--semi-color-text-2)',
+            transition: 'border-color 0.18s ease',
+          }}
+        >
+          {uploading ? (
+            <span style={{ fontSize: 12 }}>{t('上传中...')}</span>
+          ) : image ? (
+            <img
+              src={image}
+              alt={t(channel.altKey)}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                display: 'block',
+              }}
+            />
+          ) : (
+            <>
+              <IconUpload style={{ fontSize: 22 }} />
+              <span style={{ fontSize: 12 }}>{t('上传二维码')}</span>
+            </>
+          )}
+          {image && !uploading ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setConfigQrImages((prev) => ({
+                  ...prev,
+                  [channel.imageField]: '',
+                }));
+                configFormRef.current?.setValue?.(channel.imageField, '');
+              }}
+              style={{
+                position: 'absolute',
+                top: 2,
+                right: 2,
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                border: 'none',
+                background: 'var(--semi-color-danger)',
+                color: '#fff',
+                fontSize: 12,
+                lineHeight: '18px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
+          ) : null}
+        </div>
+      </Upload>
+    );
   };
 
   const submitProvider = async () => {
@@ -1041,8 +1194,9 @@ const ProviderPage = () => {
     const values = configFormRef.current?.getValues?.() || {};
     const payload = {
       ...values,
-      wechat_support: values.wechat_support || '',
-      qq_support: values.qq_support || '',
+      wechat_support: configQrImages.wechat_support || '',
+      telegram_support: configQrImages.telegram_support || '',
+      qq_support_qrcode: configQrImages.qq_support_qrcode || '',
     };
     const url = adminMode
       ? `/api/provider/admin/${currentProvider.id}/config`
@@ -2061,36 +2215,43 @@ const ProviderPage = () => {
           <div style={{ marginBottom: 8, fontWeight: 600 }}>
             {t('客服设置')}
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <Form.Input
-                field='wechat_support'
-                label={t('微信二维码')}
-                placeholder={t('可以填写图片链接，也可以上传图片自动生成地址')}
+          {supportChannels.map((channel) => (
+            <div
+              key={channel.key}
+              style={{
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 8,
+                padding: '12px 14px',
+                marginBottom: 12,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 10,
+                }}
+              >
+                <i
+                  className={channel.icon}
+                  style={{ color: channel.color, fontSize: 18 }}
+                />
+                <span style={{ fontWeight: 600, fontSize: 14 }}>
+                  {t(channel.titleKey)}
+                </span>
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                {renderSupportDropzone(channel)}
+              </div>
+              <Form.TextArea
+                field={channel.descField}
+                label={t('文本描述')}
+                placeholder={t('可填写号码、链接或推广文案')}
+                autosize={{ minRows: 2, maxRows: 6 }}
               />
             </div>
-            <Upload
-              action='/'
-              accept='image/*'
-              showUploadList={false}
-              uploadTrigger='auto'
-              customRequest={handleWeChatQRCodeUpload}
-            >
-              <Button
-                icon={<IconUpload />}
-                loading={wechatQRCodeUploading}
-                style={{ marginBottom: 12 }}
-              >
-                {t('上传微信二维码')}
-              </Button>
-            </Upload>
-          </div>
-          <Form.Input
-            field='qq_support'
-            label={t('QQ号')}
-            placeholder={t('请输入QQ号')}
-            showClear
-          />
+          ))}
         </Form>
       </Modal>
 
