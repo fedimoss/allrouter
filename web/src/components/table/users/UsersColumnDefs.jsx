@@ -29,7 +29,12 @@ import {
   Dropdown,
 } from '@douyinfe/semi-ui';
 import { IconMore } from '@douyinfe/semi-icons';
-import { renderGroup, renderNumber, renderQuota } from '../../../helpers';
+import {
+  renderGroup,
+  renderNumber,
+  renderQuota,
+  timestamp2string,
+} from '../../../helpers';
 
 /**
  * Render user role
@@ -89,6 +94,26 @@ const renderUsername = (text, record) => {
         </Tag>
       </Tooltip>
     </Space>
+  );
+};
+
+const renderCreatedAt = (createdAt) => {
+  const timestamp = Number(createdAt);
+  return Number.isFinite(timestamp) && timestamp > 0
+    ? timestamp2string(timestamp)
+    : '-';
+};
+
+const renderProviderSite = (record, t) => {
+  const providerId = Number(record.provider_id) || 0;
+  const siteName =
+    providerId === 0
+      ? t('主站')
+      : record.provider_name || `${t('服务商')} #${providerId}`;
+  return (
+    <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>
+      {siteName}
+    </Typography.Text>
   );
 };
 
@@ -175,7 +200,8 @@ const renderQuotaUsage = (text, record, t) => {
  */
 const renderInviteInfo = (text, record, t, showInviteUsersModal) => {
   const inviteCount = Number(record.aff_count) || 0;
-  const canViewInvitees = inviteCount > 0 && typeof showInviteUsersModal === 'function';
+  const canViewInvitees =
+    inviteCount > 0 && typeof showInviteUsersModal === 'function';
 
   return (
     <div>
@@ -184,7 +210,9 @@ const renderInviteInfo = (text, record, t, showInviteUsersModal) => {
           color='white'
           shape='circle'
           className='!text-xs'
-          onClick={canViewInvitees ? () => showInviteUsersModal(record) : undefined}
+          onClick={
+            canViewInvitees ? () => showInviteUsersModal(record) : undefined
+          }
           style={
             canViewInvitees
               ? {
@@ -339,11 +367,11 @@ export const getUsersColumns = ({
   showDemoteModal,
   showEnableDisableModal,
   showDeleteModal,
-    showResetPasskeyModal,
-    showResetTwoFAModal,
-    showUserSubscriptionsModal,
-    showInviteUsersModal,
-    providerMode = false,
+  showResetPasskeyModal,
+  showResetTwoFAModal,
+  showUserSubscriptionsModal,
+  showInviteUsersModal,
+  providerMode = false,
 }) => {
   return [
     {
@@ -355,6 +383,22 @@ export const getUsersColumns = ({
       dataIndex: 'username',
       render: (text, record) => renderUsername(text, record),
     },
+    {
+      title: t('注册时间'),
+      dataIndex: 'created_at',
+      width: 180,
+      render: (text) => renderCreatedAt(text),
+    },
+    ...(!providerMode
+      ? [
+          {
+            title: t('所属站点'),
+            dataIndex: 'provider_name',
+            width: 160,
+            render: (text, record) => renderProviderSite(record, t),
+          },
+        ]
+      : []),
     {
       title: t('状态'),
       dataIndex: 'info',
