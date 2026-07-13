@@ -2402,6 +2402,8 @@ CREATE TABLE provider_reward_configs (
     checkin_max_quota bigint DEFAULT 0,
     invite_topup_rebate_ratio numeric(10,6) DEFAULT 0,
     invite_consume_rebate_ratio_level2 numeric(10,6) DEFAULT 0,
+    register_gift_subscription_plan_id integer NOT NULL DEFAULT 0,
+    airdrop_subscription_plan_id integer NOT NULL DEFAULT 0,
     created_at bigint,
     updated_at bigint
 );
@@ -2482,6 +2484,20 @@ COMMENT ON COLUMN provider_reward_configs.invite_topup_rebate_ratio IS '邀请�
 --
 
 COMMENT ON COLUMN provider_reward_configs.invite_consume_rebate_ratio_level2 IS '二级邀请消费返利比例';
+
+
+--
+-- Name: COLUMN provider_reward_configs.register_gift_subscription_plan_id; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_reward_configs.register_gift_subscription_plan_id IS '该服务商拥有的注册赠送订阅套餐 ID；设为 0 则禁用该奖励。';
+
+
+--
+-- Name: COLUMN provider_reward_configs.airdrop_subscription_plan_id; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_reward_configs.airdrop_subscription_plan_id IS '该服务商拥有的空投订阅套餐 ID；设为 0 则禁用该奖励。';
 
 
 --

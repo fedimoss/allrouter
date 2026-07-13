@@ -169,6 +169,7 @@ func TestCompleteSubscriptionOrder_CreditsProviderSubscriptionIncomeOnce(t *test
 		Status:      ProviderStatusEnabled,
 	}
 	require.NoError(t, DB.Create(provider).Error)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", 131).Update("provider_id", provider.Id).Error)
 	plan := &SubscriptionPlan{
 		Id:            230,
 		ProviderId:    provider.Id,

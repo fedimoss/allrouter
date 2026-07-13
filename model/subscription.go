@@ -754,15 +754,19 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	// 解析订阅实例归属服务商：优先用显式传入的 providerIds[0]，
 	// 否则按用户表的 provider_id 自动继承，保证订阅与用户在同一服务商上下文。
-	providerId := 0
+	userProviderId, err := getUserProviderIdByIdTx(tx, userId)
+	if err != nil {
+		return nil, err
+	}
+	providerId := userProviderId
 	if len(providerIds) > 0 {
 		providerId = providerIds[0]
-	} else {
-		var err error
-		providerId, err = getUserProviderIdByIdTx(tx, userId)
-		if err != nil {
-			return nil, err
-		}
+	}
+	if providerId != userProviderId {
+		return nil, errors.New("subscription provider does not match user provider")
+	}
+	if plan.ProviderId != providerId {
+		return nil, errors.New("subscription plan does not belong to user provider")
 	}
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
 	prevGroup := ""
@@ -1047,10 +1051,10 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 	return "", nil
 }
 
-// GrantAirdropSubscription 向指定用户授予全局配置的空投订阅计划（common.AirdropSubscriptionPlanId）。
+// GrantAirdropSubscription 向指定用户授予其所属站点配置的空投订阅计划。
 //
 // 功能说明：
-//   - 管理员在运营设置中配置一个全局的空投套餐 ID（AirdropSubscriptionPlanId）。
+//   - 主站使用 AirdropSubscriptionPlanId；服务商使用 ProviderRewardConfig 中的对应字段。
 //   - 调用此函数后，直接为该用户创建一个来源为 "airdrop" 的活跃订阅，无需支付。
 //
 // 使用场景：
@@ -1069,13 +1073,18 @@ func GrantAirdropSubscription(userId int) (string, error) {
 	if userId <= 0 {
 		return "", errors.New("invalid user id")
 	}
-	if common.AirdropSubscriptionPlanId <= 0 {
-		return "", nil
-	}
 	var planTitle string
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		plan, err := getSubscriptionPlanByIdTx(tx, common.AirdropSubscriptionPlanId)
+		providerId, err := getUserProviderIdByIdTx(tx, userId)
+		if err != nil {
+			return err
+		}
+		planId, err := getSubscriptionRewardPlanIdTx(tx, providerId, false)
+		if err != nil || planId <= 0 {
+			return err
+		}
+		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
@@ -1083,6 +1092,9 @@ func GrantAirdropSubscription(userId int) (string, error) {
 			return err
 		}
 		if plan == nil || !plan.Enabled {
+			return nil
+		}
+		if plan.ProviderId != providerId {
 			return nil
 		}
 		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "airdrop"); err != nil {
@@ -1102,6 +1114,29 @@ func GrantAirdropSubscription(userId int) (string, error) {
 		RecordLog(userId, LogTypeSystem, fmt.Sprintf("airdrop subscription reward %s", planTitle))
 	}
 	return planTitle, nil
+}
+
+// getSubscriptionRewardPlanIdTx 按站点解析奖励套餐配置。
+// 服务商站点永远不会继承主站的订阅奖励套餐。
+func getSubscriptionRewardPlanIdTx(tx *gorm.DB, providerId int, registerGift bool) (int, error) {
+	if providerId <= 0 {
+		if registerGift {
+			return common.RegisterGiftSubscriptionPlanId, nil
+		}
+		return common.AirdropSubscriptionPlanId, nil
+	}
+	var cfg ProviderRewardConfig
+	query := tx.Where("provider_id = ?", providerId).First(&cfg)
+	if errors.Is(query.Error, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	if query.Error != nil {
+		return 0, query.Error
+	}
+	if registerGift {
+		return cfg.RegisterGiftSubscriptionPlanId, nil
+	}
+	return cfg.AirdropSubscriptionPlanId, nil
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.
@@ -1483,9 +1518,13 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			return nil
 		}
 
+		userProviderId, err := getUserProviderIdByIdTx(tx, userId)
+		if err != nil {
+			return err
+		}
 		var subs []UserSubscription
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").
-			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+			Where("user_id = ? AND provider_id = ? AND status = ? AND end_time > ?", userId, userProviderId, "active", now).
 			Order("end_time asc, id asc").
 			Find(&subs).Error; err != nil {
 			return errors.New("no active subscription")
@@ -1498,6 +1537,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
+			}
+			if plan.ProviderId != sub.ProviderId {
+				continue
 			}
 			if !plan.AllowsModel(modelName) {
 				continue

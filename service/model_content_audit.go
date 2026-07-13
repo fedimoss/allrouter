@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -530,8 +531,9 @@ func writeModelContentAuditRecordWithRetry(record ModelContentAuditRecord) error
 
 // writeModelContentAuditRecord 将单条审计记录写入当天 CSV 文件。
 //
-// 文件命名：模型内容审计目录 / model_qa_YYYY-MM-DD.csv
+// 文件命名：模型内容审计目录 / model_qa_YYYY-MM-DD[_WORKID].csv
 //   - 目录通过环境变量 MODEL_CONTENT_AUDIT_DIR 配置，默认为 docs/modelcontent
+//   - WORKID 未配置或为空时不添加后缀，保持原文件名
 //
 // Header 写入策略（needModelContentAuditHeader）：
 //   - 文件不存在 → 写入 header
@@ -549,8 +551,8 @@ func writeModelContentAuditRecord(record ModelContentAuditRecord) error {
 		return err
 	}
 
-	// 当天 CSV 文件路径，如 model_qa_2026-07-02.csv
-	filePath := filepath.Join(dir, "model_qa_"+time.Now().Format("2006-01-02")+".csv")
+	// 当天 CSV 文件路径，如 model_qa_2026-07-02_worker-01.csv
+	filePath := filepath.Join(dir, modelContentAuditFileName(time.Now(), os.Getenv("WORKID")))
 
 	// 判断是否需要写入 CSV header（仅通过文件大小判断，不读取文件内容）
 	needHeader, err := needModelContentAuditHeader(filePath)
@@ -592,6 +594,24 @@ func writeModelContentAuditRecord(record ModelContentAuditRecord) error {
 	// Flush 确保数据落盘
 	writer.Flush()
 	return writer.Error()
+}
+
+func modelContentAuditFileName(now time.Time, workID string) string {
+	name := "model_qa_" + now.Format("2006-01-02")
+	if workID = sanitizeModelContentAuditWorkID(workID); workID != "" {
+		name += "_" + workID
+	}
+	return name + ".csv"
+}
+
+func sanitizeModelContentAuditWorkID(workID string) string {
+	workID = strings.TrimSpace(workID)
+	return strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '_' || r == '-' {
+			return r
+		}
+		return '_'
+	}, workID)
 }
 
 // modelContentAuditHeader 返回 CSV 文件的表头行。
