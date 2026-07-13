@@ -26,6 +26,7 @@ import SettingsSensitiveWords from '../../pages/Setting/Operation/SettingsSensit
 import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
+import SettingsRechargeGift from '../../pages/Setting/Operation/SettingsRechargeGift';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import { API, showError, toBoolean } from '../../helpers';
 
@@ -39,6 +40,8 @@ const OperationSetting = () => {
     QuotaForInviter: 0,
     QuotaForInvitee: 0,
     'quota_setting.enable_free_model_pre_consume': true,
+    TopUpGiftRules: '',
+    TopUpGiftEnabled: false,
 
     /* 通用设置 */
     TopUpLink: '',
@@ -151,6 +154,10 @@ const OperationSetting = () => {
         {/* 额度设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCreditLimit options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 充值赠送 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsRechargeGift options={inputs} refresh={onRefresh} />
         </Card>
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>

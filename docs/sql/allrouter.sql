@@ -7077,3 +7077,58 @@ COMMENT ON COLUMN telegram_user_bindings.telegram_user_id IS 'Telegram 平台用
 COMMENT ON COLUMN telegram_user_bindings.user_id           IS '关联的网站用户 ID，外键引用 users 表，唯一且不可为空';
 COMMENT ON COLUMN telegram_user_bindings.user_name         IS '绑定的网站用户名（冗余存储，便于快速展示）';
 COMMENT ON COLUMN telegram_user_bindings.created_at        IS '绑定记录的创建时间，默认当前时刻';
+
+
+
+
+
+
+-- =============================================================
+-- 充值赠送幂等表：记录用户已享受的充值赠送档位（每用户每档仅一次）
+-- =============================================================
+CREATE SEQUENCE topup_bonus_grants_id_seq
+    AS bigint
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+CREATE TABLE topup_bonus_grants (
+    id bigint DEFAULT nextval('topup_bonus_grants_id_seq'::regclass) NOT NULL,
+    user_id bigint NOT NULL,
+    rule_id character varying(64) NOT NULL,
+    trade_no character varying(64) DEFAULT ''::character varying,
+    quota bigint DEFAULT 0,
+    amount numeric DEFAULT 0,
+    currency character varying(16) DEFAULT ''::character varying,
+    created_time bigint
+);
+
+
+ALTER SEQUENCE topup_bonus_grants_id_seq OWNED BY topup_bonus_grants.id;
+
+
+COMMENT ON TABLE topup_bonus_grants IS '充值赠送记录表：每用户每档仅一次，用于幂等去重';
+
+
+COMMENT ON COLUMN topup_bonus_grants.user_id IS '充值用户 ID';
+
+
+COMMENT ON COLUMN topup_bonus_grants.rule_id IS '命中的赠送规则 ID（对应 option TopUpGiftRules 中的 id）';
+
+
+COMMENT ON COLUMN topup_bonus_grants.trade_no IS '触发本次赠送的充值订单号';
+
+
+COMMENT ON COLUMN topup_bonus_grants.quota IS '实际赠送的 quota';
+
+
+COMMENT ON COLUMN topup_bonus_grants.amount IS '赠送金额（用户币种原值，如 2 或 2.5）';
+
+
+COMMENT ON COLUMN topup_bonus_grants.currency IS '赠送币种 USD/CNY（跟随用户充值币种）';
+
+
+CREATE UNIQUE INDEX ux_topup_bonus_user_rule ON topup_bonus_grants USING btree (user_id, rule_id);

@@ -151,6 +151,8 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["RegisterGiftSubscriptionPlanId"] = strconv.Itoa(common.RegisterGiftSubscriptionPlanId)
 	common.OptionMap["AirdropSubscriptionPlanId"] = strconv.Itoa(common.AirdropSubscriptionPlanId)
+	common.OptionMap["TopUpGiftRules"] = common.TopUpGiftRules
+	common.OptionMap["TopUpGiftEnabled"] = strconv.FormatBool(common.TopUpGiftEnabled)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["InviteTopupRebateRatio"] = strconv.FormatFloat(common.InviteTopupRebateRatio, 'f', -1, 64)
@@ -343,6 +345,8 @@ func updateOptionMap(key string, value string) (err error) {
 			}
 		case "DisplayTokenStatEnabled":
 			common.DisplayTokenStatEnabled = boolValue
+		case "TopUpGiftEnabled":
+			common.TopUpGiftEnabled = boolValue
 		case "DrawingEnabled":
 			common.DrawingEnabled = boolValue
 		case "TaskEnabled":
@@ -555,6 +559,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.RegisterGiftSubscriptionPlanId, _ = strconv.Atoi(value)
 	case "AirdropSubscriptionPlanId":
 		common.AirdropSubscriptionPlanId, _ = strconv.Atoi(value)
+	case "TopUpGiftRules":
+		common.TopUpGiftRules = value
 	case "QuotaForInviter":
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":

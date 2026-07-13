@@ -162,6 +162,16 @@ var RegisterGiftSubscriptionPlanId = 0
 // GrantAirdropSubscription 函数向指定用户授予该套餐。
 var AirdropSubscriptionPlanId = 0
 
+// TopUpGiftRules 充值赠送规则，JSON 数组字符串，每条规则 {"id","threshold","bonus"}。
+// 在运营设置中配置。用户单次充值达到门槛时（取最高命中档、每用户每档仅一次），
+// 自动创建一张面额为 bonus（按用户充值币种折算为 quota）的兑换码并兑换给该用户。
+// 空字符串表示未配置/不启用。详见 model/topup_bonus.go 的 GrantTopUpBonus。
+var TopUpGiftRules = ""
+
+// TopUpGiftEnabled 是否启用充值赠送功能总开关。
+// 只有开启后，TopUpGiftRules 配置的规则才会在用户充值达标时实际发放。
+var TopUpGiftEnabled = false
+
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
 
