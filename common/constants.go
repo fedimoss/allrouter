@@ -153,13 +153,12 @@ var TelegramMiniAppURL = ""    // Mini App 启动链接（@BotFather /newapp 生
 
 var QuotaForNewUser = 0
 
-// RegisterGiftSubscriptionPlanId 新用户注册时自动赠送的订阅套餐 ID。
-// 在运营设置中配置，0 表示不赠送。用户注册事务中调用 grantRegisterGiftSubscriptionTx 实现。
+// RegisterGiftSubscriptionPlanId 主站新用户注册时自动赠送的订阅套餐 ID。
+// 服务商站点使用 ProviderRewardConfig 中的同名字段；0 表示不赠送。
 var RegisterGiftSubscriptionPlanId = 0
 
-// AirdropSubscriptionPlanId 管理员空投订阅时使用的全局套餐 ID。
-// 在运营设置中配置，0 表示未配置。通过 AdminGrantAirdropSubscription API 或
-// GrantAirdropSubscription 函数向指定用户授予该套餐。
+// AirdropSubscriptionPlanId 主站空投订阅时使用的套餐 ID。
+// 服务商站点使用 ProviderRewardConfig 中的同名字段；0 表示未配置。
 var AirdropSubscriptionPlanId = 0
 
 var QuotaForInviter = 0

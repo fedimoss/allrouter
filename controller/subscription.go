@@ -769,7 +769,7 @@ func AdminBindSubscription(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
-// AdminGrantAirdropSubscription 管理员向指定用户空投全局配置的订阅套餐。
+// AdminGrantAirdropSubscription 管理员向指定用户空投其所属站点配置的订阅套餐。
 //
 // POST /api/admin/subscription/airdrop
 //
@@ -778,7 +778,7 @@ func AdminBindSubscription(c *gin.Context) {
 //
 // 与 AdminBindSubscription 的区别：
 //   - AdminBindSubscription 可以指定任意 planId
-//   - AdminGrantAirdropSubscription 使用全局运营配置中的 AirdropSubscriptionPlanId
+//   - AdminGrantAirdropSubscription 按目标用户所属站点解析空投套餐
 func AdminGrantAirdropSubscription(c *gin.Context) {
 	var req AdminGrantAirdropSubscriptionRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.UserId <= 0 {
@@ -792,6 +792,39 @@ func AdminGrantAirdropSubscription(c *gin.Context) {
 	}
 	common.ApiSuccess(c, gin.H{
 		"user_id":    req.UserId,
+		"granted":    title != "",
+		"plan_title": title,
+	})
+}
+
+// ProviderGrantAirdropSubscription 允许服务提供商所有者将其已配置的空投计划授予其自有用户之一。
+// POST /api/provider/subscription/airdrop
+func ProviderGrantAirdropSubscription(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	var req AdminGrantAirdropSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.UserId <= 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	var target model.User
+	if err := model.DB.Select("id", "provider_id").Where("id = ?", req.UserId).Take(&target).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if target.ProviderId != provider.Id {
+		common.ApiErrorMsg(c, "目标用户不属于当前服务商")
+		return
+	}
+	title, err := model.GrantAirdropSubscription(target.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"user_id":    target.Id,
 		"granted":    title != "",
 		"plan_title": title,
 	})
