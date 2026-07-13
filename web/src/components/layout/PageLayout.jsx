@@ -75,7 +75,11 @@ const PageLayout = () => {
     '/user/reset',
   ];
 
-  const selfContainedPages = ['/agent-partner', '/payment/lakala/qrcode'];
+  const selfContainedPages = [
+    '/agent-partner',
+    '/landing',
+    '/payment/lakala/qrcode',
+  ];
   const shouldHideFooter =
     cardProPages.includes(location.pathname) ||
     selfContainedPages.includes(location.pathname);
