@@ -50,6 +50,8 @@ const emptyConfig = {
   checkin_enabled: false,
   checkin_min_quota: 0,
   checkin_max_quota: 0,
+  register_gift_subscription_plan_id: 0,
+  airdrop_subscription_plan_id: 0,
 };
 
 const quotaFields = [
@@ -104,6 +106,7 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
   const formRef = useRef(null);
   const [config, setConfig] = useState(emptyConfig);
   const [summary, setSummary] = useState({});
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -115,14 +118,30 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
   }, [adminMode, provider?.id]);
 
   const formValues = useMemo(() => toFormValues(config), [config]);
+  const subscriptionPlanOptions = useMemo(
+    () =>
+      subscriptionPlans.map((item) => {
+        const plan = item?.plan || item;
+        return {
+          label: plan?.title || `#${plan?.id}`,
+          value: Number(plan?.id || 0),
+          disabled: plan?.enabled === false,
+        };
+      }),
+    [subscriptionPlans],
+  );
 
   const loadRewardData = async () => {
     if (!baseUrl) return;
     setLoading(true);
     try {
-      const [configRes, summaryRes] = await Promise.all([
+      const plansUrl = adminMode
+        ? '/api/subscription/admin/plans'
+        : '/api/provider/subscription/plans';
+      const [configRes, summaryRes, plansRes] = await Promise.all([
         API.get(`${baseUrl}/config`, { disableDuplicate: true }),
         API.get(`${baseUrl}/summary`, { disableDuplicate: true }),
+        API.get(plansUrl, { disableDuplicate: true }),
       ]);
       if (configRes.data.success) {
         setConfig({ ...emptyConfig, ...(configRes.data.data || {}) });
@@ -133,6 +152,16 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
         setSummary(summaryRes.data.data || {});
       } else {
         showError(summaryRes.data.message);
+      }
+      if (plansRes.data.success) {
+        setSubscriptionPlans(
+          (plansRes.data.data || []).filter((item) => {
+            const plan = item?.plan || item;
+            return Number(plan?.provider_id || 0) === Number(provider?.id || 0);
+          }),
+        );
+      } else {
+        showError(plansRes.data.message);
       }
     } catch (error) {
       showError(error);
@@ -312,6 +341,22 @@ const ProviderRewardPanel = ({ provider, adminMode, mode = 'all' }) => {
                   min={0}
                   step={0.01}
                   precision={6}
+                />
+                <Form.Select
+                  field='register_gift_subscription_plan_id'
+                  label={t('注册赠送订阅')}
+                  optionList={[
+                    { label: t('不赠送订阅'), value: 0 },
+                    ...subscriptionPlanOptions,
+                  ]}
+                />
+                <Form.Select
+                  field='airdrop_subscription_plan_id'
+                  label={t('空投订阅方案')}
+                  optionList={[
+                    { label: t('不空投订阅'), value: 0 },
+                    ...subscriptionPlanOptions,
+                  ]}
                 />
               </div>
             </div>

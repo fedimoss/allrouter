@@ -109,7 +109,12 @@ export default function SettingsCreditLimit(props) {
       try {
         const res = await API.get('/api/subscription/admin/plans');
         if (res.data?.success) {
-          setSubscriptionPlans(res.data.data || []);
+          setSubscriptionPlans(
+            (res.data.data || []).filter((item) => {
+              const plan = item?.plan || item;
+              return Number(plan?.provider_id || 0) === 0;
+            }),
+          );
         }
       } catch (e) {
         // ignore, the select can stay empty

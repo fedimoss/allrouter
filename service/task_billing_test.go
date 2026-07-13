@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -44,6 +45,10 @@ func TestMain(m *testing.M) {
 		&model.Channel{},
 		&model.TopUp{},
 		&model.UserSubscription{},
+		&model.ConsumeRebate{},
+		&model.Midjourney{},
+		&model.ProviderModelPricing{},
+		&model.RewardRecord{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -65,12 +70,16 @@ func truncate(t *testing.T) {
 		model.DB.Exec("DELETE FROM channels")
 		model.DB.Exec("DELETE FROM top_ups")
 		model.DB.Exec("DELETE FROM user_subscriptions")
+		model.DB.Exec("DELETE FROM consume_rebates")
+		model.DB.Exec("DELETE FROM midjourneys")
+		model.DB.Exec("DELETE FROM provider_model_pricings")
+		model.DB.Exec("DELETE FROM reward_records")
 	})
 }
 
 func seedUser(t *testing.T, id int, quota int) {
 	t.Helper()
-	user := &model.User{Id: id, Username: "test_user", Quota: quota, Status: common.UserStatusEnabled}
+	user := &model.User{Id: id, Username: "test_user", AffCode: fmt.Sprintf("aff-%d", id), Quota: quota, Status: common.UserStatusEnabled}
 	require.NoError(t, model.DB.Create(user).Error)
 }
 
@@ -144,6 +153,13 @@ func getUserQuota(t *testing.T, id int) int {
 	var user model.User
 	require.NoError(t, model.DB.Select("quota").Where("id = ?", id).First(&user).Error)
 	return user.Quota
+}
+
+func getUserRewardQuota(t *testing.T, id int) int {
+	t.Helper()
+	var user model.User
+	require.NoError(t, model.DB.Select("reward_quota").Where("id = ?", id).First(&user).Error)
+	return user.RewardQuota
 }
 
 func getTokenRemainQuota(t *testing.T, id int) int {
@@ -713,4 +729,181 @@ func TestSettle_NonPerCall_AdaptorAdjustWorks(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestMainConsumeRebate_AllInvitersAndIdempotent(t *testing.T) {
+	truncate(t)
+	oldRatio := common.InviteTopupRebateRatio
+	common.InviteTopupRebateRatio = 10
+	t.Cleanup(func() { common.InviteTopupRebateRatio = oldRatio })
+
+	const inviterID, inviteeID = 101, 102
+	seedUser(t, inviterID, 0)
+	seedUser(t, inviteeID, 0)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", inviteeID).Update("inviter_id", inviterID).Error)
+
+	ctx := &model.ConsumeRebateContext{ProviderId: 0, PublicModelName: "test-model", BaseModelName: "test-model"}
+	_, rebate, err := model.ApplyInviteConsumeRebate(inviteeID, "main-rebate-request", 1000, ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 100, rebate)
+	assert.Equal(t, 100, getUserQuota(t, inviterID))
+	assert.Equal(t, 100, getUserRewardQuota(t, inviterID))
+
+	// The inviter qualification flag remains at its default 0, but main-site
+	// users still participate. Repeating the same settlement must not pay twice.
+	_, _, err = model.ApplyInviteConsumeRebate(inviteeID, "main-rebate-request", 1000, ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 100, getUserQuota(t, inviterID))
+	var count int64
+	require.NoError(t, model.DB.Model(&model.ConsumeRebate{}).Where("request_id = ?", "main-rebate-request").Count(&count).Error)
+	assert.Equal(t, int64(1), count)
+}
+
+func TestMainConsumeRebate_RejectsCrossSiteInviter(t *testing.T) {
+	truncate(t)
+	oldRatio := common.InviteTopupRebateRatio
+	common.InviteTopupRebateRatio = 10
+	t.Cleanup(func() { common.InviteTopupRebateRatio = oldRatio })
+
+	const inviterID, inviteeID = 103, 104
+	inviter := &model.User{Id: inviterID, ProviderId: 1, Username: "provider_inviter", AffCode: "provider-aff", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(inviter).Error)
+	seedUser(t, inviteeID, 0)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", inviteeID).Update("inviter_id", inviterID).Error)
+
+	_, rebate, err := model.ApplyInviteConsumeRebate(inviteeID, "cross-site-request", 1000, &model.ConsumeRebateContext{ProviderId: 0})
+	require.NoError(t, err)
+	assert.Zero(t, rebate)
+	assert.Equal(t, 0, getUserQuota(t, inviterID))
+}
+
+func TestProviderConsumeRebate_StillRequiresQualification(t *testing.T) {
+	truncate(t)
+	const providerID, inviterID, inviteeID = 3, 111, 112
+	inviter := &model.User{Id: inviterID, ProviderId: providerID, Username: "provider_inviter", AffCode: "provider-111", Status: common.UserStatusEnabled}
+	invitee := &model.User{Id: inviteeID, ProviderId: providerID, Username: "provider_invitee", AffCode: "provider-112", InviterId: inviterID, Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(inviter).Error)
+	require.NoError(t, model.DB.Create(invitee).Error)
+	pricing := &model.ProviderModelPricing{
+		ProviderId:               providerID,
+		PublicModelName:          "public-model",
+		BaseModelName:            "base-model",
+		Enabled:                  true,
+		ConsumeRebateRatioLevel1: 10,
+	}
+	require.NoError(t, model.DB.Create(pricing).Error)
+	ctx := &model.ConsumeRebateContext{ProviderId: providerID, ProviderPricingId: pricing.Id, PublicModelName: pricing.PublicModelName}
+
+	_, rebate, err := model.ApplyInviteConsumeRebate(inviteeID, "provider-disabled-request", 1000, ctx)
+	require.NoError(t, err)
+	assert.Zero(t, rebate)
+	assert.Equal(t, 0, getUserQuota(t, inviterID))
+
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", inviterID).Update("invite_consume_rebate_enabled", 1).Error)
+	_, rebate, err = model.ApplyInviteConsumeRebate(inviteeID, "provider-enabled-request", 1000, ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 100, rebate)
+	assert.Equal(t, 100, getUserQuota(t, inviterID))
+}
+
+func TestRefundTaskQuota_PreservesWalletFundingBreakdown(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+	const userID = 105
+	seedUser(t, userID, 0)
+
+	task := makeTask(userID, 0, 1000, 0, BillingSourceWallet, 0)
+	task.PrivateData.WalletQuotaBreakdownRecorded = true
+	task.PrivateData.WalletRewardUsed = 600
+	task.PrivateData.WalletPaidUsed = 400
+
+	RefundTaskQuota(ctx, task, "task failed")
+
+	assert.Equal(t, 1000, getUserQuota(t, userID))
+	assert.Equal(t, 600, getUserRewardQuota(t, userID))
+	assert.Zero(t, task.PrivateData.WalletRewardUsed)
+	assert.Zero(t, task.PrivateData.WalletPaidUsed)
+	assert.True(t, task.PrivateData.ConsumeRebateSettled)
+}
+
+func TestFinalizeTaskConsumeRebate_UsesFinalPaidQuota(t *testing.T) {
+	truncate(t)
+	oldRatio := common.InviteTopupRebateRatio
+	common.InviteTopupRebateRatio = 10
+	t.Cleanup(func() { common.InviteTopupRebateRatio = oldRatio })
+
+	ctx := context.Background()
+	const inviterID, inviteeID = 106, 107
+	seedUser(t, inviterID, 0)
+	seedUser(t, inviteeID, 0)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", inviteeID).Update("inviter_id", inviterID).Error)
+
+	// The task originally consumed reward=600 and paid=400. Its final charge is
+	// reduced from 1000 to 700, so the paid tail is refunded first and only 100
+	// paid quota remains eligible for rebate.
+	task := makeTask(inviteeID, 0, 1000, 0, BillingSourceWallet, 0)
+	task.TaskID = "task-final-paid-snapshot"
+	task.PrivateData.WalletQuotaBreakdownRecorded = true
+	task.PrivateData.WalletRewardUsed = 600
+	task.PrivateData.WalletPaidUsed = 400
+
+	RecalculateTaskQuota(ctx, task, 700, "final adjustment")
+	FinalizeTaskConsumeRebate(ctx, task)
+	FinalizeTaskConsumeRebate(ctx, task)
+
+	assert.Equal(t, 300, getUserQuota(t, inviteeID))
+	assert.Equal(t, 0, getUserRewardQuota(t, inviteeID))
+	assert.Equal(t, 600, task.PrivateData.WalletRewardUsed)
+	assert.Equal(t, 100, task.PrivateData.WalletPaidUsed)
+	assert.Equal(t, 10, getUserQuota(t, inviterID))
+	assert.Equal(t, 10, getUserRewardQuota(t, inviterID))
+	assert.True(t, task.PrivateData.ConsumeRebateSettled)
+}
+
+func TestRefundMidjourneyQuota_PreservesWalletFundingBreakdown(t *testing.T) {
+	truncate(t)
+	const userID = 108
+	seedUser(t, userID, 0)
+	task := &model.Midjourney{
+		UserId:                       userID,
+		Quota:                        1000,
+		WalletRewardUsed:             700,
+		WalletPaidUsed:               300,
+		WalletQuotaBreakdownRecorded: 1,
+	}
+
+	require.NoError(t, RefundMidjourneyQuota(task))
+	assert.Equal(t, 1000, getUserQuota(t, userID))
+	assert.Equal(t, 700, getUserRewardQuota(t, userID))
+	assert.Zero(t, task.WalletRewardUsed)
+	assert.Zero(t, task.WalletPaidUsed)
+	assert.Equal(t, 1, task.ConsumeRebateSettled)
+}
+
+func TestFinalizeMidjourneyConsumeRebate_AppliesOnce(t *testing.T) {
+	truncate(t)
+	oldRatio := common.InviteTopupRebateRatio
+	common.InviteTopupRebateRatio = 10
+	t.Cleanup(func() { common.InviteTopupRebateRatio = oldRatio })
+
+	const inviterID, inviteeID = 109, 110
+	seedUser(t, inviterID, 0)
+	seedUser(t, inviteeID, 0)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", inviteeID).Update("inviter_id", inviterID).Error)
+	task := &model.Midjourney{
+		UserId:                       inviteeID,
+		MjId:                         "mj-final-rebate",
+		Action:                       "IMAGINE",
+		Quota:                        1000,
+		WalletRewardUsed:             500,
+		WalletPaidUsed:               500,
+		WalletQuotaBreakdownRecorded: 1,
+	}
+
+	FinalizeMidjourneyConsumeRebate(context.Background(), task)
+	FinalizeMidjourneyConsumeRebate(context.Background(), task)
+
+	assert.Equal(t, 50, getUserQuota(t, inviterID))
+	assert.Equal(t, 50, getUserRewardQuota(t, inviterID))
+	assert.Equal(t, 1, task.ConsumeRebateSettled)
 }

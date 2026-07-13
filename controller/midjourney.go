@@ -178,7 +178,8 @@ func UpdateMidjourneyTaskBulk() {
 				if err != nil {
 					logger.LogError(ctx, "UpdateMidjourneyTask task error: "+err.Error())
 				} else if won && shouldReturnQuota {
-					err = model.IncreaseUserQuota(task.UserId, task.Quota, false)
+					// 退款：使用 RefundMidjourneyQuota 保留奖励/充值原路返回语义。
+					err = service.RefundMidjourneyQuota(task)
 					if err != nil {
 						logger.LogError(ctx, "fail to increase user quota: "+err.Error())
 					}
@@ -194,6 +195,9 @@ func UpdateMidjourneyTaskBulk() {
 							"reason":  "构图失败",
 						},
 					})
+				} else if won && task.Status == string(model.TaskStatusSuccess) {
+					// 任务成功：触发 Midjourney 消费返利终态结算。
+					service.FinalizeMidjourneyConsumeRebate(ctx, task)
 				}
 			}
 		}

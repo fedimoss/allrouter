@@ -55,14 +55,14 @@ func hasCustomModelRatio(modelName string, currentRatio float64) bool {
 	return currentRatio != defaultRatio
 }
 
-func calculateAudioQuota(info QuotaInfo) int {
+func calculateAudioQuota(info QuotaInfo) (int, *common.QuotaClamp) {
 	if info.UsePrice {
 		modelPrice := decimal.NewFromFloat(info.ModelPrice)
 		quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		groupRatio := decimal.NewFromFloat(info.GroupRatio)
 
 		quota := modelPrice.Mul(quotaPerUnit).Mul(groupRatio)
-		return int(quota.IntPart())
+		return common.QuotaFromDecimalChecked(quota)
 	}
 
 	completionRatio := decimal.NewFromFloat(ratio_setting.GetCompletionRatio(info.ModelName))
@@ -91,7 +91,7 @@ func calculateAudioQuota(info QuotaInfo) int {
 		quota = decimal.NewFromInt(1)
 	}
 
-	return int(quota.Round(0).IntPart())
+	return common.QuotaFromDecimalChecked(quota)
 }
 
 func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage) error {
@@ -144,7 +144,8 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		GroupRatio: actualGroupRatio,
 	}
 
-	quota := calculateAudioQuota(quotaInfo)
+	quota, clamp := calculateAudioQuota(quotaInfo)
+	noteQuotaClamp(relayInfo, clamp)
 
 	if userQuota < quota {
 		return fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", logger.FormatQuota(userQuota), logger.FormatQuota(quota))
@@ -207,9 +208,16 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		GroupRatio: groupRatio,
 	}
 
-	quota := calculateAudioQuota(quotaInfo)
+	quota, clamp := calculateAudioQuota(quotaInfo)
 	if tieredOk {
 		quota = tieredQuota
+		clamp = nil
+		if tieredResult != nil {
+			clamp = tieredResult.Clamp
+		}
+		relayInfo.QuotaClamp = clamp
+	} else {
+		noteQuotaClamp(relayInfo, clamp)
 	}
 
 	totalTokens := usage.TotalTokens
@@ -238,8 +246,12 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		RecordRelayTotalTokenUsage(relayInfo, totalTokens)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
 	}
-	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
-		logger.LogError(ctx, "error settling billing: "+err.Error())
+	// Non-tiered Realtime requests are already charged incrementally by
+	// PreWssConsumeQuota. Tiered pricing needs one final aggregate settlement.
+	if tieredOk {
+		if err := SettleBilling(ctx, relayInfo, quota); err != nil {
+			logger.LogError(ctx, "error settling billing: "+err.Error())
+		}
 	}
 
 	logModel := modelName
@@ -248,9 +260,10 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 	other := GenerateWssOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
-	if tieredResult != nil {
+	if tieredOk {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
+	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     usage.InputTokens,
@@ -333,9 +346,16 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		GroupRatio: groupRatio,
 	}
 
-	quota := calculateAudioQuota(quotaInfo)
+	quota, clamp := calculateAudioQuota(quotaInfo)
 	if tieredOk {
 		quota = tieredQuota
+		clamp = nil
+		if tieredResult != nil {
+			clamp = tieredResult.Clamp
+		}
+		relayInfo.QuotaClamp = clamp
+	} else {
+		noteQuotaClamp(relayInfo, clamp)
 	}
 
 	totalTokens := usage.TotalTokens
@@ -398,9 +418,10 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 	other := GenerateAudioOtherInfo(ctx, relayInfo, usage, displayModelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), displayModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
-	if tieredResult != nil {
+	if tieredOk {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
+	attachQuotaSaturation(ctx, relayInfo, other)
 	if providerId > 0 {
 		other["provider_import_price_ratio"] = common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderImportPriceRatio)
 		other["provider_pricing_type"] = common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
@@ -467,7 +488,12 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 			//兼容旧的 PostConsumeQuota 路径：没有 BillingSession 的钱包扣费也改成奖励优先，并对充值额度消费部分触发返利。
 			breakdown, decreaseErr := model.DecreaseUserQuotaPreferReward(relayInfo.UserId, quota)
 			err = decreaseErr
-			if err == nil && breakdown.PaidUsed > 0 && relayInfo.ProviderId <= 0 {
+			if err == nil {
+				relayInfo.WalletRewardConsumed = breakdown.RewardUsed
+				relayInfo.WalletPaidConsumed = breakdown.PaidUsed
+			}
+			// 同步请求直接触发消费返利；异步任务（ForcePreConsume）和违规扣费（DisableConsumeRebate）跳过。
+			if err == nil && breakdown.PaidUsed > 0 && relayInfo.ProviderId <= 0 && !relayInfo.ForcePreConsume && !relayInfo.DisableConsumeRebate {
 				rebateRequestId := fmt.Sprintf("%s:post:%s", relayInfo.RequestId, common.GetRandomString(8))
 				if _, _, rebateErr := model.ApplyInviteConsumeRebate(relayInfo.UserId, rebateRequestId, breakdown.PaidUsed, consumeRebateContextFromRelay(nil, relayInfo)); rebateErr != nil {
 					common.SysLog("error applying consume rebate: " + rebateErr.Error())

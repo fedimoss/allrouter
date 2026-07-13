@@ -450,6 +450,9 @@ func SyncUpstreamModels(c *gin.Context) {
 		}
 	}
 
+	// 上游模型同步可能改变主站可见模型集合，刷新定价并触发已开启自动同步的服务商同步
+	model.RefreshPricing()
+	TriggerProviderModelPricingSyncForMainModelChange()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{

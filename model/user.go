@@ -24,6 +24,7 @@ const UserNameMaxLength = 20
 type User struct {
 	Id                         int            `json:"id"`
 	ProviderId                 int            `json:"provider_id" gorm:"type:int;default:0;index;uniqueIndex:ux_user_provider_aff"`
+	ProviderName               string         `json:"provider_name,omitempty" gorm:"-"`
 	Username                   string         `json:"username" gorm:"index" validate:"max=20"`
 	Password                   string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
 	OriginalPassword           string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
@@ -378,6 +379,42 @@ func GetMaxUserId() int {
 	return user.Id
 }
 
+func fillUserProviderNames(tx *gorm.DB, users []*User) error {
+	providerIds := make([]int, 0)
+	seen := make(map[int]struct{})
+	for _, user := range users {
+		if user == nil || user.ProviderId <= 0 {
+			continue
+		}
+		if _, ok := seen[user.ProviderId]; ok {
+			continue
+		}
+		seen[user.ProviderId] = struct{}{}
+		providerIds = append(providerIds, user.ProviderId)
+	}
+	if len(providerIds) == 0 {
+		return nil
+	}
+
+	var providers []struct {
+		Id   int
+		Name string
+	}
+	if err := tx.Model(&Provider{}).Select("id", "name").Where("id IN ?", providerIds).Find(&providers).Error; err != nil {
+		return err
+	}
+	providerNames := make(map[int]string, len(providers))
+	for _, provider := range providers {
+		providerNames[provider.Id] = provider.Name
+	}
+	for _, user := range users {
+		if user != nil {
+			user.ProviderName = providerNames[user.ProviderId]
+		}
+	}
+	return nil
+}
+
 func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err error) {
 	// Start transaction
 	tx := DB.Begin()
@@ -400,6 +437,10 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	// Get paginated users within same transaction
 	err = tx.Unscoped().Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Omit("password").Find(&users).Error
 	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+	if err = fillUserProviderNames(tx, users); err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
@@ -620,6 +661,10 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 		tx.Rollback()
 		return nil, 0, err
 	}
+	if err = fillUserProviderNames(tx, users); err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
 
 	// 提交事务
 	if err = tx.Commit().Error; err != nil {
@@ -643,24 +688,20 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 	return &user, err
 }
 
+// GetUserIdByAffCode 通过推广码获取主站用户 ID（provider_id=0）。
+// 内部委托给 GetUserIdByAffCodeInProvider 实现，确保与主站推广码查询逻辑一致。
 func GetUserIdByAffCode(affCode string) (int, error) {
-	if affCode == "" {
-		return 0, errors.New("affCode 为空！")
-	}
-	var user User
-	err := DB.Select("id").First(&user, "aff_code = ?", affCode).Error
-	return user.Id, err
+	return GetUserIdByAffCodeInProvider(0, affCode)
 }
 
+// GetUserIdByAffCodeInProvider 在指定服务商站点内通过推广码查询用户 ID。
+// providerId 和 affCode 同时作为查询条件，确保推广码仅在所属站点内生效。
 func GetUserIdByAffCodeInProvider(providerId int, affCode string) (int, error) {
 	if affCode == "" {
 		return 0, errors.New("affCode 涓虹┖锛?")
 	}
 	var user User
-	query := DB.Select("id").Where("aff_code = ?", affCode)
-	if providerId > 0 {
-		query = query.Where("provider_id = ?", providerId)
-	}
+	query := DB.Select("id").Where("provider_id = ? AND aff_code = ?", providerId, affCode)
 	err := query.First(&user).Error
 	return user.Id, err
 }
@@ -769,18 +810,23 @@ func grantInviterRewardTx(tx *gorm.DB, inviterId int, inviteeId int, rewardQuota
 
 // grantRegisterGiftSubscriptionTx 在事务中为新注册用户授予注册赠送订阅套餐。
 //
-// 通过全局配置 common.RegisterGiftSubscriptionPlanId 指定赠送的套餐 ID。
-// 当配置值 <= 0 或套餐不存在/未启用时静默跳过，不影响注册流程。
+// 主站使用 common.RegisterGiftSubscriptionPlanId；服务商站点使用其
+// ProviderRewardConfig.RegisterGiftSubscriptionPlanId。配置值 <= 0 或套餐
+// 不存在/未启用时静默跳过，不影响注册流程。
 //
 // 该函数在用户注册事务（Insert / InsertWithTx）中被调用，确保订阅创建与原子的用户注册
 // 在同一事务中完成。如果套餐创建失败会回滚整个注册事务。
 //
 // 返回值：成功授予的套餐标题（用于日志记录），未配置或跳过时返回空字符串。
-func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int) (string, error) {
-	if tx == nil || userId <= 0 || common.RegisterGiftSubscriptionPlanId <= 0 {
+func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int, providerId int) (string, error) {
+	if tx == nil || userId <= 0 {
 		return "", nil
 	}
-	plan, err := getSubscriptionPlanByIdTx(tx, common.RegisterGiftSubscriptionPlanId)
+	planId, err := getSubscriptionRewardPlanIdTx(tx, providerId, true)
+	if err != nil || planId <= 0 {
+		return "", err
+	}
+	plan, err := getSubscriptionPlanByIdTx(tx, planId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", nil
@@ -788,6 +834,9 @@ func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int) (string, error) {
 		return "", err
 	}
 	if plan == nil || !plan.Enabled {
+		return "", nil
+	}
+	if plan.ProviderId != providerId {
 		return "", nil
 	}
 	if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "register_reward"); err != nil {
@@ -887,7 +936,7 @@ func (user *User) Insert(inviterId int) error {
 			return err
 		}
 	}
-	registerGiftSubscriptionTitle, err := grantRegisterGiftSubscriptionTx(tx, user.Id)
+	registerGiftSubscriptionTitle, err := grantRegisterGiftSubscriptionTx(tx, user.Id, user.ProviderId)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -1016,7 +1065,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			return err
 		}
 	}
-	if _, err := grantRegisterGiftSubscriptionTx(tx, user.Id); err != nil {
+	if _, err := grantRegisterGiftSubscriptionTx(tx, user.Id, user.ProviderId); err != nil {
 		return err
 	}
 	if inviterId != 0 {
@@ -1061,8 +1110,8 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 		if rewardCfg.QuotaForNewUser > 0 {
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user reward %s", logger.LogQuota(rewardCfg.QuotaForNewUser)))
 		}
-		if common.RegisterGiftSubscriptionPlanId > 0 {
-			if plan, err := GetSubscriptionPlanById(common.RegisterGiftSubscriptionPlanId); err == nil && plan != nil && plan.Enabled {
+		if rewardCfg.RegisterGiftSubscriptionPlanId > 0 {
+			if plan, err := GetSubscriptionPlanById(rewardCfg.RegisterGiftSubscriptionPlanId); err == nil && plan != nil && plan.Enabled && plan.ProviderId == user.ProviderId {
 				RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user subscription reward %s", plan.Title))
 			}
 		}
@@ -2016,6 +2065,14 @@ func CountTotalUsers() (int64, error) {
 	var count int64
 	err := DB.Unscoped().Model(&User{}).Count(&count).Error
 	return count, err
+}
+
+func SumAllUsersTotalTokenUsed() (int64, error) {
+	var total int64
+	err := DB.Unscoped().Model(&User{}).
+		Select("COALESCE(SUM(total_token_used), 0)").
+		Scan(&total).Error
+	return total, err
 }
 
 // CountNewUsersByTimeRange 统计指定时间范围内的新注册用户数

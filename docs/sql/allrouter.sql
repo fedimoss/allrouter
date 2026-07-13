@@ -916,6 +916,10 @@ CREATE TABLE midjourneys (
     fail_reason text,
     channel_id bigint,
     quota bigint,
+    wallet_reward_used bigint DEFAULT 0 NOT NULL,
+    wallet_paid_used bigint DEFAULT 0 NOT NULL,
+    wallet_quota_breakdown_recorded bigint DEFAULT 0 NOT NULL,
+    consume_rebate_settled bigint DEFAULT 0 NOT NULL,
     buttons text,
     properties text
 );
@@ -1690,8 +1694,15 @@ CREATE TABLE provider_configs (
     secondary_color character varying(32) DEFAULT ''::character varying,
     wechat_support text DEFAULT ''::character varying,
     qq_support text DEFAULT ''::character varying,
+    wechat_support_desc text DEFAULT ''::character varying,
+    qq_support_qrcode text DEFAULT ''::character varying,
+    telegram_support text DEFAULT ''::character varying,
+    telegram_support_desc text DEFAULT ''::character varying,
     import_price_ratio numeric(10,6) DEFAULT 1 NOT NULL,
     home_page_theme character varying(64) DEFAULT ''::character varying,
+    model_pricing_sync_enabled boolean DEFAULT false,
+    model_pricing_sync_last_at bigint DEFAULT 0,
+    model_pricing_sync_last_summary text,
     CONSTRAINT chk_provider_configs_import_price_ratio CHECK (((import_price_ratio > (0)::numeric) AND (import_price_ratio <= (1)::numeric)))
 );
 
@@ -1822,6 +1833,34 @@ COMMENT ON COLUMN provider_configs.qq_support IS 'QQ客服';
 
 
 --
+-- Name: COLUMN provider_configs.wechat_support_desc; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_configs.wechat_support_desc IS '微信客服文本描述';
+
+
+--
+-- Name: COLUMN provider_configs.qq_support_qrcode; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_configs.qq_support_qrcode IS 'QQ客服二维码';
+
+
+--
+-- Name: COLUMN provider_configs.telegram_support; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_configs.telegram_support IS 'Telegram客服';
+
+
+--
+-- Name: COLUMN provider_configs.telegram_support_desc; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_configs.telegram_support_desc IS 'Telegram客服文本描述';
+
+
+--
 -- Name: COLUMN provider_configs.import_price_ratio; Type: COMMENT;;
 --
 
@@ -1833,6 +1872,27 @@ COMMENT ON COLUMN provider_configs.import_price_ratio IS '进货价比例';
 --
 
 COMMENT ON COLUMN provider_configs.home_page_theme IS '服务商首页选择键，例如 default、b、c，用于对应不同首页内容';
+
+
+--
+-- Name: COLUMN provider_configs.model_pricing_sync_enabled; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_configs.model_pricing_sync_enabled IS '模型定价自动同步开关：开启后主站模型新增/下架/恢复时会自动同步该服务商';
+
+
+--
+-- Name: COLUMN provider_configs.model_pricing_sync_last_at; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_configs.model_pricing_sync_last_at IS '上次自动同步时间，Unix 秒级时间戳';
+
+
+--
+-- Name: COLUMN provider_configs.model_pricing_sync_last_summary; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_configs.model_pricing_sync_last_summary IS '上次自动同步结果摘要，JSON 字符串，包含新增/软禁用/恢复/跳过的模型名及计数';
 
 
 --
@@ -1961,6 +2021,7 @@ CREATE TABLE provider_model_pricings (
     updated_at bigint,
     consume_rebate_ratio_level1 numeric(10,6) DEFAULT 0 NOT NULL,
     consume_rebate_ratio_level2 numeric(10,6) DEFAULT 0 NOT NULL,
+    sync_disabled boolean DEFAULT false,
     CONSTRAINT chk_provider_model_pricings_rebate_l1_range CHECK (((consume_rebate_ratio_level1 >= (0)::numeric) AND (consume_rebate_ratio_level1 <= (100)::numeric))),
     CONSTRAINT chk_provider_model_pricings_rebate_l2_range CHECK (((consume_rebate_ratio_level2 >= (0)::numeric) AND (consume_rebate_ratio_level2 <= (100)::numeric)))
 );
@@ -2048,6 +2109,27 @@ COMMENT ON COLUMN provider_model_pricings.created_at IS '创建时间，Unix 秒
 --
 
 COMMENT ON COLUMN provider_model_pricings.updated_at IS '更新时间，Unix 秒级时间戳';
+
+
+--
+-- Name: COLUMN provider_model_pricings.consume_rebate_ratio_level1; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_model_pricings.consume_rebate_ratio_level1 IS '一级消费返佣比例，取值 0~100';
+
+
+--
+-- Name: COLUMN provider_model_pricings.consume_rebate_ratio_level2; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_model_pricings.consume_rebate_ratio_level2 IS '二级消费返佣比例，取值 0~100';
+
+
+--
+-- Name: COLUMN provider_model_pricings.sync_disabled; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN provider_model_pricings.sync_disabled IS '同步软禁用标记：true 表示由自动同步（主站模型下架）禁用；手动保存会清为 false，避免同步误改手动状态';
 
 
 --
@@ -2320,6 +2402,8 @@ CREATE TABLE provider_reward_configs (
     checkin_max_quota bigint DEFAULT 0,
     invite_topup_rebate_ratio numeric(10,6) DEFAULT 0,
     invite_consume_rebate_ratio_level2 numeric(10,6) DEFAULT 0,
+    register_gift_subscription_plan_id integer NOT NULL DEFAULT 0,
+    airdrop_subscription_plan_id integer NOT NULL DEFAULT 0,
     created_at bigint,
     updated_at bigint
 );
@@ -2400,6 +2484,11 @@ COMMENT ON COLUMN provider_reward_configs.invite_topup_rebate_ratio IS '邀请�
 --
 
 COMMENT ON COLUMN provider_reward_configs.invite_consume_rebate_ratio_level2 IS '二级邀请消费返利比例';
+
+
+COMMENT ON COLUMN provider_reward_configs.register_gift_subscription_plan_id IS '该提供商拥有的注册赠送订阅方案 ID；设为 0 则禁用该奖励。';
+
+COMMENT ON COLUMN provider_reward_configs.airdrop_subscription_plan_id IS '该提供商拥有的空投订阅计划 ID；设为 0 则禁用奖励。';
 
 
 --
@@ -2903,8 +2992,13 @@ CREATE TABLE subscription_plans (
     stripe_price_cny_id character varying(128) DEFAULT ''::character varying,
     waffo_pancake_product_id character varying(128) DEFAULT ''::character varying,
     allow_purchase integer NOT NULL DEFAULT 1,
-    model_limits text NOT NULL DEFAULT ''
+    model_limits text NOT NULL DEFAULT '',
+    provider_id bigint NOT NULL DEFAULT 0
 );
+
+
+COMMENT ON COLUMN subscription_plans.provider_id
+    IS '订阅套餐归属服务商 ID，0 表示主站套餐，>0 表示服务商私有套餐';
 
 
 CREATE SEQUENCE subscription_plans_id_seq
@@ -5332,6 +5426,18 @@ ALTER TABLE ONLY subscription_plans
 
 
 --
+-- Name: subscription_plans chk_subscription_plans_provider_id_non_negative; Type: CONSTRAINT;;
+--
+
+ALTER TABLE subscription_plans
+    DROP CONSTRAINT IF EXISTS chk_subscription_plans_provider_id_non_negative;
+
+ALTER TABLE subscription_plans
+    ADD CONSTRAINT chk_subscription_plans_provider_id_non_negative
+    CHECK (provider_id >= 0);
+
+
+--
 -- Name: subscription_pre_consume_records subscription_pre_consume_records_pkey; Type: CONSTRAINT;;
 --
 
@@ -6125,6 +6231,13 @@ CREATE INDEX idx_prefill_groups_type ON prefill_groups USING btree (type);
 
 
 --
+-- Name: idx_provider_configs_model_pricing_sync_enabled; Type: INDEX;;
+--
+
+CREATE INDEX idx_provider_configs_model_pricing_sync_enabled ON provider_configs USING btree (model_pricing_sync_enabled);
+
+
+--
 -- Name: idx_provider_configs_provider_id; Type: INDEX;;
 --
 
@@ -6171,6 +6284,13 @@ CREATE INDEX idx_provider_model_pricings_enabled ON provider_model_pricings USIN
 --
 
 CREATE INDEX idx_provider_model_pricings_provider_id ON provider_model_pricings USING btree (provider_id);
+
+
+--
+-- Name: idx_provider_model_pricings_sync_disabled; Type: INDEX;;
+--
+
+CREATE INDEX idx_provider_model_pricings_sync_disabled ON provider_model_pricings USING btree (sync_disabled);
 
 
 --
@@ -6405,6 +6525,20 @@ CREATE INDEX idx_subscription_pre_consume_records_user_subscription_id ON subscr
 
 
 --
+-- Name: idx_subscription_plans_provider_id; Type: INDEX;;
+--
+
+CREATE INDEX idx_subscription_plans_provider_id ON subscription_plans USING btree (provider_id);
+
+
+--
+-- Name: idx_subscription_plans_provider_enabled_sort; Type: INDEX;;
+--
+
+CREATE INDEX idx_subscription_plans_provider_enabled_sort ON subscription_plans USING btree (provider_id, enabled, sort_order DESC, id DESC);
+
+
+--
 -- Name: idx_tasks_action; Type: INDEX;;
 --
 
@@ -6563,6 +6697,13 @@ CREATE INDEX idx_top_ups_user_id ON top_ups USING btree (user_id);
 --
 
 CREATE INDEX idx_top_ups_user_provider ON top_ups USING btree (user_id, provider_id);
+
+
+--
+-- Name: idx_top_ups_provider_subscription_source; Type: INDEX;;
+--
+
+CREATE INDEX idx_top_ups_provider_subscription_source ON top_ups USING btree (provider_id, source_id) WHERE (payment_method = 'provider_subscription');
 
 
 --

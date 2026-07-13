@@ -18,17 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { applyThemeColors, extractThemeColors } from './themeColors';
+import { buildSupportConfig } from './utils';
 
 export function setStatusData(data) {
   localStorage.setItem('status', JSON.stringify(data));
   localStorage.setItem('system_name', data.system_name);
   localStorage.setItem('logo', data.logo);
-  const supportConfig =
-    data.provider_config?.enabled && data.provider_config
-      ? data.provider_config
-      : data;
-  localStorage.setItem('wechat_support', supportConfig.wechat_support || '');
-  localStorage.setItem('qq_support', supportConfig.qq_support || '');
+  const supportConfig = buildSupportConfig(data);
+  localStorage.setItem('wechat_support', supportConfig.wechatQRCode || '');
+  localStorage.setItem('wechat_support_desc', supportConfig.wechatDesc || '');
+  localStorage.setItem('qq_support', supportConfig.qqSupport || '');
+  localStorage.setItem('qq_support_qrcode', supportConfig.qqQrcode || '');
+  localStorage.setItem('telegram_support', supportConfig.telegramQRCode || '');
+  localStorage.setItem('telegram_support_desc', supportConfig.telegramDesc || '');
   localStorage.setItem('footer_html', data.footer_html);
   localStorage.setItem('quota_per_unit', data.quota_per_unit);
   // 兼容：保留旧字段，同时写入新的额度展示类型

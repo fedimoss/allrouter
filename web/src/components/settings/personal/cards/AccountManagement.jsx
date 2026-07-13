@@ -186,7 +186,196 @@ const AccountManagement = ({
         </div>
       </div>
 
-      <Tabs type='card' defaultActiveKey='binding'>
+      <Tabs type='card' defaultActiveKey='security'>
+        {/* 安全设置 Tab */}
+        <TabPane
+          tab={
+            <div className='flex items-center'>
+              <ShieldCheck size={16} className='mr-2' />
+              {t('安全设置')}
+            </div>
+          }
+          itemKey='security'
+        >
+          <div className='py-4'>
+            <div className='space-y-6'>
+              <Space vertical className='w-full'>
+                {/* 密码管理 */}
+                <Card className='personal-v2-subcard !rounded-xl w-full'>
+                  <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
+                    <div className='flex items-start w-full sm:w-auto'>
+                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
+                        <IconLock size='large' className='text-slate-600' />
+                      </div>
+                      <div>
+                        <Typography.Title heading={6} className='mb-1'>
+                          {t('密码管理')}
+                        </Typography.Title>
+                        <Typography.Text type='tertiary' className='text-sm'>
+                          {t('定期更改密码可以提高账户安全性')}
+                        </Typography.Text>
+                      </div>
+                    </div>
+                    <Button
+                      type='primary'
+                      theme='solid'
+                      onClick={() => setShowChangePasswordModal(true)}
+                      className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
+                      icon={<IconLock />}
+                    >
+                      {t('修改密码')}
+                    </Button>
+                  </div>
+                </Card>
+
+                {/* 系统访问令牌 */}
+                <Card className='personal-v2-subcard !rounded-xl w-full'>
+                  <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
+                    <div className='flex items-start w-full sm:w-auto'>
+                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
+                        <IconKey size='large' className='text-slate-600' />
+                      </div>
+                      <div className='flex-1'>
+                        <Typography.Title heading={6} className='mb-1'>
+                          {t('系统访问令牌')}
+                        </Typography.Title>
+                        <Typography.Text type='tertiary' className='text-sm'>
+                          {t('用于API调用的身份验证令牌，请妥善保管')}
+                        </Typography.Text>
+                        {systemToken && (
+                          <div className='mt-3'>
+                            <Input
+                              readonly
+                              value={systemToken}
+                              onClick={handleSystemTokenClick}
+                              size='large'
+                              prefix={<IconKey />}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      type='primary'
+                      theme='solid'
+                      onClick={generateAccessToken}
+                      className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
+                      icon={<IconKey />}
+                    >
+                      {systemToken ? t('重新生成') : t('生成令牌')}
+                    </Button>
+                  </div>
+                </Card>
+
+                {/* Passkey 设置 */}
+                <Card className='personal-v2-subcard !rounded-xl w-full'>
+                  <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
+                    <div className='flex items-start w-full sm:w-auto'>
+                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
+                        <IconKey size='large' className='text-slate-600' />
+                      </div>
+                      <div>
+                        <Typography.Title heading={6} className='mb-1'>
+                          {t('Passkey 登录')}
+                        </Typography.Title>
+                        <Typography.Text type='tertiary' className='text-sm'>
+                          {passkeyEnabled
+                            ? t('已启用 Passkey，无需密码即可登录')
+                            : t('使用 Passkey 实现免密且更安全的登录体验')}
+                        </Typography.Text>
+                        <div className='mt-2 text-xs text-gray-500 space-y-1'>
+                          <div>
+                            {t('最后使用时间')}：{lastUsedLabel}
+                          </div>
+                          {/*{passkeyEnabled && (*/}
+                          {/*  <div>*/}
+                          {/*    {t('备份支持')}：*/}
+                          {/*    {passkeyStatus?.backup_eligible*/}
+                          {/*      ? t('支持备份')*/}
+                          {/*      : t('不支持')}*/}
+                          {/*    ，{t('备份状态')}：*/}
+                          {/*    {passkeyStatus?.backup_state ? t('已备份') : t('未备份')}*/}
+                          {/*  </div>*/}
+                          {/*)}*/}
+                          {!passkeySupported && (
+                            <div className='text-amber-600'>
+                              {t('当前设备不支持 Passkey')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      type={passkeyEnabled ? 'danger' : 'primary'}
+                      theme={passkeyEnabled ? 'solid' : 'solid'}
+                      onClick={
+                        passkeyEnabled
+                          ? () => {
+                              Modal.confirm({
+                                title: t('确认解绑 Passkey'),
+                                content: t(
+                                  '解绑后将无法使用 Passkey 登录，确定要继续吗？',
+                                ),
+                                okText: t('确认解绑'),
+                                cancelText: t('取消'),
+                                okType: 'danger',
+                                onOk: onPasskeyDelete,
+                              });
+                            }
+                          : onPasskeyRegister
+                      }
+                      className={`w-full sm:w-auto ${passkeyEnabled ? '!bg-slate-500 hover:!bg-slate-600' : ''}`}
+                      icon={<IconKey />}
+                      disabled={!passkeySupported && !passkeyEnabled}
+                      loading={
+                        passkeyEnabled
+                          ? passkeyDeleteLoading
+                          : passkeyRegisterLoading
+                      }
+                    >
+                      {passkeyEnabled ? t('解绑 Passkey') : t('注册 Passkey')}
+                    </Button>
+                  </div>
+                </Card>
+
+                {/* 两步验证设置 */}
+                <TwoFASetting t={t} onStatusChange={onTwoFAStatusChange} />
+
+                {/* 危险区域 */}
+                <Card className='personal-v2-subcard !rounded-xl w-full'>
+                  <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
+                    <div className='flex items-start w-full sm:w-auto'>
+                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
+                        <IconDelete size='large' className='text-slate-600' />
+                      </div>
+                      <div>
+                        <Typography.Title
+                          heading={6}
+                          className='mb-1 text-slate-700'
+                        >
+                          {t('删除账户')}
+                        </Typography.Title>
+                        <Typography.Text type='tertiary' className='text-sm'>
+                          {t('此操作不可逆，所有数据将被永久删除')}
+                        </Typography.Text>
+                      </div>
+                    </div>
+                    <Button
+                      type='danger'
+                      theme='solid'
+                      onClick={() => setShowAccountDeleteModal(true)}
+                      className='w-full sm:w-auto !bg-slate-500 hover:!bg-slate-600'
+                      icon={<IconDelete />}
+                    >
+                      {t('删除账户')}
+                    </Button>
+                  </div>
+                </Card>
+              </Space>
+            </div>
+          </div>
+        </TabPane>
+
         {/* 账户绑定 Tab */}
         <TabPane
           tab={
@@ -540,9 +729,9 @@ const AccountManagement = ({
                             <div className='text-sm text-gray-500 truncate'>
                               {bound
                                 ? renderAccountInfo(
-                                    binding?.provider_user_id,
-                                    t('{{name}} ID', { name: provider.name }),
-                                  )
+                                  binding?.provider_user_id,
+                                  t('{{name}} ID', { name: provider.name }),
+                                )
                                 : t('未绑定')}
                             </div>
                           </div>
@@ -575,195 +764,6 @@ const AccountManagement = ({
                     </Card>
                   );
                 })}
-            </div>
-          </div>
-        </TabPane>
-
-        {/* 安全设置 Tab */}
-        <TabPane
-          tab={
-            <div className='flex items-center'>
-              <ShieldCheck size={16} className='mr-2' />
-              {t('安全设置')}
-            </div>
-          }
-          itemKey='security'
-        >
-          <div className='py-4'>
-            <div className='space-y-6'>
-              <Space vertical className='w-full'>
-                {/* 系统访问令牌 */}
-                <Card className='personal-v2-subcard !rounded-xl w-full'>
-                  <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
-                    <div className='flex items-start w-full sm:w-auto'>
-                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
-                        <IconKey size='large' className='text-slate-600' />
-                      </div>
-                      <div className='flex-1'>
-                        <Typography.Title heading={6} className='mb-1'>
-                          {t('系统访问令牌')}
-                        </Typography.Title>
-                        <Typography.Text type='tertiary' className='text-sm'>
-                          {t('用于API调用的身份验证令牌，请妥善保管')}
-                        </Typography.Text>
-                        {systemToken && (
-                          <div className='mt-3'>
-                            <Input
-                              readonly
-                              value={systemToken}
-                              onClick={handleSystemTokenClick}
-                              size='large'
-                              prefix={<IconKey />}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      type='primary'
-                      theme='solid'
-                      onClick={generateAccessToken}
-                      className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
-                      icon={<IconKey />}
-                    >
-                      {systemToken ? t('重新生成') : t('生成令牌')}
-                    </Button>
-                  </div>
-                </Card>
-
-                {/* 密码管理 */}
-                <Card className='personal-v2-subcard !rounded-xl w-full'>
-                  <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
-                    <div className='flex items-start w-full sm:w-auto'>
-                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
-                        <IconLock size='large' className='text-slate-600' />
-                      </div>
-                      <div>
-                        <Typography.Title heading={6} className='mb-1'>
-                          {t('密码管理')}
-                        </Typography.Title>
-                        <Typography.Text type='tertiary' className='text-sm'>
-                          {t('定期更改密码可以提高账户安全性')}
-                        </Typography.Text>
-                      </div>
-                    </div>
-                    <Button
-                      type='primary'
-                      theme='solid'
-                      onClick={() => setShowChangePasswordModal(true)}
-                      className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
-                      icon={<IconLock />}
-                    >
-                      {t('修改密码')}
-                    </Button>
-                  </div>
-                </Card>
-
-                {/* Passkey 设置 */}
-                <Card className='personal-v2-subcard !rounded-xl w-full'>
-                  <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
-                    <div className='flex items-start w-full sm:w-auto'>
-                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
-                        <IconKey size='large' className='text-slate-600' />
-                      </div>
-                      <div>
-                        <Typography.Title heading={6} className='mb-1'>
-                          {t('Passkey 登录')}
-                        </Typography.Title>
-                        <Typography.Text type='tertiary' className='text-sm'>
-                          {passkeyEnabled
-                            ? t('已启用 Passkey，无需密码即可登录')
-                            : t('使用 Passkey 实现免密且更安全的登录体验')}
-                        </Typography.Text>
-                        <div className='mt-2 text-xs text-gray-500 space-y-1'>
-                          <div>
-                            {t('最后使用时间')}：{lastUsedLabel}
-                          </div>
-                          {/*{passkeyEnabled && (*/}
-                          {/*  <div>*/}
-                          {/*    {t('备份支持')}：*/}
-                          {/*    {passkeyStatus?.backup_eligible*/}
-                          {/*      ? t('支持备份')*/}
-                          {/*      : t('不支持')}*/}
-                          {/*    ，{t('备份状态')}：*/}
-                          {/*    {passkeyStatus?.backup_state ? t('已备份') : t('未备份')}*/}
-                          {/*  </div>*/}
-                          {/*)}*/}
-                          {!passkeySupported && (
-                            <div className='text-amber-600'>
-                              {t('当前设备不支持 Passkey')}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      type={passkeyEnabled ? 'danger' : 'primary'}
-                      theme={passkeyEnabled ? 'solid' : 'solid'}
-                      onClick={
-                        passkeyEnabled
-                          ? () => {
-                              Modal.confirm({
-                                title: t('确认解绑 Passkey'),
-                                content: t(
-                                  '解绑后将无法使用 Passkey 登录，确定要继续吗？',
-                                ),
-                                okText: t('确认解绑'),
-                                cancelText: t('取消'),
-                                okType: 'danger',
-                                onOk: onPasskeyDelete,
-                              });
-                            }
-                          : onPasskeyRegister
-                      }
-                      className={`w-full sm:w-auto ${passkeyEnabled ? '!bg-slate-500 hover:!bg-slate-600' : ''}`}
-                      icon={<IconKey />}
-                      disabled={!passkeySupported && !passkeyEnabled}
-                      loading={
-                        passkeyEnabled
-                          ? passkeyDeleteLoading
-                          : passkeyRegisterLoading
-                      }
-                    >
-                      {passkeyEnabled ? t('解绑 Passkey') : t('注册 Passkey')}
-                    </Button>
-                  </div>
-                </Card>
-
-                {/* 两步验证设置 */}
-                <TwoFASetting t={t} onStatusChange={onTwoFAStatusChange} />
-
-                {/* 危险区域 */}
-                <Card className='personal-v2-subcard !rounded-xl w-full'>
-                  <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
-                    <div className='flex items-start w-full sm:w-auto'>
-                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
-                        <IconDelete size='large' className='text-slate-600' />
-                      </div>
-                      <div>
-                        <Typography.Title
-                          heading={6}
-                          className='mb-1 text-slate-700'
-                        >
-                          {t('删除账户')}
-                        </Typography.Title>
-                        <Typography.Text type='tertiary' className='text-sm'>
-                          {t('此操作不可逆，所有数据将被永久删除')}
-                        </Typography.Text>
-                      </div>
-                    </div>
-                    <Button
-                      type='danger'
-                      theme='solid'
-                      onClick={() => setShowAccountDeleteModal(true)}
-                      className='w-full sm:w-auto !bg-slate-500 hover:!bg-slate-600'
-                      icon={<IconDelete />}
-                    >
-                      {t('删除账户')}
-                    </Button>
-                  </div>
-                </Card>
-              </Space>
             </div>
           </div>
         </TabPane>

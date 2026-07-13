@@ -35,6 +35,7 @@ import {
   useTheme,
 } from '../../../../context/Theme';
 import { normalizeLanguage } from '../../../../i18n/language';
+import NotificationSettings from './NotificationSettings';
 
 export const languageOptions = [
   { value: 'zh-CN', label: '简体中文' },
@@ -69,7 +70,12 @@ const themeOptionFactory = (t, actualTheme) => [
   },
 ];
 
-const PreferencesSettings = ({ t }) => {
+const PreferencesSettings = ({
+  t,
+  notificationSettings,
+  handleNotificationSettingChange,
+  saveNotificationSettings,
+}) => {
   const { i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
   const theme = useTheme();
@@ -179,68 +185,74 @@ const PreferencesSettings = ({ t }) => {
 
           <div className='personal-v3-preference-grid'>
             <div className='personal-v3-preference-block'>
-              <div className='personal-v3-preference-head'>
-                <h4>{t('主题模式')}</h4>
-                <p>{t('根据使用场景自由切换外观，立即生效')}</p>
-              </div>
+              <div>
+                <div className='personal-v3-preference-head'>
+                  <h4>{t('主题模式')}</h4>
+                  <p>{t('根据使用场景自由切换外观，立即生效')}</p>
+                </div>
 
-              <div className='personal-v3-theme-grid'>
-                {themeOptions.map((option) => {
-                  const Icon = option.icon;
-                  return (
-                    <button
-                      key={option.value}
-                      type='button'
-                      className={`personal-v3-theme-item ${
-                        theme === option.value ? 'is-active' : ''
-                      }`}
-                      onClick={() => handleThemePreferenceChange(option.value)}
-                    >
-                      <span className='personal-v3-theme-icon'>
-                        <Icon size={18} />
-                      </span>
-                      <span className='personal-v3-theme-title'>
-                        {option.label}
-                      </span>
-                      <span className='personal-v3-theme-desc'>
-                        {option.description}
-                      </span>
-                    </button>
-                  );
-                })}
+                <div className='personal-v3-theme-grid'>
+                  {themeOptions.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={option.value}
+                        type='button'
+                        className={`personal-v3-theme-item ${theme === option.value ? 'is-active' : ''
+                          }`}
+                        onClick={() => handleThemePreferenceChange(option.value)}
+                      >
+                        <span className='personal-v3-theme-icon'>
+                          <Icon size={18} />
+                        </span>
+                        <span className='personal-v3-theme-title'>
+                          {option.label}
+                        </span>
+                        <span className='personal-v3-theme-desc'>
+                          {option.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="mt-8">
+                <div className='personal-v3-preference-head'>
+                  <h4>{t('语言设置')}</h4>
+                  <p>{t('选择界面语言，设置会同步保存到当前账户')}</p>
+                </div>
+
+                <div className='personal-v3-language-list'>
+                  {languageOptions.map((option) => {
+                    const active = currentLanguage === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type='button'
+                        disabled={loading}
+                        className={`personal-v3-language-item ${active ? 'is-active' : ''
+                          }`}
+                        onClick={() =>
+                          handleLanguagePreferenceChange(option.value)
+                        }
+                      >
+                        <span>{option.label}</span>
+                        <span className='personal-v3-language-dot'>
+                          {active ? <CheckCircle2 size={14} /> : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            <div className='personal-v3-preference-block'>
-              <div className='personal-v3-preference-head'>
-                <h4>{t('语言设置')}</h4>
-                <p>{t('选择界面语言，设置会同步保存到当前账户')}</p>
-              </div>
-
-              <div className='personal-v3-language-list'>
-                {languageOptions.map((option) => {
-                  const active = currentLanguage === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type='button'
-                      disabled={loading}
-                      className={`personal-v3-language-item ${
-                        active ? 'is-active' : ''
-                      }`}
-                      onClick={() =>
-                        handleLanguagePreferenceChange(option.value)
-                      }
-                    >
-                      <span>{option.label}</span>
-                      <span className='personal-v3-language-dot'>
-                        {active ? <CheckCircle2 size={14} /> : null}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <NotificationSettings
+              t={t}
+              notificationSettings={notificationSettings}
+              handleNotificationSettingChange={handleNotificationSettingChange}
+              saveNotificationSettings={saveNotificationSettings}
+            />
           </div>
 
           <div className='personal-v3-inline-summary'>

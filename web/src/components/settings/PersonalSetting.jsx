@@ -66,7 +66,6 @@ import {
 } from 'lucide-react';
 import { getLogo } from '../../helpers';
 import AccountManagement from './personal/cards/AccountManagement';
-import NotificationSettings from './personal/cards/NotificationSettings';
 import PreferencesSettings, {
   languageOptions,
 } from './personal/cards/PreferencesSettings';
@@ -1168,7 +1167,7 @@ const PersonalSetting = () => {
               </div>
             </Card>
 
-            <Card
+            {/* <Card
               className='personal-v3-card !rounded-[24px]'
               bodyStyle={{ padding: 0 }}
             >
@@ -1296,10 +1295,10 @@ const PersonalSetting = () => {
                   </Button>
                 </div>
               </div>
-            </Card>
+            </Card> */}
           </section>
 
-          <section className='personal-v3-section'>
+          {/* <section className='personal-v3-section'>
             <div className='personal-v3-section-head'>
               <div>
                 <h2>{t('安全中心')}</h2>
@@ -1487,9 +1486,7 @@ const PersonalSetting = () => {
                 </div>
               </Card>
             </div>
-          </section>
-
-          <PreferencesSettings t={t} />
+          </section> */}
 
           <section className='personal-v3-section personal-v3-advanced'>
             <div className='personal-v3-section-head'>
@@ -1503,7 +1500,11 @@ const PersonalSetting = () => {
               </div>
             </div>
 
-            <div className='personal-setting-v2-board mt-4 md:mt-6'>
+            <div
+              className={`personal-setting-v2-board mt-4 md:mt-6 ${
+                status?.checkin_enabled ? '' : 'personal-setting-v2-board--single'
+              }`}
+            >
               <div
                 ref={accountAdvancedRef}
                 className='personal-setting-v2-col personal-v3-anchor'
@@ -1529,28 +1530,28 @@ const PersonalSetting = () => {
                 />
               </div>
 
-              <div
-                ref={notificationAdvancedRef}
-                className='personal-setting-v2-col personal-v3-anchor'
-              >
-                <NotificationSettings
-                  t={t}
-                  notificationSettings={notificationSettings}
-                  handleNotificationSettingChange={handleNotificationSettingChange}
-                  saveNotificationSettings={saveNotificationSettings}
-                />
-
-                {status?.checkin_enabled && (
+              {status?.checkin_enabled && (
+                <div
+                  ref={notificationAdvancedRef}
+                  className='personal-setting-v2-col personal-v3-anchor'
+                >
                   <CheckinCalendar
                     t={t}
                     status={status}
                     turnstileEnabled={turnstileEnabled}
                     turnstileSiteKey={turnstileSiteKey}
                   />
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </section>
+
+          <PreferencesSettings
+            t={t}
+            notificationSettings={notificationSettings}
+            handleNotificationSettingChange={handleNotificationSettingChange}
+            saveNotificationSettings={saveNotificationSettings}
+          />
         </div>
       </div>
 

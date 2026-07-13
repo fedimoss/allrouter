@@ -372,14 +372,14 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 		maxCompletionTokens := lo.FromPtrOr(r.MaxCompletionTokens, uint(0))
 		maxTokens := lo.FromPtrOr(r.MaxTokens, uint(0))
 		if maxCompletionTokens > maxTokens {
-			meta.MaxTokens = int(maxCompletionTokens)
+			meta.MaxTokens = common.SafeIntFromUint(maxCompletionTokens)
 		} else {
-			meta.MaxTokens = int(maxTokens)
+			meta.MaxTokens = common.SafeIntFromUint(maxTokens)
 		}
 	case *dto.OpenAIResponsesRequest:
-		meta.MaxTokens = int(lo.FromPtrOr(r.MaxOutputTokens, uint(0)))
+		meta.MaxTokens = common.SafeIntFromUint(lo.FromPtrOr(r.MaxOutputTokens, uint(0)))
 	case *dto.ClaudeRequest:
-		meta.MaxTokens = int(lo.FromPtr(r.MaxTokens))
+		meta.MaxTokens = common.SafeIntFromUint(lo.FromPtr(r.MaxTokens))
 	case *dto.ImageRequest:
 		// Pricing for image requests depends on ImagePriceRatio; safe to compute even when CountToken is disabled.
 		return r.GetTokenCountMeta()
@@ -689,6 +689,13 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
+		// 钱包计费的异步任务：持久化奖励/充值消费拆分快照。
+		// 此快照用于后续差额结算和退款时按原路返回额度（奖励退回奖励，充值退回充值）。
+		if relayInfo.BillingSource == service.BillingSourceWallet && relayInfo.Billing != nil {
+			task.PrivateData.WalletQuotaBreakdownRecorded = true
+			task.PrivateData.WalletRewardUsed = relayInfo.WalletRewardConsumed
+			task.PrivateData.WalletPaidUsed = relayInfo.WalletPaidConsumed
+		}
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
 			ModelPrice:          relayInfo.PriceData.ModelPrice,
 			GroupRatio:          relayInfo.PriceData.GroupRatioInfo.GroupRatio,

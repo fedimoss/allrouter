@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -14,9 +15,10 @@ func insertUserForPaymentGuardTest(t *testing.T, id int, quota int) {
 	t.Helper()
 	user := &User{
 		Id:       id,
-		Username: "payment_guard_user",
+		Username: "payment_guard_user_" + strconv.Itoa(id),
 		Status:   common.UserStatusEnabled,
 		Quota:    quota,
+		AffCode:  "payment_guard_aff_" + strconv.Itoa(id),
 	}
 	require.NoError(t, DB.Create(user).Error)
 }
@@ -88,6 +90,13 @@ func getUserQuotaForPaymentGuardTest(t *testing.T, userID int) int {
 	return user.Quota
 }
 
+func countTopUpsByTradeNoForPaymentGuardTest(t *testing.T, tradeNo string) int64 {
+	t.Helper()
+	var count int64
+	require.NoError(t, DB.Model(&TopUp{}).Where("trade_no = ?", tradeNo).Count(&count).Error)
+	return count
+}
+
 func TestCreateSubscriptionOrderWithTopUp_CreatesPendingSubscriptionRecord(t *testing.T) {
 	truncateTables(t)
 
@@ -146,6 +155,55 @@ func TestCompleteSubscriptionOrder_UpdatesPendingSubscriptionRecord(t *testing.T
 	assert.Equal(t, common.TopUpStatusSuccess, topUp.Status)
 	assert.NotZero(t, topUp.CompleteTime)
 	assert.Equal(t, int64(1), countUserSubscriptionsForPaymentGuardTest(t, 121))
+}
+
+func TestCompleteSubscriptionOrder_CreditsProviderSubscriptionIncomeOnce(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 130, 0)
+	insertUserForPaymentGuardTest(t, 131, 0)
+	provider := &Provider{
+		Id:          530,
+		OwnerUserId: 130,
+		Name:        "Provider Income Guard",
+		Status:      ProviderStatusEnabled,
+	}
+	require.NoError(t, DB.Create(provider).Error)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", 131).Update("provider_id", provider.Id).Error)
+	plan := &SubscriptionPlan{
+		Id:            230,
+		ProviderId:    provider.Id,
+		Title:         "Provider Plan",
+		PriceAmount:   9.99,
+		Currency:      "USD",
+		DurationUnit:  SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		TotalAmount:   1000,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+	order := &SubscriptionOrder{
+		UserId:          131,
+		PlanId:          plan.Id,
+		ProviderId:      provider.Id,
+		Money:           9.99,
+		Currency:        "USD",
+		OriginalMoney:   9.99,
+		TradeNo:         "sub-provider-income",
+		PaymentMethod:   PaymentProviderLakala,
+		PaymentProvider: PaymentProviderLakala,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, CreateSubscriptionOrderWithTopUp(order))
+
+	require.NoError(t, CompleteSubscriptionOrder(order.TradeNo, `{"provider":"lakala"}`, PaymentProviderLakala, PaymentProviderLakala))
+	require.NoError(t, CompleteSubscriptionOrder(order.TradeNo, `{"provider":"lakala"}`, PaymentProviderLakala, PaymentProviderLakala))
+
+	expectedQuota := int(decimal.NewFromFloat(order.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+	assert.Equal(t, expectedQuota, getUserQuotaForPaymentGuardTest(t, provider.OwnerUserId))
+	assert.Equal(t, int64(1), countUserSubscriptionsForPaymentGuardTest(t, order.UserId))
+	assert.Equal(t, int64(1), countTopUpsByTradeNoForPaymentGuardTest(t, "PROVIDER-SUBSCRIPTION-"+strconv.Itoa(order.Id)))
 }
 
 func insertWechatTopUpForPaymentGuardTest(t *testing.T, tradeNo string, userID int, paymentProvider string) {

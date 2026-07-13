@@ -76,8 +76,58 @@ export function getWechatSupport() {
   return localStorage.getItem('wechat_support') || '';
 }
 
+export function getWechatSupportDesc() {
+  return localStorage.getItem('wechat_support_desc') || '';
+}
+
 export function getQQSupport() {
   return localStorage.getItem('qq_support') || '';
+}
+
+export function getQQSupportQrcode() {
+  return localStorage.getItem('qq_support_qrcode') || '';
+}
+
+export function getTelegramSupport() {
+  return localStorage.getItem('telegram_support') || '';
+}
+
+export function getTelegramSupportDesc() {
+  return localStorage.getItem('telegram_support_desc') || '';
+}
+
+// 统一计算浮动客服配置：优先 provider_config（启用时），否则 status，最后回退 localStorage。
+// 三渠道各含二维码图片 + 文本描述。
+export function buildSupportConfig(status) {
+  if (!status) {
+    return {
+      wechatQRCode: getWechatSupport(),
+      wechatDesc: getWechatSupportDesc(),
+      qqQrcode: getQQSupportQrcode(),
+      qqSupport: getQQSupport(),
+      telegramQRCode: getTelegramSupport(),
+      telegramDesc: getTelegramSupportDesc(),
+    };
+  }
+  const providerConfig = status.provider_config;
+  if (providerConfig?.enabled) {
+    return {
+      wechatQRCode: providerConfig.wechat_support || '',
+      wechatDesc: providerConfig.wechat_support_desc || '',
+      qqQrcode: providerConfig.qq_support_qrcode || '',
+      qqSupport: providerConfig.qq_support || '',
+      telegramQRCode: providerConfig.telegram_support || '',
+      telegramDesc: providerConfig.telegram_support_desc || '',
+    };
+  }
+  return {
+    wechatQRCode: status.wechat_support || '',
+    wechatDesc: status.wechat_support_desc || '',
+    qqQrcode: status.qq_support_qrcode || '',
+    qqSupport: status.qq_support || '',
+    telegramQRCode: status.telegram_support || '',
+    telegramDesc: status.telegram_support_desc || '',
+  };
 }
 
 export function applyBranding({

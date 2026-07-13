@@ -82,6 +82,7 @@ const Dashboard = () => {
     dashboardData.trendData,
     dashboardData.performanceMetrics,
     dashboardData.displayCurrency,
+    dashboardData.isAdminUser,
     dashboardData.navigate,
     dashboardData.t,
   );

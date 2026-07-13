@@ -108,6 +108,14 @@ func getPricingVisibilityContext(c *gin.Context) (map[string]string, map[string]
 	return usableGroup, groupRatio, service.GetUserAutoGroup(group)
 }
 
+// getMarketplaceVisiblePricingForUserGroup 按指定用户分组计算主站市场可见的定价列表。
+// 不依赖 *gin.Context，供后台自动同步（goroutine）使用
+func getMarketplaceVisiblePricingForUserGroup(userGroup string) []model.Pricing {
+	pricing := model.GetPricing()
+	usableGroup := service.GetUserUsableGroups(userGroup)
+	return filterPricingByUsableGroups(pricing, usableGroup)
+}
+
 func getMarketplaceVisiblePricing(c *gin.Context) []model.Pricing {
 	pricing := model.GetPricing()
 	usableGroup, _, _ := getPricingVisibilityContext(c)

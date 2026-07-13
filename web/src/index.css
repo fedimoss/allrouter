@@ -92,10 +92,10 @@ p {
 .semi-checkbox-inner-display {
   box-shadow: inset 0 0 0 1px var(--theme-primary) !important;
 }
-.semi-radio-addon-buttonRadio-checked{
+.semi-radio-addon-buttonRadio-checked {
   color: var(--theme-primary) !important;
 }
-.semi-input-wrapper-focus:active{
+.semi-input-wrapper-focus:active {
   border-color: var(--theme-primary) !important;
 }
 
@@ -1663,8 +1663,8 @@ html.dark .landing-home.landing-v2 .landing-v2-nav-tools .semi-button {
 .landing-v2-btn-text:hover {
   color: #53f3b2;
 }
-
-.landing-home.landing-v2 .landing-v2-btn-primary,
+/* .landing-home.landing-v2  */
+.landing-v2-btn-primary,
 .landing-home.landing-v2 .landing-v2-btn-secondary {
   display: inline-flex;
   align-items: center;
@@ -1682,7 +1682,8 @@ html.dark .landing-home.landing-v2 .landing-v2-nav-tools .semi-button {
     background-color 0.2s ease;
 }
 
-.landing-home.landing-v2 .landing-v2-btn-primary {
+/* .landing-home.landing-v2 */
+.landing-v2-btn-primary {
   border: none;
   background: var(--landing-v2-gradient-primary);
   color: var(--landing-v2-btn-color);
@@ -1690,12 +1691,14 @@ html.dark .landing-home.landing-v2 .landing-v2-nav-tools .semi-button {
   /* box-shadow: 0 10px 24px var(--landing-v2-glow); */
 }
 
-.landing-home.landing-v2 .landing-v2-btn-primary:hover {
+/* .landing-home.landing-v2 */
+.landing-v2-btn-primary:hover {
   transform: translateY(-2px);
   /* box-shadow: 0 16px 32px var(--landing-v2-glow-hover); */
 }
 
-.landing-home.landing-v2 .landing-v2-btn-primary::before {
+/* .landing-home.landing-v2 */
+.landing-v2-btn-primary::before {
   content: '';
   position: absolute;
   top: 0;
@@ -1712,12 +1715,14 @@ html.dark .landing-home.landing-v2 .landing-v2-nav-tools .semi-button {
   transition: 0.6s ease;
 }
 
-.landing-home.landing-v2 .landing-v2-btn-primary:hover::before {
+/* .landing-home.landing-v2 */
+.landing-v2-btn-primary:hover::before {
   left: 100%;
   opacity: 1;
 }
 
-.landing-home.landing-v2 .landing-v2-btn-secondary {
+/* .landing-home.landing-v2 */
+.landing-v2-btn-secondary {
   /* border: 1px solid var(--landing-v2-border); */
   /* background: rgba(255, 255, 255, 0.92); */
   color: var(--landing-v2-text-main);
@@ -2277,7 +2282,7 @@ html.dark .landing-home.landing-v2 .landing-v2-cta-box {
   padding: 10px;
   background: #ffffff;
   border-radius: 32px;
-  box-shadow: 0px 0px 10px 0px #0000001A;
+  box-shadow: 0px 0px 10px 0px #0000001a;
 }
 
 .floating-support-icon {
@@ -2306,11 +2311,17 @@ html.dark .landing-home.landing-v2 .landing-v2-cta-box {
   font-size: 20px;
 }
 
+.floating-support-icon-telegram {
+  background: #229ED9;
+  color: #ffffff;
+  font-size: 20px;
+}
+
 .floating-support-icon-qq {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #F6F6F6;
+  background: #f6f6f6;
   color: #111827;
   font-size: 24px;
 }
@@ -2429,7 +2440,8 @@ html.dark .floating-support-icon-qq {
     align-items: stretch;
   }
 
-  .landing-home.landing-v2 .landing-v2-btn-primary,
+  /* .landing-home.landing-v2  */
+  .landing-v2-btn-primary,
   .landing-home.landing-v2 .landing-v2-btn-secondary,
   .landing-home.landing-v2 .landing-v2-btn-lg {
     width: 100%;
@@ -2829,6 +2841,10 @@ html.dark .floating-support-icon-qq {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 20px;
+}
+
+.dashboard-stats-v3__grid--six {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .dashboard-stats-v2__compact-grid {
@@ -3926,6 +3942,33 @@ html.dark .dashboard-stats-v3__hero {
 
 .dashboard-stats-v3__hero .semi-skeleton-paragraph {
   margin: 0 !important;
+}
+
+.dashboard-stats-v3__display-value {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.dashboard-stats-v3__display-value[tabindex='0'] {
+  cursor: help;
+}
+
+.dashboard-stats-v3__display-value[tabindex='0']:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 3px;
+}
+
+.dashboard-stats-v3__compact-unit {
+  margin-left: 0.3em;
+  color: #666;
+  font-size: 0.56em;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+html.dark .dashboard-stats-v3__compact-unit {
+  color: #94a3b8;
 }
 
 .dashboard-stats-v3__action-wrap {

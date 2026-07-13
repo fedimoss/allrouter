@@ -253,6 +253,10 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
+	// ⚠️ 已禁用启动期自动维护表结构（AutoMigrate + 历史手写迁移 + SubscriptionPlan 建表）。
+	// 以后表结构变更请手动在数据库执行 SQL；恢复时删除下面的 return nil 与函数末尾的 */ 即可。
+	return nil
+	/* ---- 原自动迁移逻辑（已停用，保留以便恢复）----
 	// Migrate price_amount column from float/double to decimal for existing tables
 	migrateSubscriptionPlanPriceAmount()
 	// Migrate model_limits column from varchar to text for existing tables
@@ -325,9 +329,14 @@ func migrateDB() error {
 		}
 	}
 	return nil
+	*/ // ---- migrateDB 原自动迁移逻辑结束 ----
 }
 
 func migrateDBFast() error {
+	// ⚠️ 已禁用（与 migrateDB 一致）。本函数当前无调用方，此处一并停用以保持一致；
+	// 恢复时删除下面的 return nil 与函数末尾的 */ 即可。
+	return nil
+	/* ---- 原并行自动迁移逻辑（已停用，保留以便恢复）----
 	if err := migrateProviderScopedRewardColumns(); err != nil {
 		return err
 	}
@@ -418,14 +427,19 @@ func migrateDBFast() error {
 	}
 	common.SysLog("database migrated")
 	return nil
+	*/ // ---- migrateDBFast 原自动迁移逻辑结束 ----
 }
 
 func migrateLOGDB() error {
+	// ⚠️ 已禁用启动期自动维护表结构（Log 表 AutoMigrate）。以后手动执行 SQL；恢复时取消下方注释即可。
+	return nil
+	/* ---- 原自动迁移逻辑（已停用，保留以便恢复）----
 	var err error
 	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
 		return err
 	}
 	return nil
+	*/
 }
 
 type sqliteColumnDef struct {
@@ -441,6 +455,8 @@ func ensureSubscriptionPlanTableSQLite() error {
 	if !DB.Migrator().HasTable(tableName) {
 		createSQL := `CREATE TABLE ` + "`" + tableName + "`" + ` (
 ` + "`id`" + ` integer,
+// provider_id：订阅套餐归属服务商 ID（0=主站套餐，>0=服务商私有套餐），本次"服务商私有订阅"特性新增列。
+` + "`provider_id`" + ` integer NOT NULL DEFAULT 0,
 ` + "`title`" + ` varchar(128) NOT NULL,
 ` + "`subtitle`" + ` varchar(255) DEFAULT '',
 ` + "`price_amount`" + ` decimal(10,6) NOT NULL,
@@ -477,6 +493,8 @@ PRIMARY KEY (` + "`id`" + `)
 		existing[c.Name] = struct{}{}
 	}
 	required := []sqliteColumnDef{
+		// 老库升级用：若已存在的 subscription_plans 表缺少 provider_id 列，则按此 DDL 自动补列，兼容本次新增字段。
+		{Name: "provider_id", DDL: "`provider_id` integer NOT NULL DEFAULT 0"},
 		{Name: "title", DDL: "`title` varchar(128) NOT NULL"},
 		{Name: "subtitle", DDL: "`subtitle` varchar(255) DEFAULT ''"},
 		{Name: "price_amount", DDL: "`price_amount` decimal(10,6) NOT NULL"},

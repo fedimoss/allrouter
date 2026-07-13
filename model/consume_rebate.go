@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ConsumeRebate records rebates generated from invitees consuming paid quota.
@@ -107,16 +108,28 @@ func SumLevel2ConsumeRebateQuotaByInviterAndParentInviteeId(inviterId int, paren
 	return totalQuota, err
 }
 
-// 当被邀请人实际使用充值额度消费时，按比例给邀请人返利。返利入账也算奖励，所以邀请人会同时增加 quota 和 reward_quota
+// ApplyInviteConsumeRebate 当被邀请人实际使用充值额度消费时，按比例给邀请人返利。
+// 返利入账也算奖励，所以邀请人会同时增加 quota 和 reward_quota。
+//
+// 兼容两种站点模式：
+//   - 主站（provider_id=0）：使用全局 InviteTopupRebateRatio，不要求邀请人开启 invite_consume_rebate_enabled。
+//   - 服务商站点（provider_id>0）：使用 ProviderModelPricing 中的 ConsumeRebateRatioLevel1，要求邀请人开启资格。
+//
+// 幂等性：通过 (request_id, level) 唯一索引实现 INSERT ON CONFLICT DO NOTHING，
+// 同一笔结算重复调用不会重复入账。
 func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, rebateCtx *ConsumeRebateContext) (int, int, error) {
 	if inviteeId <= 0 || paidQuota <= 0 {
 		return 0, 0, nil
 	}
-	if rebateCtx == nil || rebateCtx.ProviderId <= 0 || rebateCtx.PublicModelName == "" {
-		return 0, 0, nil
-	}
 	if requestId == "" {
 		requestId = fmt.Sprintf("consume-rebate-%d-%d-%s", inviteeId, common.GetTimestamp(), common.GetRandomString(8))
+	}
+	// 主站（provider_id=0）使用全局一级消费返佣比例，不需要按用户检查返佣资格。
+	// 服务商站点保持原有的模型定价和资格审核策略。
+	mainSite := rebateCtx == nil || rebateCtx.ProviderId <= 0
+	siteProviderId := 0
+	if !mainSite {
+		siteProviderId = rebateCtx.ProviderId
 	}
 
 	var inviterId int
@@ -143,31 +156,51 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, re
 			}
 			return err
 		}
-		if invitee.InviterId <= 0 {
+		// 被邀请人的 provider 必须与返佣站点一致，防止跨站返佣。
+		if invitee.ProviderId != siteProviderId || invitee.InviterId <= 0 {
 			return nil
 		}
 
-		providerId := rebateCtx.ProviderId
-		var pricing ProviderModelPricing
-		query := tx.Where("provider_id = ? AND enabled = ?", providerId, true)
-		if rebateCtx.ProviderPricingId > 0 {
-			query = query.Where("id = ?", rebateCtx.ProviderPricingId)
-		} else {
-			query = query.Where("public_model_name = ?", rebateCtx.PublicModelName)
-		}
-		if err := query.First(&pricing).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil
-			}
-			return err
-		}
-		level1Ratio := pricing.ConsumeRebateRatioLevel1
+		// 确定返佣比例和模型信息。
+		// 主站：从 ProviderRewardConfig 读取全局比例。
+		// 服务商站点：从 ProviderModelPricing 读取各模型配置的比例。
+		level1Ratio := 0.0
 		level2Ratio := 0.0
+		providerPricingId := 0
+		publicModelName := ""
+		baseModelName := ""
+		if rebateCtx != nil {
+			publicModelName = rebateCtx.PublicModelName
+			baseModelName = rebateCtx.BaseModelName
+		}
+		if mainSite {
+			rewardCfg, err := GetProviderRewardConfig(0)
+			if err != nil {
+				return err
+			}
+			level1Ratio = rewardCfg.InviteTopupRebateRatio
+		} else {
+			var pricing ProviderModelPricing
+			query := tx.Where("provider_id = ? AND enabled = ?", siteProviderId, true)
+			if rebateCtx.ProviderPricingId > 0 {
+				query = query.Where("id = ?", rebateCtx.ProviderPricingId)
+			} else {
+				query = query.Where("public_model_name = ?", rebateCtx.PublicModelName)
+			}
+			if err := query.First(&pricing).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil
+				}
+				return err
+			}
+			level1Ratio = pricing.ConsumeRebateRatioLevel1
+			providerPricingId = pricing.Id
+			publicModelName = pricing.PublicModelName
+			baseModelName = pricing.BaseModelName
+		}
 		if level1Ratio <= 0 && level2Ratio <= 0 {
 			return nil
 		}
-		publicModelName := pricing.PublicModelName
-		baseModelName := pricing.BaseModelName
 
 		var level1Inviter inviteUserRef
 		if err := tx.Model(&User{}).Select("id", "inviter_id", "provider_id", "invite_consume_rebate_enabled").Where("id = ?", invitee.InviterId).Take(&level1Inviter).Error; err != nil {
@@ -176,7 +209,12 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, re
 			}
 			return err
 		}
-		if level1Inviter.InviteConsumeRebateEnabled != 1 {
+		// 一级邀请人必须与返佣站点一致，防止跨站分佣。
+		if level1Inviter.ProviderId != siteProviderId {
+			return nil
+		}
+		// 主站不需要邀请人开启分佣资格，服务商站点需要。
+		if !mainSite && level1Inviter.InviteConsumeRebateEnabled != 1 {
 			return nil
 		}
 
@@ -192,6 +230,10 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, re
 			if err := tx.Model(&User{}).Select("id", "provider_id").Where("id = ?", receiverId).Take(&receiver).Error; err != nil {
 				return err
 			}
+			// 返佣接收者也必须与返佣站点一致。
+			if receiver.ProviderId != siteProviderId {
+				return nil
+			}
 			rebate := &ConsumeRebate{
 				ProviderId:        receiver.ProviderId,
 				InviterId:         receiverId,
@@ -201,14 +243,23 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, re
 				SourceQuota:       paidQuota,
 				RebateRatio:       ratio,
 				RebateQuota:       rebateQuota,
-				ProviderPricingId: pricing.Id,
+				ProviderPricingId: providerPricingId,
 				PublicModelName:   publicModelName,
 				BaseModelName:     baseModelName,
 				CreatedAt:         common.GetTimestamp(),
 			}
-			if err := tx.Create(rebate).Error; err != nil {
-				return err
+			result := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "request_id"}, {Name: "level"}},
+				DoNothing: true,
+			}).Create(rebate)
+			if result.Error != nil {
+				return result.Error
 			}
+			if result.RowsAffected == 0 {
+				// 同一结算已存在。视为幂等成功，不重复入账。
+				return nil
+			}
+			// 同时增加 quota 和 reward_quota，因为返佣以奖励形式发放。
 			if err := tx.Model(&User{}).Where("id = ?", receiverId).Updates(map[string]interface{}{
 				"quota":        gorm.Expr("quota + ?", rebateQuota),
 				"reward_quota": gorm.Expr("reward_quota + ?", rebateQuota),
@@ -248,7 +299,12 @@ func ApplyInviteConsumeRebate(inviteeId int, requestId string, paidQuota int, re
 				}
 				return err
 			}
-			if level2Inviter.InviteConsumeRebateEnabled != 1 {
+			// 二级邀请人也必须与返佣站点一致。
+			if level2Inviter.ProviderId != siteProviderId {
+				return nil
+			}
+			// 主站不需要二级邀请人开启分佣资格，服务商站点需要。
+			if !mainSite && level2Inviter.InviteConsumeRebateEnabled != 1 {
 				return nil
 			}
 			if err := applyLevel(2, level2Inviter.Id, level2Ratio); err != nil {

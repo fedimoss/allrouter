@@ -532,6 +532,7 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 //   - channelSummaries: 各变更渠道的摘要信息（渠道名、新增数、删除数）
 //   - addModelSamples: 新增模型的名称样本列表
 //   - removeModelSamples: 删除模型的名称样本列表
+//
 // 返回值：包含 ContentZh（中文 HTML）和 ContentEn（英文 HTML）的模板数据字典
 func buildUpstreamModelUpdateTemplateData(
 	checkedChannels int,
@@ -756,6 +757,9 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 
 	if refreshNeeded {
 		refreshChannelRuntimeCache()
+		// 渠道模型集已变更，刷新定价并触发已开启自动同步的服务商同步
+		model.RefreshPricing()
+		TriggerProviderModelPricingSyncForMainModelChange()
 	}
 
 	if checkedChannels > 0 || common.DebugEnabled {
@@ -873,6 +877,9 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 
 	if modelsChanged {
 		refreshChannelRuntimeCache()
+		// 渠道模型集已变更，刷新定价并触发已开启自动同步的服务商同步
+		model.RefreshPricing()
+		TriggerProviderModelPricingSyncForMainModelChange()
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -919,6 +926,9 @@ func DetectChannelUpstreamModelUpdates(c *gin.Context) {
 	}
 	if modelsChanged {
 		refreshChannelRuntimeCache()
+		// 渠道模型集已变更，刷新定价并触发已开启自动同步的服务商同步
+		model.RefreshPricing()
+		TriggerProviderModelPricingSyncForMainModelChange()
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1068,6 +1078,9 @@ func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 
 	if refreshNeeded {
 		refreshChannelRuntimeCache()
+		// 渠道模型集已变更，刷新定价并触发已开启自动同步的服务商同步
+		model.RefreshPricing()
+		TriggerProviderModelPricingSyncForMainModelChange()
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1141,6 +1154,9 @@ func DetectAllChannelUpstreamModelUpdates(c *gin.Context) {
 
 	if refreshNeeded {
 		refreshChannelRuntimeCache()
+		// 渠道模型集已变更，刷新定价并触发已开启自动同步的服务商同步
+		model.RefreshPricing()
+		TriggerProviderModelPricingSyncForMainModelChange()
 	}
 
 	c.JSON(http.StatusOK, gin.H{

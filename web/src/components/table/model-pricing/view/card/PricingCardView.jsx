@@ -316,7 +316,7 @@ const PricingCardView = ({
                     <div className='pricing-market-desktop-card-title-wrap'>
                       <h3>{model.model_name}</h3>
                       <div className='pricing-market-desktop-card-meta'>
-                        <span>Context: {estimateContext(model.model_name)}</span>
+                        {/* <span>Context: {estimateContext(model.model_name)}</span> */}
                         <span>{estimateChannelCount(model, usableGroup)} {t('个渠道')}</span>
                       </div>
                     </div>

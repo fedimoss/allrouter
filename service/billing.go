@@ -18,6 +18,21 @@ const (
 	BillingSourceSubscription = "subscription"
 )
 
+// walletConsumeBreakdownClaimer 扩展接口，允许资金源同时返回奖励和充值两部分消费明细。
+// 用于异步任务持久化资金来源快照，以便退款时按原路返回。
+type walletConsumeBreakdownClaimer interface {
+	ClaimWalletConsumedForRebate() (reward int, paid int)
+}
+
+// claimWalletConsumeBreakdown 从 BillingSettler 中提取钱包消费的奖励/充值的明细。
+// 如果结算器支持明细拆分则返回完整拆分，否则回退到只返回充值部分（兼容旧路径）。
+func claimWalletConsumeBreakdown(billing relaycommon.BillingSettler) (reward int, paid int) {
+	if claimer, ok := billing.(walletConsumeBreakdownClaimer); ok {
+		return claimer.ClaimWalletConsumedForRebate()
+	}
+	return 0, billing.ClaimPaidConsumedForRebate()
+}
+
 // PreConsumeBilling 根据用户计费偏好创建 BillingSession 并执行预扣费。
 // 会话存储在 relayInfo.Billing 上，供后续 Settle / Refund 使用。
 func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
@@ -76,11 +91,14 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 		if err := relayInfo.Billing.Settle(actualQuota); err != nil {
 			return err
 		}
-		// 普通站点按充值额度消费返佣；服务商站点在利润结算中按利润返佣。
-		// 订阅计费不会触发返佣。
-		paidQuota := relayInfo.Billing.ClaimPaidConsumedForRebate()
+		// 提取钱包消费的奖励/充值明细，记录到 relayInfo 供异步任务持久化。
+		// 异步任务的消费返利延迟到任务 SUCCESS 后才触发，这里只记录快照。
+		rewardQuota, paidQuota := claimWalletConsumeBreakdown(relayInfo.Billing)
+		relayInfo.WalletRewardConsumed = rewardQuota
+		relayInfo.WalletPaidConsumed = paidQuota
 		providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
-		if paidQuota > 0 && providerId <= 0 {
+		// 同步请求直接触发消费返利；异步任务（ForcePreConsume）和违规扣费（DisableConsumeRebate）不在此处触发。
+		if paidQuota > 0 && providerId <= 0 && !relayInfo.ForcePreConsume && !relayInfo.DisableConsumeRebate {
 			if _, _, err := model.ApplyInviteConsumeRebate(relayInfo.UserId, relayInfo.RequestId, paidQuota, consumeRebateContextFromRelay(ctx, relayInfo)); err != nil {
 				logger.LogError(ctx, "error applying consume rebate: "+err.Error())
 			}
@@ -106,6 +124,9 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 	return nil
 }
 
+// consumeRebateContextFromRelay 根据请求上下文构建消费返利上下文。
+// 主站（providerId=0）即使没有配置 publicModel 也能参与返利（使用 OriginModelName 兜底）；
+// 服务商站点必须在 ProviderModelPricing 中配置了对应模型才能参与。
 func consumeRebateContextFromRelay(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) *model.ConsumeRebateContext {
 	providerId := 0
 	providerPricingId := 0
@@ -124,7 +145,22 @@ func consumeRebateContextFromRelay(ctx *gin.Context, relayInfo *relaycommon.Rela
 		publicModel = common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel)
 		baseModel = common.GetContextKeyString(ctx, constant.ContextKeyProviderBaseModel)
 	}
-	if providerId <= 0 || publicModel == "" {
+	// 主站：允许 publicModel 为空，使用 OriginModelName 兜底。
+	if providerId <= 0 {
+		if publicModel == "" && relayInfo != nil {
+			publicModel = relayInfo.OriginModelName
+		}
+		if baseModel == "" {
+			baseModel = publicModel
+		}
+		return &model.ConsumeRebateContext{
+			ProviderId:      0,
+			PublicModelName: publicModel,
+			BaseModelName:   baseModel,
+		}
+	}
+	// 服务商站点：必须配置了 publicModel 才能参与返利。
+	if publicModel == "" {
 		return nil
 	}
 	if baseModel == "" && relayInfo != nil {

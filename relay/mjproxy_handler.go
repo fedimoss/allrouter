@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -223,11 +224,27 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 	if err != nil {
 		return &mjResp.Response
 	}
+	// midjourneyTask 声明为外部变量，供 defer 闭包访问。
+	// 必须在 Insert() 之后才有 Id，defer 中通过 midjourneyTask.Id > 0 检查是否已入库。
+	var midjourneyTask *model.Midjourney
 	defer func() {
-		if mjResp.StatusCode == 200 && mjResp.Response.Code == 1 {
+		// SwapFace 是同步请求：上游返回成功即扣费。
+		// 条件：HTTP 200 + Midjourney code=1（成功）+ 任务已入库。
+		if mjResp.StatusCode == 200 && mjResp.Response.Code == 1 && midjourneyTask != nil && midjourneyTask.Id > 0 {
+			// 设置 ForcePreConsume 确保 PostConsumeQuota 跳过信任额度旁路，强制扣费。
+			info.ForcePreConsume = true
 			err := service.PostConsumeQuota(info, priceData.Quota, 0, true)
 			if err != nil {
 				common.SysLog("error consuming token remain quota: " + err.Error())
+			} else {
+				// 持久化钱包消费的奖励/充值拆分到 midjourney 表。
+				// 这是退款原路返回和消费返利终态结算的数据基础。
+				if err := service.RecordMidjourneyWalletFunding(midjourneyTask, info.WalletRewardConsumed, info.WalletPaidConsumed); err != nil {
+					common.SysLog("error persisting Midjourney wallet funding: " + err.Error())
+				} else if midjourneyTask.Status == string(model.TaskStatusSuccess) {
+					// 如果任务入库时已经是 SUCCESS 状态（上游立即完成），直接触发返利。
+					service.FinalizeMidjourneyConsumeRebate(context.Background(), midjourneyTask)
+				}
 			}
 
 			tokenName := c.GetString("token_name")
@@ -248,7 +265,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		}
 	}()
 	midjResponse := &mjResp.Response
-	midjourneyTask := &model.Midjourney{
+	midjourneyTask = &model.Midjourney{
 		UserId:      info.UserId,
 		Code:        midjResponse.Code,
 		Action:      constant.MjActionSwapFace,
@@ -530,11 +547,27 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	}
 	midjResponse := &midjResponseWithStatus.Response
 
+	// midjourneyTask 声明为外部变量，供 defer 闭包访问。
+	// 必须在 Insert() 之后才有 Id，defer 中通过 midjourneyTask.Id > 0 检查是否已入库。
+	var midjourneyTask *model.Midjourney
 	defer func() {
-		if consumeQuota && midjResponseWithStatus.StatusCode == 200 {
+		// Midjourney Submit 在 consumeQuota=true 且上游返回 HTTP 200 时执行扣费。
+		// 条件：需要扣费 + HTTP 200 + code=1（成功） + 任务已入库。
+		if consumeQuota && midjResponseWithStatus.StatusCode == 200 && midjourneyTask != nil && midjourneyTask.Id > 0 {
+			// 设置 ForcePreConsume 确保 PostConsumeQuota 跳过信任额度旁路，强制扣费。
+			relayInfo.ForcePreConsume = true
 			err := service.PostConsumeQuota(relayInfo, priceData.Quota, 0, true)
 			if err != nil {
 				common.SysLog("error consuming token remain quota: " + err.Error())
+			} else {
+				// 持久化钱包消费的奖励/充值拆分到 midjourney 表。
+				// 后续轮询阶段的状态变更（失败退款、成功返利）依赖此快照实现原路返回。
+				if err := service.RecordMidjourneyWalletFunding(midjourneyTask, relayInfo.WalletRewardConsumed, relayInfo.WalletPaidConsumed); err != nil {
+					common.SysLog("error persisting Midjourney wallet funding: " + err.Error())
+				} else if midjourneyTask.Status == string(model.TaskStatusSuccess) {
+					// 如果任务提交即成功（上游立即返回结果），直接触发消费返利终态结算。
+					service.FinalizeMidjourneyConsumeRebate(context.Background(), midjourneyTask)
+				}
 			}
 			tokenName := c.GetString("token_name")
 			logContent := fmt.Sprintf("模型固定价格 %.2f，分组倍率 %.2f，操作 %s，ID %s", priceData.ModelPrice, priceData.GroupRatioInfo.GroupRatio, midjRequest.Action, midjResponse.Result)
@@ -561,7 +594,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	// 23-队列已满，请稍后再试 {"code":23,"description":"队列已满，请稍后尝试","result":"14001929738841620","properties":{"discordInstanceId":"1118138338562560102"}}
 	// 24-prompt包含敏感词 {"code":24,"description":"可能包含敏感词","properties":{"promptEn":"nude body","bannedWord":"nude"}}
 	// other: 提交错误，description为错误描述
-	midjourneyTask := &model.Midjourney{
+	midjourneyTask = &model.Midjourney{
 		UserId:      relayInfo.UserId,
 		Code:        midjResponse.Code,
 		Action:      midjRequest.Action,

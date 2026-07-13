@@ -123,7 +123,13 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		return false
 	}
 
-	if err := PostConsumeQuota(relayInfo, feeQuota, 0, true); err != nil {
+	// 违规扣费不是正常消费，排除消费返利。
+	// 临时禁用 DisableConsumeRebate 标志，扣费完成后恢复。
+	previousDisableConsumeRebate := relayInfo.DisableConsumeRebate
+	relayInfo.DisableConsumeRebate = true
+	err := PostConsumeQuota(relayInfo, feeQuota, 0, true)
+	relayInfo.DisableConsumeRebate = previousDisableConsumeRebate
+	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("failed to charge violation fee: %s", err.Error()))
 		return false
 	}

@@ -221,9 +221,11 @@ func SetApiRouter(router *gin.Engine) {
 		optionReadRoute := apiRouter.Group("/option")
 		optionReadRoute.Use(middleware.UserAuth())
 		{
-			optionReadRoute.GET("/get_crypto_chain_config", controller.GetCryptoChainConfig) // 获取加密货币链配置
-			optionReadRoute.GET("/get_crypto_rate", controller.GetCryptoRate)                // 获取加密货币汇率
-			optionReadRoute.POST("/wechat_qrcode", controller.UploadWechatCustomerQrcode)    // 上传微信客服二维码
+			optionReadRoute.GET("/get_crypto_chain_config", controller.GetCryptoChainConfig)  // 获取加密货币链配置
+			optionReadRoute.GET("/get_crypto_rate", controller.GetCryptoRate)                 // 获取加密货币汇率
+			optionReadRoute.POST("/wechat_qrcode", controller.UploadWechatCustomerQrcode)     // 上传微信客服二维码
+			optionReadRoute.POST("/telegram_qrcode", controller.UploadTelegramCustomerQrcode) // 上传Telegram客服二维码
+			optionReadRoute.POST("/qq_qrcode", controller.UploadQQCustomerQrcode)             // 上传QQ客服二维码
 		}
 
 		// 币种 Stripe 价格配置（管理后台）
@@ -382,6 +384,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.GET("/reward/config", controller.GetProviderRewardConfig)
 			providerRoute.PUT("/reward/config", controller.UpsertProviderRewardConfig)
 			providerRoute.GET("/reward/summary", controller.GetProviderRewardSummary)
+			providerRoute.POST("/subscription/airdrop", controller.ProviderGrantAirdropSubscription)
 			providerRoute.GET("/redemption", controller.GetProviderRedemptions)
 			providerRoute.GET("/redemption/search", controller.SearchProviderRedemptions)
 			providerRoute.POST("/redemption", controller.AddProviderRedemption)
@@ -401,7 +404,18 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.PUT("/users", controller.UpdateProviderUser)
 			providerRoute.POST("/users/manage", controller.ManageProviderUser)
 			providerRoute.DELETE("/users/:id", controller.DeleteProviderUser)
+			// 服务商所有者管理其私有订阅套餐：模型候选列表、套餐增改、启停。
+			// 与 Admin 订阅接口并行，但 provider_id 被强制绑定到当前服务商，仅能操作自有套餐。
+			providerRoute.GET("/subscription/models", controller.ProviderListSubscriptionPlanModels)
+			providerRoute.GET("/subscription/plans", controller.ProviderListSubscriptionPlans)
+			providerRoute.POST("/subscription/plans", controller.ProviderCreateSubscriptionPlan)
+			providerRoute.PUT("/subscription/plans/:id", controller.ProviderUpdateSubscriptionPlan)
+			providerRoute.PATCH("/subscription/plans/:id", controller.ProviderUpdateSubscriptionPlanStatus)
 			providerRoute.GET("/base_models", controller.ListProviderBaseModels)
+			// 模型定价自动同步：读取/保存开关、手动立即同步
+			providerRoute.GET("/model_pricing/sync_config", controller.GetProviderModelPricingSyncConfig)
+			providerRoute.PUT("/model_pricing/sync_config", controller.UpdateProviderModelPricingSyncConfig)
+			providerRoute.POST("/model_pricing/sync", controller.SyncProviderModelPricing)
 			providerRoute.GET("/model_pricing", controller.ListProviderModelPricing)
 			providerRoute.POST("/model_pricing", controller.UpsertProviderModelPricing)
 			providerRoute.PUT("/model_pricing", controller.UpsertProviderModelPricing)
@@ -437,6 +451,10 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.PUT("/:id/domains/:domain_id", controller.AdminUpdateProviderDomain)
 			providerAdminRoute.DELETE("/:id/domains/:domain_id", controller.AdminDeleteProviderDomain)
 			providerAdminRoute.GET("/base_models", controller.AdminListProviderBaseModels)
+			// 模型定价自动同步（管理员）：读取/保存开关、手动立即同步
+			providerAdminRoute.GET("/:id/model_pricing/sync_config", controller.AdminGetProviderModelPricingSyncConfig)
+			providerAdminRoute.PUT("/:id/model_pricing/sync_config", controller.AdminUpdateProviderModelPricingSyncConfig)
+			providerAdminRoute.POST("/:id/model_pricing/sync", controller.AdminSyncProviderModelPricing)
 			providerAdminRoute.GET("/:id/model_pricing", controller.AdminListProviderModelPricing)
 			providerAdminRoute.POST("/:id/model_pricing", controller.AdminUpsertProviderModelPricing)
 			providerAdminRoute.PUT("/:id/model_pricing", controller.AdminUpsertProviderModelPricing)

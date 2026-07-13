@@ -138,6 +138,14 @@ type RelayInfo struct {
 	// BillingSource indicates whether this request is billed from wallet quota or subscription.
 	// "" or "wallet" => wallet; "subscription" => subscription
 	BillingSource string
+	// WalletRewardConsumed / WalletPaidConsumed are the final wallet funding
+	// breakdown captured after settlement. Async tasks persist this snapshot and
+	// defer invite consumption rebates until the task reaches SUCCESS.
+	WalletRewardConsumed int
+	WalletPaidConsumed   int
+	// DisableConsumeRebate excludes non-consumption deductions (for example,
+	// violation fees) from invite rebates.
+	DisableConsumeRebate bool
 	// SubscriptionId is the user_subscriptions.id used when BillingSource == "subscription"
 	SubscriptionId int
 	// SubscriptionPreConsumed is the amount pre-consumed on subscription item (quota units or 1)
@@ -170,6 +178,7 @@ type RelayInfo struct {
 	// captured at pre-consume time. Non-nil only when billing mode is "tiered_expr".
 	TieredBillingSnapshot *billingexpr.BillingSnapshot
 	BillingRequestInput   *billingexpr.RequestInput
+	QuotaClamp            *common.QuotaClamp
 
 	Request dto.Request
 

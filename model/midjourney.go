@@ -21,8 +21,14 @@ type Midjourney struct {
 	FailReason  string `json:"fail_reason"`
 	ChannelId   int    `json:"channel_id"`
 	Quota       int    `json:"quota"`
-	Buttons     string `json:"buttons"`
-	Properties  string `json:"properties"`
+	// Async wallet funding snapshot. Integer flags keep the schema portable
+	// across SQLite, MySQL and PostgreSQL.
+	WalletRewardUsed             int    `json:"-" gorm:"column:wallet_reward_used;not null;default:0"`
+	WalletPaidUsed               int    `json:"-" gorm:"column:wallet_paid_used;not null;default:0"`
+	WalletQuotaBreakdownRecorded int    `json:"-" gorm:"column:wallet_quota_breakdown_recorded;not null;default:0"`
+	ConsumeRebateSettled         int    `json:"-" gorm:"column:consume_rebate_settled;not null;default:0"`
+	Buttons                      string `json:"buttons"`
+	Properties                   string `json:"properties"`
 }
 
 // TaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段

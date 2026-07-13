@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/samber/hot"
 	"github.com/shopspring/decimal"
@@ -147,6 +148,11 @@ func InvalidateSubscriptionPlanCache(planId int) {
 type SubscriptionPlan struct {
 	Id int `json:"id"`
 
+	// ProviderId 订阅套餐归属服务商 ID。
+	// 0 表示主站套餐（所有主站用户可见），>0 表示该服务商私有套餐（仅该服务商站点用户可见）。
+	// 由本次"服务商私有订阅"特性新增，配套迁移见 docs/sql/20260708_provider_owned_subscriptions.sql。
+	ProviderId int `json:"provider_id" gorm:"type:int;not null;default:0;index"`
+
 	Title    string `json:"title" gorm:"type:varchar(128);not null"`
 	Subtitle string `json:"subtitle" gorm:"type:varchar(255);default:''"`
 
@@ -243,6 +249,92 @@ func NormalizeSubscriptionPlanModelLimits(modelLimits string) string {
 //   - modelName 为空字符串时返回 false
 //
 // 该方法在 PreConsumeUserSubscription 中被调用，用于决定是否从该订阅中扣费。
+
+// VisibleInProvider 判断套餐对指定 provider_id 是否可见/适用。
+// 规则很简单：套餐的 ProviderId 必须与请求上下文中的 provider_id 完全相等。
+// 主站套餐 ProviderId=0，只能被主站(provider_id=0)用户看到/订阅；
+// 服务商私有套餐只能被对应服务商站点的用户看到/订阅。
+// 用于 ensureSubscriptionPlanPurchasable 中的越权订阅拦截。
+func (p *SubscriptionPlan) VisibleInProvider(providerId int) bool {
+	if p == nil {
+		return false
+	}
+	return p.ProviderId == providerId
+}
+
+// ListVisibleSubscriptionPlans 查询指定 provider_id 下已启用的套餐列表，按 sort_order、id 倒序。
+// 主站(provider_id=0)取主站套餐，服务商站点取其私有套餐，实现套餐按服务商隔离展示。
+// 被 controller.GetSubscriptionPlans 调用。
+func ListVisibleSubscriptionPlans(providerId int) ([]SubscriptionPlan, error) {
+	var plans []SubscriptionPlan
+	err := DB.
+		Where("enabled = ? AND provider_id = ?", true, providerId).
+		Order("sort_order desc, id desc").
+		Find(&plans).Error
+	return plans, err
+}
+
+// ListProviderSubscriptionPlanModels 列出某服务商可加入套餐模型白名单的候选模型名称。
+// 数据来源：provider_model_pricing 表中该服务商已启用(enabled=true)的 public_model_name。
+// 处理：去空白、去重、按字母升序返回。providerId<=0(主站)时返回空列表（主站无此约束）。
+// 被 controller.ProviderListSubscriptionPlanModels 调用，前端用于模型多选下拉。
+func ListProviderSubscriptionPlanModels(providerId int) ([]string, error) {
+	if providerId <= 0 {
+		return []string{}, nil
+	}
+	var rows []ProviderModelPricing
+	if err := DB.
+		Select("public_model_name").
+		Where("provider_id = ? AND enabled = ?", providerId, true).
+		Order("public_model_name asc").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	result := make([]string, 0, len(rows))
+	seen := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		modelName := strings.TrimSpace(row.PublicModelName)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := seen[modelName]; ok {
+			continue
+		}
+		seen[modelName] = struct{}{}
+		result = append(result, modelName)
+	}
+	return result, nil
+}
+
+// SubscriptionPlanModelsAllowedForProvider 校验套餐模型白名单是否全部来自指定服务商的模型广场。
+// 返回 (ok, missing, err)：
+//   - providerId<=0 或未配置白名单时直接放行(ok=true)，因为主站套餐不做模型来源约束；
+//   - 否则取该服务商可上架模型集合，逐个比对白名单，收集不在集合中的模型到 missing；
+//   - ok = (len(missing)==0)，missing 用于前端展示"哪些模型不合规"。
+//
+// 被 controller.validateSubscriptionPlanModelLimitsForProvider 调用。
+func SubscriptionPlanModelsAllowedForProvider(providerId int, modelLimits string) (bool, []string, error) {
+	limits := ParseSubscriptionPlanModelLimits(modelLimits)
+	if providerId <= 0 || len(limits) == 0 {
+		return true, nil, nil
+	}
+	allowed, err := ListProviderSubscriptionPlanModels(providerId)
+	if err != nil {
+		return false, nil, err
+	}
+	allowedSet := make(map[string]struct{}, len(allowed))
+	for _, modelName := range allowed {
+		allowedSet[modelName] = struct{}{}
+	}
+	missing := make([]string, 0)
+	for _, modelName := range limits {
+		if _, ok := allowedSet[modelName]; !ok {
+			missing = append(missing, modelName)
+		}
+	}
+	return len(missing) == 0, missing, nil
+}
+
 func (p *SubscriptionPlan) AllowsModel(modelName string) bool {
 	if p == nil {
 		return false
@@ -268,6 +360,7 @@ type SubscriptionOrder struct {
 	Id              int     `json:"id"`
 	UserId          int     `json:"user_id" gorm:"index"`
 	PlanId          int     `json:"plan_id" gorm:"index"`
+	ProviderId      int     `json:"provider_id" gorm:"type:int;not null;default:0;index"` // 订单归属服务商 ID（0=主站订单，>0=服务商私有套餐订单，用于后续给服务商所有者结算订阅收入）
 	Money           float64 `json:"money"`
 	Currency        string  `json:"currency" gorm:"type:varchar(10);default:''"`        // 币种符号（￥/$）
 	OriginalMoney   float64 `json:"original_money" gorm:"type:decimal(18,6);default:0"` // 用户实际支付的原始金额（用户币种）
@@ -319,11 +412,85 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 	return &order
 }
 
+// applyProviderSubscriptionIncomeTx 在订阅订单完成事务内，为服务商私有套餐订单结算订阅收入：
+// 把用户支付的金额按 QuotaPerUnit 换算成额度，发放给该服务商的"所有者用户"(provider.owner_user_id)。
+//
+// 入账逻辑：
+//  1. 仅当 order.ProviderId>0 且 order.Id>0 时才处理（主站订单不分账）；
+//  2. incomeQuota = order.Money × QuotaPerUnit，<=0 则跳过；
+//  3. 用固定 tradeNo "PROVIDER-SUBSCRIPTION-{orderId}" 做幂等键：若已有对应 TopUp 记录，说明已入账过，直接返回已入账的 userId(不重复发钱)；
+//  4. 查 provider.owner_user_id，必须 >0，否则报错；
+//  5. 给该 owner 用户的 quota 字段原子加 incomeQuota，并写入一条 PaymentMethod=provider_subscription 的 TopUp 流水；
+//  6. 返回 (ownerUserId, incomeQuota, created, err)，调用方据此在事务外更新缓存与日志。
+//
+// 注意：该函数在事务内调用，DB 操作要么全成功要么全回滚；幂等性靠 tradeNo 唯一保证，不会因回调重复而重复发钱。
+func applyProviderSubscriptionIncomeTx(tx *gorm.DB, order *SubscriptionOrder) (int, int, bool, error) {
+	if tx == nil || order == nil || order.ProviderId <= 0 || order.Id <= 0 {
+		return 0, 0, false, nil
+	}
+	incomeQuota := int(decimal.NewFromFloat(order.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+	if incomeQuota <= 0 {
+		return 0, 0, false, nil
+	}
+	// 幂等键：每个订阅订单最多生成一条服务商收入流水，避免重复回调重复入账。
+	tradeNo := fmt.Sprintf("PROVIDER-SUBSCRIPTION-%d", order.Id)
+	var existing TopUp
+	if err := tx.Where("trade_no = ?", tradeNo).First(&existing).Error; err == nil {
+		// 已存在收入流水，视为本次"未新增入账"，返回已记录的 userId，created=false。
+		return existing.UserId, 0, false, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, 0, false, err
+	}
+	var provider Provider
+	if err := tx.Select("id", "owner_user_id").Where("id = ?", order.ProviderId).First(&provider).Error; err != nil {
+		return 0, 0, false, err
+	}
+	if provider.OwnerUserId <= 0 {
+		return 0, 0, false, errors.New("provider owner user id is empty")
+	}
+	// 原子加额度，避免并发回调时额度丢失。
+	if err := tx.Model(&User{}).Where("id = ?", provider.OwnerUserId).Update("quota", gorm.Expr("quota + ?", incomeQuota)).Error; err != nil {
+		return 0, 0, false, err
+	}
+	now := common.GetTimestamp()
+	// 记录一条服务商订阅收入流水，PaymentMethod=provider_subscription，
+	// 便于在充值流水中与 provider_profit(分润) 区分，并在账单/报表中聚合展示。
+	topUp := &TopUp{
+		ProviderId:      order.ProviderId,
+		UserId:          provider.OwnerUserId,
+		Amount:          int64(incomeQuota),
+		Money:           order.Money,
+		TradeNo:         tradeNo,
+		PaymentMethod:   TopUpPaymentMethodProviderSubscription,
+		PaymentProvider: order.PaymentProvider,
+		BizType:         TopUpBizTypePayment,
+		SourceID:        order.Id,
+		CreateTime:      now,
+		CompleteTime:    now,
+		Status:          common.TopUpStatusSuccess,
+		Currency:        order.Currency,
+		OriginalMoney:   order.OriginalMoney,
+	}
+	if topUp.Currency == "" {
+		topUp.Currency = "USD"
+	}
+	if topUp.OriginalMoney == 0 {
+		topUp.OriginalMoney = order.Money
+	}
+	if err := tx.Create(topUp).Error; err != nil {
+		return 0, 0, false, err
+	}
+	return provider.OwnerUserId, incomeQuota, true, nil
+}
+
 // User subscription instance
 type UserSubscription struct {
 	Id     int `json:"id"`
 	UserId int `json:"user_id" gorm:"index;index:idx_user_sub_active,priority:1"`
 	PlanId int `json:"plan_id" gorm:"index"`
+	// ProviderId 用户订阅实例归属服务商 ID（0=主站，>0=服务商）。
+	// 创建时从订单/用户 provider_id 继承，便于按服务商维度查询用户有效订阅、隔离计费。
+	ProviderId int `json:"provider_id" gorm:"type:int;not null;default:0;index"`
 
 	AmountTotal int64 `json:"amount_total" gorm:"type:bigint;not null;default:0"`
 	AmountUsed  int64 `json:"amount_used" gorm:"type:bigint;not null;default:0"`
@@ -496,6 +663,23 @@ func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	return group, nil
 }
 
+// getUserProviderIdByIdTx 查询指定用户绑定的 provider_id（0 表示主站用户，>0 表示归属某服务商）。
+// 在 CreateUserSubscriptionFromPlanTx 中用于：当调用方未显式传入 providerId 时，按用户归属自动继承，
+// 保证订阅实例与用户在同一个服务商上下文中。
+func getUserProviderIdByIdTx(tx *gorm.DB, userId int) (int, error) {
+	if userId <= 0 {
+		return 0, errors.New("invalid userId")
+	}
+	if tx == nil {
+		tx = DB
+	}
+	var providerId int
+	if err := tx.Model(&User{}).Where("id = ?", userId).Select("provider_id").Find(&providerId).Error; err != nil {
+		return 0, err
+	}
+	return providerId, nil
+}
+
 func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now int64) (string, error) {
 	if tx == nil || sub == nil {
 		return "", errors.New("invalid downgrade args")
@@ -531,7 +715,11 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 	return prevGroup, nil
 }
 
-func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+// CreateUserSubscriptionFromPlanTx 基于套餐创建用户订阅实例（事务内）。
+// providerIds 为可选可变参数：显式传入时用传入值作为订阅实例 ProviderId（如订单完成时用 order.ProviderId）；
+// 未传入时回退到从用户表查 provider_id，保证订阅实例归属与用户一致。
+// 这样既支持"按订单归属"也支持"按用户归属"两种语义，且保持向后兼容(原签名仍可用)。
+func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, providerIds ...int) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -564,6 +752,22 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if nextReset > 0 {
 		lastReset = now.Unix()
 	}
+	// 解析订阅实例归属服务商：优先用显式传入的 providerIds[0]，
+	// 否则按用户表的 provider_id 自动继承，保证订阅与用户在同一服务商上下文。
+	userProviderId, err := getUserProviderIdByIdTx(tx, userId)
+	if err != nil {
+		return nil, err
+	}
+	providerId := userProviderId
+	if len(providerIds) > 0 {
+		providerId = providerIds[0]
+	}
+	if providerId != userProviderId {
+		return nil, errors.New("subscription provider does not match user provider")
+	}
+	if plan.ProviderId != providerId {
+		return nil, errors.New("subscription plan does not belong to user provider")
+	}
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
 	prevGroup := ""
 	if upgradeGroup != "" {
@@ -582,6 +786,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	sub := &UserSubscription{
 		UserId:        userId,
 		PlanId:        plan.Id,
+		ProviderId:    providerId,
 		AmountTotal:   plan.TotalAmount,
 		AmountUsed:    0,
 		StartTime:     now.Unix(),
@@ -616,6 +821,11 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	var logMoney float64
 	var logPaymentMethod string
 	var upgradeGroup string
+	// 服务商订阅收入结算结果：在事务内由 applyProviderSubscriptionIncomeTx 填充，
+	// 事务成功后再在事务外更新额度缓存并写日志。
+	var providerIncomeOwnerId int
+	var providerIncomeQuota int
+	var providerIncomeCreated bool
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
@@ -629,7 +839,18 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			return ErrPaymentMethodMismatch
 		}
 		if order.Status == common.TopUpStatusSuccess {
-			return upsertSubscriptionTopUpTx(tx, &order)
+			// 订单此前已完成（重复回调/补单）：仍要保证幂等地补齐充值流水与服务商收入，避免漏发钱。
+			if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
+				return err
+			}
+			incomeOwnerId, incomeQuota, incomeCreated, err := applyProviderSubscriptionIncomeTx(tx, &order)
+			if err != nil {
+				return err
+			}
+			providerIncomeOwnerId = incomeOwnerId
+			providerIncomeQuota = incomeQuota
+			providerIncomeCreated = incomeCreated
+			return nil
 		}
 		if order.Status != common.TopUpStatusPending {
 			return ErrSubscriptionOrderStatusInvalid
@@ -642,7 +863,8 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			// still allow completion for already purchased orders
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+		// 用订单上的 ProviderId 创建订阅实例，确保实例归属与订单一致（服务商私有套餐 → 服务商站点用户实例）。
+		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order", order.ProviderId)
 		if err != nil {
 			return err
 		}
@@ -664,6 +886,14 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
 			return err
 		}
+		// 首次完成订单时同样结算服务商订阅收入，写入 owner 用户额度与一条 provider_subscription 流水。
+		incomeOwnerId, incomeQuota, incomeCreated, err := applyProviderSubscriptionIncomeTx(tx, &order)
+		if err != nil {
+			return err
+		}
+		providerIncomeOwnerId = incomeOwnerId
+		providerIncomeQuota = incomeQuota
+		providerIncomeCreated = incomeCreated
 		logUserId = order.UserId
 		logPlanTitle = plan.Title
 		logMoney = order.Money
@@ -679,6 +909,12 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	if logUserId > 0 {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
+	}
+	// 事务提交成功后：异步刷新服务商 owner 用户的额度缓存，并记录一条收入到账日志。
+	// 放在事务外是为了避免缓存/日志失败回滚数据库事务（缓存最终一致性即可）。
+	if providerIncomeCreated && providerIncomeOwnerId > 0 && providerIncomeQuota > 0 {
+		asyncIncrUserQuotaCache(providerIncomeOwnerId, providerIncomeQuota)
+		RecordLog(providerIncomeOwnerId, LogTypeTopup, fmt.Sprintf("provider subscription income credited %s, source user ID %d, trade no %s", logger.LogQuota(providerIncomeQuota), logUserId, tradeNo))
 	}
 	return nil
 }
@@ -702,7 +938,9 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			topup = TopUp{
-				UserId:          order.UserId,
+				UserId: order.UserId,
+				// 新建充值流水时带上服务商归属，保证流水与订单在同一服务商上下文。
+				ProviderId:      order.ProviderId,
 				Amount:          0,
 				Money:           order.Money,
 				TradeNo:         order.TradeNo,
@@ -721,6 +959,10 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 		return err
 	}
 	topup.Money = order.Money
+	// 兼容历史数据：若旧流水未带 provider_id，则按订单补齐，避免老订单缺少服务商归属。
+	if topup.ProviderId == 0 {
+		topup.ProviderId = order.ProviderId
+	}
 	// 补充币种信息（仅在 TopUp 尚未设置时）
 	if topup.Currency == "" {
 		topup.Currency = order.Currency
@@ -809,10 +1051,10 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 	return "", nil
 }
 
-// GrantAirdropSubscription 向指定用户授予全局配置的空投订阅计划（common.AirdropSubscriptionPlanId）。
+// GrantAirdropSubscription 向指定用户授予其所属站点配置的空投订阅计划。
 //
 // 功能说明：
-//   - 管理员在运营设置中配置一个全局的空投套餐 ID（AirdropSubscriptionPlanId）。
+//   - 主站使用 AirdropSubscriptionPlanId；服务商使用 ProviderRewardConfig 中的对应字段。
 //   - 调用此函数后，直接为该用户创建一个来源为 "airdrop" 的活跃订阅，无需支付。
 //
 // 使用场景：
@@ -831,13 +1073,18 @@ func GrantAirdropSubscription(userId int) (string, error) {
 	if userId <= 0 {
 		return "", errors.New("invalid user id")
 	}
-	if common.AirdropSubscriptionPlanId <= 0 {
-		return "", nil
-	}
 	var planTitle string
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		plan, err := getSubscriptionPlanByIdTx(tx, common.AirdropSubscriptionPlanId)
+		providerId, err := getUserProviderIdByIdTx(tx, userId)
+		if err != nil {
+			return err
+		}
+		planId, err := getSubscriptionRewardPlanIdTx(tx, providerId, false)
+		if err != nil || planId <= 0 {
+			return nil
+		}
+		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
@@ -845,6 +1092,9 @@ func GrantAirdropSubscription(userId int) (string, error) {
 			return err
 		}
 		if plan == nil || !plan.Enabled {
+			return nil
+		}
+		if plan.ProviderId != providerId {
 			return nil
 		}
 		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "airdrop"); err != nil {
@@ -864,6 +1114,29 @@ func GrantAirdropSubscription(userId int) (string, error) {
 		RecordLog(userId, LogTypeSystem, fmt.Sprintf("airdrop subscription reward %s", planTitle))
 	}
 	return planTitle, nil
+}
+
+// getSubscriptionRewardPlanIdTx 通过站点解析奖励配置。
+// 提供商站点永远不会继承主站点的订阅奖励计划。
+func getSubscriptionRewardPlanIdTx(tx *gorm.DB, providerId int, registerGift bool) (int, error) {
+	if providerId <= 0 {
+		if registerGift {
+			return common.RegisterGiftSubscriptionPlanId, nil
+		}
+		return common.AirdropSubscriptionPlanId, nil
+	}
+	var cfg ProviderRewardConfig
+	query := tx.Where("provider_id = ?", providerId).First(&cfg)
+	if errors.Is(query.Error, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	if query.Error != nil {
+		return 0, query.Error
+	}
+	if registerGift {
+		return cfg.RegisterGiftSubscriptionPlanId, nil
+	}
+	return cfg.AirdropSubscriptionPlanId, nil
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.
@@ -1245,9 +1518,13 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			return nil
 		}
 
+		userProviderId, err := getUserProviderIdByIdTx(tx, userId)
+		if err != nil {
+			return err
+		}
 		var subs []UserSubscription
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").
-			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+			Where("user_id = ? AND provider_id = ? AND status = ? AND end_time > ?", userId, userProviderId, "active", now).
 			Order("end_time asc, id asc").
 			Find(&subs).Error; err != nil {
 			return errors.New("no active subscription")
@@ -1260,6 +1537,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
+			}
+			if plan.ProviderId != sub.ProviderId {
+				continue
 			}
 			if !plan.AllowsModel(modelName) {
 				continue

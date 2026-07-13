@@ -34,3 +34,35 @@ func TestUserProfileColumnLengthsMatchSQLSnapshot(t *testing.T) {
 		})
 	}
 }
+
+func TestFillUserProviderNames(t *testing.T) {
+	tx := DB.Begin()
+	if tx.Error != nil {
+		t.Fatal(tx.Error)
+	}
+	defer tx.Rollback()
+
+	provider := Provider{OwnerUserId: 987654321, Name: "Provider Site"}
+	if err := tx.Create(&provider).Error; err != nil {
+		t.Fatal(err)
+	}
+	users := []*User{
+		{ProviderId: 0},
+		{ProviderId: provider.Id},
+		{ProviderId: provider.Id},
+		{ProviderId: provider.Id + 1000000},
+	}
+
+	if err := fillUserProviderNames(tx, users); err != nil {
+		t.Fatal(err)
+	}
+	if users[0].ProviderName != "" {
+		t.Fatalf("main-site provider name = %q, want empty", users[0].ProviderName)
+	}
+	if users[1].ProviderName != provider.Name || users[2].ProviderName != provider.Name {
+		t.Fatalf("provider names = %q, %q, want %q", users[1].ProviderName, users[2].ProviderName, provider.Name)
+	}
+	if users[3].ProviderName != "" {
+		t.Fatalf("missing provider name = %q, want empty", users[3].ProviderName)
+	}
+}

@@ -18,9 +18,77 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Skeleton, Tag } from '@douyinfe/semi-ui';
+import { Card, Skeleton, Tag, Tooltip } from '@douyinfe/semi-ui';
 import { useNavigate } from 'react-router-dom';
 import { Hourglass, DollarSign, Hash, Info, Orbit } from 'lucide-react';
+import i18next from 'i18next';
+
+const COMPACT_NUMBER_THRESHOLD = 10_000;
+
+const formatCompactValue = (value) => {
+  const fullValue = String(value);
+  const normalizedValue = fullValue.trim().replaceAll(',', '');
+  const valueParts = normalizedValue.match(
+    /^([^0-9+-]*)([+-]?\d+(?:\.\d+)?)(.*)$/,
+  );
+
+  if (!valueParts) {
+    return {
+      displayValue: value,
+      compactUnit: '',
+      trailingValue: '',
+      fullValue,
+      isCompact: false,
+    };
+  }
+
+  const numericValue = Number(valueParts[2]);
+  if (
+    !Number.isFinite(numericValue) ||
+    Math.abs(numericValue) < COMPACT_NUMBER_THRESHOLD
+  ) {
+    return {
+      displayValue: value,
+      compactUnit: '',
+      trailingValue: '',
+      fullValue,
+      isCompact: false,
+    };
+  }
+
+  const locale = i18next.resolvedLanguage || i18next.language || 'zh-CN';
+  let compactParts;
+  try {
+    compactParts = new Intl.NumberFormat(locale, {
+      notation: 'compact',
+      compactDisplay: 'short',
+      maximumFractionDigits: 2,
+    }).formatToParts(numericValue);
+  } catch {
+    compactParts = new Intl.NumberFormat('zh-CN', {
+      notation: 'compact',
+      compactDisplay: 'short',
+      maximumFractionDigits: 2,
+    }).formatToParts(numericValue);
+  }
+
+  const compactUnit = compactParts
+    .filter((part) => part.type === 'compact')
+    .map((part) => part.value)
+    .join('');
+  const compactNumber = compactParts
+    .filter((part) => part.type !== 'compact')
+    .map((part) => part.value)
+    .join('');
+
+  return {
+    displayValue: `${valueParts[1]}${compactNumber}`,
+    compactUnit,
+    trailingValue: valueParts[3],
+    fullValue,
+    isCompact: true,
+  };
+};
 
 const StatsCards = ({
   groupedStatsData,
@@ -50,6 +118,7 @@ const StatsCards = ({
   const totalQuota = formatValue(resource?.[0]?.value, '0');
   const totalTokens = formatValue(resource?.[1]?.value, '0');
   const userTotalTokenUsed = formatValue(resource?.[2]?.value, '0');
+  const allUsersTotalTokenUsed = formatValue(resource?.[3]?.value, null);
   const userTotalTokenUsedTitle = resource?.[2]?.title || `${t('已用')} Tokens`;
   const avgRPM = formatValue(performance?.[0]?.value, '0');
   const avgTPM = formatValue(performance?.[1]?.value, '0');
@@ -86,7 +155,8 @@ const StatsCards = ({
       key: 'resource',
       title: '24H 资源消耗',
       icon: Info,
-      iconClassName: 'dashboard-stats-v3__icon dashboard-stats-v3__icon--violet',
+      iconClassName:
+        'dashboard-stats-v3__icon dashboard-stats-v3__icon--violet',
       metricBlocks: [
         { label: '统计额度', value: totalQuota, compact: true },
         { label: '统计 Tokens', value: totalTokens, compact: true },
@@ -97,7 +167,8 @@ const StatsCards = ({
       key: 'performance',
       title: '性能指标',
       icon: Hourglass,
-      iconClassName: 'dashboard-stats-v3__icon dashboard-stats-v3__icon--orange',
+      iconClassName:
+        'dashboard-stats-v3__icon dashboard-stats-v3__icon--orange',
       metricBlocks: [
         { label: '平均RPM', value: avgRPM, compact: true },
         { label: '平均TPM', value: avgTPM, compact: true },
@@ -113,23 +184,61 @@ const StatsCards = ({
       iconClassName: 'dashboard-stats-v3__icon dashboard-stats-v3__icon--blue',
       onClick: resource?.[2]?.onClick,
     },
+    ...(allUsersTotalTokenUsed !== null
+      ? [
+          {
+            key: 'all-users-token-used',
+            title: '全站 Token 消耗总量',
+            titleTranslated: true,
+            value: allUsersTotalTokenUsed,
+            icon: Hash,
+            iconClassName:
+              'dashboard-stats-v3__icon dashboard-stats-v3__icon--violet',
+            onClick: resource?.[3]?.onClick,
+          },
+        ]
+      : []),
   ];
 
-  const renderValue = (value, width = 118) => (
-    <Skeleton
-      loading={loading}
-      active
-      placeholder={
-        <Skeleton.Paragraph
-          active
-          rows={1}
-          style={{ width: `${width}px`, height: '34px', marginTop: 0 }}
-        />
-      }
-    >
-      <span>{value}</span>
-    </Skeleton>
-  );
+  const renderValue = (value, width = 118) => {
+    const { displayValue, compactUnit, trailingValue, fullValue, isCompact } =
+      formatCompactValue(value);
+    const valueNode = (
+      <span
+        className='dashboard-stats-v3__display-value'
+        aria-label={isCompact ? fullValue : undefined}
+        tabIndex={isCompact ? 0 : undefined}
+      >
+        {displayValue}
+        {compactUnit ? (
+          <span className='dashboard-stats-v3__compact-unit'>
+            {compactUnit}
+          </span>
+        ) : null}
+        {trailingValue}
+      </span>
+    );
+
+    return (
+      <Skeleton
+        loading={loading}
+        active
+        placeholder={
+          <Skeleton.Paragraph
+            active
+            rows={1}
+            style={{ width: `${width}px`, height: '34px', marginTop: 0 }}
+          />
+        }
+      >
+        {isCompact ? (
+          <Tooltip content={fullValue}>{valueNode}</Tooltip>
+        ) : (
+          valueNode
+        )}
+      </Skeleton>
+    );
+  };
 
   const renderCard = (card) => {
     const Icon = card.icon;
@@ -224,7 +333,11 @@ const StatsCards = ({
 
   return (
     <section className='dashboard-stats-v2 dashboard-stats-v3'>
-      <div className='dashboard-stats-v2__primary-grid dashboard-stats-v3__grid'>
+      <div
+        className={`dashboard-stats-v2__primary-grid dashboard-stats-v3__grid${
+          cards.length > 5 ? ' dashboard-stats-v3__grid--six' : ''
+        }`}
+      >
         {cards.map(renderCard)}
       </div>
     </section>

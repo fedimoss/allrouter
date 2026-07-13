@@ -341,6 +341,16 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "RegisterGiftSubscriptionPlanId", "AirdropSubscriptionPlanId":
+		planId, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil {
+			common.ApiErrorMsg(c, "订阅套餐 ID 必须是整数")
+			return
+		}
+		if err := model.ValidateSubscriptionRewardPlanForProvider(0, planId); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	case "USDExchangeRate":
 		if err := syncUSDExchangeRateToCurrencyConfig(option.Value.(string)); err != nil {
 			c.JSON(http.StatusOK, gin.H{
@@ -802,10 +812,200 @@ func UploadWechatCustomerQrcode(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"url": qrcodeURL})
 }
 
+// UploadTelegramCustomerQrcode 上传Telegram客服二维码
+func UploadTelegramCustomerQrcode(c *gin.Context) {
+	userId := c.GetInt("id") // 用户ID
+
+	// 校验文件是否存在
+	file, err := c.FormFile("telegram_qrcode")
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgWebLogoNotSelected)
+		return
+	}
+
+	// 校验文件大小（比如限制 5MB）
+	if file.Size > 5<<20 {
+		common.ApiErrorI18n(c, i18n.MsgTelegramCustomerQrcodeSizeExceeded)
+		return
+	}
+
+	// 校验文件类型(JPG、PNG、GIF、SVG)
+	contentType := file.Header.Get("Content-Type")
+	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/gif" && contentType != "image/svg+xml" {
+		common.ApiErrorI18n(c, i18n.MsgTelegramCustomerQrcodeFormatUnsupported)
+		return
+	}
+
+	// 打开文件内容
+	src, err := file.Open()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	defer src.Close()
+
+	// 路径: static/telegramQrcode/用户ID
+	baseDir := filepath.Join("static", "telegramQrcode", strconv.Itoa(userId))
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 创建SHA256哈希计算器，用于生成文件唯一标识
+	hasher := sha256.New()
+
+	// 创建临时目录，用于暂存文件
+	// 路径: static/telegramQrcode/用户ID/tmp
+	tmpDir := filepath.Join(baseDir, "tmp")
+	_ = os.MkdirAll(tmpDir, 0755) // 忽略创建错误，可能已存在
+
+	// 获取文件扩展名
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+
+	// 构建临时文件路径（使用随机文件名）,防止上传文件名重复
+	// 路径: static/telegramQrcode/用户ID/tmp/xxxxxx.jpg
+	tmpPath := filepath.Join(tmpDir, uuid.New().String()+ext)
+
+	// 创建临时文件
+	dst, err := os.Create(tmpPath)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 手动控制关闭时机：将文件内容同时复制到临时文件和哈希计算器
+	// 使用io.MultiWriter实现一次读取，同时写入两个目标
+	_, err = io.Copy(io.MultiWriter(dst, hasher), src)
+	if err != nil {
+		dst.Close() // 出错时立即关闭目标文件
+		common.ApiError(c, err)
+	}
+
+	// 先关闭目标文件，确保数据完全写入
+	if err := dst.Close(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 生成文件哈希值（十六进制字符串）
+	hash := hex.EncodeToString(hasher.Sum(nil))
+
+	// 构建最终文件路径（使用哈希值+原始扩展名）
+	// 路径: static/telegramQrcode/用户ID/xxxxxx.jpg
+	finalPath := filepath.Join(baseDir, hash+ext)
+
+	// 将临时文件移动到最终位置（原子操作，比复制更高效）
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 返回成功响应
+	qrcodeURL := "/static/telegramQrcode/" + strconv.Itoa(userId) + "/" + hash + ext
+	common.ApiSuccess(c, gin.H{"url": qrcodeURL})
+}
+
+// UploadQQCustomerQrcode 上传QQ客服二维码
+func UploadQQCustomerQrcode(c *gin.Context) {
+	userId := c.GetInt("id") // 用户ID
+
+	// 校验文件是否存在
+	file, err := c.FormFile("qq_qrcode")
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgWebLogoNotSelected)
+		return
+	}
+
+	// 校验文件大小（比如限制 5MB）
+	if file.Size > 5<<20 {
+		common.ApiErrorI18n(c, i18n.MsgQQCustomerQrcodeSizeExceeded)
+		return
+	}
+
+	// 校验文件类型(JPG、PNG、GIF、SVG)
+	contentType := file.Header.Get("Content-Type")
+	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/gif" && contentType != "image/svg+xml" {
+		common.ApiErrorI18n(c, i18n.MsgQQCustomerQrcodeFormatUnsupported)
+		return
+	}
+
+	// 打开文件内容
+	src, err := file.Open()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	defer src.Close()
+
+	// 路径: static/qqQrcode/用户ID
+	baseDir := filepath.Join("static", "qqQrcode", strconv.Itoa(userId))
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 创建SHA256哈希计算器，用于生成文件唯一标识
+	hasher := sha256.New()
+
+	// 创建临时目录，用于暂存文件
+	// 路径: static/qqQrcode/用户ID/tmp
+	tmpDir := filepath.Join(baseDir, "tmp")
+	_ = os.MkdirAll(tmpDir, 0755) // 忽略创建错误，可能已存在
+
+	// 获取文件扩展名
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+
+	// 构建临时文件路径（使用随机文件名）,防止上传文件名重复
+	// 路径: static/qqQrcode/用户ID/tmp/xxxxxx.jpg
+	tmpPath := filepath.Join(tmpDir, uuid.New().String()+ext)
+
+	// 创建临时文件
+	dst, err := os.Create(tmpPath)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 手动控制关闭时机：将文件内容同时复制到临时文件和哈希计算器
+	// 使用io.MultiWriter实现一次读取，同时写入两个目标
+	_, err = io.Copy(io.MultiWriter(dst, hasher), src)
+	if err != nil {
+		dst.Close() // 出错时立即关闭目标文件
+		common.ApiError(c, err)
+	}
+
+	// 先关闭目标文件，确保数据完全写入
+	if err := dst.Close(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 生成文件哈希值（十六进制字符串）
+	hash := hex.EncodeToString(hasher.Sum(nil))
+
+	// 构建最终文件路径（使用哈希值+原始扩展名）
+	// 路径: static/qqQrcode/用户ID/xxxxxx.jpg
+	finalPath := filepath.Join(baseDir, hash+ext)
+
+	// 将临时文件移动到最终位置（原子操作，比复制更高效）
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 返回成功响应
+	qrcodeURL := "/static/qqQrcode/" + strconv.Itoa(userId) + "/" + hash + ext
+	common.ApiSuccess(c, gin.H{"url": qrcodeURL})
+}
+
 // setWebSupportRequest 设置网站客服请求
 type setWebSupportRequest struct {
-	WechatSupport string `json:"wechat_support"` // 微信客服
-	QQSupport     string `json:"qq_support"`     // QQ客服
+	WechatSupport       string `json:"wechat_support"`        // 微信客服二维码
+	WechatSupportDesc   string `json:"wechat_support_desc"`   // 微信客服文本描述
+	QQSupport           string `json:"qq_support"`            // QQ客服文本描述
+	QQSupportQrcode     string `json:"qq_support_qrcode"`     // QQ客服二维码
+	TelegramSupport     string `json:"telegram_support"`      // Telegram客服二维码
+	TelegramSupportDesc string `json:"telegram_support_desc"` // Telegram客服文本描述
 }
 
 // SetWebSupport 设置网站客服
@@ -820,8 +1020,25 @@ func SetWebSupport(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if err := model.UpdateOption("WechatSupportDesc", strings.TrimSpace(req.WechatSupportDesc)); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	// 更新QQ客服
 	if err := model.UpdateOption("QQSupport", strings.TrimSpace(req.QQSupport)); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.UpdateOption("QQSupportQrcode", strings.TrimSpace(req.QQSupportQrcode)); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// 更新Telegram客服
+	if err := model.UpdateOption("TelegramSupport", strings.TrimSpace(req.TelegramSupport)); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.UpdateOption("TelegramSupportDesc", strings.TrimSpace(req.TelegramSupportDesc)); err != nil {
 		common.ApiError(c, err)
 		return
 	}
