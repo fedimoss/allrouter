@@ -24,13 +24,18 @@ import {
   renderModelTag,
   stringToColor,
   calculateModelPrice,
+  formatDynamicPriceSummary,
   getModelPriceItems,
   getLobeHubIcon,
 } from '../../../../../helpers';
 import { renderLimitedItems, renderDescription } from '../../../../common/ui/RenderUtils';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
-function renderQuotaType(type, t) {
+function renderQuotaType(type, t, record = {}) {
+  if (record.billing_mode === 'tiered_expr') {
+    return <Tag color='amber' shape='circle'>{t('动态计费')}</Tag>;
+  }
+
   switch (type) {
     case 1:
       return <Tag color='teal' shape='circle'>{t('按次计费')}</Tag>;
@@ -135,7 +140,7 @@ export const getPricingTableColumns = ({
     {
       title: t('计费类型'),
       dataIndex: 'quota_type',
-      render: (text) => renderQuotaType(parseInt(text, 10), t),
+      render: (text, record) => renderQuotaType(parseInt(text, 10), t, record),
       sorter: (a, b) => a.quota_type - b.quota_type,
     },
     {
@@ -167,8 +172,8 @@ export const getPricingTableColumns = ({
         const priceData = getPriceData(record);
         return (
           <div className='space-y-1'>
-            <div className='text-gray-700'>{t('模型倍率')}：{record.quota_type === 0 ? text : t('无')}</div>
-            <div className='text-gray-700'>{t('补全倍率')}：{record.quota_type === 0 ? completionRatio : t('无')}</div>
+            <div className='text-gray-700'>{t('模型倍率')}：{priceData.isDynamicPricing ? t('动态计费') : (record.quota_type === 0 ? text : t('无'))}</div>
+            <div className='text-gray-700'>{t('补全倍率')}：{priceData.isDynamicPricing ? t('动态计费') : (record.quota_type === 0 ? completionRatio : t('无'))}</div>
             <div className='text-gray-700'>{t('分组倍率')}：{priceData?.usedGroupRatio ?? '-'}</div>
           </div>
         );
@@ -182,6 +187,14 @@ export const getPricingTableColumns = ({
     ...(isMobile ? {} : { fixed: 'right' }),
     render: (text, record) => {
       const priceData = getPriceData(record);
+      if (priceData.isDynamicPricing) {
+        return (
+          <div className='space-y-1'>
+            {formatDynamicPriceSummary(priceData.billingExpr, t, priceData.usedGroupRatio)}
+          </div>
+        );
+      }
+
       const priceItems = getModelPriceItems(priceData, t, siteDisplayType);
       return (
         <div className='space-y-1'>

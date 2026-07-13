@@ -32,6 +32,7 @@ import {
   getLogOther,
   renderModelTag,
   renderModelPriceSimple,
+  renderTieredModelPriceSimple,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import { CircleAlert, Sparkles } from 'lucide-react';
@@ -425,6 +426,16 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
         },
         text ? { text: `${t('详情')}：${text}`, tone: 'secondary' } : null,
       ].filter(Boolean),
+    };
+  }
+
+  if (other?.billing_mode === 'tiered_expr') {
+    return {
+      segments: renderTieredModelPriceSimple({
+        ...other,
+        displayMode: billingDisplayMode,
+        outputMode: 'segments',
+      }),
     };
   }
 

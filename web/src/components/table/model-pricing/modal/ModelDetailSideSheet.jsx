@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { SideSheet, Typography, Button } from '@douyinfe/semi-ui';
+import { SideSheet, Typography, Button, Divider } from '@douyinfe/semi-ui';
 import { IconClose } from '@douyinfe/semi-icons';
 
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
@@ -26,6 +26,7 @@ import ModelHeader from './components/ModelHeader';
 import ModelBasicInfo from './components/ModelBasicInfo';
 import ModelEndpoints from './components/ModelEndpoints';
 import ModelPricingTable from './components/ModelPricingTable';
+import DynamicPricingBreakdown from './components/DynamicPricingBreakdown';
 
 const { Text } = Typography;
 
@@ -89,6 +90,17 @@ const ModelDetailSideSheet = ({
               endpointMap={endpointMap}
               t={t}
             />
+            {modelData.billing_mode === 'tiered_expr' &&
+              modelData.billing_expr && (
+                <>
+                  <Divider margin={12} />
+                  <DynamicPricingBreakdown
+                    billingExpr={modelData.billing_expr}
+                    t={t}
+                  />
+                </>
+              )}
+            <Divider margin={12} />
             <ModelPricingTable
               modelData={modelData}
               groupRatio={groupRatio}

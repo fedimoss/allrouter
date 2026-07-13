@@ -1,7 +1,9 @@
 package service
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -10,6 +12,65 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 )
+
+const UpstreamServiceUnavailableMessage = "Service temporarily unavailable. Please contact the administrator."
+
+var upstreamAccountBalanceErrorMarkers = []string{
+	"insufficient balance",
+	"balance is insufficient",
+	"not enough balance",
+	"balance is too low",
+	"credit balance is too low",
+	"insufficient credit",
+	"insufficient funds",
+	"no credits left",
+	"out of credits",
+	"payment required",
+	"insufficient_quota",
+	"billing_hard_limit_reached",
+	"you exceeded your current quota",
+	"insufficient account balance",
+	"balance not enough",
+	"account has insufficient balance",
+	"quota exhausted",
+	"credits exhausted",
+	"credit exhausted",
+	"余额不足",
+	"余额已用完",
+	"账户欠费",
+	"账号欠费",
+	"请充值",
+	"需要充值",
+}
+
+// IsUpstreamAccountBalanceError identifies explicit upstream billing failures.
+// It must only be called for errors returned while relaying to an upstream channel.
+func IsUpstreamAccountBalanceError(err *types.NewAPIError) bool {
+	if err == nil || err.StatusCode < http.StatusBadRequest || err.StatusCode >= http.StatusInternalServerError {
+		return false
+	}
+
+	message := strings.ToLower(err.Error())
+	for _, marker := range upstreamAccountBalanceErrorMarkers {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// NormalizeUpstreamAccountBalanceError hides channel account details from clients
+// and turns the failure into a retryable upstream service error.
+func NormalizeUpstreamAccountBalanceError(err *types.NewAPIError) *types.NewAPIError {
+	if !IsUpstreamAccountBalanceError(err) {
+		return err
+	}
+	return types.NewErrorWithStatusCode(
+		errors.New(UpstreamServiceUnavailableMessage),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusServiceUnavailable,
+	)
+}
 
 func formatNotifyType(channelId int, status int) string {
 	return fmt.Sprintf("%s_%d_%d", dto.NotifyTypeChannelUpdate, channelId, status)
@@ -63,6 +124,9 @@ func ShouldDisableChannel(err *types.NewAPIError) bool {
 		return false
 	}
 	if types.IsChannelError(err) {
+		return true
+	}
+	if IsUpstreamAccountBalanceError(err) {
 		return true
 	}
 	if types.IsSkipRetryError(err) {

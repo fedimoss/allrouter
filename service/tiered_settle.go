@@ -114,3 +114,43 @@ func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenP
 
 	return true, tr.ActualQuotaAfterGroup, &tr
 }
+
+// BuildTieredRealtimeTokenParams normalizes the aggregate usage reported by
+// the OpenAI Realtime API for expression-based billing.
+func BuildTieredRealtimeTokenParams(usage *dto.RealtimeUsage, usedVars map[string]bool) billingexpr.TokenParams {
+	if usage == nil {
+		return billingexpr.TokenParams{}
+	}
+
+	p := float64(usage.InputTokens)
+	c := float64(usage.OutputTokens)
+	cr := float64(usage.InputTokenDetails.CachedTokens)
+	ai := float64(usage.InputTokenDetails.AudioTokens)
+	ao := float64(usage.OutputTokenDetails.AudioTokens)
+
+	// Realtime input/output totals include separately reported subcategories.
+	if usedVars["cr"] {
+		p -= cr
+	}
+	if usedVars["ai"] {
+		p -= ai
+	}
+	if usedVars["ao"] {
+		c -= ao
+	}
+	if p < 0 {
+		p = 0
+	}
+	if c < 0 {
+		c = 0
+	}
+
+	return billingexpr.TokenParams{
+		P:   p,
+		C:   c,
+		Len: float64(usage.InputTokens),
+		CR:  cr,
+		AI:  ai,
+		AO:  ao,
+	}
+}
