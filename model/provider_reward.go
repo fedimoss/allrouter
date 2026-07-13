@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -25,6 +26,8 @@ type ProviderRewardConfig struct {
 	CheckinMaxQuota                int     `json:"checkin_max_quota" gorm:"default:0"`
 	InviteTopupRebateRatio         float64 `json:"invite_topup_rebate_ratio" gorm:"type:decimal(10,6);default:0"`
 	InviteConsumeRebateRatioLevel2 float64 `json:"invite_consume_rebate_ratio_level2" gorm:"type:decimal(10,6);default:0"`
+	RegisterGiftSubscriptionPlanId int     `json:"register_gift_subscription_plan_id" gorm:"not null;default:0"`
+	AirdropSubscriptionPlanId      int     `json:"airdrop_subscription_plan_id" gorm:"not null;default:0"`
 	CreatedAt                      int64   `json:"created_at" gorm:"bigint"`
 	UpdatedAt                      int64   `json:"updated_at" gorm:"bigint"`
 }
@@ -142,10 +145,38 @@ func UpsertProviderRewardConfig(cfg *ProviderRewardConfig) error {
 	if cfg == nil || cfg.ProviderId <= 0 {
 		return errors.New("provider id is empty")
 	}
+	if err := ValidateSubscriptionRewardPlanForProvider(cfg.ProviderId, cfg.RegisterGiftSubscriptionPlanId); err != nil {
+		return fmt.Errorf("invalid registration gift subscription plan: %w", err)
+	}
+	if err := ValidateSubscriptionRewardPlanForProvider(cfg.ProviderId, cfg.AirdropSubscriptionPlanId); err != nil {
+		return fmt.Errorf("invalid airdrop subscription plan: %w", err)
+	}
 	if err := DB.Save(cfg).Error; err != nil {
 		return err
 	}
 	InvalidateProviderRewardConfigCache(cfg.ProviderId)
+	return nil
+}
+
+// ValidateSubscriptionRewardPlanForProvider ensures a reward plan belongs to
+// the site whose reward configuration references it. Zero disables the reward.
+func ValidateSubscriptionRewardPlanForProvider(providerId int, planId int) error {
+	if providerId < 0 {
+		return errors.New("invalid provider id")
+	}
+	if planId == 0 {
+		return nil
+	}
+	if planId < 0 {
+		return errors.New("invalid subscription plan id")
+	}
+	var plan SubscriptionPlan
+	if err := DB.Select("id", "provider_id").Where("id = ?", planId).First(&plan).Error; err != nil {
+		return err
+	}
+	if plan.ProviderId != providerId {
+		return fmt.Errorf("subscription plan %d does not belong to provider %d", planId, providerId)
+	}
 	return nil
 }
 

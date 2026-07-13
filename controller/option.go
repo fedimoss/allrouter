@@ -299,6 +299,16 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "RegisterGiftSubscriptionPlanId", "AirdropSubscriptionPlanId":
+		planId, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil {
+			common.ApiErrorMsg(c, "订阅套餐 ID 必须是整数")
+			return
+		}
+		if err := model.ValidateSubscriptionRewardPlanForProvider(0, planId); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	case "USDExchangeRate":
 		if err := syncUSDExchangeRateToCurrencyConfig(option.Value.(string)); err != nil {
 			c.JSON(http.StatusOK, gin.H{

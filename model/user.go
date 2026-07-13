@@ -810,18 +810,23 @@ func grantInviterRewardTx(tx *gorm.DB, inviterId int, inviteeId int, rewardQuota
 
 // grantRegisterGiftSubscriptionTx 在事务中为新注册用户授予注册赠送订阅套餐。
 //
-// 通过全局配置 common.RegisterGiftSubscriptionPlanId 指定赠送的套餐 ID。
-// 当配置值 <= 0 或套餐不存在/未启用时静默跳过，不影响注册流程。
+// 主站使用 common.RegisterGiftSubscriptionPlanId；服务商站点使用其
+// ProviderRewardConfig.RegisterGiftSubscriptionPlanId。配置值 <= 0 或套餐
+// 不存在/未启用时静默跳过，不影响注册流程。
 //
 // 该函数在用户注册事务（Insert / InsertWithTx）中被调用，确保订阅创建与原子的用户注册
 // 在同一事务中完成。如果套餐创建失败会回滚整个注册事务。
 //
 // 返回值：成功授予的套餐标题（用于日志记录），未配置或跳过时返回空字符串。
-func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int) (string, error) {
-	if tx == nil || userId <= 0 || common.RegisterGiftSubscriptionPlanId <= 0 {
+func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int, providerId int) (string, error) {
+	if tx == nil || userId <= 0 {
 		return "", nil
 	}
-	plan, err := getSubscriptionPlanByIdTx(tx, common.RegisterGiftSubscriptionPlanId)
+	planId, err := getSubscriptionRewardPlanIdTx(tx, providerId, true)
+	if err != nil || planId <= 0 {
+		return "", err
+	}
+	plan, err := getSubscriptionPlanByIdTx(tx, planId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", nil
@@ -829,6 +834,9 @@ func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int) (string, error) {
 		return "", err
 	}
 	if plan == nil || !plan.Enabled {
+		return "", nil
+	}
+	if plan.ProviderId != providerId {
 		return "", nil
 	}
 	if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "register_reward"); err != nil {
@@ -928,7 +936,7 @@ func (user *User) Insert(inviterId int) error {
 			return err
 		}
 	}
-	registerGiftSubscriptionTitle, err := grantRegisterGiftSubscriptionTx(tx, user.Id)
+	registerGiftSubscriptionTitle, err := grantRegisterGiftSubscriptionTx(tx, user.Id, user.ProviderId)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -1057,7 +1065,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			return err
 		}
 	}
-	if _, err := grantRegisterGiftSubscriptionTx(tx, user.Id); err != nil {
+	if _, err := grantRegisterGiftSubscriptionTx(tx, user.Id, user.ProviderId); err != nil {
 		return err
 	}
 	if inviterId != 0 {
@@ -1102,8 +1110,12 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 		if rewardCfg.QuotaForNewUser > 0 {
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user reward %s", logger.LogQuota(rewardCfg.QuotaForNewUser)))
 		}
-		if common.RegisterGiftSubscriptionPlanId > 0 {
-			if plan, err := GetSubscriptionPlanById(common.RegisterGiftSubscriptionPlanId); err == nil && plan != nil && plan.Enabled {
+		rewardPlanId := rewardCfg.RegisterGiftSubscriptionPlanId
+		if user.ProviderId <= 0 {
+			rewardPlanId = common.RegisterGiftSubscriptionPlanId
+		}
+		if rewardPlanId > 0 {
+			if plan, err := GetSubscriptionPlanById(rewardPlanId); err == nil && plan != nil && plan.Enabled && plan.ProviderId == user.ProviderId {
 				RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("new user subscription reward %s", plan.Title))
 			}
 		}
