@@ -30,43 +30,13 @@ import {
 import { IconPlus, IconDelete } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess, showWarning } from '../../../helpers';
+import {
+  newRuleId,
+  parseRules,
+  serializeRules,
+} from '../../../helpers/topupGift';
 
 const { Text } = Typography;
-
-// 生成稳定规则 ID（持久化到 option，作后端"每用户每档一次"的幂等键）
-const newRuleId = () =>
-  'r_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-
-// 解析 option JSON 为规则数组，确保每条都有稳定 id；丢弃无效（threshold/bonus<=0）规则
-function parseRules(jsonStr) {
-  if (!jsonStr || !String(jsonStr).trim()) return [];
-  try {
-    const arr = JSON.parse(jsonStr);
-    if (!Array.isArray(arr)) return [];
-    return arr
-      .map((r) => ({
-        id:
-          r && typeof r.id === 'string' && r.id ? r.id : newRuleId(),
-        threshold: Number(r?.threshold) || 0,
-        bonus: Number(r?.bonus) || 0,
-      }))
-      .filter((r) => r.threshold > 0 && r.bonus > 0);
-  } catch {
-    return [];
-  }
-}
-
-// 序列化为后端存储的 JSON（只保留有效规则，threshold/bonus 必须 > 0）
-function serializeRules(rules) {
-  const cleaned = rules
-    .filter((r) => Number(r.threshold) > 0 && Number(r.bonus) > 0)
-    .map((r) => ({
-      id: r.id,
-      threshold: Number(r.threshold),
-      bonus: Number(r.bonus),
-    }));
-  return JSON.stringify(cleaned);
-}
 
 export default function SettingsRechargeGift(props) {
   const { t } = useTranslation();

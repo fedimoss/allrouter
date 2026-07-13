@@ -635,7 +635,7 @@ func Recharge(referenceId string, customerId string) (err error) {
 	RecordLog(topUp.UserId, LogTypeTopup, formatStripeTopUpSuccessLog(topUp))
 
 	// 充值赠送：按最高命中档、每用户每档一次，自动创建兑换码并兑换。失败不影响充值。
-	GrantTopUpBonus(topUp.UserId, topUp.Money, topUp.TradeNo)
+	GrantTopUpBonus(topUp.UserId, topUp.ProviderId, topUp.Money, topUp.TradeNo)
 
 	return nil
 }
@@ -731,7 +731,7 @@ func RechargeWechatTopUp(referenceId string, expectedPaymentMethod string, expec
 	}
 	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 	// 充值赠送：按最高命中档、每用户每档一次，自动创建兑换码并兑换。失败不影响充值。
-	GrantTopUpBonus(topUp.UserId, topUp.Money, topUp.TradeNo)
+	GrantTopUpBonus(topUp.UserId, topUp.ProviderId, topUp.Money, topUp.TradeNo)
 	return nil
 }
 
@@ -888,6 +888,7 @@ func ManualCompleteTopUp(tradeNo string) error {
 	}
 
 	var userId int
+	var providerId int
 	var quotaToAdd int
 	var inviterId int
 	var rebateQuota int
@@ -941,6 +942,7 @@ func ManualCompleteTopUp(tradeNo string) error {
 		}
 
 		userId = topUp.UserId
+		providerId = topUp.ProviderId
 		payMoney = topUp.Money
 		completedNow = true
 		return nil
@@ -961,7 +963,7 @@ func ManualCompleteTopUp(tradeNo string) error {
 	// 事务外记录日志，避免阻塞
 	RecordLog(userId, LogTypeTopup, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney))
 	// 充值赠送：按最高命中档、每用户每档一次，自动创建兑换码并兑换。失败不影响补单。
-	GrantTopUpBonus(userId, payMoney, tradeNo)
+	GrantTopUpBonus(userId, providerId, payMoney, tradeNo)
 	return nil
 }
 
@@ -1113,7 +1115,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quotaToAdd, topUp.Money))
 
 	// 充值赠送：按最高命中档、每用户每档一次，自动创建兑换码并兑换。失败不影响充值。
-	GrantTopUpBonus(topUp.UserId, topUp.Money, topUp.TradeNo)
+	GrantTopUpBonus(topUp.UserId, topUp.ProviderId, topUp.Money, topUp.TradeNo)
 
 	return nil
 }
@@ -1233,7 +1235,7 @@ func RechargeWaffo(tradeNo string) (err error) {
 		}
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 		// 充值赠送：按最高命中档、每用户每档一次，自动创建兑换码并兑换。失败不影响充值。
-		GrantTopUpBonus(topUp.UserId, topUp.Money, topUp.TradeNo)
+		GrantTopUpBonus(topUp.UserId, topUp.ProviderId, topUp.Money, topUp.TradeNo)
 	}
 
 	return nil
@@ -1312,7 +1314,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 		// 充值赠送：按最高命中档、每用户每档一次，自动创建兑换码并兑换。失败不影响充值。
-		GrantTopUpBonus(topUp.UserId, topUp.Money, topUp.TradeNo)
+		GrantTopUpBonus(topUp.UserId, topUp.ProviderId, topUp.Money, topUp.TradeNo)
 	}
 
 	return nil
@@ -1436,7 +1438,7 @@ func RechargeCrypto(tradeNo string, txHash string, payerAddress string, blockNum
 	}
 	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("加密货币充值成功，充值金额: %v，支付金额：%.6f USDT", logger.FormatQuota(quotaToAdd), topUp.Money))
 	// 充值赠送：按最高命中档、每用户每档一次，自动创建兑换码并兑换。失败不影响充值。
-	GrantTopUpBonus(topUp.UserId, topUp.Money, topUp.TradeNo)
+	GrantTopUpBonus(topUp.UserId, topUp.ProviderId, topUp.Money, topUp.TradeNo)
 	return nil
 }
 

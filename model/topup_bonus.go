@@ -33,16 +33,32 @@ type topUpGiftRule struct {
 	Bonus     float64 `json:"bonus"`     // 赠送金额（用户币种数值）
 }
 
-func parseTopUpGiftRules() []topUpGiftRule {
-	if strings.TrimSpace(common.TopUpGiftRules) == "" {
+func parseTopUpGiftRulesFrom(str string) []topUpGiftRule {
+	if strings.TrimSpace(str) == "" {
 		return nil
 	}
 	var rules []topUpGiftRule
-	if err := common.Unmarshal([]byte(common.TopUpGiftRules), &rules); err != nil {
+	if err := common.Unmarshal([]byte(str), &rules); err != nil {
 		common.SysError("topup bonus parse rules failed: " + err.Error())
 		return nil
 	}
 	return rules
+}
+
+// loadTopUpGiftConfig 按 provider 维度加载充值赠送配置（规则 + 启用开关）。
+// providerId == 0 读主站全局 option（common.TopUpGiftRules / TopUpGiftEnabled）；
+// providerId > 0 读服务商 provider_options 的 topup_gift.rules / topup_gift.enabled。
+// 服务商未配置 enabled 时返回 false（需显式启用才生效）。
+func loadTopUpGiftConfig(providerId int) ([]topUpGiftRule, bool) {
+	if providerId == 0 {
+		return parseTopUpGiftRulesFrom(common.TopUpGiftRules), common.TopUpGiftEnabled
+	}
+	rulesStr, err := GetProviderOptionValue(providerId, "topup_gift.rules")
+	if err != nil {
+		return nil, false
+	}
+	enabledStr, _ := GetProviderOptionValue(providerId, "topup_gift.enabled")
+	return parseTopUpGiftRulesFrom(rulesStr), enabledStr == "true"
 }
 
 // claimTopUpBonusGrant 原子占用名额（OnConflict DoNothing）。
@@ -80,21 +96,25 @@ func releaseTopUpBonusGrant(userId int, ruleId string) {
 //
 // 参数：
 //   - userId: 充值用户
+//   - providerId: 订单维度的服务商 ID（topUp.ProviderId），0=主站。用于分流读主站 options 或服务商 provider_options
 //   - moneyUSD: 本次充值的美元归一化金额（topUp.Money）
 //   - tradeNo: 本次充值订单号（用于追溯）
-func GrantTopUpBonus(userId int, moneyUSD float64, tradeNo string) {
-	// 总开关：未启用则完全不处理（即使配置了规则也不生效）
-	if !common.TopUpGiftEnabled {
-		return
-	}
+func GrantTopUpBonus(userId int, providerId int, moneyUSD float64, tradeNo string) {
 	if userId <= 0 || moneyUSD <= 0 {
 		return
 	}
-	rules := parseTopUpGiftRules()
+	// 按 provider 维度加载配置：providerId == 0 读主站 common.TopUpGiftRules；
+	// providerId > 0 读 provider_options 的 topup_gift.rules / topup_gift.enabled。
+	// 注意：这里必须用订单维度的 providerId（topUp.ProviderId），不能用 users 表的 user.ProviderId，
+	// 因为用户可能在主站注册但在服务商域名下充值，二者不一致会导致分流错误。
+	rules, enabled := loadTopUpGiftConfig(providerId)
+	// 总开关：未启用则完全不处理（即使配置了规则也不生效）
+	if !enabled {
+		return
+	}
 	if len(rules) == 0 {
 		return
 	}
-
 	user, err := GetUserById(userId, false)
 	if err != nil || user == nil {
 		return
