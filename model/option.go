@@ -143,6 +143,8 @@ func InitOptionMap() {
 	common.OptionMap["TelegramBotName"] = ""
 	common.OptionMap["TelegramMiniAppURL"] = ""
 	common.OptionMap["TelegramWebhookSecret"] = ""
+	common.OptionMap["TelegramWebhookSecretConfigured"] = strconv.FormatBool(common.TelegramWebhookSecret != "")
+	common.OptionMap["TelegramWebhookDomain"] = common.TelegramWebhookDomain
 	common.OptionMap["WeChatServerAddress"] = ""
 	common.OptionMap["WeChatServerToken"] = ""
 	common.OptionMap["WeChatAccountQRCodeImageURL"] = ""
@@ -550,6 +552,9 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TelegramMiniAppURL = value
 	case "TelegramWebhookSecret":
 		common.TelegramWebhookSecret = value
+		common.OptionMap["TelegramWebhookSecretConfigured"] = strconv.FormatBool(value != "")
+	case "TelegramWebhookDomain":
+		common.TelegramWebhookDomain = value
 	case "TurnstileSiteKey":
 		common.TurnstileSiteKey = value
 	case "TurnstileSecretKey":
