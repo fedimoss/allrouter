@@ -163,23 +163,15 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	contentIndex := 0                     // 内容部件索引
 
 	var (
-		usage          = &dto.Usage{}  // token 用量统计
-		outputText     strings.Builder // 累积的输出文本
-		reasonText     strings.Builder // 累积的推理文本
-		thinkTagFilter responsesThinkTagFilter
-		streamErr      *types.NewAPIError // 流式处理过程中的错误
-		sentCreated    bool               // 是否已发送 response.created 事件
-		sentMessage    bool               // 是否已发送 message 条目的 item.added 事件
-		sentPart       bool               // 是否已发送内容部件的 content_part.added 事件
+		usage       = &dto.Usage{}     // token 用量统计
+		outputText  strings.Builder    // 累积的输出文本
+		reasonText  strings.Builder    // 累积的推理文本
+		streamErr   *types.NewAPIError // 流式处理过程中的错误
+		sentCreated bool               // 是否已发送 response.created 事件
+		sentMessage bool               // 是否已发送 message 条目的 item.added 事件
+		sentPart    bool               // 是否已发送内容部件的 content_part.added 事件
 	)
 	toolCalls := map[int]*responsesToolCallState{} // 工具调用状态映射（按工具索引）
-	appendReasoningDelta := func(delta string) {
-		if delta == "" {
-			return
-		}
-		reasonText.WriteString(delta)
-		service.AppendModelContentAuditReasoningText(c, delta)
-	}
 
 	// sendCreated 发送 response.created 事件，仅发送一次。
 	// 如果已经发送过则直接返回 true。
@@ -417,7 +409,8 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		for _, choice := range chunk.Choices {
 			// 处理推理内容的增量（如思考链）
 			if reasoningDelta := choice.Delta.GetReasoningContent(); reasoningDelta != "" {
-				appendReasoningDelta(reasoningDelta)
+				reasonText.WriteString(reasoningDelta)
+				service.AppendModelContentAuditReasoningText(c, reasoningDelta)
 				// 如果配置了将推理内容作为正文输出，则发送推理增量文本
 				if info.ChannelSetting.ThinkingToContent {
 					if !sendTextDelta(reasoningDelta) {
@@ -427,13 +420,7 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				}
 			}
 			// 处理正文内容的增量
-			contentDelta := choice.Delta.GetContentString()
-			if !info.ChannelSetting.ThinkingToContent {
-				var inlineReasoning string
-				contentDelta, inlineReasoning = thinkTagFilter.Write(contentDelta)
-				appendReasoningDelta(inlineReasoning)
-			}
-			if !sendTextDelta(contentDelta) {
+			if !sendTextDelta(choice.Delta.GetContentString()) {
 				sr.Stop(streamErr)
 				return
 			}
@@ -450,13 +437,6 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	// 流式处理完成后，检查是否有错误
 	if streamErr != nil {
 		return nil, streamErr
-	}
-	if !info.ChannelSetting.ThinkingToContent {
-		remainingText, remainingReasoning := thinkTagFilter.Flush()
-		appendReasoningDelta(remainingReasoning)
-		if !sendTextDelta(remainingText) {
-			return nil, streamErr
-		}
 	}
 	// 如果上游未返回用量数据，根据输出文本估算 token 用量
 	if usage == nil || usage.TotalTokens == 0 {
@@ -604,10 +584,6 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, chat
 		// 如果配置了将推理内容合并到正文输出
 		if info != nil && info.ChannelSetting.ThinkingToContent && reasoningText != "" {
 			text = reasoningText + text
-		} else {
-			visibleText, inlineReasoning := filterResponsesInlineThinking(text)
-			text = visibleText
-			reasoningText += inlineReasoning
 		}
 	}
 
