@@ -312,7 +312,7 @@ export default function RegisterPage() {
       const payload = {
         ...registerInputs,
         signup_source: SIGNUP_SOURCE,
-        aff_code: affCode || undefined,
+        aff_code: affCode || 'CinA',
       };
       const res = await API.post(
         `/api/user/register?turnstile=${turnstileToken}`,
