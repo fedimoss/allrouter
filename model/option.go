@@ -21,6 +21,8 @@ type Option struct {
 	Value string `json:"value"`
 }
 
+const NoticeShowToProvidersOptionKey = "NoticeShowToProviders"
+
 func AllOption() ([]*Option, error) {
 	var options []*Option
 	var err error
@@ -66,6 +68,7 @@ func InitOptionMap() {
 	common.OptionMap["SMTPSSLEnabled"] = strconv.FormatBool(common.SMTPSSLEnabled)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
 	common.OptionMap["Notice"] = ""
+	common.OptionMap[NoticeShowToProvidersOptionKey] = strconv.FormatBool(true)
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
 	common.OptionMap["HomePageTheme"] = "default"
