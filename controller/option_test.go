@@ -40,6 +40,10 @@ func TestGetOptionsReturnsDatabaseValueOverOptionMapCache(t *testing.T) {
 		Key:   "TopUpGiftRules",
 		Value: `[{"id":"new-1","threshold":10,"bonus":1},{"id":"new-2","threshold":20,"bonus":3}]`,
 	}).Error)
+	require.NoError(t, model.DB.Create(&model.Option{
+		Key:   "TelegramWebhookSecret",
+		Value: "telegram-webhook-secret",
+	}).Error)
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
@@ -61,4 +65,6 @@ func TestGetOptionsReturnsDatabaseValueOverOptionMapCache(t *testing.T) {
 	}
 	require.Equal(t, `[{"id":"new-1","threshold":10,"bonus":1},{"id":"new-2","threshold":20,"bonus":3}]`, values["TopUpGiftRules"])
 	require.NotContains(t, values, "ApiSecret")
+	require.NotContains(t, values, "TelegramWebhookSecret")
+	require.Equal(t, "true", values["TelegramWebhookSecretConfigured"])
 }

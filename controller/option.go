@@ -121,6 +121,9 @@ func GetOptions(c *gin.Context) {
 		mergedOptions[option.Key] = option.Value
 	}
 
+	// TelegramWebhookSecretConfigured 是 TelegramWebhookSecret 是否配置好的标志位。
+	mergedOptions["TelegramWebhookSecretConfigured"] = strconv.FormatBool(strings.TrimSpace(mergedOptions["TelegramWebhookSecret"]) != "")
+
 	options := make([]*model.Option, 0, len(mergedOptions)+1)
 	for k, value := range mergedOptions {
 		if isSensitiveOptionKey(k) {

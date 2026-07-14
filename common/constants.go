@@ -150,6 +150,7 @@ var TelegramBotToken = ""
 var TelegramBotName = ""
 var TelegramWebhookSecret = "" // Telegram webhook 的 secret_token（与 setWebhook 时传的保持一致）；为空则不校验
 var TelegramMiniAppURL = ""    // Mini App 启动链接（@BotFather /newapp 生成的 t.me/<bot>/<appname>），群里"绑定账号"按钮指向它；为空则不发送
+var TelegramWebhookDomain = "" // Telegram webhook 回调域名，用于后台设置页回显 setWebhook 时填写的域名
 
 var QuotaForNewUser = 0
 

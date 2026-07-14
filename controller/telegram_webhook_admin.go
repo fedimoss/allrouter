@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,6 +20,10 @@ type telegramSetWebhookRequest struct {
 
 type telegramTokenRequest struct {
 	BotToken string `json:"bot_token"`
+}
+
+type telegramAPIResponse struct {
+	OK bool `json:"ok"`
 }
 
 // callTelegramAPI 代理调用 Telegram Bot API，结果以 raw JSON []byte 返回。
@@ -59,6 +64,7 @@ func SetTelegramWebhook(c *gin.Context) {
 	domain := strings.TrimPrefix(req.CpolarDomain, "https://")
 	domain = strings.TrimPrefix(domain, "http://")
 	domain = strings.TrimSuffix(domain, "/")
+	displayDomain := "https://" + domain
 	webhookURL := fmt.Sprintf("https://%s/api/telegram/webhook", domain)
 	form := url.Values{}
 	form.Set("url", webhookURL)
@@ -70,6 +76,19 @@ func SetTelegramWebhook(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": fmt.Sprintf("请求 Telegram API 失败: %v", err)})
 		return
+	}
+
+	// 解析 Telegram API 响应 JSON。
+	var apiResp telegramAPIResponse
+	if err := common.Unmarshal(body, &apiResp); err == nil && apiResp.OK {
+		if err := model.UpdateOption("TelegramWebhookDomain", displayDomain); err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": fmt.Sprintf("保存 Telegram Webhook 域名失败: %v", err)})
+			return
+		}
+		if err := model.UpdateOption("TelegramWebhookSecret", req.SecretToken); err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": fmt.Sprintf("保存 Telegram Webhook Secret 失败: %v", err)})
+			return
+		}
 	}
 	c.Data(http.StatusOK, "application/json", body)
 }
