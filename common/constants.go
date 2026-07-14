@@ -171,6 +171,11 @@ var TopUpGiftRules = ""
 // 只有开启后，TopUpGiftRules 配置的规则才会在用户充值达标时实际发放。
 var TopUpGiftEnabled = false
 
+// TopUpGiftTimed 充值赠送倒计时配置，JSON 字符串 {"enabled":bool,"day":int}。
+// enabled 为总开关，day 为距离活动结束的天数。空字符串表示未配置。
+// 在运营设置中配置，前端落地页据此展示倒计时。
+var TopUpGiftTimed = ""
+
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
 
