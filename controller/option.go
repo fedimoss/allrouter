@@ -10,11 +10,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -155,6 +157,38 @@ func GetOptions(c *gin.Context) {
 type OptionUpdateRequest struct {
 	Key   string `json:"key"`
 	Value any    `json:"value"`
+}
+
+func validateBillingSettingOption(key string, value string) error {
+	switch key {
+	case "billing_setting.billing_mode":
+		modeMap := make(map[string]string)
+		if err := common.UnmarshalJsonStr(value, &modeMap); err != nil {
+			return fmt.Errorf("计费模式 JSON 格式错误: %w", err)
+		}
+		for modelName, mode := range modeMap {
+			switch mode {
+			case billing_setting.BillingModeRatio, billing_setting.BillingModeTieredExpr:
+			default:
+				return fmt.Errorf("模型 %s 的计费模式 %s 不支持", modelName, mode)
+			}
+		}
+	case "billing_setting.billing_expr":
+		exprMap := make(map[string]string)
+		if err := common.UnmarshalJsonStr(value, &exprMap); err != nil {
+			return fmt.Errorf("计费表达式 JSON 格式错误: %w", err)
+		}
+		for modelName, expr := range exprMap {
+			expr = strings.TrimSpace(expr)
+			if expr == "" {
+				continue
+			}
+			if err := billing_setting.SmokeTestExpr(expr); err != nil {
+				return fmt.Errorf("模型 %s 的计费表达式校验失败: %w", modelName, err)
+			}
+		}
+	}
+	return nil
 }
 
 func UpdateOption(c *gin.Context) {
@@ -315,6 +349,15 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "billing_setting.billing_mode", "billing_setting.billing_expr":
+		err = validateBillingSettingOption(option.Key, option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "InviteTopupRebateRatio", "InviteConsumeRebateRatioLevel2":
 		var ratio float64
 		ratio, err = strconv.ParseFloat(option.Value.(string), 64)
@@ -335,6 +378,14 @@ func UpdateOption(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+	case "TopUpGiftTimed":
+		// 忽略客户端传入的结束时间，由服务端按保存时刻和天数生成可信的绝对截止时间。
+		normalized, normalizeErr := model.NormalizeTopUpGiftTimedConfig(option.Value.(string), time.Now())
+		if normalizeErr != nil {
+			common.ApiErrorMsg(c, normalizeErr.Error())
+			return
+		}
+		option.Value = normalized
 	case "USDExchangeRate":
 		if err := syncUSDExchangeRateToCurrencyConfig(option.Value.(string)); err != nil {
 			c.JSON(http.StatusOK, gin.H{

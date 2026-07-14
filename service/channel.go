@@ -1,7 +1,9 @@
 package service
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -10,6 +12,102 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 )
+
+const UpstreamServiceUnavailableMessage = "Service temporarily unavailable. Please contact the administrator."
+
+var upstreamAccountBalanceErrorMarkers = []string{
+	"insufficient balance",
+	"balance is insufficient",
+	"not enough balance",
+	"balance is too low",
+	"credit balance is too low",
+	"insufficient credit",
+	"insufficient funds",
+	"no credits left",
+	"out of credits",
+	"payment required",
+	"insufficient_quota",
+	"billing_hard_limit_reached",
+	"you exceeded your current quota",
+	"insufficient account balance",
+	"balance not enough",
+	"account has insufficient balance",
+	"account balance insufficient",
+	"quota is insufficient",
+	"not enough quota",
+	"quota not enough",
+	"quota exhausted",
+	"credits exhausted",
+	"credit exhausted",
+	"余额不足",
+	"余额已用完",
+	"额度不足",
+	"额度已用完",
+	"额度耗尽",
+	"账户欠费",
+	"账号欠费",
+	"请充值",
+	"需要充值",
+}
+
+// IsUpstreamAccountBalanceError identifies explicit upstream billing failures.
+// It must only be called for errors returned while relaying to an upstream channel.
+func IsUpstreamAccountBalanceError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	return isUpstreamAccountBalanceStatusMessage(err.StatusCode, err.Error())
+}
+
+func isUpstreamAccountBalanceStatusMessage(statusCode int, message string) bool {
+	if statusCode < http.StatusBadRequest || statusCode >= http.StatusInternalServerError {
+		return false
+	}
+	message = strings.ToLower(message)
+	for _, marker := range upstreamAccountBalanceErrorMarkers {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// NormalizeUpstreamAccountBalanceError hides channel account details from clients
+// and turns the failure into a retryable upstream service error.
+func NormalizeUpstreamAccountBalanceError(err *types.NewAPIError) *types.NewAPIError {
+	if !IsUpstreamAccountBalanceError(err) {
+		return err
+	}
+	return types.NewErrorWithStatusCode(
+		errors.New(UpstreamServiceUnavailableMessage),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusServiceUnavailable,
+	)
+}
+
+// NormalizeUpstreamAccountBalanceTaskError is the Task relay equivalent of
+// NormalizeUpstreamAccountBalanceError. Local quota/auth failures are left
+// untouched; callers should invoke it only after preserving the original
+// upstream error for channel-disable diagnostics.
+func NormalizeUpstreamAccountBalanceTaskError(taskErr *dto.TaskError) *dto.TaskError {
+	if taskErr == nil || taskErr.LocalError {
+		return taskErr
+	}
+	message := taskErr.Message
+	if taskErr.Error != nil && taskErr.Error.Error() != message {
+		message += " " + taskErr.Error.Error()
+	}
+	if !isUpstreamAccountBalanceStatusMessage(taskErr.StatusCode, message) {
+		return taskErr
+	}
+	publicCause := errors.New(UpstreamServiceUnavailableMessage)
+	return &dto.TaskError{
+		Code:       string(types.ErrorCodeBadResponseStatusCode),
+		Message:    UpstreamServiceUnavailableMessage,
+		StatusCode: http.StatusServiceUnavailable,
+		Error:      publicCause,
+	}
+}
 
 func formatNotifyType(channelId int, status int) string {
 	return fmt.Sprintf("%s_%d_%d", dto.NotifyTypeChannelUpdate, channelId, status)
@@ -63,6 +161,9 @@ func ShouldDisableChannel(err *types.NewAPIError) bool {
 		return false
 	}
 	if types.IsChannelError(err) {
+		return true
+	}
+	if IsUpstreamAccountBalanceError(err) {
 		return true
 	}
 	if types.IsSkipRetryError(err) {

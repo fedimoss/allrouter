@@ -47,6 +47,13 @@ func TestStatus(c *gin.Context) {
 func GetStatus(c *gin.Context) {
 
 	cs := console_setting.GetConsoleSetting()
+	// 倒计时加载可能触发旧配置写回，必须在下方持有 OptionMap 读锁之前完成，避免锁升级死锁。
+	providerId := resolveProviderId(c)
+	topUpGiftTimed, err := model.LoadTopUpGiftTimedConfig(providerId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
 
@@ -143,10 +150,9 @@ func GetStatus(c *gin.Context) {
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             getStatusCheckinEnabled(c),
+		"topup_gift_timed":            topUpGiftTimed,
 	}
 
-	// 解析服务商ID
-	providerId := resolveProviderId(c)
 	if providerId > 0 {
 		primaryColor, secondaryColor := providerThemeColors(nil)
 		data["primary_color"] = primaryColor

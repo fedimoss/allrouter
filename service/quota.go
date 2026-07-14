@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -165,6 +166,15 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 // wss 大模型消耗处理逻辑
 func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelName string,
 	usage *dto.RealtimeUsage, extraContent string) {
+	var tieredResult *billingexpr.TieredResult
+	var tieredUsedVars map[string]bool
+	if snap := relayInfo.TieredBillingSnapshot; snap != nil {
+		tieredUsedVars = billingexpr.UsedVars(snap.ExprString)
+	}
+	tieredOk, tieredQuota, tieredRes := TryTieredSettle(relayInfo, BuildTieredRealtimeTokenParams(usage, tieredUsedVars))
+	if tieredOk {
+		tieredResult = tieredRes
+	}
 
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	textInputTokens := usage.InputTokenDetails.TextTokens
@@ -199,9 +209,26 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 
 	quota, clamp := calculateAudioQuota(quotaInfo)
+	if tieredOk {
+		quota = tieredQuota
+		clamp = nil
+		if tieredResult != nil {
+			clamp = tieredResult.Clamp
+		}
+	}
 	noteQuotaClamp(relayInfo, clamp)
 
 	totalTokens := usage.TotalTokens
+	baseQuota := quota
+	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
+	providerOwnerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
+	if totalTokens != 0 {
+		if providerQuota, importCostQuota, applied := ApplyProviderPricingQuota(ctx, baseQuota, usePrice, groupRatio, totalTokens); applied {
+			quota = providerQuota
+			common.SetContextKey(ctx, constant.ContextKeyProviderBaseQuota, importCostQuota)
+			common.SetContextKey(ctx, constant.ContextKeyProviderUserQuota, quota)
+		}
+	}
 	var logContent string
 	if !usePrice {
 		logContent = fmt.Sprintf("模型倍率 %.2f，补全倍率 %.2f，音频倍率 %.2f，音频补全倍率 %.2f，分组倍率 %.2f",
@@ -225,16 +252,41 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 			model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		}
 		RecordRelayTotalTokenUsage(relayInfo, totalTokens)
-		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+		channelQuota := quota
+		if providerId > 0 {
+			channelQuota = baseQuota
+		}
+		model.UpdateChannelUsedQuota(relayInfo.ChannelId, channelQuota)
+	}
+	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
+		logger.LogError(ctx, "error settling billing: "+err.Error())
+	}
+	providerOwnerCostQuota := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerCost)
+	if providerId > 0 && providerOwnerUserId > 0 && providerOwnerCostQuota > 0 && totalTokens > 0 {
+		model.UpdateUserUsedQuotaAndRequestCount(providerOwnerUserId, providerOwnerCostQuota)
 	}
 
 	logModel := modelName
 	if extraContent != "" {
 		logContent += ", " + extraContent
 	}
-	other := GenerateWssOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
-		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+	displayModelRatio := modelRatio
+	displayModelPrice := modelPrice
+	if providerId > 0 && common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel) != "" {
+		displayModelRatio, displayModelPrice, _ = ApplyProviderPricingDisplay(ctx, modelRatio, modelPrice)
+	}
+	other := GenerateWssOtherInfo(ctx, relayInfo, usage, displayModelRatio, groupRatio,
+		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), displayModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+	if tieredOk {
+		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+	}
 	attachQuotaSaturation(ctx, relayInfo, other)
+	if providerId > 0 {
+		other["provider_import_price_ratio"] = common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderImportPriceRatio)
+		other["provider_pricing_type"] = common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
+		other["provider_base_model_ratio"] = modelRatio
+		other["provider_base_model_price"] = modelPrice
+	}
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     usage.InputTokens,
@@ -275,6 +327,16 @@ func CalcOpenRouterCacheCreateTokens(usage dto.Usage, priceData types.PriceData)
 // 音频模型消耗逻辑
 func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent string) {
 
+	var tieredUsedVars map[string]bool
+	if snap := relayInfo.TieredBillingSnapshot; snap != nil {
+		tieredUsedVars = billingexpr.UsedVars(snap.ExprString)
+	}
+	var tieredResult *billingexpr.TieredResult
+	tieredOk, tieredQuota, tieredRes := TryTieredSettle(relayInfo, BuildTieredTokenParams(usage, false, tieredUsedVars))
+	if tieredOk {
+		tieredResult = tieredRes
+	}
+
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	textInputTokens := usage.PromptTokensDetails.TextTokens
 	textOutTokens := usage.CompletionTokenDetails.TextTokens
@@ -308,6 +370,13 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 
 	quota, clamp := calculateAudioQuota(quotaInfo)
+	if tieredOk {
+		quota = tieredQuota
+		clamp = nil
+		if tieredResult != nil {
+			clamp = tieredResult.Clamp
+		}
+	}
 	noteQuotaClamp(relayInfo, clamp)
 
 	totalTokens := usage.TotalTokens
@@ -370,6 +439,9 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 	other := GenerateAudioOtherInfo(ctx, relayInfo, usage, displayModelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), displayModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+	if tieredOk {
+		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	if providerId > 0 {
 		other["provider_import_price_ratio"] = common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderImportPriceRatio)

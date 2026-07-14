@@ -1,5 +1,16 @@
 {
   "translation": {
+    "启用充值赠送倒计时": "Bật đếm ngược quà tặng nạp tiền",
+    "（当前未启用，倒计时不会显示）": "(Hiện đang tắt, bộ đếm ngược sẽ không hiển thị)",
+    "倒计时": "Đếm ngược",
+    "天数": "Số ngày",
+    "天后活动结束": "ngày nữa chiến dịch kết thúc",
+    "最少设置1天": "Đặt ít nhất 1 ngày",
+    "活动倒计时": "Đếm ngược chiến dịch",
+    "活动已结束": "Chiến dịch đã kết thúc",
+    "活动进行中": "Chiến dịch đang diễn ra",
+    "时": "Giờ",
+    "分": "Phút",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Gọi tạo hình ảnh {{symbol}}{{price}} / 1 lần * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + Tim kiem tep {{count}} lan / 1K lan * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Tìm kiếm tệp {{count}} lần / 1K lần * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
@@ -5731,6 +5742,7 @@
     "Windows 用户使用 setx 命令后需要重新打开命令提示符": "Người dùng Windows cần mở lại command prompt sau khi dùng lệnh setx",
     "Worker地址": "Địa chỉ Worker",
     "Worker密钥": "Khóa Worker",
-    "Workspace": ""
+    "Workspace": "",
+    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X cũng có thể nhỏ hơn 1 để dùng làm mức giảm giá. Nếu muốn chỉ tăng giá đầu ra hoặc thêm phí cố định, hãy nhập trực tiếp công thức tính phí đầy đủ."
   }
 }

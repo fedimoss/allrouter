@@ -134,6 +134,12 @@ func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) 
 	if newApiErr == nil {
 		return
 	}
+	// Balance errors are sanitized centrally after channel diagnostics. Keep
+	// their original 4xx status until then; mapping 403 -> 5xx here would make
+	// the strict upstream-balance detector miss the error and leak its message.
+	if IsUpstreamAccountBalanceError(newApiErr) {
+		return
+	}
 	if statusCodeMappingStr == "" || statusCodeMappingStr == "{}" {
 		return
 	}
@@ -218,6 +224,7 @@ func TaskErrorFromAPIError(apiErr *types.NewAPIError) *dto.TaskError {
 		Code:       string(apiErr.GetErrorCode()),
 		Message:    apiErr.Err.Error(),
 		StatusCode: apiErr.StatusCode,
+		LocalError: true,
 		Error:      apiErr.Err,
 	}
 }

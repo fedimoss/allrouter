@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 // 充值赠送规则工具（主站 SettingsRechargeGift 与服务商 ProviderRechargeGift 共用）
 // 规则结构：{ id, threshold, bonus }——id 是稳定标识（作后端"每用户每档一次"幂等键），
 // threshold 是充值门槛，bonus 是赠送金额，二者均按"用户币种原值"填写。
@@ -35,4 +54,24 @@ export function serializeRules(rules) {
       bonus: Number(r.bonus),
     }));
   return JSON.stringify(cleaned);
+}
+
+// 同时兼容 provider_options 的 JSON 字符串和状态接口返回的对象结构。
+export function parseTimedConfig(raw) {
+  if (!raw) return { enabled: false, day: 0, endTime: 0 };
+  try {
+    const value = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return {
+      enabled: value?.enabled === true,
+      day: Number(value?.day) || 0,
+      endTime: Number(value?.end_time) || 0,
+    };
+  } catch {
+    return { enabled: false, day: 0, endTime: 0 };
+  }
+}
+
+// 前端只提交开关与相对天数，绝对 end_time 统一由后端生成，避免客户端时间不可信。
+export function serializeTimedConfig(enabled, day) {
+  return JSON.stringify({ enabled: enabled === true, day: Number(day) || 0 });
 }

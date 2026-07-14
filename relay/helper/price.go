@@ -240,10 +240,15 @@ func HasModelBillingConfig(modelName string) bool {
 
 func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
 	exprStr, ok := billing_setting.GetBillingExpr(info.OriginModelName)
-	if !ok {
+	if !ok || strings.TrimSpace(exprStr) == "" {
 		return types.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", info.OriginModelName)
 	}
 
+	// Keep the same minimum pre-consume safety floor as ratio billing. This is
+	// especially important when global token counting is disabled (the caller
+	// supplies promptTokens=0): tiered billing must still create a meaningful
+	// frozen estimate instead of silently pre-consuming zero for input pricing.
+	estimatedPromptTokens := common.Max(promptTokens, common.PreConsumedQuota)
 	estimatedCompletionTokens := 0
 	if meta.MaxTokens != 0 {
 		estimatedCompletionTokens = meta.MaxTokens
@@ -255,9 +260,9 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 	}
 
 	rawCost, trace, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{
-		P:   float64(promptTokens),
+		P:   float64(estimatedPromptTokens),
 		C:   float64(estimatedCompletionTokens),
-		Len: float64(promptTokens),
+		Len: float64(estimatedPromptTokens),
 	}, requestInput)
 	if err != nil {
 		return types.PriceData{}, fmt.Errorf("model %s tiered expr run failed: %w", info.OriginModelName, err)
@@ -282,7 +287,7 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		ExprString:                exprStr,
 		ExprHash:                  exprHash,
 		GroupRatio:                groupRatioInfo.GroupRatio,
-		EstimatedPromptTokens:     promptTokens,
+		EstimatedPromptTokens:     estimatedPromptTokens,
 		EstimatedCompletionTokens: estimatedCompletionTokens,
 		EstimatedQuotaBeforeGroup: quotaBeforeGroup,
 		EstimatedQuotaAfterGroup:  preConsumedQuota,

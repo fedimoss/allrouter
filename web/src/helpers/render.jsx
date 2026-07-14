@@ -21,6 +21,11 @@ import i18next from 'i18next';
 import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
+import {
+  BILLING_PRICING_VARS,
+  BILLING_VAR_KEY_TO_FIELD,
+  BILLING_VAR_REGEX,
+} from '../constants';
 import { visit } from 'unist-util-visit';
 import * as LobeIcons from '@lobehub/icons';
 import {
@@ -2324,6 +2329,229 @@ export function renderLogContent(
       );
     }
   }
+}
+
+function stripExprVersion(exprStr) {
+  if (!exprStr) return { version: 1, body: '' };
+  const m = exprStr.match(/^v(\d+):([\s\S]*)$/);
+  if (m) return { version: Number(m[1]), body: m[2] };
+  return { version: 1, body: exprStr };
+}
+
+function parseTierBody(bodyStr) {
+  const coeffs = {};
+  const re = new RegExp(BILLING_VAR_REGEX.source, 'g');
+  let m;
+  while ((m = re.exec(bodyStr)) !== null) {
+    if (!(m[1] in coeffs)) coeffs[m[1]] = Number(m[2]);
+  }
+  const tier = {};
+  for (const [varName, field] of Object.entries(BILLING_VAR_KEY_TO_FIELD)) {
+    tier[field] = coeffs[varName] || 0;
+  }
+  return tier;
+}
+
+export function parseTiersFromExpr(exprStr) {
+  if (!exprStr) return [];
+  try {
+    const { body } = stripExprVersion(exprStr);
+    const condGroup =
+      '((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)';
+    const tierRe = new RegExp(
+      `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*([^)]+)\\)`,
+      'g',
+    );
+    const tiers = [];
+    let m;
+    while ((m = tierRe.exec(body)) !== null) {
+      const condStr = m[1] || '';
+      const conditions = [];
+      if (condStr) {
+        for (const cp of condStr.split(/\s*&&\s*/)) {
+          const cm = cp
+            .trim()
+            .match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/);
+          if (cm) {
+            conditions.push({
+              var: cm[1],
+              op: cm[2],
+              value: Number(cm[3]),
+            });
+          }
+        }
+      }
+      const tier = parseTierBody(m[3]);
+      tier.label = m[2];
+      tier.conditions = conditions;
+      tiers.push(tier);
+    }
+    return tiers;
+  } catch {
+    return [];
+  }
+}
+
+export const decodeFromBase64 = (base64) => {
+  if (!base64) return '';
+
+  const binaryString =
+    typeof window !== 'undefined'
+      ? window.atob(base64)
+      : Buffer.from(base64, 'base64').toString('binary');
+  const bytes = new Uint8Array(binaryString.length);
+
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  if (typeof TextDecoder !== 'undefined') {
+    return new TextDecoder().decode(bytes);
+  }
+
+  return decodeURIComponent(
+    Array.prototype.map
+      .call(bytes, (byte) => `%${byte.toString(16).padStart(2, '0')}`)
+      .join(''),
+  );
+};
+
+export const normalizeLabel = (label) => {
+  if (!label) return '';
+  return label
+    .replace(/<[=＝]?|≤|＜[=＝]?/g, '<')
+    .replace(/>[=＝]?|≥|＞[=＝]?/g, '>')
+    .replace(/\s+/g, '')
+    .toLowerCase();
+};
+
+export function renderTieredModelPrice(opts) {
+  const {
+    expr_b64: exprB64,
+    matched_tier: matchedTier,
+    group_ratio: groupRatio,
+    cache_tokens: cacheTokens = 0,
+    cache_creation_tokens: cacheCreationTokens = 0,
+    cache_creation_tokens_5m: cacheCreationTokens5m = 0,
+    cache_creation_tokens_1h: cacheCreationTokens1h = 0,
+  } = opts;
+  let exprStr = '';
+  try {
+    exprStr = decodeFromBase64(exprB64);
+  } catch {
+    // ignore
+  }
+  const tiers = parseTiersFromExpr(exprStr);
+  if (tiers.length === 0) {
+    return i18next.t('阶梯计费（表达式解析失败）');
+  }
+
+  const tier = tiers.find((t) => {
+    const l1 = normalizeLabel(t.label);
+    const l2 = normalizeLabel(matchedTier);
+    return l1 === l2 && l1 !== '';
+  });
+
+  if (!tier) {
+    return i18next.t('阶梯计费（未匹配到对应阶梯）');
+  }
+  const { symbol, rate } = getCurrencyConfig();
+
+  const hasAnyCacheTokens =
+    cacheTokens > 0 ||
+    cacheCreationTokens > 0 ||
+    cacheCreationTokens5m > 0 ||
+    cacheCreationTokens1h > 0;
+
+  const priceLines = BILLING_PRICING_VARS.filter(
+    (v) => v.group !== 'cache' || hasAnyCacheTokens,
+  ).map((v) => [v.field, v.label]);
+
+  const lines = [
+    buildBillingText('命中档位：{{tier}}', {
+      tier: matchedTier || tier.label,
+    }),
+    ...priceLines
+      .filter(([field]) => tier[field] > 0)
+      .map(([field, label]) =>
+        buildBillingText('{{label}} {{price}} / 1M tokens', {
+          label: i18next.t(label),
+          price: `${symbol}${formatBillingDisplayPrice(tier[field], rate)}`,
+        }),
+      ),
+  ];
+
+  return renderBillingArticle(lines);
+}
+
+export function renderTieredModelPriceSimple(opts) {
+  const {
+    expr_b64: exprB64,
+    matched_tier: matchedTier,
+    group_ratio: groupRatio,
+    user_group_ratio,
+    cache_tokens: cacheTokens = 0,
+    cache_creation_tokens_5m: cacheCreationTokens5m = 0,
+    cache_creation_tokens_1h: cacheCreationTokens1h = 0,
+    cache_creation_tokens: cacheCreationTokens = 0,
+    displayMode = 'price',
+    outputMode = 'segments',
+  } = opts;
+  let exprStr = '';
+  try {
+    exprStr = decodeFromBase64(exprB64);
+  } catch {
+    // ignore
+  }
+  const tiers = parseTiersFromExpr(exprStr);
+  const tier = tiers.find((t) => {
+    const l1 = normalizeLabel(t.label);
+    const l2 = normalizeLabel(matchedTier);
+    return l1 === l2 && l1 !== '';
+  });
+
+  if (outputMode === 'segments') {
+    const segments = [
+      {
+        tone: 'primary',
+        text: getGroupRatioText(groupRatio, user_group_ratio),
+      },
+    ];
+
+    if (!tier) {
+      segments.push({
+        tone: 'secondary',
+        text:
+          tiers.length === 0
+            ? i18next.t('阶梯计费（表达式解析失败）')
+            : i18next.t('阶梯计费（未匹配到对应阶梯）'),
+      });
+    } else if (isPriceDisplayMode(displayMode)) {
+      const hasAnyCacheTokens =
+        cacheTokens > 0 ||
+        cacheCreationTokens > 0 ||
+        cacheCreationTokens5m > 0 ||
+        cacheCreationTokens1h > 0;
+      const priceSegments = BILLING_PRICING_VARS.filter(
+        (v) => v.group !== 'cache' || hasAnyCacheTokens,
+      ).map((v) => [v.field, v.shortLabel]);
+      for (const [field, label] of priceSegments) {
+        if (tier[field] > 0) {
+          segments.push({
+            tone: 'secondary',
+            text: i18next.t('{{label}} {{price}} / 1M tokens', {
+              label: i18next.t(label),
+              price: formatCompactDisplayPrice(tier[field]),
+            }),
+          });
+        }
+      }
+    }
+
+    return segments;
+  }
+
+  return [];
 }
 
 export function renderModelPriceSimple(

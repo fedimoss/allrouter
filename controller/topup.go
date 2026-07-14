@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,6 +36,22 @@ func applyTopUpDisplayCurrency(topups []*model.TopUp, displayInfo model.DisplayC
 		}
 		topUp.DisplayCurrency = displayInfo.Currency
 		topUp.DisplaySymbol = displayInfo.Symbol
+		// 兑换码展示发放时保存的原始金额和币种，不按查看记录时的当前汇率重算。
+		// 历史记录没有 OriginalMoney，继续保持原有展示，不做回填或猜测。
+		if topUp.GetBizType() == model.TopUpBizTypeRedemption && topUp.OriginalMoney > 0 {
+			amount := decimal.NewFromFloat(topUp.OriginalMoney).Round(6).InexactFloat64()
+			topUp.DisplayAmount = &amount
+			topUp.Money = amount
+			switch strings.ToUpper(strings.TrimSpace(topUp.Currency)) {
+			case "CNY", "¥", "￥":
+				topUp.DisplayCurrency = "CNY"
+				topUp.DisplaySymbol = "¥"
+			default:
+				topUp.DisplayCurrency = "USD"
+				topUp.DisplaySymbol = "$"
+			}
+			continue
+		}
 		// 加密货币不做法币汇率换算
 		if topUp.PaymentMethod == "crypto" {
 			continue
