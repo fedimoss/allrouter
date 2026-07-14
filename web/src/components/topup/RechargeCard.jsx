@@ -54,6 +54,7 @@ import {
   CheckCircle,
   Gift,
   Lightbulb,
+  Clock3,
   Copy,
 } from 'lucide-react';
 import { IconGift, IconSearch } from '@douyinfe/semi-icons';
@@ -112,6 +113,37 @@ const PAYMENT_METHOD_MAP = {
   crypto: '加密货币',
   redemptionCode: '兑换码',
   redemption_code: '兑换码',
+};
+
+const TOPUP_PROMOTION_ROWS = [
+  { topup: '$10', bonus: '+$1', total: '$11', ratio: '10%' },
+  { topup: '$50', bonus: '+$6', total: '$56', ratio: '12%' },
+  { topup: '$100', bonus: '+$16', total: '$116', ratio: '16%' },
+  { topup: '$300', bonus: '+$60', total: '$360', ratio: '20%' },
+  { topup: '$500', bonus: '+$125', total: '$625', ratio: '25%' },
+];
+
+const TOPUP_PROMOTION_START_AT = Date.parse('2026-07-14T00:00:00+08:00');
+const TOPUP_PROMOTION_END_AT = Date.parse('2026-07-28T00:00:00+08:00');
+
+const getTopupPromotionCountdown = (now = Date.now()) => {
+  const started = now >= TOPUP_PROMOTION_START_AT;
+  const ended = now >= TOPUP_PROMOTION_END_AT;
+  const remainingMilliseconds = ended
+    ? 0
+    : started
+      ? TOPUP_PROMOTION_END_AT - now
+      : TOPUP_PROMOTION_END_AT - TOPUP_PROMOTION_START_AT;
+  const totalSeconds = Math.max(0, Math.floor(remainingMilliseconds / 1000));
+
+  return {
+    started,
+    ended,
+    days: Math.floor(totalSeconds / 86400),
+    hours: Math.floor((totalSeconds % 86400) / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+    seconds: totalSeconds % 60,
+  };
 };
 
 const RechargeCard = ({
@@ -179,6 +211,9 @@ const RechargeCard = ({
   const [historyKeyword, setHistoryKeyword] = useState('');
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
   const [cryptoDrawerVisible, setCryptoDrawerVisible] = useState(false);
+  const [topupPromotionCountdown, setTopupPromotionCountdown] = useState(() =>
+    getTopupPromotionCountdown(),
+  );
   // 当未选择支付方式且仅 Stripe 可用时，回退为 stripe，用于输入框的最低金额计算
   const fallbackInputPaymentType =
     !selectedPayMethod && enableStripeTopUp && !enableOnlineTopUp
@@ -213,6 +248,16 @@ const RechargeCard = ({
       setActiveTab('topup');
     }
   }, [shouldShowSubscription, activeTab]);
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      setTopupPromotionCountdown(getTopupPromotionCountdown());
+    };
+
+    updateCountdown();
+    const countdownTimer = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(countdownTimer);
+  }, []);
 
   useEffect(() => {
     if (selectedPayMethod) return;
@@ -1061,6 +1106,103 @@ const RechargeCard = ({
                 <span>{t('如遇支付问题，请通过帮助中心联系支持。')}</span>
               </li>
             </ul>
+          </div>
+
+          <div className='rounded-2xl bg-white p-5 dark:bg-slate-800'>
+            <h3 className='mb-4 flex items-center gap-2 font-bold text-slate-800 dark:text-white'>
+              <Gift size={20} className='text-amber-500' /> 充值赠送活动
+            </h3>
+            <div className='overflow-x-auto rounded-lg border border-slate-300'>
+              <table className='w-full min-w-[360px] border-collapse text-sm text-slate-950'>
+                <thead className='bg-[#1f4e78] text-white'>
+                  <tr>
+                    {['充值', '赠送', '到账总额', '比例'].map((title) => (
+                      <th
+                        key={title}
+                        className='border-r border-white/50 px-2 py-2 text-left font-bold last:border-r-0'
+                      >
+                        {title}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {TOPUP_PROMOTION_ROWS.map((row, index) => {
+                    const isHighlighted =
+                      index === TOPUP_PROMOTION_ROWS.length - 1;
+                    return (
+                      <tr
+                        key={row.topup}
+                        className={
+                          isHighlighted ? 'bg-[#fff2cc] font-bold' : 'bg-white'
+                        }
+                      >
+                        {[row.topup, row.bonus, row.total, row.ratio].map(
+                          (value, valueIndex) => (
+                            <td
+                              key={`${row.topup}-${valueIndex}`}
+                              className={`border-r border-t border-slate-300 px-2 py-2 last:border-r-0 ${
+                                valueIndex === 3 ? 'text-center' : 'text-left'
+                              }`}
+                            >
+                              {value}
+                            </td>
+                          ),
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className='rounded-2xl bg-gradient-to-br m-5 from-slate-900 to-[#1f4e78] p-5 text-white shadow-sm'>
+            <div className='mb-4 flex items-center justify-between gap-3'>
+              <h3 className='flex items-center gap-2 font-bold'>
+                <Clock3 size={20} className='text-amber-300' /> 活动倒计时
+              </h3>
+              {!topupPromotionCountdown.ended && (
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                    topupPromotionCountdown.started
+                      ? 'bg-emerald-400/20 text-emerald-200'
+                      : 'bg-amber-300/20 text-amber-100'
+                  }`}
+                >
+                  {topupPromotionCountdown.started
+                    ? '活动进行中'
+                    : '明日 00:00 开始'}
+                </span>
+              )}
+            </div>
+
+            {topupPromotionCountdown.ended ? (
+              <div className='rounded-xl border border-white/15 bg-white/10 px-4 py-8 text-center'>
+                <p className='text-xl font-bold text-amber-200'>活动已结束</p>
+              </div>
+            ) : (
+              <div className='grid grid-cols-4 gap-2'>
+                {[
+                  ['天', topupPromotionCountdown.days],
+                  ['时', topupPromotionCountdown.hours],
+                  ['分', topupPromotionCountdown.minutes],
+                  ['秒', topupPromotionCountdown.seconds],
+                ].map(([unit, value]) => (
+                  <div
+                    key={unit}
+                    className='rounded-xl border border-white/15 bg-white/10 px-1 py-3 text-center backdrop-blur-sm'
+                  >
+                    <strong className='block text-xl font-black tabular-nums sm:text-2xl'>
+                      {String(value).padStart(2, '0')}
+                    </strong>
+                    <span className='mt-1 block text-xs text-blue-100'>
+                      {unit}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

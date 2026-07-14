@@ -87,19 +87,46 @@ func buildCompletionRatioMetaValue(optionValues map[string]string) string {
 	return string(jsonBytes)
 }
 
+func isSensitiveOptionKey(key string) bool {
+	// 这些配置可能包含凭据或密钥，后台设置页回显时仍需沿用原有过滤规则。
+	return strings.HasSuffix(key, "Token") ||
+		strings.HasSuffix(key, "Secret") ||
+		strings.HasSuffix(key, "Key") ||
+		strings.HasSuffix(key, "Password") ||
+		strings.HasSuffix(key, "secret") ||
+		strings.HasSuffix(key, "password") ||
+		strings.HasSuffix(key, "api_key")
+}
+
 func GetOptions(c *gin.Context) {
-	var options []*model.Option
+	mergedOptions := make(map[string]string)
 	optionValues := make(map[string]string)
-	common.OptionMapRWMutex.Lock()
+
+	// OptionMap 是完整默认配置集；数据库 options 表通常只保存用户修改过的项。
+	// 因此先取内存默认全集，避免只查数据库导致未保存过的默认字段从设置页消失。
+	common.OptionMapRWMutex.RLock()
 	for k, v := range common.OptionMap {
-		value := common.Interface2String(v)
-		if strings.HasSuffix(k, "Token") ||
-			strings.HasSuffix(k, "Secret") ||
-			strings.HasSuffix(k, "Key") ||
-			strings.HasSuffix(k, "Password") ||
-			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "password") ||
-			strings.HasSuffix(k, "api_key") {
+		mergedOptions[k] = common.Interface2String(v)
+	}
+	common.OptionMapRWMutex.RUnlock()
+
+	// 多实例部署时，各实例的 OptionMap 可能短暂不同步。
+	// 后台回显以数据库最新值覆盖内存默认值，确保刷新设置页看到最终保存的数据。
+	dbOptions, err := model.AllOption()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	for _, option := range dbOptions {
+		mergedOptions[option.Key] = option.Value
+	}
+
+	// TelegramWebhookSecretConfigured 是 TelegramWebhookSecret 是否配置好的标志位。
+	mergedOptions["TelegramWebhookSecretConfigured"] = strconv.FormatBool(strings.TrimSpace(mergedOptions["TelegramWebhookSecret"]) != "")
+
+	options := make([]*model.Option, 0, len(mergedOptions)+1)
+	for k, value := range mergedOptions {
+		if isSensitiveOptionKey(k) {
 			continue
 		}
 		options = append(options, &model.Option{
@@ -113,7 +140,6 @@ func GetOptions(c *gin.Context) {
 			}
 		}
 	}
-	common.OptionMapRWMutex.Unlock()
 	options = append(options, &model.Option{
 		Key:   "CompletionRatioMeta",
 		Value: buildCompletionRatioMetaValue(optionValues),
@@ -297,6 +323,16 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "消费返利比例必须在 0 到 100 之间",
 			})
+			return
+		}
+	case "RegisterGiftSubscriptionPlanId", "AirdropSubscriptionPlanId":
+		planId, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil {
+			common.ApiErrorMsg(c, "订阅套餐 ID 必须是整数")
+			return
+		}
+		if err := model.ValidateSubscriptionRewardPlanForProvider(0, planId); err != nil {
+			common.ApiError(c, err)
 			return
 		}
 	case "USDExchangeRate":

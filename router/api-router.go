@@ -384,6 +384,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.GET("/reward/config", controller.GetProviderRewardConfig)
 			providerRoute.PUT("/reward/config", controller.UpsertProviderRewardConfig)
 			providerRoute.GET("/reward/summary", controller.GetProviderRewardSummary)
+			providerRoute.POST("/subscription/airdrop", controller.ProviderGrantAirdropSubscription)
 			providerRoute.GET("/redemption", controller.GetProviderRedemptions)
 			providerRoute.GET("/redemption/search", controller.SearchProviderRedemptions)
 			providerRoute.POST("/redemption", controller.AddProviderRedemption)
