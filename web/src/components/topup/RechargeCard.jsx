@@ -116,13 +116,15 @@ const PAYMENT_METHOD_MAP = {
   redemption_code: '兑换码',
 };
 
-const TOPUP_PROMOTION_ROWS = [
-  { topup: '$10', bonus: '+$1', total: '$11', ratio: '10%' },
-  { topup: '$50', bonus: '+$6', total: '$56', ratio: '12%' },
-  { topup: '$100', bonus: '+$16', total: '$116', ratio: '16%' },
-  { topup: '$300', bonus: '+$60', total: '$360', ratio: '20%' },
-  { topup: '$500', bonus: '+$125', total: '$625', ratio: '25%' },
-];
+const EMPTY_TOPUP_GIFT_CONFIG = {
+  enabled: false,
+  rules: [],
+  timed: {
+    enabled: false,
+    day: 0,
+    endTime: 0,
+  },
+};
 
 // 后端 end_time 使用秒级 Unix 时间戳；只有开关开启且截止时间有效时才展示倒计时。
 const getTopupPromotionCountdown = (config, now = Date.now()) => {
@@ -140,6 +142,22 @@ const getTopupPromotionCountdown = (config, now = Date.now()) => {
     minutes: Math.floor((totalSeconds % 3600) / 60),
     seconds: totalSeconds % 60,
   };
+};
+
+const getTopupGiftEndTime = (timed) => {
+  const configuredEndTime = Number(timed?.end_time);
+  if (Number.isFinite(configuredEndTime) && configuredEndTime > 0) {
+    return configuredEndTime < 1e12
+      ? configuredEndTime * 1000
+      : configuredEndTime;
+  }
+
+  const days = Number(timed?.day);
+  if (!Number.isFinite(days) || days <= 0) return 0;
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  return startOfToday.getTime() + days * 86400000;
 };
 
 const RechargeCard = ({
@@ -233,6 +251,17 @@ const RechargeCard = ({
     displayCurrency?.symbol ||
     (displayCurrency?.currency === 'CNY' ? '¥' : '$');
   const presetCurrencySymbol = stripeCurrency?.symbol || displayCurrencySymbol;
+  const topupGiftRules = topupGiftConfig.enabled ? topupGiftConfig.rules : [];
+  const hasDynamicGiftPresets = topupGiftRules.length > 0;
+  const displayedPresetAmounts = hasDynamicGiftPresets
+    ? topupGiftRules.map((rule) => ({
+        value: rule.threshold,
+        bonus: rule.bonus,
+        giftRuleId: rule.id,
+      }))
+    : presetAmounts;
+  const formatTopupGiftAmount = (amount) =>
+    `${presetCurrencySymbol} ${Number(Number(amount).toFixed(10)).toString()}`;
 
   useEffect(() => {
     if (initialTabSetRef.current) return;
@@ -249,6 +278,54 @@ const RechargeCard = ({
 
   // 仅对已启用且已锚定截止时间的活动启动秒级定时器；站点配置变化时会重建定时器。
   useEffect(() => {
+    let active = true;
+
+    const loadTopupGiftConfig = async () => {
+      try {
+        const res = await API.get('/api/topup/gift_config');
+        const { success, data } = res.data || {};
+        if (!active || !success || !data) return;
+
+        const rules = Array.isArray(data.rules)
+          ? data.rules
+              .map((rule) => ({
+                id: rule.id,
+                threshold: Number(rule.threshold),
+                bonus: Number(rule.bonus),
+              }))
+              .filter(
+                (rule) =>
+                  Number.isFinite(rule.threshold) &&
+                  rule.threshold > 0 &&
+                  Number.isFinite(rule.bonus) &&
+                  rule.bonus > 0,
+              )
+          : [];
+        const timed = data.timed || {};
+
+        setTopupGiftConfig({
+          enabled: data.enabled === true,
+          rules,
+          timed: {
+            enabled: timed.enabled === true,
+            day: Number(timed.day) || 0,
+            endTime: getTopupGiftEndTime(timed),
+          },
+        });
+      } catch (error) {
+        // Keep the existing preset amounts when gift configuration is unavailable.
+      }
+    };
+
+    loadTopupGiftConfig();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!topupGiftConfig.timed.enabled) return undefined;
+
     const updateCountdown = () => {
       setTopupPromotionCountdown(getTopupPromotionCountdown(topupGiftTimed));
     };
@@ -685,18 +762,17 @@ const RechargeCard = ({
                   }
                 >
                   <div className='grid grid-cols-2 md:grid-cols-6 gap-3'>
-                    {presetAmounts.map((preset, index) => {
+                    {displayedPresetAmounts.map((preset, index) => {
                       const discount =
                         preset.discount ||
                         topupInfo?.discount?.[preset.value] ||
                         1.0;
                       const hasDiscount = discount < 1.0;
 
-                      return (
+                      const presetButton = (
                         <button
                           type='button'
-                          key={index}
-                          className={`h-12 rounded-xl text-l font-semibold transition-all ${
+                          className={`h-12 w-full rounded-xl text-l font-semibold transition-all ${
                             selectedPreset === preset.value
                               ? 'text-[color:var(--theme-primary)] border border-[color:var(--theme-primary)] dark:bg-cyan-900/10 dark:text-[color:var(--theme-primary)]'
                               : 'bg-[#F8FAFC] text-slate-700 dark:bg-gray-800 dark:text-slate-200'
@@ -720,6 +796,33 @@ const RechargeCard = ({
                             </Tag>
                           )}
                         </button>
+                      );
+
+                      return hasDynamicGiftPresets ? (
+                        <Tooltip
+                          key={preset.giftRuleId || `${preset.value}-${index}`}
+                          position='top'
+                          content={
+                            <div className='space-y-1'>
+                              <div>
+                                {t('赠送')}：
+                                {formatTopupGiftAmount(preset.bonus)}
+                              </div>
+                              <div>
+                                {t('到账总额')}：
+                                {formatTopupGiftAmount(
+                                  preset.value + preset.bonus,
+                                )}
+                              </div>
+                            </div>
+                          }
+                        >
+                          {presetButton}
+                        </Tooltip>
+                      ) : (
+                        <React.Fragment key={`${preset.value}-${index}`}>
+                          {presetButton}
+                        </React.Fragment>
                       );
                     })}
                   </div>
@@ -1110,54 +1213,58 @@ const RechargeCard = ({
             </ul>
           </div>
 
-          <div className='rounded-2xl bg-white p-5 dark:bg-slate-800'>
-            <h3 className='mb-4 flex items-center gap-2 font-bold text-slate-800 dark:text-white'>
-              <Gift size={20} className='text-amber-500' /> 充值赠送活动
-            </h3>
-            <div className='overflow-x-auto rounded-lg border border-slate-300'>
-              <table className='w-full min-w-[360px] border-collapse text-sm text-slate-950'>
-                <thead className='bg-[#1f4e78] text-white'>
-                  <tr>
-                    {['充值', '赠送', '到账总额', '比例'].map((title) => (
-                      <th
-                        key={title}
-                        className='border-r border-white/50 px-2 py-2 text-left font-bold last:border-r-0'
-                      >
-                        {title}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {TOPUP_PROMOTION_ROWS.map((row, index) => {
-                    const isHighlighted =
-                      index === TOPUP_PROMOTION_ROWS.length - 1;
-                    return (
-                      <tr
-                        key={row.topup}
-                        className={
-                          isHighlighted ? 'bg-[#fff2cc] font-bold' : 'bg-white'
-                        }
-                      >
-                        {[row.topup, row.bonus, row.total, row.ratio].map(
-                          (value, valueIndex) => (
+          {hasDynamicGiftPresets && (
+            <div className='rounded-2xl bg-white p-5 dark:bg-slate-800'>
+              <h3 className='mb-4 flex items-center gap-2 font-bold text-slate-800 dark:text-white'>
+                <Gift size={20} className='text-amber-500' /> 充值赠送活动
+              </h3>
+              <div className='overflow-x-auto rounded-lg border border-slate-300'>
+                <table className='w-full min-w-[360px] border-collapse text-sm text-slate-950'>
+                  <thead className='bg-[#1f4e78] text-white'>
+                    <tr>
+                      {['充值', '赠送', '到账总额'].map((title) => (
+                        <th
+                          key={title}
+                          className='border-r border-white/50 px-2 py-2 text-left font-bold last:border-r-0'
+                        >
+                          {title}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topupGiftRules.map((rule, index) => {
+                      const values = [
+                        formatTopupGiftAmount(rule.threshold),
+                        `+${formatTopupGiftAmount(rule.bonus)}`,
+                        formatTopupGiftAmount(rule.threshold + rule.bonus),
+                      ];
+
+                      return (
+                        <tr
+                          key={rule.id || `${rule.threshold}-${index}`}
+                          className={
+                            index === topupGiftRules.length - 1
+                              ? 'bg-[#fff2cc] font-bold'
+                              : 'bg-white'
+                          }
+                        >
+                          {values.map((value, valueIndex) => (
                             <td
-                              key={`${row.topup}-${valueIndex}`}
-                              className={`border-r border-t border-slate-300 px-2 py-2 last:border-r-0 ${
-                                valueIndex === 3 ? 'text-center' : 'text-left'
-                              }`}
+                              key={`${rule.id || rule.threshold}-${valueIndex}`}
+                              className='border-r border-t border-slate-300 px-2 py-2 text-left last:border-r-0'
                             >
                               {value}
                             </td>
-                          ),
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 当前站点未启用倒计时或尚无有效截止时间时，不渲染活动倒计时区域。 */}
           {topupPromotionCountdown.enabled && (
