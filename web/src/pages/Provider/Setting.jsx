@@ -138,6 +138,7 @@ const ProviderSetting = () => {
               {tabActiveKey === 'dashboard' && (
                 <Spin spinning={loading} size='large'>
                   <Card style={{ marginTop: '10px' }}>
+                    {/* 服务商模式隐藏主站公告专用的“在服务商站点显示”开关。 */}
                     <SettingsAnnouncements
                       options={options}
                       refresh={refresh}
