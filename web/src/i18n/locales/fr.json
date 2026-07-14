@@ -4448,6 +4448,7 @@
     "在此输入新的页脚，留空则使用默认页脚，支持 HTML 代码": "Saisissez le nouveau pied de page ici, laissez vide pour utiliser le pied de page par défaut, prend en charge le code HTML.",
     "在此输入隐私政策内容，支持 Markdown & HTML 代码": "Saisissez le contenu de la politique de confidentialité ici, prend en charge le code Markdown & HTML",
     "在此输入用户协议内容，支持 Markdown & HTML 代码": "Saisissez le contenu de l'accord utilisateur ici, prend en charge le code Markdown & HTML",
+    "在服务商站点显示": "Afficher sur les sites des fournisseurs",
     "在技术圈、开发者社群有较强影响力。": "Vous avez une forte influence dans les cercles tech et les communautés de développeurs.",
     "在控制台和日志中实时追踪延迟、Token 用量与成本。": "Real-time tracking of latency, Token usage, and costs in the console and logs.",
     "在模型广场向用户展示的端点": "Endpoint affiché aux utilisateurs dans la place de marché des modèles",

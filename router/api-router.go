@@ -22,8 +22,6 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", anonymousRequestBodyLimit, controller.PostSetup)
 		apiRouter.GET("/status", controller.GetStatus)
-		// 登录用户只读配置，TenantResolver 会按请求域名注入主站或服务商上下文。
-		apiRouter.GET("/topup/gift_config", middleware.UserAuth(), controller.GetTopUpGiftConfig)
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
@@ -95,6 +93,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/topup/rebate/records", controller.GetTopUpRebateRecords) // 用户返利记录列表
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
+				apiRouter.GET("/topup/gift_config", controller.GetTopUpGiftConfig) // 获取充值赠送配置
 				selfRoute.GET("/lakala/status", controller.GetLakalaTopUpStatus)
 				selfRoute.GET("/redemption/self", controller.GetSelfRedemptionRecords)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
