@@ -27,39 +27,69 @@ func (TopUpBonusGrant) TableName() string {
 	return "topup_bonus_grants"
 }
 
-// topUpGiftRule 对应 option TopUpGiftRules 中的一条规则。
-type topUpGiftRule struct {
+const (
+	ProviderTopUpGiftRulesOptionKey   = "topup_gift.rules"
+	ProviderTopUpGiftEnabledOptionKey = "topup_gift.enabled"
+)
+
+// TopUpGiftRule 对应 option TopUpGiftRules 中的一条规则。
+type TopUpGiftRule struct {
 	Id        string  `json:"id"`        // 规则稳定标识，作为幂等键
 	Threshold float64 `json:"threshold"` // 充值门槛（用户币种数值，如 10 表示 $10 或 ¥10）
 	Bonus     float64 `json:"bonus"`     // 赠送金额（用户币种数值）
 }
 
-func parseTopUpGiftRulesFrom(str string) []topUpGiftRule {
-	if strings.TrimSpace(str) == "" {
-		return nil
-	}
-	var rules []topUpGiftRule
-	if err := common.Unmarshal([]byte(str), &rules); err != nil {
-		common.SysError("topup bonus parse rules failed: " + err.Error())
-		return nil
-	}
-	return rules
+type TopUpGiftConfig struct {
+	Enabled bool            `json:"enabled"`
+	Rules   []TopUpGiftRule `json:"rules"`
 }
 
-// loadTopUpGiftConfig 按 provider 维度加载充值赠送配置（规则 + 启用开关）。
+func parseTopUpGiftRulesFrom(str string) ([]TopUpGiftRule, error) {
+	if strings.TrimSpace(str) == "" {
+		return []TopUpGiftRule{}, nil
+	}
+	var rules []TopUpGiftRule
+	if err := common.Unmarshal([]byte(str), &rules); err != nil {
+		return nil, fmt.Errorf("解析充值赠送规则失败: %w", err)
+	}
+	if rules == nil {
+		rules = []TopUpGiftRule{}
+	}
+	return rules, nil
+}
+
+// LoadTopUpGiftConfig 按 provider 维度加载充值赠送配置（规则 + 启用开关）。
 // providerId == 0 读主站全局 option（common.TopUpGiftRules / TopUpGiftEnabled）；
 // providerId > 0 读服务商 provider_options 的 topup_gift.rules / topup_gift.enabled。
 // 服务商未配置 enabled 时返回 false（需显式启用才生效）。
-func loadTopUpGiftConfig(providerId int) ([]topUpGiftRule, bool) {
+func LoadTopUpGiftConfig(providerId int) (TopUpGiftConfig, error) {
+	var rulesStr string
+	enabled := false
 	if providerId == 0 {
-		return parseTopUpGiftRulesFrom(common.TopUpGiftRules), common.TopUpGiftEnabled
+		common.OptionMapRWMutex.RLock()
+		rulesStr = common.TopUpGiftRules
+		enabled = common.TopUpGiftEnabled
+		common.OptionMapRWMutex.RUnlock()
+	} else {
+		options, err := GetProviderOptions(providerId)
+		if err != nil {
+			return TopUpGiftConfig{}, err
+		}
+		for _, option := range options {
+			switch option.Key {
+			case ProviderTopUpGiftRulesOptionKey:
+				rulesStr = option.Value
+			case ProviderTopUpGiftEnabledOptionKey:
+				enabled = option.Value == "true"
+			}
+		}
 	}
-	rulesStr, err := GetProviderOptionValue(providerId, "topup_gift.rules")
+
+	rules, err := parseTopUpGiftRulesFrom(rulesStr)
 	if err != nil {
-		return nil, false
+		return TopUpGiftConfig{}, err
 	}
-	enabledStr, _ := GetProviderOptionValue(providerId, "topup_gift.enabled")
-	return parseTopUpGiftRulesFrom(rulesStr), enabledStr == "true"
+	return TopUpGiftConfig{Enabled: enabled, Rules: rules}, nil
 }
 
 // claimTopUpBonusGrant 原子占用名额（OnConflict DoNothing）。
@@ -108,11 +138,16 @@ func GrantTopUpBonus(userId int, providerId int, moneyUSD float64, tradeNo strin
 	// providerId > 0 读 provider_options 的 topup_gift.rules / topup_gift.enabled。
 	// 注意：这里必须用订单维度的 providerId（topUp.ProviderId），不能用 users 表的 user.ProviderId，
 	// 因为用户可能在主站注册但在服务商域名下充值，二者不一致会导致分流错误。
-	rules, enabled := loadTopUpGiftConfig(providerId)
-	// 总开关：未启用则完全不处理（即使配置了规则也不生效）
-	if !enabled {
+	config, err := LoadTopUpGiftConfig(providerId)
+	if err != nil {
+		common.SysError("topup bonus load config failed: " + err.Error())
 		return
 	}
+	// 总开关：未启用则完全不处理（即使配置了规则也不生效）
+	if !config.Enabled {
+		return
+	}
+	rules := config.Rules
 	if len(rules) == 0 {
 		return
 	}

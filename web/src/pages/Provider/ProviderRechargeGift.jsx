@@ -31,24 +31,35 @@ import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess, showWarning } from '../../helpers';
 import {
   newRuleId,
+  parseTimedConfig,
   parseRules,
   serializeRules,
+  serializeTimedConfig,
 } from '../../helpers/topupGift';
 
 const { Text } = Typography;
 
 const RULES_KEY = 'topup_gift.rules';
 const ENABLED_KEY = 'topup_gift.enabled';
+const TIMED_KEY = 'topup_gift.timed';
 
-// 服务商维度的"充值赠送"配置模块。读写 provider_options（key: topup_gift.rules / topup_gift.enabled），
+// 服务商维度的"充值赠送"配置模块。规则、开关和倒计时均读写 provider_options，
 // 供 /console/provider/reward 页面使用。逻辑与主站 SettingsRechargeGift 对称，仅数据源/API 不同。
 export default function ProviderRechargeGift({ provider }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [timedSaving, setTimedSaving] = useState(false);
   const [enabled, setEnabled] = useState(false);
+  const [timeEnabled, setTimeEnabled] = useState(false);
+  const [timeDay, setTimeDay] = useState(0);
   const [rules, setRules] = useState([]);
   const [original, setOriginal] = useState({ enabled: false, rulesJson: '' });
+  const [timeOriginal, setTimeOriginal] = useState({
+    timeEnabled: false,
+    timeDay: 0,
+    anchored: false,
+  });
 
   const providerId = provider?.id;
 
@@ -61,12 +72,21 @@ export default function ProviderRechargeGift({ provider }) {
         const list = res.data.data || [];
         const rulesOpt = list.find((o) => o.key === RULES_KEY);
         const enabledOpt = list.find((o) => o.key === ENABLED_KEY);
+        const timedOpt = list.find((o) => o.key === TIMED_KEY);
         const raw = rulesOpt?.value ?? '';
         const en = enabledOpt?.value === 'true';
         const parsed = parseRules(raw);
+        const timed = parseTimedConfig(timedOpt?.value);
         setEnabled(en);
         setRules(parsed);
         setOriginal({ enabled: en, rulesJson: serializeRules(parsed) });
+        setTimeEnabled(timed.enabled);
+        setTimeDay(timed.day);
+        setTimeOriginal({
+          timeEnabled: timed.enabled,
+          timeDay: timed.day,
+          anchored: timed.endTime > 0,
+        });
       } else {
         showError(res.data?.message || t('加载失败'));
       }
@@ -125,6 +145,38 @@ export default function ProviderRechargeGift({ provider }) {
       showError(t('保存失败，请重试'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onTimedSubmit = async () => {
+    if (timeEnabled && (!timeDay || timeDay < 1)) {
+      return showWarning(t('最少设置1天'));
+    }
+    const timedJson = serializeTimedConfig(timeEnabled, timeDay);
+    const originalJson = serializeTimedConfig(
+      timeOriginal.timeEnabled,
+      timeOriginal.timeDay,
+    );
+    if (timedJson === originalJson && (!timeEnabled || timeOriginal.anchored)) {
+      return showWarning(t('你似乎并没有修改什么'));
+    }
+
+    setTimedSaving(true);
+    try {
+      const res = await API.put(`/api/provider/options/${providerId}`, {
+        key: TIMED_KEY,
+        value: timedJson,
+      });
+      if (!res.data?.success) {
+        showError(res.data?.message || t('保存失败'));
+      } else {
+        showSuccess(t('保存成功'));
+        setTimeOriginal({ timeEnabled, timeDay, anchored: timeEnabled });
+      }
+    } catch (e) {
+      showError(t('保存失败，请重试'));
+    } finally {
+      setTimedSaving(false);
     }
   };
 
@@ -226,6 +278,50 @@ export default function ProviderRechargeGift({ provider }) {
           <Button size='default' loading={saving} onClick={onSubmit}>
             {t('保存充值赠送设置')}
           </Button>
+        </div>
+
+        <div
+          style={{
+            borderTop: '1px solid var(--semi-color-border)',
+            marginTop: 20,
+            paddingTop: 16,
+          }}
+        >
+          <div className='flex items-center gap-3' style={{ marginBottom: 12 }}>
+            <Text strong>{t('启用充值赠送倒计时')}</Text>
+            <Switch
+              checked={timeEnabled}
+              onChange={setTimeEnabled}
+              size='default'
+              checkedText='｜'
+              uncheckedText='〇'
+            />
+            {!timeEnabled && (
+              <Text type='tertiary' size='small'>
+                {t('（当前未启用，倒计时不会显示）')}
+              </Text>
+            )}
+          </div>
+          <div className='flex items-center gap-2'>
+            <Text type='tertiary' size='small'>
+              {t('倒计时')}
+            </Text>
+            <InputNumber
+              min={1}
+              precision={0}
+              disabled={!timeEnabled}
+              placeholder={t('天数')}
+              value={timeDay}
+              onChange={(value) => setTimeDay(Number(value) || 0)}
+              style={{ width: 200 }}
+            />
+            <Text type='tertiary' size='small'>
+              {t('天后活动结束')}
+            </Text>
+            <Button loading={timedSaving} onClick={onTimedSubmit}>
+              {t('保存设置')}
+            </Button>
+          </div>
         </div>
       </div>
     </Spin>

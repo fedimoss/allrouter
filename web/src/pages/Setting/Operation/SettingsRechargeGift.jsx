@@ -32,8 +32,10 @@ import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess, showWarning } from '../../../helpers';
 import {
   newRuleId,
+  parseTimedConfig,
   parseRules,
   serializeRules,
+  serializeTimedConfig,
 } from '../../../helpers/topupGift';
 
 const { Text } = Typography;
@@ -50,21 +52,8 @@ export default function SettingsRechargeGift(props) {
   const [timeOriginal, setTimeOriginal] = useState({
     timeEnabled: false,
     timeDay: 0,
+    anchored: false,
   });
-
-  // 安全解析 option TopUpGiftTimed（{enabled, day} JSON 字符串）
-  const parseTopUpGiftTimed = (raw) => {
-    if (!raw) return { enabled: false, day: 0 };
-    try {
-      const obj = JSON.parse(raw);
-      return {
-        enabled: obj?.enabled === true,
-        day: Number(obj?.day) || 0,
-      };
-    } catch {
-      return { enabled: false, day: 0 };
-    }
-  };
 
   // 从父组件 option 初始化（启用开关 + 规则列表 + 倒计时）
   useEffect(() => {
@@ -76,10 +65,14 @@ export default function SettingsRechargeGift(props) {
     setOriginal({ enabled: en, rulesJson: serializeRules(parsed) });
 
     // 倒计时模块回显
-    const timed = parseTopUpGiftTimed(props.options?.TopUpGiftTimed);
+    const timed = parseTimedConfig(props.options?.TopUpGiftTimed);
     setTimeEnabled(timed.enabled);
     setTimeDay(timed.day);
-    setTimeOriginal({ timeEnabled: timed.enabled, timeDay: timed.day });
+    setTimeOriginal({
+      timeEnabled: timed.enabled,
+      timeDay: timed.day,
+      anchored: timed.endTime > 0,
+    });
   }, [
     props.options?.TopUpGiftEnabled,
     props.options?.TopUpGiftRules,
@@ -137,12 +130,12 @@ export default function SettingsRechargeGift(props) {
     if (timeEnabled && (!timeDay || timeDay < 1)) {
       return showWarning(t('最少设置1天'));
     }
-    const timedJson = JSON.stringify({ enabled: timeEnabled, day: timeDay });
-    const origJson = JSON.stringify({
-      enabled: timeOriginal.timeEnabled,
-      day: timeOriginal.timeDay,
-    });
-    if (timedJson === origJson) {
+    const timedJson = serializeTimedConfig(timeEnabled, timeDay);
+    const origJson = serializeTimedConfig(
+      timeOriginal.timeEnabled,
+      timeOriginal.timeDay,
+    );
+    if (timedJson === origJson && (!timeEnabled || timeOriginal.anchored)) {
       return showWarning(t('你似乎并没有修改什么'));
     }
     setLoading(true);
@@ -155,7 +148,7 @@ export default function SettingsRechargeGift(props) {
         showError(res.data?.message || t('保存失败'));
       } else {
         showSuccess(t('保存成功'));
-        setTimeOriginal({ timeEnabled, timeDay });
+        setTimeOriginal({ timeEnabled, timeDay, anchored: timeEnabled });
         props.refresh?.();
       }
     } catch (e) {
@@ -270,27 +263,26 @@ export default function SettingsRechargeGift(props) {
             </Text>
           )}
         </div>
-        {timeEnabled && (
-          <div className='flex items-center gap-2'>
-            <Text type='tertiary' size='small'>
-              {t('倒计时')}
-            </Text>
-            <InputNumber
-              min={0}
-              precision={0}
-              placeholder={t('天数')}
-              value={timeDay}
-              onChange={(v) => setTimeDay(Number(v) || 0)}
-              style={{ width: 200 }}
-            />
-            <Text type='tertiary' size='small'>
-              {t('天后活动结束')}
-            </Text>
-            <Button size='default' onClick={onTimedSubmit}>
-              {t('保存设置')}
-            </Button>
-          </div>
-        )}
+        <div className='flex items-center gap-2'>
+          <Text type='tertiary' size='small'>
+            {t('倒计时')}
+          </Text>
+          <InputNumber
+            min={1}
+            precision={0}
+            disabled={!timeEnabled}
+            placeholder={t('天数')}
+            value={timeDay}
+            onChange={(v) => setTimeDay(Number(v) || 0)}
+            style={{ width: 200 }}
+          />
+          <Text type='tertiary' size='small'>
+            {t('天后活动结束')}
+          </Text>
+          <Button size='default' onClick={onTimedSubmit}>
+            {t('保存设置')}
+          </Button>
+        </div>
       </Form>
     </Spin>
   );

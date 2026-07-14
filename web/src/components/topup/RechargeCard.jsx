@@ -124,21 +124,15 @@ const TOPUP_PROMOTION_ROWS = [
   { topup: '$500', bonus: '+$125', total: '$625', ratio: '25%' },
 ];
 
-const TOPUP_PROMOTION_START_AT = Date.parse('2026-07-14T00:00:00+08:00');
-const TOPUP_PROMOTION_END_AT = Date.parse('2026-07-28T00:00:00+08:00');
-
-const getTopupPromotionCountdown = (now = Date.now()) => {
-  const started = now >= TOPUP_PROMOTION_START_AT;
-  const ended = now >= TOPUP_PROMOTION_END_AT;
-  const remainingMilliseconds = ended
-    ? 0
-    : started
-      ? TOPUP_PROMOTION_END_AT - now
-      : TOPUP_PROMOTION_END_AT - TOPUP_PROMOTION_START_AT;
+const getTopupPromotionCountdown = (config, now = Date.now()) => {
+  const endTime = Number(config?.end_time) * 1000;
+  const enabled = config?.enabled === true && endTime > 0;
+  const ended = enabled && now >= endTime;
+  const remainingMilliseconds = enabled && !ended ? endTime - now : 0;
   const totalSeconds = Math.max(0, Math.floor(remainingMilliseconds / 1000));
 
   return {
-    started,
+    enabled,
     ended,
     days: Math.floor(totalSeconds / 86400),
     hours: Math.floor((totalSeconds % 86400) / 3600),
@@ -183,6 +177,7 @@ const RechargeCard = ({
   renderQuota,
   statusLoading,
   topupInfo,
+  topupGiftTimed,
   enableWaffoTopUp,
   waffoTopUp,
   waffoPayMethods,
@@ -213,7 +208,7 @@ const RechargeCard = ({
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
   const [cryptoDrawerVisible, setCryptoDrawerVisible] = useState(false);
   const [topupPromotionCountdown, setTopupPromotionCountdown] = useState(() =>
-    getTopupPromotionCountdown(),
+    getTopupPromotionCountdown(topupGiftTimed),
   );
   // 当未选择支付方式且仅 Stripe 可用时，回退为 stripe，用于输入框的最低金额计算
   const fallbackInputPaymentType =
@@ -252,13 +247,16 @@ const RechargeCard = ({
 
   useEffect(() => {
     const updateCountdown = () => {
-      setTopupPromotionCountdown(getTopupPromotionCountdown());
+      setTopupPromotionCountdown(getTopupPromotionCountdown(topupGiftTimed));
     };
 
     updateCountdown();
+    if (topupGiftTimed?.enabled !== true || !topupGiftTimed?.end_time) {
+      return undefined;
+    }
     const countdownTimer = window.setInterval(updateCountdown, 1000);
     return () => window.clearInterval(countdownTimer);
-  }, []);
+  }, [topupGiftTimed?.enabled, topupGiftTimed?.end_time]);
 
   useEffect(() => {
     if (selectedPayMethod) return;
@@ -1158,53 +1156,50 @@ const RechargeCard = ({
             </div>
           </div>
 
-          <div className='rounded-2xl bg-gradient-to-br m-5 from-slate-900 to-[#1f4e78] p-5 text-white shadow-sm'>
-            <div className='mb-4 flex items-center justify-between gap-3'>
-              <h3 className='flex items-center gap-2 font-bold'>
-                <Clock3 size={20} className='text-amber-300' /> 活动倒计时
-              </h3>
-              {!topupPromotionCountdown.ended && (
-                <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                    topupPromotionCountdown.started
-                      ? 'bg-emerald-400/20 text-emerald-200'
-                      : 'bg-amber-300/20 text-amber-100'
-                  }`}
-                >
-                  {topupPromotionCountdown.started
-                    ? '活动进行中'
-                    : '明日 00:00 开始'}
-                </span>
+          {topupPromotionCountdown.enabled && (
+            <div className='rounded-2xl bg-gradient-to-br m-5 from-slate-900 to-[#1f4e78] p-5 text-white shadow-sm'>
+              <div className='mb-4 flex items-center justify-between gap-3'>
+                <h3 className='flex items-center gap-2 font-bold'>
+                  <Clock3 size={20} className='text-amber-300' />{' '}
+                  {t('活动倒计时')}
+                </h3>
+                {!topupPromotionCountdown.ended && (
+                  <span className='rounded-full bg-emerald-400/20 px-2.5 py-1 text-xs font-medium text-emerald-200'>
+                    {t('活动进行中')}
+                  </span>
+                )}
+              </div>
+
+              {topupPromotionCountdown.ended ? (
+                <div className='rounded-xl border border-white/15 bg-white/10 px-4 py-8 text-center'>
+                  <p className='text-xl font-bold text-amber-200'>
+                    {t('活动已结束')}
+                  </p>
+                </div>
+              ) : (
+                <div className='grid grid-cols-4 gap-2'>
+                  {[
+                    [t('天'), topupPromotionCountdown.days],
+                    [t('时'), topupPromotionCountdown.hours],
+                    [t('分'), topupPromotionCountdown.minutes],
+                    [t('秒'), topupPromotionCountdown.seconds],
+                  ].map(([unit, value]) => (
+                    <div
+                      key={unit}
+                      className='rounded-xl border border-white/15 bg-white/10 px-1 py-3 text-center backdrop-blur-sm'
+                    >
+                      <strong className='block text-xl font-black tabular-nums sm:text-2xl'>
+                        {String(value).padStart(2, '0')}
+                      </strong>
+                      <span className='mt-1 block text-xs text-blue-100'>
+                        {unit}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-
-            {topupPromotionCountdown.ended ? (
-              <div className='rounded-xl border border-white/15 bg-white/10 px-4 py-8 text-center'>
-                <p className='text-xl font-bold text-amber-200'>活动已结束</p>
-              </div>
-            ) : (
-              <div className='grid grid-cols-4 gap-2'>
-                {[
-                  ['天', topupPromotionCountdown.days],
-                  ['时', topupPromotionCountdown.hours],
-                  ['分', topupPromotionCountdown.minutes],
-                  ['秒', topupPromotionCountdown.seconds],
-                ].map(([unit, value]) => (
-                  <div
-                    key={unit}
-                    className='rounded-xl border border-white/15 bg-white/10 px-1 py-3 text-center backdrop-blur-sm'
-                  >
-                    <strong className='block text-xl font-black tabular-nums sm:text-2xl'>
-                      {String(value).padStart(2, '0')}
-                    </strong>
-                    <span className='mt-1 block text-xs text-blue-100'>
-                      {unit}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
 

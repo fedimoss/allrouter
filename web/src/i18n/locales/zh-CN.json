@@ -1,5 +1,16 @@
 {
   "translation": {
+    "启用充值赠送倒计时": "启用充值赠送倒计时",
+    "（当前未启用，倒计时不会显示）": "（当前未启用，倒计时不会显示）",
+    "倒计时": "倒计时",
+    "天数": "天数",
+    "天后活动结束": "天后活动结束",
+    "最少设置1天": "最少设置1天",
+    "活动倒计时": "活动倒计时",
+    "活动已结束": "活动已结束",
+    "活动进行中": "活动进行中",
+    "时": "时",
+    "分": "分",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

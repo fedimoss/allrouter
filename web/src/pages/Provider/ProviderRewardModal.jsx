@@ -37,6 +37,7 @@ import {
   displayAmountToQuota,
   quotaToDisplayAmount,
 } from '../../helpers/quota';
+import ProviderRechargeGift from './ProviderRechargeGift';
 
 const { Text } = Typography;
 
@@ -384,6 +385,8 @@ const ProviderRewardModal = ({
               />
             </div>
           </div>
+
+          {isOpen && <ProviderRechargeGift provider={provider} />}
 
           <Text type='secondary' size='small'>
             {t('金额输入会按当前额度显示设置换算为系统原始 quota。')}

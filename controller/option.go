@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -335,6 +336,13 @@ func UpdateOption(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+	case "TopUpGiftTimed":
+		normalized, normalizeErr := model.NormalizeTopUpGiftTimedConfig(option.Value.(string), time.Now())
+		if normalizeErr != nil {
+			common.ApiErrorMsg(c, normalizeErr.Error())
+			return
+		}
+		option.Value = normalized
 	case "USDExchangeRate":
 		if err := syncUSDExchangeRateToCurrencyConfig(option.Value.(string)); err != nil {
 			c.JSON(http.StatusOK, gin.H{
