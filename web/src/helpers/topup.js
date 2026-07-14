@@ -47,9 +47,11 @@ export const isSubscriptionTopup = (record) =>
 export const isInviteRebateTopup = (record) =>
   getTopupBizType(record) === 'topup_rebate';
 
+// 兑换码额度允许小数，需与普通整数充值使用不同的展示规则。
 export const isRedemptionTopup = (record) =>
   getTopupBizType(record) === 'redemption';
 
+// 兑换码额度最多保留两位小数，并移除无意义的末尾零；普通充值保持原始显示。
 export const getTopupDisplayAmount = (record) => {
   if (!isRedemptionTopup(record)) {
     return record?.amount;

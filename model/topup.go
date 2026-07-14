@@ -121,6 +121,7 @@ func normalizeTopUps(topups []*TopUp) {
 const topUpRecordAlias = "topup_records"
 
 func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
+	// 兑换码列表展示依赖原始金额和币种，因此 UNION 两侧必须保持相同字段顺序和类型。
 	return tx.Table("(?) AS "+topUpRecordAlias, tx.Raw(`
 		SELECT
 			t.id,

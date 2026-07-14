@@ -28,13 +28,16 @@ type Redemption struct {
 	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // expired time, 0 means never expires
 }
 
+// redemptionAmountScale 统一约束兑换码金额的计算精度，避免不同入口产生不同的小数结果。
 const redemptionAmountScale int32 = 6
 
+// redemptionOriginalValue 保存兑换码发放时的原始金额和币种，仅用于生成可追溯的充值流水。
 type redemptionOriginalValue struct {
 	Amount   float64
 	Currency string
 }
 
+// normalizeRedemptionCurrency 将币种代码和常见符号归一化为稳定的数据库值。
 func normalizeRedemptionCurrency(currency string) (string, error) {
 	switch strings.ToUpper(strings.TrimSpace(currency)) {
 	case "USD", "$":
@@ -46,6 +49,7 @@ func normalizeRedemptionCurrency(currency string) (string, error) {
 	}
 }
 
+// redemptionUSDValue 将内部整数额度换算为统一的美元价值，供统计和结算字段使用。
 func redemptionUSDValue(quota int) float64 {
 	return decimal.NewFromInt(int64(quota)).
 		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
@@ -117,13 +121,16 @@ func GetUserRedeemedRedemptions(userId int, startIdx int, num int) (redemptions 
 }
 
 func Redeem(key string, userId int) (quota int, err error) {
+	// 手工创建的兑换码固定按 USD 解释，原始金额可由内部额度准确换算。
 	return redeem(key, userId, nil)
 }
 
+// redeemWithOriginalValue 用于充值赠送，保留赠送发生时的原始金额和币种。
 func redeemWithOriginalValue(key string, userId int, value redemptionOriginalValue) (quota int, err error) {
 	return redeem(key, userId, &value)
 }
 
+// redeem 统一处理额度入账、兑换状态更新和充值流水写入，避免两种来源出现重复实现。
 func redeem(key string, userId int, originalValue *redemptionOriginalValue) (quota int, err error) {
 	if key == "" {
 		return 0, errors.New("missing redemption code")
@@ -175,6 +182,7 @@ func redeem(key string, userId int, originalValue *redemptionOriginalValue) (quo
 				return err
 			}
 		}
+		// Money 保存归一化美元价值供统计使用；OriginalMoney/Currency 保存用户看到的原始面值。
 		moneyUSD := redemptionUSDValue(redemption.Quota)
 		originalMoney := moneyUSD
 		currency := "USD"

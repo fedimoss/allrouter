@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestApplyTopUpDisplayCurrencyPreservesRedemptionOriginalValue 验证人民币赠送不受查看者展示币种影响。
 func TestApplyTopUpDisplayCurrencyPreservesRedemptionOriginalValue(t *testing.T) {
 	topUp := &model.TopUp{
 		BizType:       model.TopUpBizTypeRedemption,
@@ -30,6 +31,7 @@ func TestApplyTopUpDisplayCurrencyPreservesRedemptionOriginalValue(t *testing.T)
 	assert.Equal(t, "¥", topUp.DisplaySymbol)
 }
 
+// TestApplyTopUpDisplayCurrencyUsesUSDForManualRedemption 验证手工兑换始终按美元原始面值展示。
 func TestApplyTopUpDisplayCurrencyUsesUSDForManualRedemption(t *testing.T) {
 	topUp := &model.TopUp{
 		BizType:       model.TopUpBizTypeRedemption,
@@ -52,6 +54,7 @@ func TestApplyTopUpDisplayCurrencyUsesUSDForManualRedemption(t *testing.T) {
 	assert.Equal(t, "$", topUp.DisplaySymbol)
 }
 
+// TestApplyTopUpDisplayCurrencyDoesNotReinterpretLegacyRedemption 验证旧流水不会被新规则猜测性修复。
 func TestApplyTopUpDisplayCurrencyDoesNotReinterpretLegacyRedemption(t *testing.T) {
 	topUp := &model.TopUp{
 		BizType: model.TopUpBizTypeRedemption,

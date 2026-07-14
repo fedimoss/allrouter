@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// setupRedemptionValueTest 固定 1 USD 对应 500000 内部额度，便于覆盖小数面值场景。
 func setupRedemptionValueTest(t *testing.T) {
 	t.Helper()
 	truncateTables(t)
@@ -41,6 +42,7 @@ func getRedemptionTopUpForValueTest(t *testing.T, redemptionID int) *TopUp {
 	return &topUp
 }
 
+// TestRedeemStoresExactQuotaAndUSDOriginalValue 验证手工兑换不会丢失 0.1 USD 的精度。
 func TestRedeemStoresExactQuotaAndUSDOriginalValue(t *testing.T) {
 	setupRedemptionValueTest(t)
 	redemption := insertRedemptionForValueTest(t, 301, 50_000, "manual-usd-value")
@@ -64,6 +66,7 @@ func TestRedeemStoresExactQuotaAndUSDOriginalValue(t *testing.T) {
 	assert.Equal(t, "USD", topUps[0].Currency)
 }
 
+// TestRedeemStoresGiftOriginalValueAndCurrency 验证充值赠送同时保留归一化美元价值和人民币原始面值。
 func TestRedeemStoresGiftOriginalValueAndCurrency(t *testing.T) {
 	setupRedemptionValueTest(t)
 	redemption := insertRedemptionForValueTest(t, 302, 41_667, "gift-cny-value")

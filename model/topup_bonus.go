@@ -186,6 +186,7 @@ func GrantTopUpBonus(userId int, providerId int, moneyUSD float64, tradeNo strin
 		return
 	}
 	// 自动兑换给用户（内部完成加 quota+reward_quota、写 TopUp 流水、标记码已用、日志）
+	// 将发放时的原始面值传入兑换流程，避免查看记录时按最新汇率重新计算。
 	if _, err := redeemWithOriginalValue(redemption.Key, userId, redemptionOriginalValue{
 		Amount:   bonusAmount.InexactFloat64(),
 		Currency: info.Currency,
