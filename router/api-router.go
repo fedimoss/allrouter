@@ -93,6 +93,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/topup/rebate/records", controller.GetTopUpRebateRecords) // 用户返利记录列表
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
+				apiRouter.GET("/topup/gift_config", controller.GetTopUpGiftConfig) // 获取充值赠送配置
 				selfRoute.GET("/lakala/status", controller.GetLakalaTopUpStatus)
 				selfRoute.GET("/redemption/self", controller.GetSelfRedemptionRecords)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)

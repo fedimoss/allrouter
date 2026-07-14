@@ -853,6 +853,7 @@ const TopUp = () => {
 
       {/* 主布局区域 */}
       <div>
+        {/* 状态接口已按当前域名分流，这里只负责将本站倒计时配置传给展示组件。 */}
         <RechargeCard
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}

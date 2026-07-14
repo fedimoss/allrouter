@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -107,6 +108,14 @@ func UpdateProviderOption(c *gin.Context) {
 			})
 			return
 		}
+	case model.ProviderTopUpGiftTimedOptionKey:
+		// 服务商倒计时独立存储，但与主站共用校验及服务端时间锚定规则。
+		normalized, normalizeErr := model.NormalizeTopUpGiftTimedConfig(option.Value.(string), time.Now())
+		if normalizeErr != nil {
+			common.ApiErrorMsg(c, normalizeErr.Error())
+			return
+		}
+		option.Value = normalized
 	}
 
 	// 更新服务商配置

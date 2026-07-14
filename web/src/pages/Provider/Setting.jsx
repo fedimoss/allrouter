@@ -143,6 +143,7 @@ const ProviderSetting = () => {
                       refresh={refresh}
                       onSave={handleSave}
                       onToggleEnabled={handleSave}
+                      providerMode
                     />
                   </Card>
                 </Spin>
