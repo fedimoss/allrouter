@@ -51,6 +51,7 @@ import { IconSearch, IconCopy, IconEyeOpened } from '@douyinfe/semi-icons';
 import { API, timestamp2string, formatDisplayMoney } from '../../helpers';
 import {
   getTopupBizTypeConfig,
+  getTopupDisplayAmount,
   isInviteRebateTopup,
   isSubscriptionTopup,
 } from '../../helpers/topup';
@@ -451,9 +452,6 @@ const Billing = () => {
     } catch (error) {
       Toast.error({ content: t('加载失败') });
     }
-    
-    
-    
   };
 
   const handleCopyDetailValue = async (value) => {
@@ -617,7 +615,7 @@ const Billing = () => {
           ) : (
             <span className='flex items-center gap-1'>
               <Coins size={16} />
-              <Text>{record.amount}</Text>
+              <Text>{getTopupDisplayAmount(record)}</Text>
             </span>
           ),
       },

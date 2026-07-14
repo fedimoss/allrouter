@@ -156,6 +156,7 @@ func InitOptionMap() {
 	common.OptionMap["AirdropSubscriptionPlanId"] = strconv.Itoa(common.AirdropSubscriptionPlanId)
 	common.OptionMap["TopUpGiftRules"] = common.TopUpGiftRules
 	common.OptionMap["TopUpGiftEnabled"] = strconv.FormatBool(common.TopUpGiftEnabled)
+	common.OptionMap["TopUpGiftTimed"] = common.TopUpGiftTimed
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["InviteTopupRebateRatio"] = strconv.FormatFloat(common.InviteTopupRebateRatio, 'f', -1, 64)
@@ -567,6 +568,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.AirdropSubscriptionPlanId, _ = strconv.Atoi(value)
 	case "TopUpGiftRules":
 		common.TopUpGiftRules = value
+	case "TopUpGiftTimed":
+		common.TopUpGiftTimed = value
 	case "QuotaForInviter":
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":

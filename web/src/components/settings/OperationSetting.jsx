@@ -42,6 +42,7 @@ const OperationSetting = () => {
     'quota_setting.enable_free_model_pre_consume': true,
     TopUpGiftRules: '',
     TopUpGiftEnabled: false,
+    TopUpGiftTimed: '',
 
     /* 通用设置 */
     TopUpLink: '',

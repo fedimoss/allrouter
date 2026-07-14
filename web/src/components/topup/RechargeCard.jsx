@@ -62,6 +62,7 @@ import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime'
 import { API, timestamp2string, formatDisplayMoney } from '../../helpers';
 import {
   getTopupBizTypeConfig,
+  getTopupDisplayAmount,
   getEffectiveTopupMin,
   isInviteRebateTopup,
   isSubscriptionTopup,
@@ -239,7 +240,7 @@ const RechargeCard = ({
   useEffect(() => {
     if (initialTabSetRef.current) return;
     if (subscriptionLoading) return;
-    setActiveTab(shouldShowSubscription ? 'subscription' : 'topup');
+    setActiveTab(shouldShowSubscription ? 'topup' : 'subscription');
     initialTabSetRef.current = true;
   }, [shouldShowSubscription, subscriptionLoading]);
 
@@ -507,7 +508,7 @@ const RechargeCard = ({
           ) : (
             <span className='flex items-center gap-1'>
               <Coins size={16} />
-              <Text>{amount}</Text>
+              <Text>{getTopupDisplayAmount(record)}</Text>
             </span>
           ),
       },
@@ -1037,6 +1038,17 @@ const RechargeCard = ({
                 <TabPane
                   tab={
                     <div className='flex items-center gap-2'>
+                      <Wallet size={16} />
+                      {t('额度充值')}
+                    </div>
+                  }
+                  itemKey='topup'
+                >
+                  <div className='py-2'>{topupContent}</div>
+                </TabPane>
+                <TabPane
+                  tab={
+                    <div className='flex items-center gap-2'>
                       <Sparkles size={16} />
                       {t('订阅套餐')}
                     </div>
@@ -1061,17 +1073,6 @@ const RechargeCard = ({
                       withCard={false}
                     />
                   </div>
-                </TabPane>
-                <TabPane
-                  tab={
-                    <div className='flex items-center gap-2'>
-                      <Wallet size={16} />
-                      {t('额度充值')}
-                    </div>
-                  }
-                  itemKey='topup'
-                >
-                  <div className='py-2'>{topupContent}</div>
                 </TabPane>
               </Tabs>
             ) : (

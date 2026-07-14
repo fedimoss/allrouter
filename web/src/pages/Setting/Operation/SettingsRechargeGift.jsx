@@ -42,10 +42,31 @@ export default function SettingsRechargeGift(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
+  // 倒计时模块：合并到单个 option 字段 TopUpGiftTimed，value 为 {enabled, day} 的 JSON
+  const [timeEnabled, setTimeEnabled] = useState(false);
+  const [timeDay, setTimeDay] = useState(0);
   const [rules, setRules] = useState([]);
   const [original, setOriginal] = useState({ enabled: false, rulesJson: '' });
+  const [timeOriginal, setTimeOriginal] = useState({
+    timeEnabled: false,
+    timeDay: 0,
+  });
 
-  // 从父组件 option 初始化（启用开关 + 规则列表）
+  // 安全解析 option TopUpGiftTimed（{enabled, day} JSON 字符串）
+  const parseTopUpGiftTimed = (raw) => {
+    if (!raw) return { enabled: false, day: 0 };
+    try {
+      const obj = JSON.parse(raw);
+      return {
+        enabled: obj?.enabled === true,
+        day: Number(obj?.day) || 0,
+      };
+    } catch {
+      return { enabled: false, day: 0 };
+    }
+  };
+
+  // 从父组件 option 初始化（启用开关 + 规则列表 + 倒计时）
   useEffect(() => {
     const en = props.options?.TopUpGiftEnabled === true;
     const raw = props.options?.TopUpGiftRules ?? '';
@@ -53,7 +74,17 @@ export default function SettingsRechargeGift(props) {
     setEnabled(en);
     setRules(parsed);
     setOriginal({ enabled: en, rulesJson: serializeRules(parsed) });
-  }, [props.options?.TopUpGiftEnabled, props.options?.TopUpGiftRules]);
+
+    // 倒计时模块回显
+    const timed = parseTopUpGiftTimed(props.options?.TopUpGiftTimed);
+    setTimeEnabled(timed.enabled);
+    setTimeDay(timed.day);
+    setTimeOriginal({ timeEnabled: timed.enabled, timeDay: timed.day });
+  }, [
+    props.options?.TopUpGiftEnabled,
+    props.options?.TopUpGiftRules,
+    props.options?.TopUpGiftTimed,
+  ]);
 
   const updateRule = (id, field, value) =>
     setRules((rs) => rs.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -90,6 +121,41 @@ export default function SettingsRechargeGift(props) {
       } else {
         showSuccess(t('保存成功'));
         setOriginal({ enabled, rulesJson });
+        props.refresh?.();
+      }
+    } catch (e) {
+      showError(t('保存失败，请重试'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 保存「启用充值赠送倒计时」：与保存充值赠送设置一样调用 /api/option/
+  // 合并为单个字段 TopUpGiftTimed，value 为 {enabled, day} 的 JSON 字符串
+  const onTimedSubmit = async () => {
+    // 启用倒计时时，天数必须 >=1，否则提示
+    if (timeEnabled && (!timeDay || timeDay < 1)) {
+      return showWarning(t('最少设置1天'));
+    }
+    const timedJson = JSON.stringify({ enabled: timeEnabled, day: timeDay });
+    const origJson = JSON.stringify({
+      enabled: timeOriginal.timeEnabled,
+      day: timeOriginal.timeDay,
+    });
+    if (timedJson === origJson) {
+      return showWarning(t('你似乎并没有修改什么'));
+    }
+    setLoading(true);
+    try {
+      const res = await API.put('/api/option/', {
+        key: 'TopUpGiftTimed',
+        value: timedJson,
+      });
+      if (!res.data?.success) {
+        showError(res.data?.message || t('保存失败'));
+      } else {
+        showSuccess(t('保存成功'));
+        setTimeOriginal({ timeEnabled, timeDay });
         props.refresh?.();
       }
     } catch (e) {
@@ -186,6 +252,45 @@ export default function SettingsRechargeGift(props) {
             </Button>
           </div>
         </Form.Section>
+      </Form>
+
+      <Form style={{ marginBottom: 15 }}>
+        <div className='flex items-center gap-3' style={{ marginBottom: 12 }}>
+          <Text strong>{t('启用充值赠送倒计时')}</Text>
+          <Switch
+            checked={timeEnabled}
+            onChange={setTimeEnabled}
+            size='default'
+            checkedText='｜'
+            uncheckedText='〇'
+          />
+          {!timeEnabled && (
+            <Text type='tertiary' size='small'>
+              {t('（当前未启用，倒计时不会显示）')}
+            </Text>
+          )}
+        </div>
+        {timeEnabled && (
+          <div className='flex items-center gap-2'>
+            <Text type='tertiary' size='small'>
+              {t('倒计时')}
+            </Text>
+            <InputNumber
+              min={0}
+              precision={0}
+              placeholder={t('天数')}
+              value={timeDay}
+              onChange={(v) => setTimeDay(Number(v) || 0)}
+              style={{ width: 200 }}
+            />
+            <Text type='tertiary' size='small'>
+              {t('天后活动结束')}
+            </Text>
+            <Button size='default' onClick={onTimedSubmit}>
+              {t('保存设置')}
+            </Button>
+          </div>
+        )}
       </Form>
     </Spin>
   );

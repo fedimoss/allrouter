@@ -36,6 +36,7 @@ import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string, formatDisplayMoney } from '../../../helpers';
 import {
   getTopupBizTypeConfig,
+  getTopupDisplayAmount,
   isInviteRebateTopup,
   isSubscriptionTopup,
 } from '../../../helpers/topup';
@@ -193,7 +194,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           return (
             <span className='flex items-center gap-1'>
               <Coins size={16} />
-              <Text>{amount}</Text>
+              <Text>{getTopupDisplayAmount(record)}</Text>
             </span>
           );
         },
