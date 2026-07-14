@@ -38,6 +38,7 @@ import {
   stringToColor,
   calculateModelPrice,
   formatPriceInfo,
+  formatDynamicPriceCompactSummary,
   getLobeHubIcon,
 } from '../../../../../helpers';
 import PricingCardSkeleton from './PricingCardSkeleton';
@@ -68,6 +69,18 @@ const estimateChannelCount = (model, usableGroup) => {
 };
 
 const buildPrimaryPriceItems = (priceData, t, quotaDisplayType) => {
+  if (priceData?.isDynamicPricing) {
+    return [
+      {
+        key: 'dynamic',
+        label: t('动态计费'),
+        value: '',
+        suffix: '',
+        isDynamic: true,
+      },
+    ];
+  }
+
   if (priceData?.isPerToken) {
     if (quotaDisplayType === 'TOKENS' || priceData.isTokensDisplay) {
       return [
@@ -152,7 +165,9 @@ const PricingCardView = ({
 
   const renderTags = (record) => {
     let billingTag = <Tag key='billing' shape='circle' color='white' size='small'>-</Tag>;
-    if (record.quota_type === 1) {
+    if (record.billing_mode === 'tiered_expr') {
+      billingTag = <Tag key='billing' shape='circle' color='amber' size='small'>{t('动态计费')}</Tag>;
+    } else if (record.quota_type === 1) {
       billingTag = <Tag key='billing' shape='circle' color='teal' size='small'>{t('按次计费')}</Tag>;
     } else if (record.quota_type === 0) {
       billingTag = <Tag key='billing' shape='circle' color='violet' size='small'>{t('按量计费')}</Tag>;
@@ -228,7 +243,9 @@ const PricingCardView = ({
                       <div className='flex-1 min-w-0'>
                         <h3 className='pricing-market-mobile-card-title'>{model.model_name}</h3>
                         <div className='pricing-market-mobile-card-price flex flex-col gap-1 text-xs mt-1'>
-                          {formatPriceInfo(priceData, t, siteDisplayType)}
+                          {priceData.isDynamicPricing
+                            ? formatDynamicPriceCompactSummary(priceData.billingExpr, t)
+                            : formatPriceInfo(priceData, t, siteDisplayType)}
                         </div>
                       </div>
                     </div>
@@ -273,8 +290,8 @@ const PricingCardView = ({
                           </Tooltip>
                         </div>
                         <div className='grid grid-cols-3 gap-2 text-xs'>
-                          <div>{t('模型')}: {model.quota_type === 0 ? model.model_ratio : t('无')}</div>
-                          <div>{t('补全')}: {model.quota_type === 0 ? parseFloat(model.completion_ratio.toFixed(3)) : t('无')}</div>
+                          <div>{t('模型')}: {priceData.isDynamicPricing ? t('动态计费') : (model.quota_type === 0 ? model.model_ratio : t('无'))}</div>
+                          <div>{t('补全')}: {priceData.isDynamicPricing ? t('动态计费') : (model.quota_type === 0 ? parseFloat(model.completion_ratio.toFixed(3)) : t('无'))}</div>
                           <div>{t('分组')}: {priceData?.usedGroupRatio ?? '-'}</div>
                         </div>
                       </div>
@@ -331,15 +348,20 @@ const PricingCardView = ({
                   <div className='pricing-market-price-row' style={priceGridStyle}>
                     {priceBoardItems.map((item) => (
                       item.isAction ? (
-                      <Eye
-                        key={item.key}
-                        size={16}
-                        className='pricing-market-detail-trigger'
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenModelDetail(model);
-                        }}
-                      />
+                        <Eye
+                          key={item.key}
+                          size={16}
+                          className='pricing-market-detail-trigger'
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenModelDetail(model);
+                          }}
+                        />
+                      ) : item.isDynamic ? (
+                        <span key={item.key}>
+                          {formatDynamicPriceCompactSummary(priceData.billingExpr, t)}
+                          <small>{t('点击查看详情')}</small>
+                        </span>
                       ) : (
                         <span key={item.key}>{item.value}<small>{item.suffix}</small></span>
                       )
@@ -349,8 +371,8 @@ const PricingCardView = ({
 
                 {showRatio && (
                   <div className='pricing-market-desktop-card-ratio'>
-                    <span>{t('模型倍率')} {model.quota_type === 0 ? model.model_ratio : '-'}</span>
-                    <span>{t('补全倍率')} {model.quota_type === 0 ? parseFloat(model.completion_ratio.toFixed(3)) : '-'}</span>
+                    <span>{t('模型倍率')} {priceData.isDynamicPricing ? t('动态计费') : (model.quota_type === 0 ? model.model_ratio : '-')}</span>
+                    <span>{t('补全倍率')} {priceData.isDynamicPricing ? t('动态计费') : (model.quota_type === 0 ? parseFloat(model.completion_ratio.toFixed(3)) : '-')}</span>
                     <span>{t('分组倍率')} {priceData?.usedGroupRatio ?? '-'}</span>
                   </div>
                 )}

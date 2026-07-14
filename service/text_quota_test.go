@@ -5,12 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -315,4 +318,86 @@ func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T
 	require.True(t, summary.IsClaudeUsageSemantic)
 	require.Equal(t, 172, summary.PromptTokens)
 	require.Equal(t, 798, summary.Quota)
+}
+
+func newTieredTextRelayInfo(expr string, groupRatio float64) *relaycommon.RelayInfo {
+	return &relaycommon.RelayInfo{
+		OriginModelName: "tiered-test-model",
+		PriceData: types.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: groupRatio},
+		},
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:  "tiered_expr",
+			ModelName:    "tiered-test-model",
+			ExprString:   expr,
+			ExprHash:     billingexpr.ExprHashString(expr),
+			GroupRatio:   groupRatio,
+			QuotaPerUnit: common.QuotaPerUnit,
+			ExprVersion:  billingexpr.ExprVersion(expr),
+		},
+		StartTime: time.Now(),
+	}
+}
+
+func TestApplyTieredTextBillingOverridesRatioQuotaAndMatchesActualTier(t *testing.T) {
+	expr := `len <= 200000 ? tier("short", p * 3 + c * 15) : tier("long", p * 6 + c * 22.5)`
+	relayInfo := newTieredTextRelayInfo(expr, 1)
+	usage := &dto.Usage{
+		PromptTokens:     300000,
+		CompletionTokens: 10000,
+	}
+	summary := textQuotaSummary{
+		Quota:                 123,
+		IsClaudeUsageSemantic: false,
+	}
+
+	gotSummary, result, applied := applyTieredTextBilling(relayInfo, usage, summary)
+
+	expected := billingexpr.QuotaRound((300000*6 + 10000*22.5) / 1_000_000 * common.QuotaPerUnit)
+	require.True(t, applied)
+	require.NotNil(t, result)
+	require.Equal(t, "long", result.MatchedTier)
+	require.Equal(t, expected, gotSummary.Quota)
+}
+
+func TestApplyTieredTextBillingNormalizesOpenAITokenSubcategories(t *testing.T) {
+	expr := `tier("base", p * 3 + cr * 0.3)`
+	relayInfo := newTieredTextRelayInfo(expr, 1)
+	usage := &dto.Usage{
+		PromptTokens: 1000,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 200,
+		},
+	}
+	summary := textQuotaSummary{
+		IsClaudeUsageSemantic: false,
+	}
+
+	gotSummary, result, applied := applyTieredTextBilling(relayInfo, usage, summary)
+
+	// p excludes cache read because the expression prices cr separately:
+	// p=800, cr=200 => 800*3 + 200*0.3 = 2460
+	expected := billingexpr.QuotaRound((800*3 + 200*0.3) / 1_000_000 * common.QuotaPerUnit)
+	require.True(t, applied)
+	require.NotNil(t, result)
+	require.Equal(t, "base", result.MatchedTier)
+	require.Equal(t, expected, gotSummary.Quota)
+}
+
+func TestApplyTieredTextBillingKeepsToolCallSurcharge(t *testing.T) {
+	expr := `tier("base", p * 1)`
+	relayInfo := newTieredTextRelayInfo(expr, 1)
+	usage := &dto.Usage{PromptTokens: 1000}
+	summary := textQuotaSummary{
+		ToolCallSurchargeQuota: decimal.NewFromInt(77),
+	}
+
+	gotSummary, result, applied := applyTieredTextBilling(relayInfo, usage, summary)
+
+	expectedTieredQuota := billingexpr.QuotaRound(1000.0 * 1 / 1_000_000 * common.QuotaPerUnit)
+	require.True(t, applied)
+	require.NotNil(t, result)
+	require.Equal(t, expectedTieredQuota+77, gotSummary.Quota)
 }

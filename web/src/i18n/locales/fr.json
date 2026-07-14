@@ -5254,6 +5254,7 @@
     "Windows 用户使用 setx 命令后需要重新打开命令提示符": "Les utilisateurs Windows doivent rouvrir l'invite de commandes après avoir utilisé la commande setx",
     "Worker地址": "Adresse du Worker",
     "Worker密钥": "Clé du Worker",
-    "Workspace": ""
+    "Workspace": "",
+    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X peut aussi être inférieur à 1 pour appliquer une remise. Pour augmenter uniquement le prix de sortie ou ajouter des frais fixes, écrivez directement la formule de facturation complète."
   }
 }

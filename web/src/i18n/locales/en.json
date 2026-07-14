@@ -5288,6 +5288,7 @@
     "Windows 用户使用 setx 命令后需要重新打开命令提示符": "Windows users need to reopen the command prompt after using the setx command",
     "Worker地址": "Worker Address",
     "Worker密钥": "Worker Key",
-    "Workspace": ""
+    "Workspace": "",
+    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X can also be less than 1 to apply a discount. To increase only the output price or add a fixed fee, write the complete billing formula directly."
   }
 }

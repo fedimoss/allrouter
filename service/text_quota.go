@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -51,6 +52,7 @@ type textQuotaSummary struct {
 	FileSearchCallCount      int
 	AudioInputPrice          float64
 	ImageGenerationCallPrice float64
+	ToolCallSurchargeQuota   decimal.Decimal
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -172,6 +174,66 @@ func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *d
 	return usage.ClaudeCacheCreation5mTokens > 0 || usage.ClaudeCacheCreation1hTokens > 0
 }
 
+func composeTieredTextQuota(relayInfo *relaycommon.RelayInfo, summary textQuotaSummary, tieredQuota int, tieredResult *billingexpr.TieredResult) (int, *common.QuotaClamp) {
+	if summary.ToolCallSurchargeQuota.IsZero() {
+		if tieredResult != nil {
+			return tieredQuota, tieredResult.Clamp
+		}
+		return tieredQuota, nil
+	}
+
+	if tieredResult != nil && relayInfo != nil {
+		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
+			return common.QuotaFromDecimalChecked(decimal.NewFromFloat(tieredResult.ActualQuotaBeforeGroup).
+				Mul(decimal.NewFromFloat(snap.GroupRatio)).
+				Add(summary.ToolCallSurchargeQuota))
+		}
+	}
+
+	return common.QuotaFromDecimalChecked(decimal.NewFromInt(int64(tieredQuota)).
+		Add(summary.ToolCallSurchargeQuota))
+}
+
+func applyTieredTextBilling(relayInfo *relaycommon.RelayInfo, usage *dto.Usage, summary textQuotaSummary) (textQuotaSummary, *billingexpr.TieredResult, bool) {
+	if relayInfo == nil || relayInfo.TieredBillingSnapshot == nil {
+		return summary, nil, false
+	}
+	if usage == nil {
+		// A successful upstream response can occasionally omit usage. Ratio
+		// billing falls back to estimated prompt tokens; tiered PriceData has no
+		// ratio fields, so without this branch it would settle as zero and refund
+		// the entire pre-consume. Use the frozen base-model estimate instead.
+		fallbackQuota := tieredSettlementFallbackQuota(relayInfo, relayInfo.TieredBillingSnapshot)
+		var finalClamp *common.QuotaClamp
+		summary.Quota, finalClamp = composeTieredTextQuota(relayInfo, summary, fallbackQuota, nil)
+		relayInfo.QuotaClamp = finalClamp
+		return summary, nil, true
+	}
+
+	var usedVars map[string]bool
+	usedVars = billingexpr.UsedVars(relayInfo.TieredBillingSnapshot.ExprString)
+
+	ok, quota, result := TryTieredSettle(
+		relayInfo,
+		BuildTieredTokenParams(usage, summary.IsClaudeUsageSemantic, usedVars),
+	)
+	if !ok {
+		return summary, nil, false
+	}
+
+	// calculateTextQuotaSummary records saturation for ratio billing first.
+	// Once tiered billing wins, replace that provisional state with the clamp
+	// produced by the final expression + surcharge calculation so logs describe
+	// the quota that is actually settled.
+	var finalClamp *common.QuotaClamp
+	summary.Quota, finalClamp = composeTieredTextQuota(relayInfo, summary, quota, result)
+	if relayInfo != nil {
+		relayInfo.QuotaClamp = finalClamp
+	}
+
+	return summary, result, true
+}
+
 func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage) textQuotaSummary {
 	summary := textQuotaSummary{
 		ModelName:            relayInfo.OriginModelName,
@@ -288,6 +350,10 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		summary.ImageGenerationCallPrice = operation_setting.GetGPTImage1PriceOnceCall(ctx.GetString("image_generation_call_quality"), ctx.GetString("image_generation_call_size"))
 		dImageGenerationCallQuota = decimal.NewFromFloat(summary.ImageGenerationCallPrice).Mul(dGroupRatio).Mul(dQuotaPerUnit)
 	}
+	summary.ToolCallSurchargeQuota = dWebSearchQuota.
+		Add(dClaudeWebSearchQuota).
+		Add(dFileSearchQuota).
+		Add(dImageGenerationCallQuota)
 
 	var audioInputQuota decimal.Decimal
 	if !relayInfo.PriceData.UsePrice {
@@ -394,6 +460,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	adminRejectReason := common.GetContextKeyString(ctx, constant.ContextKeyAdminRejectReason)
 	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+	var tieredResult *billingexpr.TieredResult
+	var tieredBillingApplied bool
+	summary, tieredResult, tieredBillingApplied = applyTieredTextBilling(relayInfo, originUsage, summary)
 	baseQuota := summary.Quota
 	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
 	providerOwnerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
@@ -551,6 +620,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		// reliable total input value and tagged the usage source. Do not infer it from
 		// prompt/cache fields here, otherwise old upstream payloads may be double-counted.
 		other["input_tokens_total"] = usage.InputTokens
+	}
+	if tieredBillingApplied {
+		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 

@@ -214,16 +214,19 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 			return newAPIError
+
 		}
+
+		usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
+		if newAPIError != nil {
+			// reset status code 重置状态码
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
+		}
+
+		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
+		return nil
 	}
 
-	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
-	if newAPIError != nil {
-		// reset status code 重置状态码
-		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-		return newAPIError
-	}
-
-	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
-	return nil
+	return types.NewError(fmt.Errorf("upstream response is nil"), types.ErrorCodeBadResponse, types.ErrOptionWithStatusCode(http.StatusBadGateway))
 }
