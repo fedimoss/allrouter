@@ -25,7 +25,7 @@ import { getLogo } from '@/helpers';
 const logo = getLogo();
 
 const COUPON_LINK =
-  'allrouter.ai/register?utm_source=jinse&utm_medium=event&utm_campaign=ai_money_competition_2026&utm_content=coupon_card';
+  'allrouter.ai/register?aff=CinA&utm_source=jinse&utm_medium=event&utm_campaign=ai_money_competition_2026&utm_content=coupon_card';
 
 const LandingPage = () => {
   const [claimModalOpen, setClaimModalOpen] = useState(false);
