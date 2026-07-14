@@ -122,7 +122,7 @@ const EMPTY_TOPUP_GIFT_CONFIG = {
   timed: {
     enabled: false,
     day: 0,
-    endTime: 0,
+    end_time: 0,
   },
 };
 
@@ -142,22 +142,6 @@ const getTopupPromotionCountdown = (config, now = Date.now()) => {
     minutes: Math.floor((totalSeconds % 3600) / 60),
     seconds: totalSeconds % 60,
   };
-};
-
-const getTopupGiftEndTime = (timed) => {
-  const configuredEndTime = Number(timed?.end_time);
-  if (Number.isFinite(configuredEndTime) && configuredEndTime > 0) {
-    return configuredEndTime < 1e12
-      ? configuredEndTime * 1000
-      : configuredEndTime;
-  }
-
-  const days = Number(timed?.day);
-  if (!Number.isFinite(days) || days <= 0) return 0;
-
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  return startOfToday.getTime() + days * 86400000;
 };
 
 const RechargeCard = ({
@@ -196,7 +180,6 @@ const RechargeCard = ({
   renderQuota,
   statusLoading,
   topupInfo,
-  topupGiftTimed,
   enableWaffoTopUp,
   waffoTopUp,
   waffoPayMethods,
@@ -226,9 +209,11 @@ const RechargeCard = ({
   const [historyKeyword, setHistoryKeyword] = useState('');
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
   const [cryptoDrawerVisible, setCryptoDrawerVisible] = useState(false);
-  // 首屏直接使用状态接口配置计算，避免等待第一个定时器周期才出现倒计时。
+  const [topupGiftConfig, setTopupGiftConfig] = useState(
+    EMPTY_TOPUP_GIFT_CONFIG,
+  );
   const [topupPromotionCountdown, setTopupPromotionCountdown] = useState(() =>
-    getTopupPromotionCountdown(topupGiftTimed),
+    getTopupPromotionCountdown(EMPTY_TOPUP_GIFT_CONFIG.timed),
   );
   // 当未选择支付方式且仅 Stripe 可用时，回退为 stripe，用于输入框的最低金额计算
   const fallbackInputPaymentType =
@@ -276,7 +261,7 @@ const RechargeCard = ({
     }
   }, [shouldShowSubscription, activeTab]);
 
-  // 仅对已启用且已锚定截止时间的活动启动秒级定时器；站点配置变化时会重建定时器。
+  // 同一接口同时提供赠送规则和倒计时配置。
   useEffect(() => {
     let active = true;
 
@@ -309,7 +294,7 @@ const RechargeCard = ({
           timed: {
             enabled: timed.enabled === true,
             day: Number(timed.day) || 0,
-            endTime: getTopupGiftEndTime(timed),
+            end_time: Number(timed.end_time) || 0,
           },
         });
       } catch (error) {
@@ -323,20 +308,24 @@ const RechargeCard = ({
     };
   }, []);
 
+  // 仅对已启用且已锚定截止时间的活动启动秒级定时器；站点配置变化时会重建定时器。
   useEffect(() => {
-    if (!topupGiftConfig.timed.enabled) return undefined;
-
     const updateCountdown = () => {
-      setTopupPromotionCountdown(getTopupPromotionCountdown(topupGiftTimed));
+      setTopupPromotionCountdown(
+        getTopupPromotionCountdown(topupGiftConfig.timed),
+      );
     };
 
     updateCountdown();
-    if (topupGiftTimed?.enabled !== true || !topupGiftTimed?.end_time) {
+    if (
+      topupGiftConfig.timed.enabled !== true ||
+      !topupGiftConfig.timed.end_time
+    ) {
       return undefined;
     }
     const countdownTimer = window.setInterval(updateCountdown, 1000);
     return () => window.clearInterval(countdownTimer);
-  }, [topupGiftTimed?.enabled, topupGiftTimed?.end_time]);
+  }, [topupGiftConfig.timed]);
 
   useEffect(() => {
     if (selectedPayMethod) return;

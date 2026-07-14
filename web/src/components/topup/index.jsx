@@ -893,7 +893,6 @@ const TopUp = () => {
           renderQuota={renderQuota}
           statusLoading={statusLoading}
           topupInfo={topupInfo}
-          topupGiftTimed={statusState?.status?.topup_gift_timed}
           subscriptionLoading={subscriptionLoading}
           subscriptionPlans={subscriptionPlans}
           billingPreference={billingPreference}
