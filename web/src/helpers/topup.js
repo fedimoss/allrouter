@@ -47,6 +47,20 @@ export const isSubscriptionTopup = (record) =>
 export const isInviteRebateTopup = (record) =>
   getTopupBizType(record) === 'topup_rebate';
 
+export const isRedemptionTopup = (record) =>
+  getTopupBizType(record) === 'redemption';
+
+export const getTopupDisplayAmount = (record) => {
+  if (!isRedemptionTopup(record)) {
+    return record?.amount;
+  }
+
+  const amount = Number(record?.display_amount ?? record?.amount);
+  return Number.isFinite(amount)
+    ? Number(amount.toFixed(2)).toString()
+    : record?.amount;
+};
+
 export const getTopupBizTypeConfig = (record) => {
   const bizType = getTopupBizType(record);
   return (

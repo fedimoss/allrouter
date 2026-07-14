@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -25,6 +26,31 @@ type Redemption struct {
 	UsedUserId   int            `json:"used_user_id"`
 	DeletedAt    gorm.DeletedAt `gorm:"index"`
 	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // expired time, 0 means never expires
+}
+
+const redemptionAmountScale int32 = 6
+
+type redemptionOriginalValue struct {
+	Amount   float64
+	Currency string
+}
+
+func normalizeRedemptionCurrency(currency string) (string, error) {
+	switch strings.ToUpper(strings.TrimSpace(currency)) {
+	case "USD", "$":
+		return "USD", nil
+	case "CNY", "¥", "￥":
+		return "CNY", nil
+	default:
+		return "", fmt.Errorf("unsupported redemption currency: %s", currency)
+	}
+}
+
+func redemptionUSDValue(quota int) float64 {
+	return decimal.NewFromInt(int64(quota)).
+		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
+		Round(redemptionAmountScale).
+		InexactFloat64()
 }
 
 func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
@@ -91,6 +117,14 @@ func GetUserRedeemedRedemptions(userId int, startIdx int, num int) (redemptions 
 }
 
 func Redeem(key string, userId int) (quota int, err error) {
+	return redeem(key, userId, nil)
+}
+
+func redeemWithOriginalValue(key string, userId int, value redemptionOriginalValue) (quota int, err error) {
+	return redeem(key, userId, &value)
+}
+
+func redeem(key string, userId int, originalValue *redemptionOriginalValue) (quota int, err error) {
 	if key == "" {
 		return 0, errors.New("missing redemption code")
 	}
@@ -141,13 +175,27 @@ func Redeem(key string, userId int) (quota int, err error) {
 				return err
 			}
 		}
-		moneyDecimal := decimal.NewFromInt(int64(redemption.Quota)).Div(decimal.NewFromFloat(common.QuotaPerUnit))
-		part := moneyDecimal.Round(0).IntPart()
+		moneyUSD := redemptionUSDValue(redemption.Quota)
+		originalMoney := moneyUSD
+		currency := "USD"
+		if originalValue != nil {
+			if originalValue.Amount <= 0 {
+				return errors.New("invalid redemption original amount")
+			}
+			normalizedCurrency, currencyErr := normalizeRedemptionCurrency(originalValue.Currency)
+			if currencyErr != nil {
+				return currencyErr
+			}
+			currency = normalizedCurrency
+			originalMoney = decimal.NewFromFloat(originalValue.Amount).
+				Round(redemptionAmountScale).
+				InexactFloat64()
+		}
 		topUp := &TopUp{
 			ProviderId:    user.ProviderId,
-			Amount:        part,
+			Amount:        int64(redemption.Quota),
 			UserId:        userId,
-			Money:         0,
+			Money:         moneyUSD,
 			TradeNo:       tradeNo,
 			PaymentMethod: "redemptionCode",
 			BizType:       TopUpBizTypeRedemption,
@@ -155,6 +203,8 @@ func Redeem(key string, userId int) (quota int, err error) {
 			CreateTime:    now,
 			CompleteTime:  now,
 			Status:        common.TopUpStatusSuccess,
+			Currency:      currency,
+			OriginalMoney: originalMoney,
 		}
 		err = topUp.InsertTx(tx)
 		if err != nil {

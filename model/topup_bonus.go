@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm/clause"
 )
 
@@ -149,19 +150,23 @@ func GrantTopUpBonus(userId int, providerId int, moneyUSD float64, tradeNo strin
 	}
 	rule := rules[matched]
 
-	// bonus → quota：USD 直接 ×QuotaPerUnit；CNY 先 /Rate 换算成 USD 再 ×QuotaPerUnit
-	var bonusQuota int
+	// 金额按 6 位小数计算；USD 直接换算，CNY 先按发放时汇率归一化为 USD。
+	bonusAmount := decimal.NewFromFloat(rule.Bonus).Round(redemptionAmountScale)
+	bonusUSD := bonusAmount
 	if info.Currency == "CNY" {
-		bonusQuota = int(rule.Bonus / info.Rate * common.QuotaPerUnit)
-	} else {
-		bonusQuota = int(rule.Bonus * common.QuotaPerUnit)
+		bonusUSD = bonusAmount.
+			Div(decimal.NewFromFloat(info.Rate)).
+			Round(redemptionAmountScale)
 	}
+	bonusQuota := common.QuotaFromDecimal(
+		bonusUSD.Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
+	)
 	if bonusQuota <= 0 {
 		return
 	}
 
 	// 幂等占用：每用户每档一次。占用失败=已享受 → 本次不送，且不降级送低档。
-	if !claimTopUpBonusGrant(userId, rule.Id, tradeNo, bonusQuota, rule.Bonus, info.Currency) {
+	if !claimTopUpBonusGrant(userId, rule.Id, tradeNo, bonusQuota, bonusAmount.InexactFloat64(), info.Currency) {
 		return
 	}
 
@@ -181,7 +186,10 @@ func GrantTopUpBonus(userId int, providerId int, moneyUSD float64, tradeNo strin
 		return
 	}
 	// 自动兑换给用户（内部完成加 quota+reward_quota、写 TopUp 流水、标记码已用、日志）
-	if _, err := Redeem(redemption.Key, userId); err != nil {
+	if _, err := redeemWithOriginalValue(redemption.Key, userId, redemptionOriginalValue{
+		Amount:   bonusAmount.InexactFloat64(),
+		Currency: info.Currency,
+	}); err != nil {
 		common.SysError(fmt.Sprintf("topup bonus redeem failed for user %d: %s", userId, err.Error()))
 		releaseTopUpBonusGrant(userId, rule.Id)
 		return

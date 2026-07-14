@@ -62,6 +62,7 @@ import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime'
 import { API, timestamp2string, formatDisplayMoney } from '../../helpers';
 import {
   getTopupBizTypeConfig,
+  getTopupDisplayAmount,
   getEffectiveTopupMin,
   isInviteRebateTopup,
   isSubscriptionTopup,
@@ -507,7 +508,7 @@ const RechargeCard = ({
           ) : (
             <span className='flex items-center gap-1'>
               <Coins size={16} />
-              <Text>{amount}</Text>
+              <Text>{getTopupDisplayAmount(record)}</Text>
             </span>
           ),
       },
