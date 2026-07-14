@@ -56,6 +56,7 @@ export function serializeRules(rules) {
   return JSON.stringify(cleaned);
 }
 
+// 同时兼容 provider_options 的 JSON 字符串和状态接口返回的对象结构。
 export function parseTimedConfig(raw) {
   if (!raw) return { enabled: false, day: 0, endTime: 0 };
   try {
@@ -70,6 +71,7 @@ export function parseTimedConfig(raw) {
   }
 }
 
+// 前端只提交开关与相对天数，绝对 end_time 统一由后端生成，避免客户端时间不可信。
 export function serializeTimedConfig(enabled, day) {
   return JSON.stringify({ enabled: enabled === true, day: Number(day) || 0 });
 }

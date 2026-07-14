@@ -337,6 +337,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "TopUpGiftTimed":
+		// 忽略客户端传入的结束时间，由服务端按保存时刻和天数生成可信的绝对截止时间。
 		normalized, normalizeErr := model.NormalizeTopUpGiftTimedConfig(option.Value.(string), time.Now())
 		if normalizeErr != nil {
 			common.ApiErrorMsg(c, normalizeErr.Error())

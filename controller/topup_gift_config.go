@@ -7,14 +7,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TopUpGiftPublicConfig 是充值页登录用户可读取的当前站点充值赠送配置。
 type TopUpGiftPublicConfig struct {
 	Enabled bool                       `json:"enabled"`
 	Rules   []model.TopUpGiftRule      `json:"rules"`
 	Timed   model.TopUpGiftTimedConfig `json:"timed"`
 }
 
-// GetTopUpGiftConfig returns the configuration for the site resolved from the request domain.
+// GetTopUpGiftConfig 按请求域名解析出的服务商 ID 返回配置，不按登录用户归属跨站切换。
 func GetTopUpGiftConfig(c *gin.Context) {
+	// TenantResolver 已将当前域名对应的 providerId 写入上下文；主站固定为 0。
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	config, err := model.LoadTopUpGiftConfig(providerId)
 	if err != nil {

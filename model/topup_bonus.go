@@ -27,6 +27,7 @@ func (TopUpBonusGrant) TableName() string {
 	return "topup_bonus_grants"
 }
 
+// 服务商充值赠送沿用 provider_options，以独立键保存规则与总开关。
 const (
 	ProviderTopUpGiftRulesOptionKey   = "topup_gift.rules"
 	ProviderTopUpGiftEnabledOptionKey = "topup_gift.enabled"
@@ -39,11 +40,13 @@ type TopUpGiftRule struct {
 	Bonus     float64 `json:"bonus"`     // 赠送金额（用户币种数值）
 }
 
+// TopUpGiftConfig 汇总总开关与规则，供公开接口和实际赠送流程共同使用。
 type TopUpGiftConfig struct {
 	Enabled bool            `json:"enabled"`
 	Rules   []TopUpGiftRule `json:"rules"`
 }
 
+// parseTopUpGiftRulesFrom 将持久化 JSON 解析为稳定数组，空配置也返回 [] 而非 null。
 func parseTopUpGiftRulesFrom(str string) ([]TopUpGiftRule, error) {
 	if strings.TrimSpace(str) == "" {
 		return []TopUpGiftRule{}, nil
@@ -71,6 +74,7 @@ func LoadTopUpGiftConfig(providerId int) (TopUpGiftConfig, error) {
 		enabled = common.TopUpGiftEnabled
 		common.OptionMapRWMutex.RUnlock()
 	} else {
+		// 单次查询同时读取服务商开关和规则，避免两个接口形成不同的数据来源。
 		options, err := GetProviderOptions(providerId)
 		if err != nil {
 			return TopUpGiftConfig{}, err

@@ -386,6 +386,7 @@ const ProviderRewardModal = ({
             </div>
           </div>
 
+          {/* 复用服务商自助页模块；仅在弹窗打开时挂载，避免后台列表预加载无关配置。 */}
           {isOpen && <ProviderRechargeGift provider={provider} />}
 
           <Text type='secondary' size='small'>

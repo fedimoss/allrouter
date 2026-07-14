@@ -55,6 +55,7 @@ export default function ProviderRechargeGift({ provider }) {
   const [timeDay, setTimeDay] = useState(0);
   const [rules, setRules] = useState([]);
   const [original, setOriginal] = useState({ enabled: false, rulesJson: '' });
+  // anchored 表示后端已生成绝对 end_time；旧配置缺少该字段时允许原值再次保存以完成迁移。
   const [timeOriginal, setTimeOriginal] = useState({
     timeEnabled: false,
     timeDay: 0,
@@ -63,6 +64,7 @@ export default function ProviderRechargeGift({ provider }) {
 
   const providerId = provider?.id;
 
+  // 三项配置都来自当前服务商的 provider_options，不读取或继承主站 options。
   const loadConfig = async () => {
     if (!providerId) return;
     setLoading(true);
@@ -157,6 +159,7 @@ export default function ProviderRechargeGift({ provider }) {
       timeOriginal.timeEnabled,
       timeOriginal.timeDay,
     );
+    // 旧配置虽然开关和天数未变，但未锚定 end_time 时仍需允许提交一次。
     if (timedJson === originalJson && (!timeEnabled || timeOriginal.anchored)) {
       return showWarning(t('你似乎并没有修改什么'));
     }
@@ -280,6 +283,7 @@ export default function ProviderRechargeGift({ provider }) {
           </Button>
         </div>
 
+        {/* 倒计时与赠送规则同属充值赠送模块，但独立保存，避免修改一项覆盖另一项。 */}
         <div
           style={{
             borderTop: '1px solid var(--semi-color-border)',

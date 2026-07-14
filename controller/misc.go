@@ -47,6 +47,7 @@ func TestStatus(c *gin.Context) {
 func GetStatus(c *gin.Context) {
 
 	cs := console_setting.GetConsoleSetting()
+	// 倒计时加载可能触发旧配置写回，必须在下方持有 OptionMap 读锁之前完成，避免锁升级死锁。
 	providerId := resolveProviderId(c)
 	topUpGiftTimed, err := model.LoadTopUpGiftTimedConfig(providerId)
 	if err != nil {

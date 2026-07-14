@@ -44,11 +44,12 @@ export default function SettingsRechargeGift(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
-  // 倒计时模块：合并到单个 option 字段 TopUpGiftTimed，value 为 {enabled, day} 的 JSON
+  // 倒计时使用单个 TopUpGiftTimed option；前端提交 enabled/day，后端补齐绝对 end_time。
   const [timeEnabled, setTimeEnabled] = useState(false);
   const [timeDay, setTimeDay] = useState(0);
   const [rules, setRules] = useState([]);
   const [original, setOriginal] = useState({ enabled: false, rulesJson: '' });
+  // anchored 用于识别缺少 end_time 的旧配置，使其即使表单值未变也能重新保存并完成迁移。
   const [timeOriginal, setTimeOriginal] = useState({
     timeEnabled: false,
     timeDay: 0,
@@ -135,6 +136,7 @@ export default function SettingsRechargeGift(props) {
       timeOriginal.timeEnabled,
       timeOriginal.timeDay,
     );
+    // 已锚定配置才按普通“未修改”处理；旧配置必须放行一次交给后端生成 end_time。
     if (timedJson === origJson && (!timeEnabled || timeOriginal.anchored)) {
       return showWarning(t('你似乎并没有修改什么'));
     }

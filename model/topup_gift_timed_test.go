@@ -13,6 +13,7 @@ import (
 func TestNormalizeTopUpGiftTimedConfig(t *testing.T) {
 	now := time.Date(2026, time.July, 14, 9, 30, 0, 0, time.FixedZone("CST", 8*60*60))
 
+	// 即使客户端伪造 end_time，也必须以服务端 now + day 的结果为准。
 	raw, err := NormalizeTopUpGiftTimedConfig(`{"enabled":true,"day":3,"end_time":1}`, now)
 	require.NoError(t, err)
 
@@ -22,6 +23,7 @@ func TestNormalizeTopUpGiftTimedConfig(t *testing.T) {
 	require.Equal(t, 3, config.Day)
 	require.Equal(t, now.AddDate(0, 0, 3).Unix(), config.EndTime)
 
+	// 关闭倒计时后清空截止时间，但保留天数供管理端下次启用时回显。
 	raw, err = NormalizeTopUpGiftTimedConfig(`{"enabled":false,"day":7,"end_time":1}`, now)
 	require.NoError(t, err)
 	config, err = ParseTopUpGiftTimedConfig(raw)
@@ -45,6 +47,7 @@ func TestNormalizeTopUpGiftTimedConfigRejectsInvalidInput(t *testing.T) {
 }
 
 func TestLoadTopUpGiftTimedConfigUsesProviderScopeWithoutGlobalFallback(t *testing.T) {
+	// 同时替换数据库与全局 OptionMap，覆盖主站和服务商两条加载路径。
 	oldDB := DB
 	oldGlobal := common.TopUpGiftTimed
 	common.OptionMapRWMutex.Lock()
@@ -64,6 +67,7 @@ func TestLoadTopUpGiftTimedConfigUsesProviderScopeWithoutGlobalFallback(t *testi
 		common.OptionMapRWMutex.Unlock()
 	})
 
+	// 主站旧配置首次读取时补齐 end_time，并写回 options 与内存配置。
 	globalEndBeforeLoad := time.Now().AddDate(0, 0, 5).Unix()
 	global, err := LoadTopUpGiftTimedConfig(0)
 	require.NoError(t, err)
@@ -79,11 +83,13 @@ func TestLoadTopUpGiftTimedConfigUsesProviderScopeWithoutGlobalFallback(t *testi
 	require.NoError(t, err)
 	require.Equal(t, global.EndTime, globalAgain.EndTime)
 
+	// 服务商没有独立配置时保持关闭，不能回退到主站倒计时。
 	missingProvider, err := LoadTopUpGiftTimedConfig(42)
 	require.NoError(t, err)
 	require.False(t, missingProvider.Enabled)
 	require.Zero(t, missingProvider.EndTime)
 
+	// 服务商旧配置同样只迁移一次，第二次读取不得重置截止时间。
 	require.NoError(t, UpdateProviderOption(42, ProviderTopUpGiftTimedOptionKey, `{"enabled":true,"day":2}`))
 	providerEndBeforeLoad := time.Now().AddDate(0, 0, 2).Unix()
 	providerConfig, err := LoadTopUpGiftTimedConfig(42)

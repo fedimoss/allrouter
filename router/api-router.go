@@ -22,7 +22,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", anonymousRequestBodyLimit, controller.PostSetup)
 		apiRouter.GET("/status", controller.GetStatus)
-		apiRouter.GET("/topup/gift_config", controller.GetTopUpGiftConfig)
+		// 登录用户只读配置，TenantResolver 会按请求域名注入主站或服务商上下文。
+		apiRouter.GET("/topup/gift_config", middleware.UserAuth(), controller.GetTopUpGiftConfig)
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)

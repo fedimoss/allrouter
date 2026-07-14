@@ -124,6 +124,7 @@ const TOPUP_PROMOTION_ROWS = [
   { topup: '$500', bonus: '+$125', total: '$625', ratio: '25%' },
 ];
 
+// 后端 end_time 使用秒级 Unix 时间戳；只有开关开启且截止时间有效时才展示倒计时。
 const getTopupPromotionCountdown = (config, now = Date.now()) => {
   const endTime = Number(config?.end_time) * 1000;
   const enabled = config?.enabled === true && endTime > 0;
@@ -207,6 +208,7 @@ const RechargeCard = ({
   const [historyKeyword, setHistoryKeyword] = useState('');
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
   const [cryptoDrawerVisible, setCryptoDrawerVisible] = useState(false);
+  // 首屏直接使用状态接口配置计算，避免等待第一个定时器周期才出现倒计时。
   const [topupPromotionCountdown, setTopupPromotionCountdown] = useState(() =>
     getTopupPromotionCountdown(topupGiftTimed),
   );
@@ -245,6 +247,7 @@ const RechargeCard = ({
     }
   }, [shouldShowSubscription, activeTab]);
 
+  // 仅对已启用且已锚定截止时间的活动启动秒级定时器；站点配置变化时会重建定时器。
   useEffect(() => {
     const updateCountdown = () => {
       setTopupPromotionCountdown(getTopupPromotionCountdown(topupGiftTimed));
@@ -1156,6 +1159,7 @@ const RechargeCard = ({
             </div>
           </div>
 
+          {/* 当前站点未启用倒计时或尚无有效截止时间时，不渲染活动倒计时区域。 */}
           {topupPromotionCountdown.enabled && (
             <div className='rounded-2xl bg-gradient-to-br m-5 from-slate-900 to-[#1f4e78] p-5 text-white shadow-sm'>
               <div className='mb-4 flex items-center justify-between gap-3'>

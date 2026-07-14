@@ -10,17 +10,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// ProviderTopUpGiftTimedOptionKey 是服务商倒计时在 provider_options 中的键名。
 const ProviderTopUpGiftTimedOptionKey = "topup_gift.timed"
 
-// TopUpGiftTimedConfig is the public countdown configuration for a top-up gift campaign.
+// TopUpGiftTimedConfig 是可公开返回的充值赠送倒计时配置。
 type TopUpGiftTimedConfig struct {
 	Enabled bool  `json:"enabled"`
 	Day     int   `json:"day"`
 	EndTime int64 `json:"end_time"`
 }
 
-// NormalizeTopUpGiftTimedConfig validates an admin request and anchors the
-// countdown to an absolute server-generated end time.
+// NormalizeTopUpGiftTimedConfig 校验管理端输入，并由服务端将相对天数锚定为绝对结束时间。
 func NormalizeTopUpGiftTimedConfig(raw string, now time.Time) (string, error) {
 	var request TopUpGiftTimedConfig
 	if err := common.UnmarshalJsonStr(raw, &request); err != nil {
@@ -44,6 +44,7 @@ func NormalizeTopUpGiftTimedConfig(raw string, now time.Time) (string, error) {
 	return string(data), nil
 }
 
+// ParseTopUpGiftTimedConfig 解析持久化配置；空值表示该站点尚未配置倒计时。
 func ParseTopUpGiftTimedConfig(raw string) (TopUpGiftTimedConfig, error) {
 	var config TopUpGiftTimedConfig
 	if strings.TrimSpace(raw) == "" {
@@ -55,8 +56,8 @@ func ParseTopUpGiftTimedConfig(raw string) (TopUpGiftTimedConfig, error) {
 	return config, nil
 }
 
-// LoadTopUpGiftTimedConfig returns the current site's countdown configuration.
-// Providers must opt in explicitly and never inherit the main site's campaign.
+// LoadTopUpGiftTimedConfig 按 provider 维度读取当前站点倒计时。
+// 服务商必须显式配置，不继承主站活动，避免不同站点展示同一截止时间。
 func LoadTopUpGiftTimedConfig(providerId int) (TopUpGiftTimedConfig, error) {
 	var raw string
 	if providerId > 0 {
@@ -79,8 +80,7 @@ func LoadTopUpGiftTimedConfig(providerId int) (TopUpGiftTimedConfig, error) {
 		return config, err
 	}
 
-	// Legacy values only contained enabled/day. Anchor and persist them once so
-	// upgrading does not hide the countdown or restart it on every page load.
+	// 旧配置只有 enabled/day：首次读取时补齐并持久化 end_time，避免升级后隐藏或每次刷新重新计时。
 	normalized, err := NormalizeTopUpGiftTimedConfig(raw, time.Now())
 	if err != nil {
 		return TopUpGiftTimedConfig{}, err
