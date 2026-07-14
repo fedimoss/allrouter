@@ -94,6 +94,17 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
+// GetRandomSatisfiedChannel 根据组名、模型名和重试次数获取一个满足条件的随机渠道
+// 参数:
+//
+//	group: 渠道组名称
+//	model: 模型名称
+//	retry: 重试次数，用于选择不同优先级的渠道
+//
+// 返回值:
+//
+//	*Channel: 找到的渠道指针
+//	error: 错误信息
 func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {

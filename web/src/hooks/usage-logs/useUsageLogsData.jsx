@@ -36,6 +36,7 @@ import {
   renderAudioModelPrice,
   renderClaudeModelPrice,
   renderModelPrice,
+  renderTieredModelPrice,
   renderTaskBillingProcess,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
@@ -541,7 +542,9 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       if (logs[i].type === 2 && other && !providerCostLog) {
         expandDataLocal.push({
           key: t('日志详情'),
-          value: other?.claude
+          value: other?.billing_mode === 'tiered_expr'
+            ? t('动态计费')
+            : other?.claude
             ? renderClaudeLogContent(
                 other?.model_ratio,
                 other.completion_ratio,
@@ -602,6 +605,8 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
             content = renderProviderCostBillingProcess(logs[i], other, t);
           } else if (isTaskLog && other?.model_price === -1) {
             content = renderTaskBillingProcess(other, logs[i].content);
+          } else if (other?.billing_mode === 'tiered_expr') {
+            content = renderTieredModelPrice(other);
           } else if (other?.ws || other?.audio) {
             content = renderAudioModelPrice(
               other?.text_input,
