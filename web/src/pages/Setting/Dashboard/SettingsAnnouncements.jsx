@@ -48,7 +48,13 @@ import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
-const SettingsAnnouncements = ({ options, refresh, onSave, onToggleEnabled }) => {
+const SettingsAnnouncements = ({
+  options,
+  refresh,
+  onSave,
+  onToggleEnabled,
+  providerMode = false,
+}) => {
   const { t } = useTranslation();
 
   const [announcementsList, setAnnouncementsList] = useState([]);
@@ -65,6 +71,7 @@ const SettingsAnnouncements = ({ options, refresh, onSave, onToggleEnabled }) =>
     publishDate: new Date(),
     type: 'default',
     extra: '',
+    showToProviders: false,
   });
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -237,6 +244,7 @@ const SettingsAnnouncements = ({ options, refresh, onSave, onToggleEnabled }) =>
       publishDate: new Date(),
       type: 'default',
       extra: '',
+      showToProviders: false,
     });
     setShowAnnouncementModal(true);
   };
@@ -250,6 +258,7 @@ const SettingsAnnouncements = ({ options, refresh, onSave, onToggleEnabled }) =>
         : new Date(),
       type: announcement.type || 'default',
       extra: announcement.extra || '',
+      showToProviders: announcement.showToProviders === true,
     });
     setShowAnnouncementModal(true);
   };
@@ -283,15 +292,27 @@ const SettingsAnnouncements = ({ options, refresh, onSave, onToggleEnabled }) =>
 
       // 将publishDate转换为ISO字符串保存
       const formData = {
-        ...announcementForm,
+        content: announcementForm.content,
         publishDate: announcementForm.publishDate.toISOString(),
+        type: announcementForm.type,
+        extra: announcementForm.extra,
+        ...(!providerMode && {
+          showToProviders: announcementForm.showToProviders,
+        }),
       };
 
       let newList;
       if (editingAnnouncement) {
-        newList = announcementsList.map((item) =>
-          item.id === editingAnnouncement.id ? { ...item, ...formData } : item,
-        );
+        newList = announcementsList.map((item) => {
+          if (item.id !== editingAnnouncement.id) {
+            return item;
+          }
+          const updatedAnnouncement = { ...item, ...formData };
+          if (providerMode) {
+            return { id: item.id, ...formData };
+          }
+          return updatedAnnouncement;
+        });
       } else {
         const newId =
           Math.max(...announcementsList.map((item) => item.id), 0) + 1;
@@ -578,6 +599,18 @@ const SettingsAnnouncements = ({ options, refresh, onSave, onToggleEnabled }) =>
               setAnnouncementForm({ ...announcementForm, extra: value })
             }
           />
+          {!providerMode && (
+            <Form.Switch
+              field='showToProviders'
+              label={t('在服务商站点显示')}
+              onChange={(value) =>
+                setAnnouncementForm({
+                  ...announcementForm,
+                  showToProviders: value,
+                })
+              }
+            />
+          )}
         </Form>
       </Modal>
 

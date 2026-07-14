@@ -180,6 +180,11 @@ func validateAnnouncements(announcementsStr string) error {
 				return fmt.Errorf("第%d个公告的说明长度不能超过200字符", i+1)
 			}
 		}
+		if showToProviders, exists := ann["showToProviders"]; exists {
+			if _, ok := showToProviders.(bool); !ok {
+				return fmt.Errorf("第%d个公告的服务商站点显示设置必须为布尔值", i+1)
+			}
+		}
 	}
 	return nil
 }
@@ -228,6 +233,21 @@ func GetAnnouncements() []map[string]interface{} {
 		return getPublishTime(list[i]).After(getPublishTime(list[j]))
 	})
 	return list
+}
+
+func filterAnnouncementsForProviderSites(list []map[string]interface{}) []map[string]interface{} {
+	filtered := make([]map[string]interface{}, 0, len(list))
+	for _, announcement := range list {
+		showToProviders, ok := announcement["showToProviders"].(bool)
+		if ok && showToProviders {
+			filtered = append(filtered, announcement)
+		}
+	}
+	return filtered
+}
+
+func GetAnnouncementsForProviderSites() []map[string]interface{} {
+	return filterAnnouncementsForProviderSites(GetAnnouncements())
 }
 
 func GetFAQ() []map[string]interface{} {

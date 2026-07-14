@@ -4471,6 +4471,7 @@
     "在此输入新的页脚，留空则使用默认页脚，支持 HTML 代码": "Enter the new footer here, leave blank to use the default footer, supports HTML code.",
     "在此输入隐私政策内容，支持 Markdown & HTML 代码": "Enter privacy policy content here, supports Markdown & HTML code",
     "在此输入用户协议内容，支持 Markdown & HTML 代码": "Enter user agreement content here, supports Markdown & HTML code",
+    "在服务商站点显示": "Show on provider sites",
     "在技术圈、开发者社群有较强影响力。": "You have strong influence in tech circles and developer communities.",
     "在控制台和日志中实时追踪延迟、Token 用量与成本。": "Real-time tracking of latency, Token usage, and costs in the console and logs.",
     "在模型广场向用户展示的端点": "Endpoint shown to users in Model Marketplace",

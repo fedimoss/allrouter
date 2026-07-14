@@ -183,15 +183,16 @@ func GetStatus(c *gin.Context) {
 	if cs.ApiInfoEnabled {
 		data["api_info"] = console_setting.GetApiInfo()
 	}
-	// 系统公告：合并全局公告（管理员发布）与服务商公告，按发布时间降序排列
+	// 系统公告：主站展示全部公告；服务商站点仅接收主站明确下发的公告，并合并服务商自有公告。
 	if cs.AnnouncementsEnabled {
-		// 获取全局公告（options 表中 console_setting.announcements），管理员发布，所有用户可见
-		announcements := console_setting.GetAnnouncements()
-		// 如果当前请求关联了某个服务商，追加该服务商在 provider_options 表中配置的公告
+		var announcements []map[string]interface{}
 		if providerId > 0 {
+			announcements = console_setting.GetAnnouncementsForProviderSites()
 			if providerAnnouncements := model.GetProviderAnnouncements(providerId); len(providerAnnouncements) > 0 {
 				announcements = append(announcements, providerAnnouncements...)
 			}
+		} else {
+			announcements = console_setting.GetAnnouncements()
 		}
 		// 合并后统一按发布时间（publishDate）倒序排列，保证新旧公告混排而非分组展示
 		sort.SliceStable(announcements, func(i, j int) bool {
