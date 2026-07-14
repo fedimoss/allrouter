@@ -49,6 +49,7 @@ import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
+const NOTICE_SHOW_TO_PROVIDERS_KEY = 'NoticeShowToProviders';
 const HOME_PAGE_THEME_OPTIONS = [
   { label: '默认', value: 'default' },
   { label: '风格一', value: 'style_a' },
@@ -58,6 +59,7 @@ const OtherSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
     Notice: '',
+    [NOTICE_SHOW_TO_PROVIDERS_KEY]: true,
     [LEGAL_USER_AGREEMENT_KEY]: '',
     [LEGAL_PRIVACY_POLICY_KEY]: '',
     SystemName: '',
@@ -101,6 +103,7 @@ const OtherSetting = () => {
 
   const [loadingInput, setLoadingInput] = useState({
     Notice: false,
+    [NOTICE_SHOW_TO_PROVIDERS_KEY]: false,
     [LEGAL_USER_AGREEMENT_KEY]: false,
     [LEGAL_PRIVACY_POLICY_KEY]: false,
     SystemName: false,
@@ -120,7 +123,10 @@ const OtherSetting = () => {
   const [versionLogs, setVersionLogs] = useState([]);
   const [versionLogModalVisible, setVersionLogModalVisible] = useState(false);
   const [editingVersionLog, setEditingVersionLog] = useState(null);
-  const [versionLogForm, setVersionLogForm] = useState({ version: '', log: '' });
+  const [versionLogForm, setVersionLogForm] = useState({
+    version: '',
+    log: '',
+  });
   const [versionLogLoading, setVersionLogLoading] = useState(false);
   const [versionLogSubmitting, setVersionLogSubmitting] = useState(false);
 
@@ -187,7 +193,10 @@ const OtherSetting = () => {
     try {
       let res;
       if (editingVersionLog) {
-        res = await API.put(`/api/option/update_version_log/${editingVersionLog.id}`, versionLogForm);
+        res = await API.put(
+          `/api/option/update_version_log/${editingVersionLog.id}`,
+          versionLogForm,
+        );
       } else {
         res = await API.post('/api/option/add_version_log', versionLogForm);
       }
@@ -313,6 +322,48 @@ const OtherSetting = () => {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: false }));
     }
   };
+
+  const updateNoticeProviderVisibility = async (checked) => {
+    const previousValue = inputs[NOTICE_SHOW_TO_PROVIDERS_KEY];
+    setLoadingInput((loadingInput) => ({
+      ...loadingInput,
+      [NOTICE_SHOW_TO_PROVIDERS_KEY]: true,
+    }));
+
+    try {
+      const res = await API.put('/api/option/', {
+        key: NOTICE_SHOW_TO_PROVIDERS_KEY,
+        value: checked,
+      });
+      const { success, message } = res.data;
+      if (!success) {
+        showError(message);
+        formAPISettingGeneral.current?.setValue(
+          NOTICE_SHOW_TO_PROVIDERS_KEY,
+          previousValue,
+        );
+        return;
+      }
+
+      setInputs((inputs) => ({
+        ...inputs,
+        [NOTICE_SHOW_TO_PROVIDERS_KEY]: checked,
+      }));
+      showSuccess(t('设置已保存'));
+    } catch (error) {
+      formAPISettingGeneral.current?.setValue(
+        NOTICE_SHOW_TO_PROVIDERS_KEY,
+        previousValue,
+      );
+      showError(error.message || t('公告更新失败'));
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        [NOTICE_SHOW_TO_PROVIDERS_KEY]: false,
+      }));
+    }
+  };
+
   // 通用设置 - UserAgreement
   const submitUserAgreement = async () => {
     try {
@@ -401,11 +452,15 @@ const OtherSetting = () => {
       const res = await API.post('/api/option/web_colors', {
         primary_color: inputs.WebPrimaryColor || '',
         secondary_color: inputs.WebSecondaryColor || '',
-        button_text_color: inputs.WebButtonTextColor || ''
+        button_text_color: inputs.WebButtonTextColor || '',
       });
       const { success, message } = res.data || {};
       if (success) {
-        applyThemeColors(inputs.WebPrimaryColor, inputs.WebSecondaryColor, inputs.WebButtonTextColor);
+        applyThemeColors(
+          inputs.WebPrimaryColor,
+          inputs.WebSecondaryColor,
+          inputs.WebButtonTextColor,
+        );
         showSuccess(t('主题色设置已更新'));
       } else {
         showError(message || t('主题色设置更新失败'));
@@ -568,7 +623,10 @@ const OtherSetting = () => {
         ...inputs,
         TelegramSupport: telegramQRCodePath,
       }));
-      formAPIWebSupport.current?.setValue?.('TelegramSupport', telegramQRCodePath);
+      formAPIWebSupport.current?.setValue?.(
+        'TelegramSupport',
+        telegramQRCodePath,
+      );
       showSuccess(t('Telegram二维码上传成功'));
       onSuccess?.(data || {});
     } catch (error) {
@@ -725,13 +783,15 @@ const OtherSetting = () => {
       let newInputs = { ...inputs };
       data.forEach((item) => {
         if (item.key in inputs) {
-          newInputs[item.key] = item.value;
+          newInputs[item.key] =
+            item.key === NOTICE_SHOW_TO_PROVIDERS_KEY
+              ? item.value === 'true'
+              : item.value;
         }
       });
       if (webColorsResult.status === 'fulfilled') {
-        const { primaryColor, secondaryColor, buttonTextColor } = extractThemeColors(
-          webColorsResult.value,
-        );
+        const { primaryColor, secondaryColor, buttonTextColor } =
+          extractThemeColors(webColorsResult.value);
         if (primaryColor) {
           newInputs.WebPrimaryColor = primaryColor;
         }
@@ -745,7 +805,7 @@ const OtherSetting = () => {
           applyThemeColors(
             newInputs.WebPrimaryColor,
             newInputs.WebSecondaryColor,
-            newInputs.WebButtonTextColor
+            newInputs.WebButtonTextColor,
           );
         }
       }
@@ -916,7 +976,9 @@ const OtherSetting = () => {
                   <Space>
                     <Text>
                       {t('当前版本')}：
-                      {typeof statusState?.status?.version === 'object' ? statusState?.status?.version?.version : statusState?.status?.version || t('未知')}
+                      {typeof statusState?.status?.version === 'object'
+                        ? statusState?.status?.version?.version
+                        : statusState?.status?.version || t('未知')}
                     </Text>
                     <Button
                       type='primary'
@@ -942,8 +1004,14 @@ const OtherSetting = () => {
         {/* 更新版本日志 */}
         <Card>
           <div className='flex items-center justify-between mb-4'>
-            <Text style={{ fontWeight: 600, fontSize: 18 }}>{t('更新版本日志')}</Text>
-            <Button theme='solid' icon={<IconPlus />} onClick={handleAddVersionLog}>
+            <Text style={{ fontWeight: 600, fontSize: 18 }}>
+              {t('更新版本日志')}
+            </Text>
+            <Button
+              theme='solid'
+              icon={<IconPlus />}
+              onClick={handleAddVersionLog}
+            >
               {t('新增版本日志')}
             </Button>
           </div>
@@ -967,7 +1035,12 @@ const OtherSetting = () => {
                 title: t('创建时间'),
                 dataIndex: 'created_at',
                 width: 180,
-                render: (text) => text ? (typeof text === 'number' ? timestamp2string(text) : text) : '-',
+                render: (text) =>
+                  text
+                    ? typeof text === 'number'
+                      ? timestamp2string(text)
+                      : text
+                    : '-',
               },
               {
                 title: t('操作'),
@@ -1000,7 +1073,17 @@ const OtherSetting = () => {
                 ),
               },
             ]}
-            empty={<div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--semi-color-text-2)' }}>{t('暂无版本日志')}</div>}
+            empty={
+              <div
+                style={{
+                  padding: '24px 0',
+                  textAlign: 'center',
+                  color: 'var(--semi-color-text-2)',
+                }}
+              >
+                {t('暂无版本日志')}
+              </div>
+            }
           />
         </Card>
 
@@ -1014,19 +1097,27 @@ const OtherSetting = () => {
           cancelText={t('取消')}
         >
           <div style={{ marginBottom: 12 }}>
-            <div style={{ marginBottom: 4, fontWeight: 500 }}>{t('版本号')}</div>
+            <div style={{ marginBottom: 4, fontWeight: 500 }}>
+              {t('版本号')}
+            </div>
             <Input
               placeholder={t('例如：v1.0.0')}
               value={versionLogForm.version}
-              onChange={(value) => setVersionLogForm((f) => ({ ...f, version: value }))}
+              onChange={(value) =>
+                setVersionLogForm((f) => ({ ...f, version: value }))
+              }
             />
           </div>
           <div>
-            <div style={{ marginBottom: 4, fontWeight: 500 }}>{t('更新内容')}</div>
+            <div style={{ marginBottom: 4, fontWeight: 500 }}>
+              {t('更新内容')}
+            </div>
             <TextArea
               placeholder={t('请输入更新内容')}
               value={versionLogForm.log}
-              onChange={(value) => setVersionLogForm((f) => ({ ...f, log: value }))}
+              onChange={(value) =>
+                setVersionLogForm((f) => ({ ...f, log: value }))
+              }
               autosize
             />
           </div>
@@ -1048,6 +1139,12 @@ const OtherSetting = () => {
                 onChange={handleInputChange}
                 style={{ fontFamily: 'JetBrains Mono, Consolas' }}
                 autosize={{ minRows: 6, maxRows: 12 }}
+              />
+              <Form.Switch
+                field={NOTICE_SHOW_TO_PROVIDERS_KEY}
+                label={t('在服务商站点显示')}
+                loading={loadingInput[NOTICE_SHOW_TO_PROVIDERS_KEY]}
+                onChange={updateNoticeProviderVisibility}
               />
               <Button onClick={submitNotice} loading={loadingInput['Notice']}>
                 {t('设置公告')}
