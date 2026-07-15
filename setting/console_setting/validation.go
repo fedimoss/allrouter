@@ -180,6 +180,7 @@ func validateAnnouncements(announcementsStr string) error {
 				return fmt.Errorf("第%d个公告的说明长度不能超过200字符", i+1)
 			}
 		}
+		// 该字段为可选字段，以兼容功能上线前保存的历史公告；一旦提供则必须是布尔值。
 		if showToProviders, exists := ann["showToProviders"]; exists {
 			if _, ok := showToProviders.(bool); !ok {
 				return fmt.Errorf("第%d个公告的服务商站点显示设置必须为布尔值", i+1)
@@ -235,6 +236,8 @@ func GetAnnouncements() []map[string]interface{} {
 	return list
 }
 
+// filterAnnouncementsForProviderSites 只保留主站明确允许下发的公告。
+// 字段缺失、为 false 或类型非法时均不下发，避免历史公告在服务商站点意外曝光。
 func filterAnnouncementsForProviderSites(list []map[string]interface{}) []map[string]interface{} {
 	filtered := make([]map[string]interface{}, 0, len(list))
 	for _, announcement := range list {
@@ -246,6 +249,7 @@ func filterAnnouncementsForProviderSites(list []map[string]interface{}) []map[st
 	return filtered
 }
 
+// GetAnnouncementsForProviderSites 返回允许在服务商站点展示的主站公告。
 func GetAnnouncementsForProviderSites() []map[string]interface{} {
 	return filterAnnouncementsForProviderSites(GetAnnouncements())
 }

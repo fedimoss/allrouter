@@ -172,11 +172,14 @@ const SubscriptionPurchaseModal = ({
                 <div className='flex items-center'>
                   <Package size={14} className='mr-1 text-slate-500' />
                   {totalAmount > 0 ? (
-                    <Tooltip content={`${t('原生额度')}：${totalAmount}`}>
-                      <Text className='text-slate-900 dark:text-slate-100'>
-                        {renderQuota(totalAmount)}
-                      </Text>
-                    </Tooltip>
+                    // <Tooltip content={`${t('原生额度')}：${totalAmount}`}>
+                    //   <Text className='text-slate-900 dark:text-slate-100'>
+                    //     {renderQuota(totalAmount)}
+                    //   </Text>
+                    // </Tooltip>
+                    <Text className='text-slate-900 dark:text-slate-100'>
+                      {renderQuota(totalAmount)}
+                    </Text>
                   ) : (
                     <Text className='text-slate-900 dark:text-slate-100'>
                       {t('不限')}

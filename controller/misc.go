@@ -245,10 +245,17 @@ func GetStatus(c *gin.Context) {
 func GetNotice(c *gin.Context) {
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
+
+	notice := common.OptionMap["Notice"]
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	if providerId > 0 && common.OptionMap[model.NoticeShowToProvidersOptionKey] != "true" {
+		notice = ""
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    common.OptionMap["Notice"],
+		"data":    notice,
 	})
 	return
 }

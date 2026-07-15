@@ -48,6 +48,7 @@ import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
+// providerMode 表示当前维护服务商自有公告：隐藏并清理仅供主站使用的下发标记。
 const SettingsAnnouncements = ({
   options,
   refresh,
@@ -296,6 +297,7 @@ const SettingsAnnouncements = ({
         publishDate: announcementForm.publishDate.toISOString(),
         type: announcementForm.type,
         extra: announcementForm.extra,
+        // 服务商公告不写入主站专用的下发标记。
         ...(!providerMode && {
           showToProviders: announcementForm.showToProviders,
         }),
@@ -309,6 +311,7 @@ const SettingsAnnouncements = ({
           }
           const updatedAnnouncement = { ...item, ...formData };
           if (providerMode) {
+            // 重建服务商公告对象，清除历史数据中可能残留的 showToProviders 字段。
             return { id: item.id, ...formData };
           }
           return updatedAnnouncement;
@@ -599,6 +602,7 @@ const SettingsAnnouncements = ({
               setAnnouncementForm({ ...announcementForm, extra: value })
             }
           />
+          {/* 下发开关只属于主站公告。 */}
           {!providerMode && (
             <Form.Switch
               field='showToProviders'

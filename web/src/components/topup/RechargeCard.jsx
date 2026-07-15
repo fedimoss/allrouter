@@ -760,8 +760,11 @@ const RechargeCard = ({
 
                       const presetButton = (
                         <button
+                          key={
+                            preset.giftRuleId || `${preset.value}-${index}`
+                          }
                           type='button'
-                          className={`h-12 w-full rounded-xl text-l font-semibold transition-all ${
+                          className={`${hasDynamicGiftPresets ? 'h-16' : 'h-12'} flex w-full flex-col items-center justify-center rounded-xl text-l font-semibold transition-all ${
                             selectedPreset === preset.value
                               ? 'text-[color:var(--theme-primary)] border border-[color:var(--theme-primary)] dark:bg-cyan-900/10 dark:text-[color:var(--theme-primary)]'
                               : 'bg-[#F8FAFC] text-slate-700 dark:bg-gray-800 dark:text-slate-200'
@@ -774,45 +777,30 @@ const RechargeCard = ({
                             );
                           }}
                         >
-                          {presetCurrencySymbol} {preset.value}
-                          {hasDiscount && (
-                            <Tag
-                              style={{ marginLeft: 6 }}
-                              color='green'
-                              size='small'
-                            >
-                              {t('折')}
-                            </Tag>
+                          <div className='flex items-center justify-center'>
+                            {presetCurrencySymbol} {preset.value}
+                            {hasDiscount && (
+                              <Tag
+                                style={{ marginLeft: 6 }}
+                                color='green'
+                                size='small'
+                              >
+                                {t('折')}
+                              </Tag>
+                            )}
+                          </div>
+                          {hasDynamicGiftPresets && (
+                            <div className='mt-1 text-xs font-normal opacity-80'>
+                              {t('实际到账：')}
+                              {formatTopupGiftAmount(
+                                preset.value + preset.bonus,
+                              )}
+                            </div>
                           )}
                         </button>
                       );
 
-                      return hasDynamicGiftPresets ? (
-                        <Tooltip
-                          key={preset.giftRuleId || `${preset.value}-${index}`}
-                          position='top'
-                          content={
-                            <div className='space-y-1'>
-                              <div>
-                                {t('赠送')}：
-                                {formatTopupGiftAmount(preset.bonus)}
-                              </div>
-                              <div>
-                                {t('到账总额')}：
-                                {formatTopupGiftAmount(
-                                  preset.value + preset.bonus,
-                                )}
-                              </div>
-                            </div>
-                          }
-                        >
-                          {presetButton}
-                        </Tooltip>
-                      ) : (
-                        <React.Fragment key={`${preset.value}-${index}`}>
-                          {presetButton}
-                        </React.Fragment>
-                      );
+                      return presetButton;
                     })}
                   </div>
                 </Form.Slot>
@@ -1205,7 +1193,7 @@ const RechargeCard = ({
           {hasDynamicGiftPresets && (
             <div className='rounded-2xl bg-white p-5 dark:bg-slate-800'>
               <h3 className='mb-4 flex items-center gap-2 font-bold text-slate-800 dark:text-white'>
-                <Gift size={20} className='text-amber-500' /> 充值赠送活动
+                <Gift size={20} className='text-amber-500' /> {t('充值赠送活动')}
               </h3>
               <div className='overflow-x-auto rounded-lg border border-slate-300'>
                 <table className='w-full min-w-[360px] border-collapse text-sm text-slate-950'>
@@ -1216,7 +1204,7 @@ const RechargeCard = ({
                           key={title}
                           className='border-r border-white/50 px-2 py-2 text-left font-bold last:border-r-0'
                         >
-                          {title}
+                          {t(title)}
                         </th>
                       ))}
                     </tr>
