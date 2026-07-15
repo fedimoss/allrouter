@@ -758,11 +758,14 @@ const SubscriptionPlansCard = ({
                             );
                           }
                           return (
-                            <Tooltip key={item.label} content={item.tooltip}>
-                              <div className='w-full flex justify-start'>
-                                {content}
-                              </div>
-                            </Tooltip>
+                            // <Tooltip key={item.label} content={item.tooltip}>
+                            //   <div className='w-full flex justify-start'>
+                            //     {content}
+                            //   </div>
+                            // </Tooltip>
+                            <div className='w-full flex justify-start'>
+                              {content}
+                            </div>
                           );
                         })}
                       </div>
