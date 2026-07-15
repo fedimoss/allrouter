@@ -2730,6 +2730,7 @@
     "去前缀": "",
     "去重完成：去重前 {{before}} 个密钥，去重后 {{after}} 个密钥": "Doublons supprimés : {{before}} clés avant, {{after}} clés après",
     "全部": "Tous",
+    "全部划转到余额": "Tout transférer vers le solde",
     "全部标签": "Toutes les étiquettes",
     "全部地区总可用资源": "Total Available Resources in All Regions",
     "全部端点": "Tous les points de terminaison",

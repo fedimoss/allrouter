@@ -54,10 +54,8 @@ import {
   API,
   showError,
   showSuccess,
-  renderQuota,
   formatDisplayMoney, // 用于将后端转换后的金额按用户币种格式化展示
   copy,
-  getQuotaPerUnit,
   timestamp2string,
 } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
@@ -80,7 +78,6 @@ const Invitation = () => {
   const [openTransfer, setOpenTransfer] = useState(false);
   const [openInviteDetail, setOpenInviteDetail] = useState(false);
   const [selectedInvite, setSelectedInvite] = useState(null);
-  const [transferAmount, setTransferAmount] = useState(getQuotaPerUnit());
   const [expandedFaq, setExpandedFaq] = useState(null);
   const [inviteList, setInviteList] = useState([
     {
@@ -145,13 +142,10 @@ const Invitation = () => {
   };
 
   const transfer = async () => {
-    if (transferAmount < getQuotaPerUnit()) {
-      showError(t('划转金额最低为') + ' ' + renderQuota(getQuotaPerUnit()));
+    if (!userState?.user?.aff_quota) {
       return;
     }
-    const res = await API.post('/api/user/aff_transfer', {
-      quota: transferAmount,
-    });
+    const res = await API.post('/api/user/aff_transfer');
     const { success, message } = res.data;
     if (success) {
       showSuccess(message);
@@ -173,7 +167,6 @@ const Invitation = () => {
 
   useEffect(() => {
     getUserQuota().then();
-    setTransferAmount(getQuotaPerUnit());
   }, []);
 
   useEffect(() => {
@@ -627,10 +620,6 @@ const Invitation = () => {
         transfer={transfer}
         handleTransferCancel={handleTransferCancel}
         userState={userState}
-        renderQuota={renderQuota}
-        getQuotaPerUnit={getQuotaPerUnit}
-        transferAmount={transferAmount}
-        setTransferAmount={setTransferAmount}
       />
 
       {/* 邀请明细弹窗 */}

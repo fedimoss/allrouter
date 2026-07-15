@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Typography, Input, InputNumber } from '@douyinfe/semi-ui';
+import { Modal, Typography, Input } from '@douyinfe/semi-ui';
 import { CreditCard } from 'lucide-react';
 import { formatDisplayMoney } from '../../../helpers'; // 用于将后端转换后的金额按用户币种格式化展示
 
@@ -28,10 +28,6 @@ const TransferModal = ({
   transfer,
   handleTransferCancel,
   userState,
-  renderQuota,
-  getQuotaPerUnit,
-  transferAmount,
-  setTransferAmount,
 }) => {
   // 用户当前币种符号（如 $ 或 ¥），从 /api/user/self 接口的 display_symbol 字段获取
   const displaySymbol = userState?.user?.display_symbol;
@@ -47,6 +43,7 @@ const TransferModal = ({
       visible={openTransfer}
       onOk={transfer}
       onCancel={handleTransferCancel}
+      okText={t('全部划转到余额')}
       maskClosable={false}
       centered
     >
@@ -57,21 +54,12 @@ const TransferModal = ({
           </Typography.Text>
           {/* 使用后端转换后的展示金额 + 用户币种符号，原始 aff_quota 仅用于划转接口 */}
           <Input
-            value={formatDisplayMoney(userState?.user?.aff_quota_display || 0, displaySymbol)}
+            value={formatDisplayMoney(
+              userState?.user?.aff_quota_display || 0,
+              displaySymbol,
+            )}
             disabled
             className='!rounded-lg'
-          />
-        </div>
-        <div>
-          <Typography.Text strong className='block mb-2'>
-            {t('划转额度')} · {t('最低') + renderQuota(getQuotaPerUnit())}
-          </Typography.Text>
-          <InputNumber
-            min={getQuotaPerUnit()}
-            max={userState?.user?.aff_quota || 0}
-            value={transferAmount}
-            onChange={(value) => setTransferAmount(value)}
-            className='w-full !rounded-lg'
           />
         </div>
       </div>

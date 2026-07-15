@@ -845,12 +845,7 @@ func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int, providerId int) (s
 	return plan.Title, nil
 }
 
-func (user *User) TransferAffQuotaToQuota(quota int) error {
-	// 检查quota是否小于最小额度
-	if float64(quota) < common.QuotaPerUnit {
-		return fmt.Errorf("转移额度最小为%s！", logger.LogQuota(int(common.QuotaPerUnit)))
-	}
-
+func (user *User) TransferAllAffQuotaToQuota() error {
 	// 开始数据库事务
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -864,13 +859,13 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 		return err
 	}
 
-	// 再次检查用户的AffQuota是否足够
-	if user.AffQuota < quota {
+	quota := user.AffQuota
+	if quota <= 0 {
 		return errors.New("邀请额度不足！")
 	}
 
 	// 更新用户额度
-	user.AffQuota -= quota
+	user.AffQuota = 0
 	user.Quota += quota
 	user.RewardQuota += quota
 
@@ -879,8 +874,11 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 		return err
 	}
 
-	// 提交事务
-	return tx.Commit().Error
+	// 提交事务后清理额度缓存，确保后续消费读取到最新余额。
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	return invalidateUserCache(user.Id)
 }
 
 func (user *User) Insert(inviterId int) error {

@@ -2997,6 +2997,7 @@
     "去前缀": "",
     "去重完成：去重前 {{before}} 个密钥，去重后 {{after}} 个密钥": "Hoàn tất loại bỏ trùng lặp: {{before}} khóa trước khi loại bỏ, {{after}} khóa sau khi loại bỏ",
     "全部": "Tất cả",
+    "全部划转到余额": "Chuyển tất cả vào số dư",
     "全部标签": "Tất cả thẻ",
     "全部地区总可用资源": "Total Available Resources in All Regions",
     "全部端点": "Tất cả điểm cuối",
