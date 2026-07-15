@@ -32,6 +32,8 @@ const LandingPage = () => {
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimerRef = useRef(null);
 
+  localStorage.setItem('aff', 'CinA');
+
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
@@ -49,7 +51,7 @@ const LandingPage = () => {
         window.clearTimeout(toastTimerRef.current);
       }
     },
-    [],
+    []
   );
 
   const showCopiedToast = () => {
