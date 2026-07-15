@@ -228,17 +228,23 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	if common.EmailVerificationEnabled {
 		if user.Email == "" || user.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
 			return
 		}
-		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
+		verified, verifyErr := common.VerifyCodeWithKey(c.Request.Context(), providerId, user.Email, user.VerificationCode, common.EmailVerificationPurpose)
+		if verifyErr != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to verify registration email code: %s", verifyErr.Error()))
+			common.ApiErrorI18n(c, i18n.MsgRetryLater)
+			return
+		}
+		if !verified {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 			return
 		}
 	}
-	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	if !ensureGlobalUserIdentityAvailable(c, 0, user.Username, user.Email) {
 		return
 	}
@@ -1504,7 +1510,14 @@ func EmailBind(c *gin.Context) {
 	}
 	email := strings.TrimSpace(req.Email)
 	code := req.Code
-	if !common.VerifyCodeWithKey(email, code, common.EmailVerificationPurpose) {
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	verified, verifyErr := common.VerifyCodeWithKey(c.Request.Context(), providerId, email, code, common.EmailVerificationPurpose)
+	if verifyErr != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to verify email binding code: %s", verifyErr.Error()))
+		common.ApiErrorI18n(c, i18n.MsgRetryLater)
+		return
+	}
+	if !verified {
 		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 		return
 	}
