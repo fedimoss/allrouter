@@ -141,6 +141,7 @@ const Invitation = () => {
     }
   };
 
+  // 前端只触发全额划转，实际金额由后端在事务锁内读取，避免提交过期额度。
   const transfer = async () => {
     if (!userState?.user?.aff_quota) {
       return;

@@ -845,26 +845,29 @@ func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int, providerId int) (s
 	return plan.Title, nil
 }
 
+// TransferAllAffQuotaToQuota 将用户当前全部邀请额度原子划转到站内余额。
+// 划转金额必须从加锁后的数据库记录读取，不能使用控制器查询到的旧值或客户端传值。
 func (user *User) TransferAllAffQuotaToQuota() error {
-	// 开始数据库事务
+	// 全额读取、扣减和入账必须处于同一事务，避免并发请求重复划转。
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
 	defer tx.Rollback() // 确保在函数退出时事务能回滚
 
-	// 加锁查询用户以确保数据一致性
+	// 重新读取并锁定用户记录，确保后续使用的是当前最新邀请额度。
 	err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, user.Id).Error
 	if err != nil {
 		return err
 	}
 
+	// 以锁内的 AffQuota 作为本次唯一划转金额；不再保留最低划转门槛。
 	quota := user.AffQuota
 	if quota <= 0 {
 		return errors.New("邀请额度不足！")
 	}
 
-	// 更新用户额度
+	// AffHistoryQuota 是累计收益统计，不随划转清零；划转所得仍归类为奖励余额。
 	user.AffQuota = 0
 	user.Quota += quota
 	user.RewardQuota += quota

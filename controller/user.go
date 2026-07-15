@@ -392,6 +392,8 @@ func GenerateAccessToken(c *gin.Context) {
 	return
 }
 
+// TransferAffQuota 将当前用户的全部待划转邀请额度转入站内奖励余额。
+// 划转金额不从请求体读取，避免客户端指定部分金额或提交过期额度。
 func TransferAffQuota(c *gin.Context) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)

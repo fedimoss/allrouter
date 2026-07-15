@@ -22,6 +22,7 @@ import { Modal, Typography, Input } from '@douyinfe/semi-ui';
 import { CreditCard } from 'lucide-react';
 import { formatDisplayMoney } from '../../../helpers'; // 用于将后端转换后的金额按用户币种格式化展示
 
+// 弹窗只展示可用邀请额度并确认全额划转，不向用户暴露内部 quota 数值输入。
 const TransferModal = ({
   t,
   openTransfer,

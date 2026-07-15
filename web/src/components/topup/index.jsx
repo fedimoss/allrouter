@@ -611,7 +611,7 @@ const TopUp = () => {
     }
   };
 
-  // 划转邀请额度
+  // 仅发起全额划转请求，实际金额由后端基于最新邀请额度决定。
   const transfer = async () => {
     if (!userState?.user?.aff_quota) {
       return;
