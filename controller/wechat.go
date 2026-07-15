@@ -72,6 +72,7 @@ func WeChatAuth(c *gin.Context) {
 	}
 	user := model.User{
 		WeChatId: wechatId,
+		// 微信登录不经过统一 OAuth state，需直接从本次请求接收并校验注册时区。
 		Timezone: normalizeRegistrationTimezone(c.Query("timezone")),
 	}
 	if model.IsWeChatIdAlreadyTaken(wechatId) {

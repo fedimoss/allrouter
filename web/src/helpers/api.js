@@ -242,6 +242,7 @@ export const processGroupsData = (data, userGroup) => {
 
 export async function getOAuthState() {
   const affCode = localStorage.getItem('aff');
+  // OAuth 回调会跨页面返回，时区需与 state 同时写入后端 session 保存。
   const params = {
     timezone: getRegistrationTimezone(),
   };

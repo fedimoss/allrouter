@@ -25,6 +25,7 @@ import {
 } from './timezone';
 
 describe('getRegistrationTimezoneForLanguage', () => {
+  // 简体、繁体及下划线写法都属于中文浏览器语言。
   test.each(['zh', 'zh-CN', 'zh-TW', 'zh-Hans', 'zh_Hant'])(
     '%s uses the China profile',
     (language) => {
@@ -34,6 +35,7 @@ describe('getRegistrationTimezoneForLanguage', () => {
     },
   );
 
+  // 其他语言和异常输入必须稳定回退到海外时区档位。
   test.each(['en', 'en-US', 'fr', 'ja', '', 'invalid'])(
     '%s uses the overseas profile',
     (language) => {

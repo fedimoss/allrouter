@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// OAuth 会离开本站再回调，因此需要用 session 跨跳转保留注册时区档位。
 const oauthRegistrationTimezoneSessionKey = "registration_timezone"
 
 // providerParams returns map with Provider key for i18n templates
@@ -31,6 +32,7 @@ func GenerateOAuthCode(c *gin.Context) {
 		session.Set("aff", affCode)
 	}
 	session.Set("oauth_state", state)
+	// 在生成 state 时一并保存，避免第三方回调阶段丢失最初浏览器语言对应的时区。
 	session.Set(oauthRegistrationTimezoneSessionKey, normalizeRegistrationTimezone(c.Query("timezone")))
 	err := session.Save()
 	if err != nil {
@@ -265,6 +267,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
+	// 仅在首次创建 OAuth 用户时消费该值；已有用户登录不会覆盖其个人时区。
 	registrationTimezone, _ := session.Get(oauthRegistrationTimezoneSessionKey).(string)
 	user.Timezone = normalizeRegistrationTimezone(registrationTimezone)
 	usernameConflict, emailConflict, err := model.UserIdentityConflictFieldsGlobally(0, user.Username, user.Email)

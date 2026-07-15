@@ -3,6 +3,7 @@ package controller
 import "testing"
 
 func TestNormalizeRegistrationTimezone(t *testing.T) {
+	// 同时覆盖历史中国时区别名、大小写/空格容错，以及海外与非法输入的默认分支。
 	tests := []struct {
 		name     string
 		timezone string

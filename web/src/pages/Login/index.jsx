@@ -270,6 +270,7 @@ export default function LoginPage() {
       const res = await API.get('/api/oauth/wechat', {
         params: {
           code,
+          // 微信登录不走 OAuth state，需要随验证码请求直接携带注册时区。
           timezone: getRegistrationTimezone(),
         },
       });

@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 export const REGISTRATION_TIMEZONE_CHINA = 'Asia/Shanghai';
 export const REGISTRATION_TIMEZONE_OVERSEAS = 'America/New_York';
 
+// 注册阶段只区分中文与非中文浏览器，避免把完整 IANA 时区列表暴露给注册流程。
 export function getRegistrationTimezoneForLanguage(language) {
   const normalized = String(language || '')
     .trim()
@@ -31,6 +32,7 @@ export function getRegistrationTimezoneForLanguage(language) {
 }
 
 export function getRegistrationTimezone() {
+  // 优先采用浏览器首选语言；无浏览器环境或无法识别时按海外用户处理。
   const browserLanguage =
     typeof navigator === 'undefined'
       ? ''

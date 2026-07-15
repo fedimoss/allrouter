@@ -447,6 +447,7 @@ const PersonalSetting = () => {
     }
   }, [currentUser?.setting]);
 
+  // users.timezone 是个人资料的唯一时区来源；历史空值用户保持下拉框为空。
   useEffect(() => {
     const settings = safeParseSetting(currentUser?.setting);
     setProfileInputs((prev) => ({
@@ -646,6 +647,7 @@ const PersonalSetting = () => {
     }
   };
 
+  // 时区映射命中语言后，同时刷新运行时、缓存和用户上下文，保证界面立即一致。
   const syncLanguageLocally = (language) => {
     const normalizedLanguage = normalizeLanguage(language);
     if (!normalizedLanguage) {
@@ -690,6 +692,7 @@ const PersonalSetting = () => {
         const currentLanguage = normalizeLanguage(
           safeParseSetting(currentUser?.setting).language || i18n.language,
         );
+        // 使用完整时区映射：除中英文外，还支持法语、俄语、日语和越南语等。
         const matchedLanguage = getLanguageByTimezone(timezone);
         let languageSyncError = '';
 

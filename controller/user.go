@@ -258,7 +258,8 @@ func Register(c *gin.Context) {
 		DisplayName: user.Username,
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
-		Timezone:    normalizeRegistrationTimezone(user.Timezone),
+		// 服务端再次归一化，不能直接信任前端提交的时区字符串。
+		Timezone: normalizeRegistrationTimezone(user.Timezone),
 	}
 	cleanUser.SignupSource = strings.TrimSpace(user.SignupSource)
 	if err := cleanUser.Insert(inviterId); err != nil {
