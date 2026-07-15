@@ -17,20 +17,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-export * from './history';
-export * from './auth';
-export * from './utils';
-export * from './base64';
-export * from './api';
-export * from './render';
-export * from './log';
-export * from './data';
-export * from './token';
-export * from './boolean';
-export * from './dashboard';
-export * from './passkey';
-export * from './statusCodeRules';
-export * from './currency';
-export * from './themeColors';
-export * from './providerNavModules';
-export * from './timezone';
+import { describe, expect, test } from 'bun:test';
+import {
+  getRegistrationTimezoneForLanguage,
+  REGISTRATION_TIMEZONE_CHINA,
+  REGISTRATION_TIMEZONE_OVERSEAS,
+} from './timezone';
+
+describe('getRegistrationTimezoneForLanguage', () => {
+  test.each(['zh', 'zh-CN', 'zh-TW', 'zh-Hans', 'zh_Hant'])(
+    '%s uses the China profile',
+    (language) => {
+      expect(getRegistrationTimezoneForLanguage(language)).toBe(
+        REGISTRATION_TIMEZONE_CHINA,
+      );
+    },
+  );
+
+  test.each(['en', 'en-US', 'fr', 'ja', '', 'invalid'])(
+    '%s uses the overseas profile',
+    (language) => {
+      expect(getRegistrationTimezoneForLanguage(language)).toBe(
+        REGISTRATION_TIMEZONE_OVERSEAS,
+      );
+    },
+  );
+});

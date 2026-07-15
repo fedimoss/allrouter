@@ -252,6 +252,7 @@ func Register(c *gin.Context) {
 		DisplayName: user.Username,
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
+		Timezone:    normalizeRegistrationTimezone(user.Timezone),
 	}
 	cleanUser.SignupSource = strings.TrimSpace(user.SignupSource)
 	if err := cleanUser.Insert(inviterId); err != nil {

@@ -37,6 +37,7 @@ import avatarImg from '../../../public/avatar.svg';
 import {
   API,
   getLogo,
+  getRegistrationTimezone,
   getSystemName,
   setUserData,
   showError,
@@ -266,9 +267,12 @@ export default function LoginPage() {
     if (!ensureTurnstileReady()) return;
     setWechatCodeSubmitLoading(true);
     try {
-      const res = await API.get(
-        `/api/oauth/wechat?code=${encodeURIComponent(code)}`,
-      );
+      const res = await API.get('/api/oauth/wechat', {
+        params: {
+          code,
+          timezone: getRegistrationTimezone(),
+        },
+      });
       const { success, message, data } = res.data;
       if (success) {
         userDispatch({ type: 'login', payload: data });

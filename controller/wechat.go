@@ -72,6 +72,7 @@ func WeChatAuth(c *gin.Context) {
 	}
 	user := model.User{
 		WeChatId: wechatId,
+		Timezone: normalizeRegistrationTimezone(c.Query("timezone")),
 	}
 	if model.IsWeChatIdAlreadyTaken(wechatId) {
 		err := user.FillUserByWeChatId()

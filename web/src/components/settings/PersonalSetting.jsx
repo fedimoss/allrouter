@@ -100,7 +100,6 @@ const notificationTypeOptions = [
   { value: 'gotify', label: 'Gotify' },
 ];
 
-
 const fallbackTimezones = [
   'Asia/Shanghai',
   'Asia/Tokyo',
@@ -450,14 +449,6 @@ const PersonalSetting = () => {
 
   useEffect(() => {
     const settings = safeParseSetting(currentUser?.setting);
-    let detectedTimezone = '';
-    if (typeof Intl !== 'undefined') {
-      try {
-        detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-      } catch {
-        detectedTimezone = '';
-      }
-    }
     setProfileInputs((prev) => ({
       username: currentUser?.username || prev.username || '',
       avatar: currentUser?.avatar || defaultAvatar,
@@ -468,12 +459,7 @@ const PersonalSetting = () => {
         '+86',
       phone_number:
         currentUser?.phone_number || prev.phone_number || settings.phone_number || '',
-      timezone:
-        currentUser?.timezone ||
-        prev.timezone ||
-        settings.timezone ||
-        detectedTimezone ||
-        'Asia/Shanghai',
+      timezone: currentUser?.timezone || '',
     }));
     setInputs((prev) => ({
       ...prev,
@@ -660,42 +646,29 @@ const PersonalSetting = () => {
     }
   };
 
-  // 同步前端当前语言和本地缓存，保证保存后界面会立刻切换。
   const syncLanguageLocally = (language) => {
-    // 将传入的语言标识标准化（如 zh-CN → zh），防止格式不一致导致后续匹配失败
     const normalizedLanguage = normalizeLanguage(language);
-    // 标准化后为空则直接返回，不做任何操作
     if (!normalizedLanguage) {
       return;
     }
 
-    // 切换 i18next 运行时语言，触发界面文本立即刷新
     i18n.changeLanguage(normalizedLanguage);
-    // 同步写入 localStorage，确保刷新页面后仍能保持语言选择
     localStorage.setItem('i18nextLng', normalizedLanguage);
 
-    // 解析当前用户已保存的 setting JSON，准备更新其中的 language 字段
     const settings = safeParseSetting(currentUser?.setting);
-    // 将标准化后的语言写入 setting 对象
     settings.language = normalizedLanguage;
-
-    // 构造一份新的用户对象，把更新后的 setting 序列化回 JSON 字符串
     const nextUser = {
       ...currentUser,
       setting: JSON.stringify(settings),
     };
-
-    // 通过 Context dispatch 更新全局用户状态，使其他组件也能拿到最新语言
     userDispatch({ type: 'login', payload: nextUser });
-    // 同步写入 localStorage 的 user 缓存，保证刷新后仍然生效
     setUserData(nextUser);
   };
 
   const saveProfile = async () => {
     const username = profileInputs.username.trim();
     const phoneNumber = profileInputs.phone_number.trim();
-    // 时区未填写时使用默认值，避免把空值保存进资料。
-    const timezone = profileInputs.timezone || 'Asia/Shanghai';
+    const timezone = profileInputs.timezone || '';
 
     if (!username) {
       showError(t('用户名不能为空'));
@@ -713,39 +686,31 @@ const PersonalSetting = () => {
         email: inputs.email || currentUser?.email || '',
       });
       const { success, message } = res.data;
-      // 取出用户已保存的语言偏好，fallback 到 i18n 当前运行时语言，确保比较基准准确
-      const currentLanguage = normalizeLanguage(
-        safeParseSetting(currentUser?.setting).language || i18n.language,
-      );
-      // 根据用户刚保存的时区推断出推荐语言（如 Asia/Shanghai → zh）
-      const matchedLanguage = getLanguageByTimezone(timezone);
-      // 记录语言同步过程中的错误信息，如果有则最后统一提示
-      let languageSyncError = '';
       if (success) {
-        // 推荐语言存在 且 与当前语言不同时才执行同步，避免无意义的请求
+        const currentLanguage = normalizeLanguage(
+          safeParseSetting(currentUser?.setting).language || i18n.language,
+        );
+        const matchedLanguage = getLanguageByTimezone(timezone);
+        let languageSyncError = '';
+
         if (matchedLanguage && matchedLanguage !== currentLanguage) {
           try {
-            // 调用后端接口持久化语言偏好
             const languageRes = await API.put('/api/user/self', {
               language: matchedLanguage,
             });
             if (languageRes.data.success) {
-              // 后端保存成功后，同步更新前端 i18n、localStorage 和全局状态
               syncLanguageLocally(matchedLanguage);
             } else {
-              // 后端返回失败，记录错误信息，优先使用后端返回的 message
               languageSyncError =
                 languageRes.data.message || t('保存失败，请重试');
             }
           } catch {
-            // 网络或接口异常时，记录通用错误提示
             languageSyncError = t('保存失败，请重试');
           }
         }
-        // 资料保存成功提示（不因语言同步失败而阻止）
+
         showSuccess(t('账户信息已更新'));
         await getUserData();
-        // 如果语言同步环节有错误，最后统一弹窗提示
         if (languageSyncError) {
           showError(languageSyncError);
         }
@@ -954,7 +919,7 @@ const PersonalSetting = () => {
 
   const avatarSrc = isCustomAvatar && avatarImgLoaded ? avatarUrl : undefined;
   const localTimeLabel = useMemo(() => {
-    if (typeof Intl === 'undefined') {
+    if (typeof Intl === 'undefined' || !profileInputs.timezone) {
       return '-';
     }
     try {
@@ -963,7 +928,7 @@ const PersonalSetting = () => {
         minute: '2-digit',
         month: 'short',
         day: 'numeric',
-        timeZone: profileInputs.timezone || 'Asia/Shanghai',
+        timeZone: profileInputs.timezone,
       }).format(new Date());
     } catch {
       return new Intl.DateTimeFormat(undefined, {
@@ -1114,7 +1079,9 @@ const PersonalSetting = () => {
                       style={{ width: '100%' }}
                     />
                     <div className='personal-v3-field-note'>
-                      {`${profileInputs.timezone || '-'} · ${localTimeLabel}`}
+                      {profileInputs.timezone
+                        ? `${profileInputs.timezone} · ${localTimeLabel}`
+                        : '-'}
                     </div>
                   </div>
                 </div>

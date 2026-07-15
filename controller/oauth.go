@@ -15,6 +15,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const oauthRegistrationTimezoneSessionKey = "registration_timezone"
+
 // providerParams returns map with Provider key for i18n templates
 func providerParams(name string) map[string]any {
 	return map[string]any{"Provider": name}
@@ -29,6 +31,7 @@ func GenerateOAuthCode(c *gin.Context) {
 		session.Set("aff", affCode)
 	}
 	session.Set("oauth_state", state)
+	session.Set(oauthRegistrationTimezoneSessionKey, normalizeRegistrationTimezone(c.Query("timezone")))
 	err := session.Save()
 	if err != nil {
 		common.ApiError(c, err)
@@ -262,6 +265,8 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
+	registrationTimezone, _ := session.Get(oauthRegistrationTimezoneSessionKey).(string)
+	user.Timezone = normalizeRegistrationTimezone(registrationTimezone)
 	usernameConflict, emailConflict, err := model.UserIdentityConflictFieldsGlobally(0, user.Username, user.Email)
 	if err != nil {
 		return nil, err
