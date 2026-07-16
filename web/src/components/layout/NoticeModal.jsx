@@ -89,7 +89,10 @@ const NoticeModal = ({
       const { success, message, data } = res.data;
       if (success) {
         if (data !== '') {
-          const htmlNotice = marked.parse(data);
+          // 公告正文用 marked 渲染为 HTML，breaks:true 开启软换行（换行可渲染为 <br>）。
+          // 段落间的空行靠 .notice-content-scroll p 的 margin 决定（见 index.css）；
+          // 全局 p{margin-bottom:0} 会清零段距，需要可靠空行时可在内容里手写 <br>。
+          const htmlNotice = marked.parse(data, { breaks: true });
           setNoticeContent(htmlNotice);
         } else {
           setNoticeContent('');
