@@ -49,6 +49,8 @@ import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
+const NOTICE_CHINESE_KEY = 'Notice'; // 中文公告配置项 key（与后端 model.NoticeOptionKey 对应）
+const NOTICE_ENGLISH_KEY = 'NoticeEn'; // 英文公告配置项 key（与后端 model.NoticeEnglishOptionKey 对应）
 const NOTICE_SHOW_TO_PROVIDERS_KEY = 'NoticeShowToProviders';
 const HOME_PAGE_THEME_OPTIONS = [
   { label: '默认', value: 'default' },
@@ -58,7 +60,8 @@ const HOME_PAGE_THEME_OPTIONS = [
 const OtherSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
-    Notice: '',
+    [NOTICE_CHINESE_KEY]: '',
+    [NOTICE_ENGLISH_KEY]: '',
     [NOTICE_SHOW_TO_PROVIDERS_KEY]: true,
     [LEGAL_USER_AGREEMENT_KEY]: '',
     [LEGAL_PRIVACY_POLICY_KEY]: '',
@@ -102,7 +105,7 @@ const OtherSetting = () => {
   };
 
   const [loadingInput, setLoadingInput] = useState({
-    Notice: false,
+    [NOTICE_CHINESE_KEY]: false,
     [NOTICE_SHOW_TO_PROVIDERS_KEY]: false,
     [LEGAL_USER_AGREEMENT_KEY]: false,
     [LEGAL_PRIVACY_POLICY_KEY]: false,
@@ -309,17 +312,37 @@ const OtherSetting = () => {
 
   // 通用设置
   const formAPISettingGeneral = useRef();
-  // 通用设置 - Notice
+  // 通用设置 - 公告：一次性并发提交中文与英文两份公告
   const submitNotice = async () => {
     try {
-      setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: true }));
-      await updateOption('Notice', inputs.Notice);
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        [NOTICE_CHINESE_KEY]: true,
+      }));
+      // 并发保存中文、英文公告；任一请求失败则整体抛错并提示失败
+      const results = await Promise.all([
+        API.put('/api/option/', {
+          key: NOTICE_CHINESE_KEY,
+          value: inputs[NOTICE_CHINESE_KEY],
+        }),
+        API.put('/api/option/', {
+          key: NOTICE_ENGLISH_KEY,
+          value: inputs[NOTICE_ENGLISH_KEY],
+        }),
+      ]);
+      const failedResult = results.find((res) => !res.data.success);
+      if (failedResult) {
+        throw new Error(failedResult.data.message || t('公告更新失败'));
+      }
       showSuccess(t('公告已更新'));
     } catch (error) {
       console.error(t('公告更新失败'), error);
-      showError(t('公告更新失败'));
+      showError(error.message || t('公告更新失败'));
     } finally {
-      setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: false }));
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        [NOTICE_CHINESE_KEY]: false,
+      }));
     }
   };
 
@@ -1130,12 +1153,23 @@ const OtherSetting = () => {
         >
           <Card>
             <Form.Section text={t('通用设置')}>
+              {/* 中文公告输入框，与下方英文公告一同保存，后端按用户语言择一展示 */}
               <Form.TextArea
-                label={t('公告')}
+                label={t('公告（中文）')}
                 placeholder={t(
                   '在此输入新的公告内容，支持 Markdown & HTML 代码',
                 )}
-                field={'Notice'}
+                field={NOTICE_CHINESE_KEY}
+                onChange={handleInputChange}
+                style={{ fontFamily: 'JetBrains Mono, Consolas' }}
+                autosize={{ minRows: 6, maxRows: 12 }}
+              />
+              <Form.TextArea
+                label={t('公告（英文）')}
+                placeholder={t(
+                  '在此输入新的公告内容，支持 Markdown & HTML 代码',
+                )}
+                field={NOTICE_ENGLISH_KEY}
                 onChange={handleInputChange}
                 style={{ fontFamily: 'JetBrains Mono, Consolas' }}
                 autosize={{ minRows: 6, maxRows: 12 }}
@@ -1146,7 +1180,10 @@ const OtherSetting = () => {
                 loading={loadingInput[NOTICE_SHOW_TO_PROVIDERS_KEY]}
                 onChange={updateNoticeProviderVisibility}
               />
-              <Button onClick={submitNotice} loading={loadingInput['Notice']}>
+              <Button
+                onClick={submitNotice}
+                loading={loadingInput[NOTICE_CHINESE_KEY]}
+              >
                 {t('设置公告')}
               </Button>
               <Form.TextArea

@@ -21,7 +21,14 @@ type Option struct {
 	Value string `json:"value"`
 }
 
-const NoticeShowToProvidersOptionKey = "NoticeShowToProviders"
+const (
+	// NoticeOptionKey 中文公告配置项的 key
+	NoticeOptionKey = "Notice"
+	// NoticeEnglishOptionKey 英文公告配置项的 key
+	NoticeEnglishOptionKey = "NoticeEn"
+	// NoticeShowToProvidersOptionKey 是否在服务商站点显示公告
+	NoticeShowToProvidersOptionKey = "NoticeShowToProviders"
+)
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
@@ -67,7 +74,9 @@ func InitOptionMap() {
 	common.OptionMap["SMTPToken"] = ""
 	common.OptionMap["SMTPSSLEnabled"] = strconv.FormatBool(common.SMTPSSLEnabled)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
-	common.OptionMap["Notice"] = ""
+	// 公告默认值：中文与英文双版本均为空
+	common.OptionMap[NoticeOptionKey] = ""
+	common.OptionMap[NoticeEnglishOptionKey] = ""
 	common.OptionMap[NoticeShowToProvidersOptionKey] = strconv.FormatBool(true)
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""

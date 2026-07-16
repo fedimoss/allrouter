@@ -25,7 +25,9 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
-		apiRouter.GET("/notice", controller.GetNotice)
+		// 公告接口使用 TryUserAuth（非强制鉴权）：未登录时按浏览器语言返回公告，
+		// 已登录则可读取用户账户的语言设置，从而返回对应语言的公告
+		apiRouter.GET("/notice", middleware.TryUserAuth(), controller.GetNotice)
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)
 		apiRouter.GET("/about", controller.GetAbout)

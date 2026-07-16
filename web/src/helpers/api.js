@@ -24,6 +24,7 @@ import {
   isValidMessage,
 } from './utils';
 import { getRegistrationTimezone } from './timezone';
+import i18n from '../i18n/i18n';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
 
@@ -239,6 +240,18 @@ export const processGroupsData = (data, userGroup) => {
 };
 
 // 原来components中的utils.js
+
+/**
+ * 获取站点公告。
+ * 会将当前界面语言（优先 resolvedLanguage）作为 language 参数带上，
+ * 后端据此返回中文或英文公告；未解析到语言时不传参，交由后端按上下文推断。
+ */
+export function fetchNotice() {
+  const language = i18n.resolvedLanguage || i18n.language;
+  return API.get('/api/notice', {
+    params: language ? { language } : undefined,
+  });
+}
 
 export async function getOAuthState() {
   const affCode = localStorage.getItem('aff');
