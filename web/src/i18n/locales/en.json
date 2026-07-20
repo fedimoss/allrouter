@@ -5341,6 +5341,18 @@
     "邀请注册": "Invited registration",
     "自主注册": "Direct registration",
     "获取看板数据失败": "Failed to load dashboard data",
-    "获取列表数据失败": "Failed to load list data"
+    "获取列表数据失败": "Failed to load list data",
+    "本日新增注册用户": "New registered users today",
+    "本日入金金额": "Deposits today",
+    "较上一日": "vs. previous day",
+    "本周新增注册用户": "New registered users this week",
+    "本周入金金额": "Deposits this week",
+    "较上一周": "vs. previous week",
+    "本月新增注册用户": "New registered users this month",
+    "本月入金金额": "Deposits this month",
+    "较上一月": "vs. previous month",
+    "本年新增注册用户": "New registered users this year",
+    "本年入金金额": "Deposits this year",
+    "较上一年": "vs. previous year"
   }
 }

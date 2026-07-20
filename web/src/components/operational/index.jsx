@@ -40,6 +40,7 @@ import {
 import { API, showError, isProviderOwner, getProviderId } from '../../helpers';
 import {
   DATE_RANGE_OPTIONS,
+  OPERATIONAL_PERIOD_COPY,
   OPERATIONAL_PREVIEW_CARDS,
   TAB_CONFIG,
   blockPanelClassName,
@@ -171,9 +172,9 @@ function DateRangeDropdown ({ activeRange, onChange }) {
     </Dropdown>
   );
 }
-function formatMetricValue(metric) {
+function formatMetricValue(metric, displaySymbol) {
   if (metric.valueType === 'quota') {
-    return formatQuotaValue(metric.value);
+    return formatQuotaValue(metric.value, displaySymbol);
   }
   if (metric.valueType === 'count') {
     return formatInteger(metric.value);
@@ -181,7 +182,7 @@ function formatMetricValue(metric) {
   return hasValue(metric.value) ? String(metric.value) : '--';
 }
 
-function MetricCard({ metric, loading }) {
+function MetricCard({ metric, loading, displaySymbol }) {
   const { t } = useTranslation();
   const Icon = ICON_MAP[metric.icon] || BarChart3;
   const footerClassName =
@@ -195,7 +196,11 @@ function MetricCard({ metric, loading }) {
         <div className='min-w-0'>
           <p className='text-sm text-slate-500 dark:text-slate-400'>{t(metric.title)}</p>
           <div className='mt-4 min-h-[44px] text-[24px] font-semibold tracking-tight text-slate-900 dark:text-white sm:text-[28px]'>
-            {loading ? <LoadingIcon className='h-6 w-6' /> : formatMetricValue(metric)}
+            {loading ? (
+              <LoadingIcon className='h-6 w-6' />
+            ) : (
+              formatMetricValue(metric, displaySymbol)
+            )}
           </div>
         </div>
         <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f8fafc] text-slate-400 dark:bg-slate-800 dark:text-slate-300'>
@@ -612,10 +617,30 @@ export default function Operational () {
     () => buildDashboardCards(activeConfig.cards, dashboardPayload || {}),
     [activeConfig.cards, dashboardPayload],
   );
-  const previewCards = useMemo(
-    () => buildDashboardCards(OPERATIONAL_PREVIEW_CARDS, dashboardPayload || {}),
-    [dashboardPayload],
-  );
+  const dashboardDisplaySymbol = dashboardPayload?.display_symbol || '';
+  const previewCards = useMemo(() => {
+    const periodCopy = OPERATIONAL_PERIOD_COPY[activeRange];
+    const cardsConfig = OPERATIONAL_PREVIEW_CARDS.map((card) => {
+      if (card.key === 'totalUsers') {
+        return card;
+      }
+
+      return {
+        ...card,
+        title:
+          card.key === 'periodNewUsers'
+            ? periodCopy.newUsersTitle
+            : periodCopy.depositTitle,
+        footer: {
+          ...card.footer,
+          text: periodCopy.comparisonText,
+        },
+        footerText: periodCopy.comparisonText,
+      };
+    });
+
+    return buildDashboardCards(cardsConfig, dashboardPayload || {});
+  }, [activeRange, dashboardPayload]);
   const visibleColumns = useMemo(
     () => activeConfig.columns.filter((column) => visibleColumnKeys.includes(column.key)),
     [activeConfig.columns, visibleColumnKeys],
@@ -963,6 +988,7 @@ export default function Operational () {
             <div className='mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3'>
               {previewCards.map((metric) => (
                 <MetricCard
+                  displaySymbol={dashboardDisplaySymbol}
                   key={metric.key}
                   loading={dashboardLoading && hasDashboardApi}
                   metric={metric}
@@ -972,7 +998,12 @@ export default function Operational () {
           )}
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4'>
             {dashboardCards.map((metric) => (
-              <MetricCard key={metric.key} loading={dashboardLoading && hasDashboardApi} metric={metric} />
+              <MetricCard
+                displaySymbol={dashboardDisplaySymbol}
+                key={metric.key}
+                loading={dashboardLoading && hasDashboardApi}
+                metric={metric}
+              />
             ))}
           </div>
         </section>

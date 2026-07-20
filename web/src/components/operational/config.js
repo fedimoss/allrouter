@@ -284,6 +284,29 @@ export const OPERATIONAL_PREVIEW_CARDS = [
   },
 ];
 
+export const OPERATIONAL_PERIOD_COPY = {
+  day: {
+    newUsersTitle: '本日新增注册用户',
+    depositTitle: '本日入金金额',
+    comparisonText: '较上一日',
+  },
+  week: {
+    newUsersTitle: '本周新增注册用户',
+    depositTitle: '本周入金金额',
+    comparisonText: '较上一周',
+  },
+  month: {
+    newUsersTitle: '本月新增注册用户',
+    depositTitle: '本月入金金额',
+    comparisonText: '较上一月',
+  },
+  year: {
+    newUsersTitle: '本年新增注册用户',
+    depositTitle: '本年入金金额',
+    comparisonText: '较上一年',
+  },
+};
+
 export const USER_COLUMNS = [
   { key: 'user', title: '用户ID', label: '用户ID', defaultChecked: true },
   { key: 'quota', title: '余额', label: '余额', defaultChecked: true, sortable: true, sortField: 'quota' },

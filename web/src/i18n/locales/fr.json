@@ -5307,6 +5307,18 @@
     "邀请注册": "Inscription par invitation",
     "自主注册": "Inscription directe",
     "获取看板数据失败": "Échec du chargement des données du tableau de bord",
-    "获取列表数据失败": "Échec du chargement des données de la liste"
+    "获取列表数据失败": "Échec du chargement des données de la liste",
+    "本日新增注册用户": "Nouveaux utilisateurs inscrits aujourd'hui",
+    "本日入金金额": "Dépôts aujourd'hui",
+    "较上一日": "Par rapport à la veille",
+    "本周新增注册用户": "Nouveaux utilisateurs inscrits cette semaine",
+    "本周入金金额": "Dépôts cette semaine",
+    "较上一周": "Par rapport à la semaine précédente",
+    "本月新增注册用户": "Nouveaux utilisateurs inscrits ce mois-ci",
+    "本月入金金额": "Dépôts ce mois-ci",
+    "较上一月": "Par rapport au mois précédent",
+    "本年新增注册用户": "Nouveaux utilisateurs inscrits cette année",
+    "本年入金金额": "Dépôts cette année",
+    "较上一年": "Par rapport à l'année précédente"
   }
 }

@@ -5795,6 +5795,18 @@
     "邀请注册": "Đăng ký qua lời mời",
     "自主注册": "Tự đăng ký",
     "获取看板数据失败": "Không thể tải dữ liệu bảng điều khiển",
-    "获取列表数据失败": "Không thể tải dữ liệu danh sách"
+    "获取列表数据失败": "Không thể tải dữ liệu danh sách",
+    "本日新增注册用户": "Người dùng đăng ký mới hôm nay",
+    "本日入金金额": "Số tiền nạp hôm nay",
+    "较上一日": "So với ngày trước",
+    "本周新增注册用户": "Người dùng đăng ký mới trong tuần này",
+    "本周入金金额": "Số tiền nạp trong tuần này",
+    "较上一周": "So với tuần trước",
+    "本月新增注册用户": "Người dùng đăng ký mới trong tháng này",
+    "本月入金金额": "Số tiền nạp trong tháng này",
+    "较上一月": "So với tháng trước",
+    "本年新增注册用户": "Người dùng đăng ký mới trong năm nay",
+    "本年入金金额": "Số tiền nạp trong năm nay",
+    "较上一年": "So với năm trước"
   }
 }
