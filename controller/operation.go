@@ -7,9 +7,38 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
+
+// getOperationProviderID 统一解析运营数据的服务商范围：管理员可按查询参数切换，
+// 服务商站长只能访问当前服务商站点，普通用户无权访问。
+func getOperationProviderID(c *gin.Context) (int, bool) {
+	if c.GetInt("role") >= common.RoleAdminUser {
+		rawProviderID := strings.TrimSpace(c.Query("provider_id"))
+		if rawProviderID == "" {
+			return 0, true
+		}
+
+		providerID, err := strconv.Atoi(rawProviderID)
+		if err != nil || providerID < 0 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return 0, false
+		}
+		return providerID, true
+	}
+
+	providerID := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	ownerUserID := common.GetContextKeyInt(c, constant.ContextKeyProviderOwnerUserId)
+	if providerID <= 0 || ownerUserID != c.GetInt("id") {
+		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
+		return 0, false
+	}
+
+	return providerID, true
+}
 
 // GetDashboardByPeriod 看板数据
 // query 参数
@@ -17,7 +46,10 @@ import (
 // "provider_id": 服务商ID（0 表示主站，>0 表示对应服务商）
 func GetDashboardByPeriod(c *gin.Context) {
 	period := c.DefaultQuery("period", "month")
-	providerId, _ := strconv.Atoi(c.Query("provider_id")) // 0 = 主站；>0 = 对应服务商
+	providerId, ok := getOperationProviderID(c)
+	if !ok {
+		return
+	}
 
 	// ============ 累计注册用户：按 provider_id 维度的用户总数（不依赖 period） ============
 	totalUsers, err := model.CountTotalUsersByProvider(providerId)
@@ -169,7 +201,10 @@ type userRecordItem struct {
 // "provider_id": 服务商ID（0 表示主站，>0 表示对应服务商）
 func GetRecords(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	providerId, _ := strconv.Atoi(c.Query("provider_id")) // 0 = 主站；>0 = 对应服务商
+	providerId, ok := getOperationProviderID(c)
+	if !ok {
+		return
+	}
 
 	// 解析排序参数，所有字段均在 DB 层排序
 	sortFields := make(map[string]string)

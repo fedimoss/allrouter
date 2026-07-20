@@ -104,41 +104,6 @@ export const USER_DASHBOARD_CARDS = [
   },
 ];
 
-export const AGENT_DASHBOARD_CARDS = [
-  {
-    key: 'agentTotal',
-    title: '代理商累计总数',
-    icon: 'trend',
-    valueType: 'count',
-    defaultValue: '9,054,362',
-    footer: { trend: '+28', text: '今日新增', tone: 'positive' },
-  },
-  {
-    key: 'agentProfit',
-    title: '平均分润收益',
-    icon: 'calendar',
-    valueType: 'text',
-    defaultValue: '$ 1,214.50',
-    footer: { trend: '', text: '按预计收益计算（含未结算）', tone: 'neutral' },
-  },
-  {
-    key: 'newAgent',
-    title: '新增新代理',
-    icon: 'trend',
-    valueType: 'count',
-    defaultValue: '-4',
-    footer: { trend: '较上月 -4', text: '', tone: 'negative' },
-  },
-  {
-    key: 'activeAgent',
-    title: '新增活跃代理',
-    icon: 'calendar',
-    valueType: 'count',
-    defaultValue: '6',
-    footer: { trend: '较上月 +6%', text: '', tone: 'positive' },
-  },
-];
-
 export const MERCHANT_DASHBOARD_CARDS = [
   {
     key: 'merchantTotal',
@@ -208,36 +173,114 @@ export const MERCHANT_DASHBOARD_CARDS = [
 
 export const SELF_HOSTED_DASHBOARD_CARDS = [
   {
-    key: 'income',
-    title: '自营总营收',
-    icon: 'trend',
-    valueType: 'text',
-    defaultValue: '$ 65,125',
-    footer: { trend: '+128', text: '今日新增', tone: 'positive' },
+    key: 'dailyActiveUsers',
+    title: '日活用户',
+    icon: 'users',
+    valueType: 'count',
+    aliases: ['daily_active_users', 'dailyActiveUsers'],
+    defaultValue: '0',
+    footer: {
+      trend: '',
+      text: '截至今日 - 较昨日',
+      tone: 'positive',
+      className: 'text-[#74b0fb]',
+    },
+    footerTrendAliases: ['daily_active_users_trend'],
+    footerText: '截至今日 - 较昨日',
   },
   {
-    key: 'paidCustomer',
-    title: '付费客户数',
+    key: 'weeklyActiveUsers',
+    title: '周活用户',
+    icon: 'activity',
+    valueType: 'count',
+    aliases: ['weekly_active_users', 'weeklyActiveUsers'],
+    defaultValue: '0',
+    footer: {
+      trend: '',
+      text: '近7天 - 较上周',
+      tone: 'positive',
+      className: 'text-[#22c55e]',
+    },
+    footerTrendAliases: ['weekly_active_users_trend'],
+    footerText: '近7天 - 较上周',
+  },
+  {
+    key: 'monthlyActiveUsers',
+    title: '月活用户',
     icon: 'calendar',
     valueType: 'count',
-    defaultValue: '1249',
-    footer: { trend: '较上月 -102', text: '', tone: 'negative' },
+    aliases: ['monthly_active_users', 'monthlyActiveUsers'],
+    defaultValue: '0',
+    footer: {
+      trend: '',
+      text: '近 30 天滚动统计',
+      tone: 'neutral',
+      className: 'text-[#1cdfd5]',
+    },
+    footerText: '近 30 天滚动统计',
   },
   {
-    key: 'utilization',
-    title: '资源平均利用率',
+    key: 'activeStickiness',
+    title: '活跃粘性',
     icon: 'trend',
     valueType: 'text',
-    defaultValue: '74.6%',
-    footer: { trend: '较上月 +6.5%', text: '', tone: 'positive' },
+    aliases: ['active_stickiness', 'activeStickiness'],
+    defaultValue: '--',
+    footer: {
+      trend: '',
+      text: '今日 DAU / 近7天 WAU',
+      tone: 'neutral',
+      className: 'text-[#f59e0b]',
+    },
+    footerText: '今日 DAU / 近7天 WAU',
+  },
+];
+
+// 平台自营看板顶部三项核心指标
+export const OPERATIONAL_PREVIEW_CARDS = [
+  {
+    key: 'totalUsers',
+    title: '累计注册用户',
+    icon: 'users',
+    valueType: 'count',
+    defaultValue: '--',
+    aliases: ['total_users', 'totalUsers'],
+    footer: {
+      text: '历史至今, 截至今日',
+      tone: 'neutral',
+      className: 'text-[#1cdfd5]',
+    },
+    footerText: '历史至今, 截至今日',
   },
   {
-    key: 'errorRate',
-    title: '服务异常率',
+    key: 'periodNewUsers',
+    title: '本期新增注册用户',
+    icon: 'calendar',
+    valueType: 'count',
+    defaultValue: '--',
+    aliases: ['new_users', 'newUsers'],
+    footer: {
+      text: '较上一周期',
+      tone: 'neutral',
+      className: 'text-[#1cdfd5]',
+    },
+    footerTrendAliases: ['new_users_trend'],
+    footerText: '较上一周期',
+  },
+  {
+    key: 'periodDepositAmount',
+    title: '本期入金金额',
     icon: 'topup',
-    valueType: 'text',
-    defaultValue: '5.6%',
-    footer: { trend: '较上月 +1.2%', text: '', tone: 'negative' },
+    valueType: 'quota',
+    defaultValue: '--',
+    aliases: ['deposit_amount', 'depositAmount'],
+    footer: {
+      text: '较上一周期',
+      tone: 'neutral',
+      className: 'text-[#1cdfd5]',
+    },
+    footerTrendAliases: ['deposit_amount_trend'],
+    footerText: '较上一周期',
   },
 ];
 
@@ -257,6 +300,7 @@ export const USER_COLUMNS = [
 export const TAB_CONFIG = {
   user: {
     label: '用户',
+    recordType: 'user',
     tableTitle: '用户数据',
     searchPlaceholder: '搜索用户名称或ID...',
     api: {
@@ -269,14 +313,18 @@ export const TAB_CONFIG = {
   },
   agent: {
     label: '代理商',
+    recordType: 'user',
     title: '代理商数据',
     subtitle: '查看代理增长、拉新、分润与活跃表现。',
     tableTitle: '代理商数据',
-    searchPlaceholder: '搜索代理商 ID 或昵称',
-    api: {},
-    cards: AGENT_DASHBOARD_CARDS,
-    columns: [],
-    advancedFilters: [],
+    searchPlaceholder: '搜索用户名称或ID...',
+    api: {
+      dashboard: '/api/operation/dashboard',
+      records: '/api/operation/records',
+    },
+    cards: SELF_HOSTED_DASHBOARD_CARDS,
+    columns: USER_COLUMNS,
+    advancedFilters: USER_ADVANCED_FILTER_CONFIG,
   },
   merchant: {
     label: '入驻商家',
@@ -291,16 +339,17 @@ export const TAB_CONFIG = {
   },
   selfHosted: {
     label: '平台自营',
+    recordType: 'user',
     title: '平台自营',
     subtitle: '按自营服务维度查看营收、客户和资源质量。',
     tableTitle: '平台自营',
-    searchPlaceholder: '搜索服务名称或 ID',
-    api: {},
+    searchPlaceholder: '搜索用户名称或ID...',
+    api: {
+      dashboard: '/api/operation/dashboard',
+      records: '/api/operation/records',
+    },
     cards: SELF_HOSTED_DASHBOARD_CARDS,
-    columns: [],
-    advancedFilters: [],
+    columns: USER_COLUMNS,
+    advancedFilters: USER_ADVANCED_FILTER_CONFIG,
   },
 };
-
-
-

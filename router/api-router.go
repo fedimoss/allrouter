@@ -469,11 +469,10 @@ func SetApiRouter(router *gin.Engine) {
 
 		// 运营数据模块接口
 		operationRoute := apiRouter.Group("/operation")
-		operationRoute.Use(middleware.AdminAuth())
 		{
-			operationRoute.GET("/providers", controller.GetProviders)         // 服务商列表
-			operationRoute.GET("/dashboard", controller.GetDashboardByPeriod) // 看板数据
-			operationRoute.GET("/records", controller.GetRecords)             // 列表数据
+			operationRoute.GET("/providers", middleware.AdminAuth(), controller.GetProviders)        // 服务商列表
+			operationRoute.GET("/dashboard", middleware.UserAuth(), controller.GetDashboardByPeriod) // 看板数据
+			operationRoute.GET("/records", middleware.UserAuth(), controller.GetRecords)             // 列表数据
 		}
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
