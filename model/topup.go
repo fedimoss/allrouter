@@ -1142,6 +1142,38 @@ func SumAllTopUp(startTimestamp, endTimestamp int64, bizType string) (int64, err
 	return total, err
 }
 
+// TopUpMoneySum 充值实付金额汇总：按是否加密货币拆分
+// 非加密货币的 money 为美元；加密货币的 money 为 USDT，需按系统汇率换算成美元
+type TopUpMoneySum struct {
+	FiatMoney   float64 `gorm:"column:fiat_money"`   // 非加密货币 money 总和（美元）
+	CryptoMoney float64 `gorm:"column:crypto_money"` // 加密货币 money 总和（USDT）
+}
+
+// SumTopUpMoneyByProvider 按"用户所属服务商"统计充值实付金额汇总。
+// provider_id=0 表示主站，>0 对应服务商。只统计 status=success 且 biz_type ∈ bizTypes 的用户充值，
+// 排除内部结算流水（provider_profit 分润 / provider_subscription 订阅收入）——
+// 它们的 user_id 是服务商 owner，不是用户充值；排除后剩余普通充值的 provider_id 即用户所属服务商。
+// 加密货币（payment_method='crypto'）的 money 是 USDT，单独统计以便上层按汇率换算成美元。
+// 订阅（biz_type=subscription）的 money 来自订阅订单的实际支付金额（order.Money），与在线支付同口径。
+func SumTopUpMoneyByProvider(providerId int, startTimestamp, endTimestamp int64, bizTypes []string) (TopUpMoneySum, error) {
+	var sum TopUpMoneySum
+	tx := DB.Model(&TopUp{}).
+		Select("COALESCE(SUM(CASE WHEN payment_method = 'crypto' THEN 0 ELSE money END), 0) AS fiat_money, "+
+			"COALESCE(SUM(CASE WHEN payment_method = 'crypto' THEN money ELSE 0 END), 0) AS crypto_money").
+		Where("provider_id = ? AND status = ?", providerId, common.TopUpStatusSuccess).
+		Where("biz_type IN ?", bizTypes).
+		// 排除内部结算流水（服务商分润 / 订阅收入），它们不是用户充值
+		Where("payment_method NOT IN ?", []string{TopUpPaymentMethodProviderProfit, TopUpPaymentMethodProviderSubscription})
+	if startTimestamp != 0 {
+		tx = tx.Where("create_time >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("create_time < ?", endTimestamp)
+	}
+	err := tx.Scan(&sum).Error
+	return sum, err
+}
+
 // SumTopUpByUserId 查询指定用户在时间范围内、指定业务类型且已完成的充值/获赠额度总和
 func SumTopUpByUserId(userId int, startTimestamp, endTimestamp int64, bizType string) (float64, error) {
 	var total float64

@@ -51,6 +51,17 @@ func getCryptoCNYtoTokenRate() string {
 	return ""
 }
 
+// cryptoUsdtToUsd 将 USDT 金额按系统设置的"美元到 USDT 汇率"换算为美元
+// 汇率语义：USDT = USD × rate  =>  USD = USDT / rate
+// 汇率未设置或非法时按 1:1 估算（USDT ≈ USD），避免阻塞看板聚合
+func cryptoUsdtToUsd(usdt float64) float64 {
+	rate, err := decimal.NewFromString(getCryptoUSDtoTokenRate())
+	if err != nil || !rate.GreaterThan(decimal.Zero) {
+		return usdt
+	}
+	return decimal.NewFromFloat(usdt).Div(rate).InexactFloat64()
+}
+
 // cryptoChainConfig 单条链的配置参数
 // 一个 struct 对应一组 RPC URL、合约地址、收款地址等，按网络名称索引
 type cryptoChainConfig struct {

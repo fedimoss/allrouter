@@ -455,7 +455,8 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 
 // GetUserRecordsByCondition 条件分页查询用户列表
 // sortFields: 排序字段映射，如 {"quota":"desc","topup_quota":"asc"}
-func GetUserRecordsByCondition(pageInfo *common.PageInfo, sortFields map[string]string, startTimestamp int64, endTimestamp int64, usedQuotaMin int, usedQuotaMax int, quotaMin int, quotaMax int, requestCountMin int, requestCountMax int, keyword string) (users []*User, total int64, err error) {
+// providerId: 服务商维度过滤，0=主站，>0=对应服务商
+func GetUserRecordsByCondition(pageInfo *common.PageInfo, sortFields map[string]string, startTimestamp int64, endTimestamp int64, usedQuotaMin int, usedQuotaMax int, quotaMin int, quotaMax int, requestCountMin int, requestCountMax int, keyword string, providerId int) (users []*User, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -467,6 +468,9 @@ func GetUserRecordsByCondition(pageInfo *common.PageInfo, sortFields map[string]
 	}()
 
 	query := tx.Unscoped().Model(&User{})
+
+	// 服务商维度过滤：0=主站，>0=对应服务商
+	query = query.Where("provider_id = ?", providerId)
 
 	// 注册时间范围筛选
 	if startTimestamp != 0 {
@@ -2094,12 +2098,50 @@ func CountNewUsersByTimeRange(startTimestamp, endTimestamp int64) (int64, error)
 	return count, err
 }
 
+// CountTotalUsersByProvider 统计指定服务商（含主站，provider_id=0 表示主站）的用户总数
+func CountTotalUsersByProvider(providerId int) (int64, error) {
+	var count int64
+	err := DB.Unscoped().Model(&User{}).Where("provider_id = ?", providerId).Count(&count).Error
+	return count, err
+}
+
+// CountNewUsersByProvider 统计指定服务商在指定时间范围内的新注册用户数（provider_id=0 表示主站）
+func CountNewUsersByProvider(providerId int, startTimestamp, endTimestamp int64) (int64, error) {
+	var count int64
+	tx := DB.Unscoped().Model(&User{}).Where("provider_id = ?", providerId)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at < ?", endTimestamp)
+	}
+	err := tx.Count(&count).Error
+	return count, err
+}
+
 // CountActiveUsersByTimeRange 统计指定时间范围内的活跃用户数（token消耗>0的用户）
 // 通过 logs 表中 type=LogTypeConsume 且 quota>0 的记录去重统计 user_id
 func CountActiveUsersByTimeRange(startTimestamp, endTimestamp int64) (int64, error) {
 	var count int64
 	tx := LOG_DB.Model(&Log{}).
 		Where("type = ? AND quota > 0", LogTypeConsume)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at < ?", endTimestamp)
+	}
+	err := tx.Distinct("user_id").Count(&count).Error
+	return count, err
+}
+
+// CountActiveUsersByProvider 统计指定服务商（provider_id=0 表示主站）在指定时间范围内的活跃用户数
+// 活跃定义与 CountActiveUsersByTimeRange 一致：logs 表中 type=LogTypeConsume 且 quota>0 的记录去重统计 user_id
+// logs.provider_id 在请求时写入，直接过滤即可，无需 JOIN users
+func CountActiveUsersByProvider(providerId int, startTimestamp, endTimestamp int64) (int64, error) {
+	var count int64
+	tx := LOG_DB.Model(&Log{}).
+		Where("type = ? AND quota > 0 AND provider_id = ?", LogTypeConsume, providerId)
 	if startTimestamp != 0 {
 		tx = tx.Where("created_at >= ?", startTimestamp)
 	}

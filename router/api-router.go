@@ -471,15 +471,20 @@ func SetApiRouter(router *gin.Engine) {
 		operationRoute.Use(middleware.AdminAuth())
 		{
 			// 看板数据接口
-			operationRoute.GET("/user/dashboard", controller.GetUserOperationDashboard)               // 用户
-			operationRoute.GET("/distributor/dashboard", controller.GetDistributorOperationDashboard) // 代理商
-			operationRoute.GET("/merchant/dashboard", controller.GetMerchantOperationDashboard)       // 商家
-			operationRoute.GET("/platform/dashboard", controller.GetPlatformOperationDashboard)       // 平台
+			// operationRoute.GET("/user/dashboard", controller.GetUserOperationDashboard)               	// 用户 (弃用)
+			// operationRoute.GET("/merchant/dashboard", controller.GetMerchantOperationDashboard)       // 商家 (弃用)
+			// operationRoute.GET("/distributor/dashboard", controller.GetDistributorOperationDashboard) // 代理商 (弃用)
+
 			// 列表数据接口
-			operationRoute.GET("/user/records", controller.GetUserOperationRecords)               // 用户
-			operationRoute.GET("/distributor/records", controller.GetDistributorOperationRecords) // 代理商
-			operationRoute.GET("/merchant/records", controller.GetMerchantOperationRecords)       // 商家
-			operationRoute.GET("/platform/records", controller.GetPlatformOperationRecords)       // 平台
+			// operationRoute.GET("/user/records", controller.GetUserOperationRecords)               	// 用户 (弃用)
+			// operationRoute.GET("/merchant/records", controller.GetMerchantOperationRecords)       	// 商家 (弃用)
+			// operationRoute.GET("/distributor/records", controller.GetDistributorOperationRecords) // 代理商 (弃用)
+			// operationRoute.GET("/platform/records", controller.GetPlatformOperationRecords)       // 平台 (弃用)
+
+			// 新接口
+			operationRoute.GET("/providers", controller.GetProviders)         // 服务商列表
+			operationRoute.GET("/dashboard", controller.GetDashboardByPeriod) // 看板数据
+			operationRoute.GET("/records", controller.GetRecords)             // 列表数据
 		}
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())

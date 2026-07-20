@@ -283,6 +283,21 @@ func calcPercentChange(current, previous int) string {
 	return fmt.Sprintf("%.2f%%", ratio)
 }
 
+// calcPercentChangeFloat 计算环比变化百分比（浮点数版，用于金额等非整数指标）
+func calcPercentChangeFloat(current, previous float64) string {
+	if previous == 0 {
+		if current > 0 {
+			return "+100%"
+		}
+		return "+0%"
+	}
+	ratio := (current - previous) / previous * 100
+	if ratio >= 0 {
+		return fmt.Sprintf("+%.2f%%", ratio)
+	}
+	return fmt.Sprintf("%.2f%%", ratio)
+}
+
 // GetDistributorBill 获取分销商账单概览
 func GetDistributorBill(c *gin.Context) {
 	// userId := c.GetInt("id")                    // 用户ID
