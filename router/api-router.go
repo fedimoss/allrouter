@@ -467,21 +467,10 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.POST("/withdraw/approve", controller.AdminApproveProviderWithdrawRequest) // 提现申请审核
 		}
 
+		// 运营数据模块接口
 		operationRoute := apiRouter.Group("/operation")
 		operationRoute.Use(middleware.AdminAuth())
 		{
-			// 看板数据接口
-			// operationRoute.GET("/user/dashboard", controller.GetUserOperationDashboard)               	// 用户 (弃用)
-			// operationRoute.GET("/merchant/dashboard", controller.GetMerchantOperationDashboard)       // 商家 (弃用)
-			// operationRoute.GET("/distributor/dashboard", controller.GetDistributorOperationDashboard) // 代理商 (弃用)
-
-			// 列表数据接口
-			// operationRoute.GET("/user/records", controller.GetUserOperationRecords)               	// 用户 (弃用)
-			// operationRoute.GET("/merchant/records", controller.GetMerchantOperationRecords)       	// 商家 (弃用)
-			// operationRoute.GET("/distributor/records", controller.GetDistributorOperationRecords) // 代理商 (弃用)
-			// operationRoute.GET("/platform/records", controller.GetPlatformOperationRecords)       // 平台 (弃用)
-
-			// 新接口
 			operationRoute.GET("/providers", controller.GetProviders)         // 服务商列表
 			operationRoute.GET("/dashboard", controller.GetDashboardByPeriod) // 看板数据
 			operationRoute.GET("/records", controller.GetRecords)             // 列表数据
