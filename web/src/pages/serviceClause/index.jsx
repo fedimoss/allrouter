@@ -18,10 +18,22 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import MarkdownRenderer from '../../components/common/markdown/MarkdownRenderer';
-import serviceClauseContent from './serviceClause.md?raw';
+import { normalizeLanguage } from '../../i18n/language';
+import serviceClauseZhContent from './serviceClause.md?raw';
+import serviceClauseEnContent from './serviceClause_en.md?raw';
 
 const ServiceClause = () => {
+  const { i18n } = useTranslation();
+  const language = normalizeLanguage(
+    i18n.resolvedLanguage || i18n.language || 'zh-CN',
+  );
+  const serviceClauseContent =
+    language === 'zh-CN' || language === 'zh-TW'
+      ? serviceClauseZhContent
+      : serviceClauseEnContent;
+
   return (
     <main className='min-h-screen bg-slate-50 px-4 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-6 sm:py-10'>
       <article className='mx-auto w-full max-w-4xl rounded-lg border border-slate-200 bg-white px-5 py-7 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:px-10 sm:py-10 lg:px-14'>

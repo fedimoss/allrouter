@@ -1,37 +1,65 @@
 package controller
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
-// GetUserDashboard 用户看板
-// query 参数 "period": day / week / month / year（默认 month）
-func GetUserOperationDashboard(c *gin.Context) {
+// getOperationProviderID 统一解析运营数据的服务商范围：管理员可按查询参数切换，
+// 服务商站长只能访问当前服务商站点，普通用户无权访问。
+func getOperationProviderID(c *gin.Context) (int, bool) {
+	if c.GetInt("role") >= common.RoleAdminUser {
+		rawProviderID := strings.TrimSpace(c.Query("provider_id"))
+		if rawProviderID == "" {
+			return 0, true
+		}
+
+		providerID, err := strconv.Atoi(rawProviderID)
+		if err != nil || providerID < 0 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return 0, false
+		}
+		return providerID, true
+	}
+
+	providerID := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	ownerUserID := common.GetContextKeyInt(c, constant.ContextKeyProviderOwnerUserId)
+	if providerID <= 0 || ownerUserID != c.GetInt("id") {
+		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
+		return 0, false
+	}
+
+	return providerID, true
+}
+
+// GetDashboardByPeriod 看板数据
+// query 参数
+// "period": day / week / month / year（默认 month）
+// "provider_id": 服务商ID（0 表示主站，>0 表示对应服务商）
+func GetDashboardByPeriod(c *gin.Context) {
 	period := c.DefaultQuery("period", "month")
+	providerId, ok := getOperationProviderID(c)
+	if !ok {
+		return
+	}
 
-	// 1. 总用户数
-	totalUsers, err := model.CountTotalUsers()
+	// ============ 累计注册用户：按 provider_id 维度的用户总数（不依赖 period） ============
+	totalUsers, err := model.CountTotalUsersByProvider(providerId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	// 2. 今日新增用户数
+	// 根据 period 计算当前周期 & 上一周期起始时间
 	now := time.Now()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	todayNewUsers, err := model.CountNewUsersByTimeRange(todayStart.Unix(), 0)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
-	// 3. 根据 period 计算时间范围
 	var currentStart, prevStart time.Time
 	switch period {
 	case "day":
@@ -52,25 +80,84 @@ func GetUserOperationDashboard(c *gin.Context) {
 		prevStart = time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, now.Location())
 	}
 
-	// 4. 新增注册用户：当前周期 & 上一周期
-	currentNewUsers, err := model.CountNewUsersByTimeRange(currentStart.Unix(), 0)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	prevNewUsers, err := model.CountNewUsersByTimeRange(prevStart.Unix(), currentStart.Unix())
+	// ============ 新增注册用户：当前周期内、按 provider_id 维度的注册用户数 ============
+	newUsers, err := model.CountNewUsersByProvider(providerId, currentStart.Unix(), 0)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	// 5. 活跃用户：当前周期 & 上一周期（token消耗>0）
-	currentActiveUsers, err := model.CountActiveUsersByTimeRange(currentStart.Unix(), 0)
+	// ============ 入金金额：当前周期内、按 provider_id 维度的用户实付金额 ============
+	// 计入在线支付(payment) + 订阅(subscription)；排除内部结算流水(分润/订阅收入)和未支付成功的订单
+	moneySum, err := model.SumTopUpMoneyByProvider(providerId, currentStart.Unix(), 0,
+		[]string{model.TopUpBizTypePayment, model.TopUpBizTypeSubscription})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	prevActiveUsers, err := model.CountActiveUsersByTimeRange(prevStart.Unix(), currentStart.Unix())
+	displayInfo := getDisplayCurrencyForUser(c)
+	// 加密货币 money 是 USDT，按系统"美元到 USDT 汇率"换算成美元后与非加密部分合并，
+	// 再按展示币种换算（CNY 用户乘以汇率）
+	totalUsd := moneySum.FiatMoney + cryptoUsdtToUsd(moneySum.CryptoMoney)
+	depositAmount := convertUsdToDisplay(totalUsd, displayInfo)
+
+	// ============ 上一周期数据，用于计算环比 ============
+	prevNewUsers, err := model.CountNewUsersByProvider(providerId, prevStart.Unix(), currentStart.Unix())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	prevMoneySum, err := model.SumTopUpMoneyByProvider(providerId, prevStart.Unix(), currentStart.Unix(),
+		[]string{model.TopUpBizTypePayment, model.TopUpBizTypeSubscription})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	prevTotalUsd := prevMoneySum.FiatMoney + cryptoUsdtToUsd(prevMoneySum.CryptoMoney)
+
+	// ============ 活跃用户指标（不依赖 period，仅按 provider_id） ============
+	// 活跃定义：调用过模型（logs 表 type=LogTypeConsume 且 quota>0）
+	// 周活/月活用滚动窗口（近7天/近30天），而非本周/本月
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	sevenDaysAgo := now.AddDate(0, 0, -7)
+	thirtyDaysAgo := now.AddDate(0, 0, -30)
+
+	// ============ 日活：今日调用过模型 ============
+	dailyActiveUsers, err := model.CountActiveUsersByProvider(providerId, todayStart.Unix(), 0)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// ============ 周活：近7天调用过模型 ============
+	weeklyActiveUsers, err := model.CountActiveUsersByProvider(providerId, sevenDaysAgo.Unix(), 0)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// ============ 月活：近30天调用过模型 ============
+	monthlyActiveUsers, err := model.CountActiveUsersByProvider(providerId, thirtyDaysAgo.Unix(), 0)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// ============ 活跃粘性 = 今日活跃 / 近7天活跃（即周活）；今日 ⊂ 近7天，故比值 ∈ [0,1] ============
+	var activeStickiness float64
+	if weeklyActiveUsers > 0 {
+		activeStickiness = math.Round(float64(dailyActiveUsers)/float64(weeklyActiveUsers)*10000) / 10000
+	}
+
+	// ============ 活跃环比：日活较昨日、周活(近7天)较上个近7天 ============
+	yesterdayStart := todayStart.AddDate(0, 0, -1)
+	fourteenDaysAgo := sevenDaysAgo.AddDate(0, 0, -7) // 上个近7天的起点
+	yesterdayActive, err := model.CountActiveUsersByProvider(providerId, yesterdayStart.Unix(), todayStart.Unix())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	prevWeeklyActive, err := model.CountActiveUsersByProvider(providerId, fourteenDaysAgo.Unix(), sevenDaysAgo.Unix())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -80,45 +167,19 @@ func GetUserOperationDashboard(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"total_users":     totalUsers,                                                       // 总用户数
-			"today_new_users": todayNewUsers,                                                    // 今日新增用户
-			"new_users":       currentNewUsers,                                                  // 当前周期新增用户
-			"new_users_trend": calcPercentChange(int(currentNewUsers), int(prevNewUsers)),       // 新增用户环比变化百分比
-			"active_users":    currentActiveUsers,                                               // 当前周期活跃用户
-			"active_trend":    calcPercentChange(int(currentActiveUsers), int(prevActiveUsers)), // 活跃用户环比变化百分比
-			"churned_users":   0,                                                                // 流失用户（计算方式待定）
-			"churned_trend":   "+0%",                                                            // 流失用户环比变化百分比（计算方式待定）
+			"total_users":               totalUsers,                                                       // 累计注册用户
+			"new_users":                 newUsers,                                                         // 周期内新增注册用户
+			"new_users_trend":           calcPercentChange(int(newUsers), int(prevNewUsers)),              // 新增用户环比
+			"deposit_amount":            depositAmount,                                                    // 周期内入金金额（按展示币种换算）
+			"deposit_amount_trend":      calcPercentChangeFloat(totalUsd, prevTotalUsd),                   // 入金金额环比（按美元口径）
+			"daily_active_users":        dailyActiveUsers,                                                 // 日活：今日调用过模型
+			"daily_active_users_trend":  calcPercentChange(int(dailyActiveUsers), int(yesterdayActive)),   // 日活环比（较昨日）
+			"weekly_active_users":       weeklyActiveUsers,                                                // 周活：近7天调用过模型
+			"weekly_active_users_trend": calcPercentChange(int(weeklyActiveUsers), int(prevWeeklyActive)), // 周活环比（较上个近7天）
+			"monthly_active_users":      monthlyActiveUsers,                                               // 月活：近30天调用过模型
+			"active_stickiness":         activeStickiness,                                                 // 活跃粘性 = 今日活跃 / 近7天活跃
+			"display_symbol":            displayInfo.Symbol,                                               // 入金金额展示币种符号
 		},
-	})
-}
-
-// GetDistributorOperationDashboard 代理商看板
-func GetDistributorOperationDashboard(c *gin.Context) {
-	// TODO: 实现代理商看板数据查询
-	c.JSON(200, gin.H{
-		"success": true,
-		"message": "",
-		"data":    gin.H{},
-	})
-}
-
-// GetMerchantOperationDashboard 商家看板
-func GetMerchantOperationDashboard(c *gin.Context) {
-	// TODO: 实现商家看板数据查询
-	c.JSON(200, gin.H{
-		"success": true,
-		"message": "",
-		"data":    gin.H{},
-	})
-}
-
-// GetPlatformOperationDashboard 平台看板
-func GetPlatformOperationDashboard(c *gin.Context) {
-	// TODO: 实现平台看板数据查询
-	c.JSON(200, gin.H{
-		"success": true,
-		"message": "",
-		"data":    gin.H{},
 	})
 }
 
@@ -136,9 +197,14 @@ type userRecordItem struct {
 	WelfareQuota   float64 `json:"welfare_quota"` // 福利金额(兑换码+邀请奖励)
 }
 
-// GetUserOperationRecords 用户列表
-func GetUserOperationRecords(c *gin.Context) {
+// GetRecords 列表数据
+// "provider_id": 服务商ID（0 表示主站，>0 表示对应服务商）
+func GetRecords(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
+	providerId, ok := getOperationProviderID(c)
+	if !ok {
+		return
+	}
 
 	// 解析排序参数，所有字段均在 DB 层排序
 	sortFields := make(map[string]string)
@@ -170,7 +236,7 @@ func GetUserOperationRecords(c *gin.Context) {
 	requestCountMax, _ := strconv.Atoi(c.Query("request_count_max"))
 
 	// 条件分页查询用户列表(所有排序在 SQL 层完成)
-	users, total, err := model.GetUserRecordsByCondition(pageInfo, sortFields, startTimestamp, endTimestamp, usedQuotaMin, usedQuotaMax, quotaMin, quotaMax, requestCountMin, requestCountMax, strings.TrimSpace(c.Query("keyword")))
+	users, total, err := model.GetUserRecordsByCondition(pageInfo, sortFields, startTimestamp, endTimestamp, usedQuotaMin, usedQuotaMax, quotaMin, quotaMax, requestCountMin, requestCountMax, strings.TrimSpace(c.Query("keyword")), providerId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -256,32 +322,18 @@ func GetUserOperationRecords(c *gin.Context) {
 	})
 }
 
-// GetDistributorOperationRecords 代理商列表
-func GetDistributorOperationRecords(c *gin.Context) {
-	// TODO: 实现代理商列表数据查询
-	c.JSON(200, gin.H{
-		"success": true,
-		"message": "",
-		"data":    gin.H{},
-	})
-}
+// GetProviders 获取服务商列表
+func GetProviders(c *gin.Context) {
+	// 获取分页参数
+	pageInfo := common.GetPageQuery(c)
 
-// GetMerchantOperationRecords 商家列表
-func GetMerchantOperationRecords(c *gin.Context) {
-	// TODO: 实现商家列表数据查询
-	c.JSON(200, gin.H{
-		"success": true,
-		"message": "",
-		"data":    gin.H{},
-	})
-}
-
-// GetPlatformOperationRecords 平台列表
-func GetPlatformOperationRecords(c *gin.Context) {
-	// TODO: 实现平台列表数据查询
-	c.JSON(200, gin.H{
-		"success": true,
-		"message": "",
-		"data":    gin.H{},
-	})
+	// 分页查询服务商列表
+	items, total, err := model.GetProviderConfigList(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))  // 设置总记录数
+	pageInfo.SetItems(items)       // 设置列表项
+	common.ApiSuccess(c, pageInfo) // 返回成功响应
 }

@@ -18,23 +18,34 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import MarkdownRenderer from '../../components/common/markdown/MarkdownRenderer';
 import {
   getSystemName,
   replaceAllRouterBaseUrl,
   replaceAllRouterBrandName,
 } from '../../helpers';
-import privacyPolicyContent from './privacyPolicy.md?raw';
+import { normalizeLanguage } from '../../i18n/language';
+import privacyPolicyZhContent from './privacyPolicy.md?raw';
+import privacyPolicyEnContent from './privacyPolicy_en.md?raw';
 
 const PrivacyPolicy = () => {
+  const { i18n } = useTranslation();
   const systemName = getSystemName();
+  const language = normalizeLanguage(
+    i18n.resolvedLanguage || i18n.language || 'zh-CN',
+  );
+  const privacyPolicyContent =
+    language === 'zh-CN' || language === 'zh-TW'
+      ? privacyPolicyZhContent
+      : privacyPolicyEnContent;
   const runtimePrivacyPolicyContent = useMemo(
     () =>
       replaceAllRouterBrandName(
         replaceAllRouterBaseUrl(privacyPolicyContent),
         systemName,
       ),
-    [systemName],
+    [privacyPolicyContent, systemName],
   );
 
   return (

@@ -25,6 +25,32 @@ import i18next from 'i18next';
 
 const COMPACT_NUMBER_THRESHOLD = 10_000;
 
+const formatAverageDuration = (minutes) => {
+  const roundedMinutes = Math.max(0, Math.round(Number(minutes) || 0));
+  let value = roundedMinutes;
+  let unit = 'minute';
+
+  if (roundedMinutes > 0 && roundedMinutes % 1440 === 0) {
+    value = roundedMinutes / 1440;
+    unit = 'day';
+  } else if (roundedMinutes > 0 && roundedMinutes % 60 === 0) {
+    value = roundedMinutes / 60;
+    unit = 'hour';
+  }
+
+  const locale = i18next.resolvedLanguage || i18next.language || 'zh-CN';
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'unit',
+      unit,
+      unitDisplay: 'long',
+      maximumFractionDigits: 1,
+    }).format(value);
+  } catch {
+    return `${value} ${unit}`;
+  }
+};
+
 const formatCompactValue = (value) => {
   const fullValue = String(value);
   const normalizedValue = fullValue.trim().replaceAll(',', '');
@@ -122,6 +148,9 @@ const StatsCards = ({
   const userTotalTokenUsedTitle = resource?.[2]?.title || `${t('已用')} Tokens`;
   const avgRPM = formatValue(performance?.[0]?.value, '0');
   const avgTPM = formatValue(performance?.[1]?.value, '0');
+  const avgTPMDuration = formatAverageDuration(
+    performance?.[1]?.averageMinutes,
+  );
 
   const cards = [
     {
@@ -171,7 +200,15 @@ const StatsCards = ({
         'dashboard-stats-v3__icon dashboard-stats-v3__icon--orange',
       metricBlocks: [
         { label: '平均RPM', value: avgRPM, compact: true },
-        { label: '平均TPM', value: avgTPM, compact: true },
+        {
+          label: '平均TPM',
+          unit: t('Token/分钟（{{duration}}平均）', {
+            duration: avgTPMDuration,
+          }),
+          unitTranslated: true,
+          value: avgTPM,
+          compact: true,
+        },
       ],
       onClick: performance?.[0]?.onClick,
     },
@@ -293,7 +330,12 @@ const StatsCards = ({
                   className='dashboard-stats-v3__metric-block'
                 >
                   <div className='dashboard-stats-v3__metric-label'>
-                    {t(item.label)}
+                    <span>{t(item.label)}</span>
+                    {item.unit ? (
+                      <span className='dashboard-stats-v3__metric-unit'>
+                        {item.unitTranslated ? item.unit : t(item.unit)}
+                      </span>
+                    ) : null}
                   </div>
                   <div
                     className={

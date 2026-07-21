@@ -242,11 +242,25 @@ func GetStatus(c *gin.Context) {
 	return
 }
 
+// GetNotice 返回站点公告，支持按用户语言返回中文或英文版本。
 func GetNotice(c *gin.Context) {
+	// 优先采用前端显式传入的 language 查询参数（用户手动切换的语言优先级最高）
+	lang := strings.TrimSpace(c.Query("language"))
+	if lang == "" {
+		// 未传参时回退到上下文中推断的语言（登录用户的语言设置 > 浏览器 Accept-Language）
+		lang = i18n.GetLangFromContext(c)
+	}
+
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
 
-	notice := common.OptionMap["Notice"]
+	// 默认返回英文公告；仅当语言为简体或繁体中文时改取中文公告
+	noticeKey := model.NoticeEnglishOptionKey
+	if strings.EqualFold(lang, i18n.LangZhCN) || strings.EqualFold(lang, i18n.LangZhTW) {
+		noticeKey = model.NoticeOptionKey
+	}
+	notice := common.OptionMap[noticeKey]
+	// 服务商站点访问时，若未开启“对服务商显示公告”，则隐藏公告内容
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	if providerId > 0 && common.OptionMap[model.NoticeShowToProvidersOptionKey] != "true" {
 		notice = ""

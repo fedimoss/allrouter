@@ -108,6 +108,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     '/console/provider/subscription': t('订阅管理'),
     '/console/provider/profits': t('服务商利润'),
     '/console/provider/logs': t('服务商使用日志'),
+    '/console/provider/operational': t('运营数据'),
     '/console/billing': t('账单中心'),
     '/console/operational': t('运营数据'),
     '/console/reconciliation': t('支付对账'),

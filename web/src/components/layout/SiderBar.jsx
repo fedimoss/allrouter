@@ -60,6 +60,7 @@ const routerMap = {
   providerProfits: '/console/provider/profits',
   providerLogs: '/console/provider/logs',
   providerWithdraw: '/console/provider/withdraw',
+  providerOperational: '/console/provider/operational',
   providerSetting: '/console/provider/setting',
   playground: '/console/playground',
   personal: '/console/personal',
@@ -240,62 +241,67 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     return items.filter((item) => isModuleVisible('marketing', item.itemKey));
   }, [isAdmin(), t, isModuleVisible]);
 
-  const providerOwnerItems = useMemo(() => {
-    if (!isProviderOwner() || isAdmin()) return [];
-    return [
-      {
-        text: t('服务商管理'),
-        itemKey: 'provider',
-        to: '/provider',
-      },
-      {
-        text: t('提现管理'),
-        itemKey: 'providerWithdraw',
-        to: '/provider/withdraw',
-      },
-      {
-        text: t('奖励设置'),
-        itemKey: 'providerReward',
-        to: '/provider/reward',
-      },
-      {
-        text: t('奖励报表'),
-        itemKey: 'providerRewardReport',
-        to: '/provider/reward-report',
-      },
-      {
-        text: t('兑换码管理'),
-        itemKey: 'providerRedemption',
-        to: '/provider/redemption',
-      },
-      {
-        text: t('用户管理'),
-        itemKey: 'providerUsers',
-        to: '/provider/users',
-      },
-      // 服务商侧边栏新增"订阅管理"入口，跳转到服务商私有套餐管理页。
-      {
-        text: t('订阅管理'),
-        itemKey: 'providerSubscription',
-        to: '/provider/subscription',
-      },
-      {
-        text: t('服务商利润'),
-        itemKey: 'providerProfits',
-        to: '/provider/profits',
-      },
-      {
-        text: t('服务商使用日志'),
-        itemKey: 'providerLogs',
-        to: '/provider/logs',
-      },
-      {
-        text: t('系统设置'),
-        itemKey: 'providerSetting',
-        to: '/provider/setting',
-      },
-    ];
-  }, [isProviderOwner(), isAdmin(), t]);
+  const providerOwnerItems =
+    isProviderOwner() && !isAdmin()
+      ? [
+          {
+            text: t('服务商管理'),
+            itemKey: 'provider',
+            to: '/provider',
+          },
+          {
+            text: t('运营数据'),
+            itemKey: 'providerOperational',
+            to: '/provider/operational',
+          },
+          {
+            text: t('提现管理'),
+            itemKey: 'providerWithdraw',
+            to: '/provider/withdraw',
+          },
+          {
+            text: t('奖励设置'),
+            itemKey: 'providerReward',
+            to: '/provider/reward',
+          },
+          {
+            text: t('奖励报表'),
+            itemKey: 'providerRewardReport',
+            to: '/provider/reward-report',
+          },
+          {
+            text: t('兑换码管理'),
+            itemKey: 'providerRedemption',
+            to: '/provider/redemption',
+          },
+          {
+            text: t('用户管理'),
+            itemKey: 'providerUsers',
+            to: '/provider/users',
+          },
+          // 服务商侧边栏新增"订阅管理"入口，跳转到服务商私有套餐管理页。
+          {
+            text: t('订阅管理'),
+            itemKey: 'providerSubscription',
+            to: '/provider/subscription',
+          },
+          {
+            text: t('服务商利润'),
+            itemKey: 'providerProfits',
+            to: '/provider/profits',
+          },
+          {
+            text: t('服务商使用日志'),
+            itemKey: 'providerLogs',
+            to: '/provider/logs',
+          },
+          {
+            text: t('系统设置'),
+            itemKey: 'providerSetting',
+            to: '/provider/setting',
+          },
+        ]
+      : [];
 
   const adminItems = useMemo(() => {
     const items = [
@@ -456,15 +462,17 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     }
   }, [location.pathname, routerMapState]);
 
+  const isProviderOwnerItemSelected = providerOwnerItems.some((item) =>
+    selectedKeys.includes(item.itemKey),
+  );
+
   useEffect(() => {
-    if (
-      providerOwnerItems.some((item) => selectedKeys.includes(item.itemKey))
-    ) {
+    if (isProviderOwnerItemSelected) {
       setOpenedKeys((keys) =>
         keys.includes('providerRoot') ? keys : [...keys, 'providerRoot'],
       );
     }
-  }, [providerOwnerItems, selectedKeys]);
+  }, [isProviderOwnerItemSelected]);
 
   useEffect(() => {
     if (collapsed) {

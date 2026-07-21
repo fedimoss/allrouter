@@ -261,6 +261,14 @@ function App() {
           }
         />
         <Route
+          path='/console/provider/operational'
+          element={
+            <PrivateRoute>
+              <Operational />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/console/provider/setting'
           element={
             <PrivateRoute>

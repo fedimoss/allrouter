@@ -27,7 +27,7 @@ import {
   Timeline,
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { API, showError, getRelativeTime } from '../../helpers';
+import { fetchNotice, showError, getRelativeTime } from '../../helpers';
 import { marked } from 'marked';
 import {
   IllustrationNoContent,
@@ -43,7 +43,7 @@ const NoticeModal = ({
   defaultTab = 'inApp',
   unreadKeys = [],
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [noticeContent, setNoticeContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(defaultTab);
@@ -85,11 +85,14 @@ const NoticeModal = ({
   const displayNotice = async () => {
     setLoading(true);
     try {
-      const res = await API.get('/api/notice');
+      const res = await fetchNotice();
       const { success, message, data } = res.data;
       if (success) {
         if (data !== '') {
-          const htmlNotice = marked.parse(data);
+          // 公告正文用 marked 渲染为 HTML，breaks:true 开启软换行（换行可渲染为 <br>）。
+          // 段落间的空行靠 .notice-content-scroll p 的 margin 决定（见 index.css）；
+          // 全局 p{margin-bottom:0} 会清零段距，需要可靠空行时可在内容里手写 <br>。
+          const htmlNotice = marked.parse(data, { breaks: true });
           setNoticeContent(htmlNotice);
         } else {
           setNoticeContent('');
@@ -104,11 +107,12 @@ const NoticeModal = ({
     }
   };
 
+  // 弹窗可见时拉取公告；界面语言切换后也会重新拉取，确保展示与当前语言匹配的公告版本
   useEffect(() => {
     if (visible) {
       displayNotice();
     }
-  }, [visible]);
+  }, [visible, i18n.language, i18n.resolvedLanguage]);
 
   useEffect(() => {
     if (visible) {

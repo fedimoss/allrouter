@@ -25,7 +25,9 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
-		apiRouter.GET("/notice", controller.GetNotice)
+		// 公告接口使用 TryUserAuth（非强制鉴权）：未登录时按浏览器语言返回公告，
+		// 已登录则可读取用户账户的语言设置，从而返回对应语言的公告
+		apiRouter.GET("/notice", middleware.TryUserAuth(), controller.GetNotice)
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)
 		apiRouter.GET("/about", controller.GetAbout)
@@ -465,19 +467,12 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.POST("/withdraw/approve", controller.AdminApproveProviderWithdrawRequest) // 提现申请审核
 		}
 
+		// 运营数据模块接口
 		operationRoute := apiRouter.Group("/operation")
-		operationRoute.Use(middleware.AdminAuth())
 		{
-			// 看板数据接口
-			operationRoute.GET("/user/dashboard", controller.GetUserOperationDashboard)               // 用户
-			operationRoute.GET("/distributor/dashboard", controller.GetDistributorOperationDashboard) // 代理商
-			operationRoute.GET("/merchant/dashboard", controller.GetMerchantOperationDashboard)       // 商家
-			operationRoute.GET("/platform/dashboard", controller.GetPlatformOperationDashboard)       // 平台
-			// 列表数据接口
-			operationRoute.GET("/user/records", controller.GetUserOperationRecords)               // 用户
-			operationRoute.GET("/distributor/records", controller.GetDistributorOperationRecords) // 代理商
-			operationRoute.GET("/merchant/records", controller.GetMerchantOperationRecords)       // 商家
-			operationRoute.GET("/platform/records", controller.GetPlatformOperationRecords)       // 平台
+			operationRoute.GET("/providers", middleware.AdminAuth(), controller.GetProviders)        // 服务商列表
+			operationRoute.GET("/dashboard", middleware.UserAuth(), controller.GetDashboardByPeriod) // 看板数据
+			operationRoute.GET("/records", middleware.UserAuth(), controller.GetRecords)             // 列表数据
 		}
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())

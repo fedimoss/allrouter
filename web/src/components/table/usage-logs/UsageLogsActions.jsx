@@ -41,6 +41,7 @@ const STAT_CARDS = [
   {
     key: 'tpm',
     label: 'TPM',
+    unit: 'Token/分钟（最近 60 秒）',
     icon: Zap,
     accentClassName: 'usage-logs-v2-stat-accent-tpm',
     iconClassName: 'usage-logs-v2-stat-icon-tpm',
@@ -69,7 +70,14 @@ const LogsActions = ({ stat, loadingStat, showStat, t }) => {
               className={`usage-logs-v2-stat-card ${item.accentClassName}`}
             >
               <div className='usage-logs-v2-stat-head'>
-                <div className='usage-logs-v2-stat-label'>{t(item.label)}</div>
+                <div className='usage-logs-v2-stat-label'>
+                  <span>{t(item.label)}</span>
+                  {item.unit ? (
+                    <span className='usage-logs-v2-stat-unit'>
+                      {t(item.unit)}
+                    </span>
+                  ) : null}
+                </div>
                 <span
                   className={`usage-logs-v2-stat-icon ${item.iconClassName}`}
                   aria-hidden='true'
@@ -85,7 +93,9 @@ const LogsActions = ({ stat, loadingStat, showStat, t }) => {
                   />
                 </div>
               ) : (
-                <div className='usage-logs-v2-stat-value'>{values[item.key]}</div>
+                <div className='usage-logs-v2-stat-value'>
+                  {values[item.key]}
+                </div>
               )}
             </article>
           );

@@ -258,7 +258,9 @@ func Register(c *gin.Context) {
 		DisplayName: user.Username,
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
-		RegisterIp:  getRegistrationIP(c),
+		// 服务端再次归一化，不能直接信任前端提交的时区字符串。
+		Timezone:   normalizeRegistrationTimezone(user.Timezone),
+		RegisterIp: getRegistrationIP(c),
 	}
 	cleanUser.SignupSource = strings.TrimSpace(user.SignupSource)
 	if err := cleanUser.Insert(inviterId); err != nil {
@@ -399,10 +401,8 @@ func GenerateAccessToken(c *gin.Context) {
 	return
 }
 
-type TransferAffQuotaRequest struct {
-	Quota int `json:"quota" binding:"required"`
-}
-
+// TransferAffQuota 将当前用户的全部待划转邀请额度转入站内奖励余额。
+// 划转金额不从请求体读取，避免客户端指定部分金额或提交过期额度。
 func TransferAffQuota(c *gin.Context) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)
@@ -410,12 +410,7 @@ func TransferAffQuota(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	tran := TransferAffQuotaRequest{}
-	if err := c.ShouldBindJSON(&tran); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	err = user.TransferAffQuotaToQuota(tran.Quota)
+	err = user.TransferAllAffQuotaToQuota()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserTransferFailed, map[string]any{"Error": err.Error()})
 		return

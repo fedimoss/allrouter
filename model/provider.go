@@ -354,6 +354,31 @@ func GetProviderPublicConfigCached(providerId int) (*ProviderConfig, error) {
 	return &cfg, nil
 }
 
+// ProviderConfigListItem 服务商列表的轻量字段，仅包含列表展示所需信息
+type ProviderConfigListItem struct {
+	Id         int    `json:"id"`
+	ProviderId int    `json:"provider_id"`
+	SiteName   string `json:"site_name"`
+}
+
+// GetProviderConfigList 分页查询 provider_configs，仅取 id / provider_id / site_name
+func GetProviderConfigList(startIdx int, pageSize int) ([]ProviderConfigListItem, int64, error) {
+	var total int64
+	if err := DB.Model(&ProviderConfig{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var items []ProviderConfigListItem
+	if err := DB.Model(&ProviderConfig{}).
+		Select("id, provider_id, site_name").
+		Order("id asc").
+		Offset(startIdx).
+		Limit(pageSize).
+		Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
 func InvalidateProviderDomainCache(providerId int) {
 	if providerId <= 0 {
 		return

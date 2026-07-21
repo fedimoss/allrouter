@@ -60,6 +60,14 @@ export function isProviderOwner() {
   return user.is_provider_owner === true;
 }
 
+export function getProviderId() {
+  let user = localStorage.getItem('user');
+  if (!user) return 0;
+  user = JSON.parse(user);
+  const id = Number(user.provider_id);
+  return Number.isFinite(id) && id > 0 ? id : 0;
+}
+
 export function getSystemName() {
   let system_name = localStorage.getItem('system_name');
   // if (!system_name) return 'All Router';

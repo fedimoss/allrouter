@@ -27,6 +27,7 @@ import React, {
 import { ArrowRight } from 'lucide-react';
 import {
   API,
+  fetchNotice,
   setStatusData,
   shouldShowProviderAgentPartner,
   showError,
@@ -298,7 +299,8 @@ const Home = () => {
       const today = new Date().toDateString();
       if (lastCloseDate !== today) {
         try {
-          const res = await API.get('/api/notice');
+          // 拉取当前界面语言对应的站点公告
+          const res = await fetchNotice();
           const { success, data } = res.data;
           if (success && data && data.trim() !== '') {
             setNoticeVisible(true);

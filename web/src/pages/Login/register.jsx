@@ -32,6 +32,7 @@ import { StatusContext } from '../../context/Status';
 import {
   API,
   getLogo,
+  getRegistrationTimezone,
   getSystemName,
   showError,
   showInfo,
@@ -313,6 +314,8 @@ export default function RegisterPage() {
         ...registerInputs,
         signup_source: SIGNUP_SOURCE,
         aff_code: affCode || undefined,
+        // 后端仍会二次校验；这里只按浏览器语言提供注册时区档位。
+        timezone: getRegistrationTimezone(),
       };
       const res = await API.post(
         `/api/user/register?turnstile=${turnstileToken}`,
