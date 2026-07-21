@@ -89,11 +89,13 @@ const Dashboard = () => {
 
   // ========== 数据处理 ==========
   const initChart = async () => {
-    await dashboardData.loadQuotaData().then((data) => {
-      if (data) {
-        dashboardCharts.updateChartData(data);
-      }
-    });
+    const [data] = await Promise.all([
+      dashboardData.loadQuotaData(),
+      dashboardData.loadModelData(),
+    ]);
+    if (data) {
+      dashboardCharts.updateChartData(data);
+    }
     await dashboardData.loadUptimeData();
   };
 
@@ -221,7 +223,11 @@ const Dashboard = () => {
           }
         >
           <div className='dashboard-v2-overview-side-item dashboard-v2-overview-side-item--ranking'>
-            <ModelHeatRankingPanel t={dashboardData.t} className='h-full' />
+            <ModelHeatRankingPanel
+              t={dashboardData.t}
+              rankingData={dashboardData.modelPopularRank}
+              className='h-full'
+            />
           </div>
 
           {/* {dashboardData.hasApiInfoPanel && (
@@ -242,6 +248,7 @@ const Dashboard = () => {
 
       <ModelDataAnalysisPanel
         t={dashboardData.t}
+        quotaRadioData={dashboardData.modelQuotaRadio}
         spec_model_line={dashboardCharts.spec_model_line}
         spec_pie={dashboardCharts.spec_pie}
         spec_rank_bar={dashboardCharts.spec_rank_bar}

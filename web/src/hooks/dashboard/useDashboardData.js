@@ -60,8 +60,14 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [pieData, setPieData] = useState([{ type: 'null', value: '0' }]);
   const [lineData, setLineData] = useState([]);
   const [modelColors, setModelColors] = useState({});
-  const [displayCurrency, setDisplayCurrency] = useState({ currency: 'USD', rate: 1, symbol: '$' });
-  
+  const [displayCurrency, setDisplayCurrency] = useState({
+    currency: 'USD',
+    rate: 1,
+    symbol: '$',
+  });
+  const [modelPopularRank, setModelPopularRank] = useState([]);
+  const [modelQuotaRadio, setModelQuotaRadio] = useState([]);
+
   // ========== 图表状态 ==========
   const [activeChartTab, setActiveChartTab] = useState('1');
 
@@ -160,38 +166,90 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const localStartTimestamp = Date.parse(start_timestamp) / 1000;
   const localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
+  const getDataQuery = useCallback(() => {
+    const params = new URLSearchParams({
+      username: username || '',
+      start_timestamp: String(localStartTimestamp),
+      end_timestamp: String(localEndTimestamp),
+      default_time: dataExportDefaultTime,
+    });
+    return params.toString();
+  }, [username, localStartTimestamp, localEndTimestamp, dataExportDefaultTime]);
+
   // ========== API 调用函数 ==========
-  const loadQuotaData = useCallback(async () => {
-    setLoading(true);
-    try {
-      let url = '';
+  const loadQuotaData = useCallback(
+    async ({ updateStats = true } = {}) => {
+      setLoading(true);
+      try {
+        let url = '';
 
-      if (isAdminUser) {
-        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      } else {
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      }
+        if (isAdminUser) {
+          url = `/api/data/?${getDataQuery()}`;
+        } else {
+          url = `/api/data/self/?${getDataQuery()}`;
+        }
 
-      const res = await API.get(url);
-      const { success, message, data } = res.data;
-      if (success) {
-        // 存储后端返回的展示币种信息（根据用户时区从 currency_stripe_config 表获取）
-        setDisplayCurrency({
-          currency: res.data.display_currency || 'USD',
-          unit_price: res.data.display_rate || 1,
-        });
-        setQuotaData(data);
-        data.sort((a, b) => a.created_at - b.created_at);
-        return data;
-      } else {
-        showError(message);
-        return [];
+        const res = await API.get(url);
+        const { success, message, data } = res.data;
+        if (success) {
+          // 存储后端返回的展示币种信息（根据用户时区从 currency_stripe_config 表获取）
+          if (updateStats) {
+            setDisplayCurrency({
+              currency: res.data.display_currency || 'USD',
+              unit_price: res.data.display_rate || 1,
+            });
+          }
+          setQuotaData(data);
+          data.sort((a, b) => a.created_at - b.created_at);
+          return data;
+        } else {
+          showError(message);
+          return [];
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
+    },
+    [getDataQuery, isAdminUser, now],
+  );
+
+  const loadModelPopularRank = useCallback(async () => {
+    const endpoint = isAdminUser
+      ? '/api/data/modelPopularRank'
+      : '/api/data/self/modelPopularRank';
+    const res = await API.get(`${endpoint}?${getDataQuery()}`);
+    const { success, message, data } = res.data;
+    if (!success) {
+      showError(message);
+      return [];
     }
-  }, [inputs, dataExportDefaultTime, isAdminUser, now]);
+    const nextData = data || [];
+    setModelPopularRank(nextData);
+    return nextData;
+  }, [getDataQuery, isAdminUser]);
 
+  const loadModelQuotaRadio = useCallback(async () => {
+    const endpoint = isAdminUser
+      ? '/api/data/modelQuotaRadio'
+      : '/api/data/self/modelQuotaRadio';
+    const res = await API.get(`${endpoint}?${getDataQuery()}`);
+    const { success, message, data } = res.data;
+    if (!success) {
+      showError(message);
+      return [];
+    }
+    const nextData = data || [];
+    setModelQuotaRadio(nextData);
+    return nextData;
+  }, [getDataQuery, isAdminUser]);
+
+  const loadModelData = useCallback(async () => {
+    const [popularRank, quotaRadio] = await Promise.all([
+      loadModelPopularRank(),
+      loadModelQuotaRadio(),
+    ]);
+    return { popularRank, quotaRadio };
+  }, [loadModelPopularRank, loadModelQuotaRadio]);
 
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);
@@ -235,7 +293,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, [inputs, isAdminUser]);
 
   const getUserData = useCallback(async () => {
-    let res = await API.get(`/api/user/self?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`);
+    let res = await API.get(
+      `/api/user/self?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`,
+    );
     const { success, message, data } = res.data;
     if (success) {
       userDispatch({ type: 'login', payload: data });
@@ -253,13 +313,16 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
-      const data = await refresh();
+      const [data] = await Promise.all([
+        loadQuotaData({ updateStats: false }),
+        loadModelData(),
+      ]);
       if (data && updateChartDataCallback) {
-        updateChartDataCallback(data);
+        updateChartDataCallback(data, { updateStats: false });
       }
       setSearchModalVisible(false);
     },
-    [refresh],
+    [loadQuotaData, loadModelData],
   );
 
   // ========== Effects ==========
@@ -302,6 +365,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     modelColors,
     setModelColors,
     displayCurrency,
+    modelPopularRank,
+    modelQuotaRadio,
 
     // 图表状态
     activeChartTab,
@@ -334,6 +399,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     showSearchModal,
     handleCloseModal,
     loadQuotaData,
+    loadModelData,
     loadUserQuotaData,
     loadUptimeData,
     getUserData,
