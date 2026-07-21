@@ -3394,7 +3394,8 @@ CREATE TABLE users (
     reward_quota bigint DEFAULT 0,
     provider_id bigint DEFAULT 0,
     total_token_used bigint DEFAULT 0 NOT NULL,
-    invite_consume_rebate_enabled bigint DEFAULT 0
+    invite_consume_rebate_enabled bigint DEFAULT 0,
+    register_ip character varying(45) NOT NULL DEFAULT ''::character varying
 );
 
 COMMENT ON COLUMN users.phone_country_code IS '手机号国家区号（E.164），如 +86';
@@ -3426,6 +3427,13 @@ COMMENT ON COLUMN users.avatar IS '头像';
 --
 
 COMMENT ON COLUMN users.signup_source IS '注册来源';
+
+
+--
+-- Name: COLUMN users.register_ip; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN users.register_ip IS '注册 IP';
 
 
 --
@@ -4728,7 +4736,7 @@ INSERT INTO timezone_currency_map (timezone, currency, updated_at) VALUES ('Amer
 
 
 
-INSERT INTO users (id, username, password, display_name, role, status, email, github_id, discord_id, oidc_id, wechat_id, telegram_id, access_token, quota, used_quota, request_count, "group", aff_code, aff_count, aff_quota, aff_history, inviter_id, deleted_at, linux_do_id, setting, remark, stripe_customer, created_at, phone_country_code, phone_number, timezone, avatar, signup_source) VALUES (1, 'admin', '$2a$10$0x7Vi0I3FyptefsyuA2C.etw1adn5X/fpwrMY0iOjPjMQi83QYYAS', 'Root User', 100, 1, '', '', '', '', '', '', NULL, 100000000, 0, 0, 'default', '2hWc', 1, 0, 0, 0, NULL, '', '{"gotify_priority":0,"language":"zh-CN"}', '', 'cus_U7BvsXV7SS3lGt', 0, '+86', '', 'Asia/Shanghai', '/assets/logo-white-D3lyOuka.svg', '0');
+INSERT INTO users (id, username, password, display_name, role, status, email, github_id, discord_id, oidc_id, wechat_id, telegram_id, access_token, quota, used_quota, request_count, "group", aff_code, aff_count, aff_quota, aff_history, inviter_id, deleted_at, linux_do_id, setting, remark, stripe_customer, created_at, phone_country_code, phone_number, timezone, avatar, signup_source, register_ip) VALUES (1, 'admin', '$2a$10$0x7Vi0I3FyptefsyuA2C.etw1adn5X/fpwrMY0iOjPjMQi83QYYAS', 'Root User', 100, 1, '', '', '', '', '', '', NULL, 100000000, 0, 0, 'default', '2hWc', 1, 0, 0, 0, NULL, '', '{"gotify_priority":0,"language":"zh-CN"}', '', 'cus_U7BvsXV7SS3lGt', 0, '+86', '', 'Asia/Shanghai', '/assets/logo-white-D3lyOuka.svg', '0', '');
 
 
 

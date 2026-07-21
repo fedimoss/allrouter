@@ -224,6 +224,7 @@ func CreateProviderUser(c *gin.Context) {
 		Group:        user.Group,
 		Remark:       user.Remark,
 		SignupSource: "provider_admin",
+		RegisterIp:   getRegistrationIP(c),
 	}
 	if cleanUser.Group == "" {
 		cleanUser.Group = "default"

@@ -40,6 +40,20 @@ var buildFS embed.FS
 //go:embed web/dist/index.html
 var indexPage []byte
 
+// configureTrustedProxies makes client-IP based auditing safe by default.
+// TRUSTED_PROXIES accepts a comma, semicolon, or whitespace separated list of
+// reverse-proxy IPs/CIDRs. With no value configured, forwarded headers are
+// ignored and Gin records the direct peer address.
+func configureTrustedProxies(server *gin.Engine, raw string) error {
+	proxies := strings.FieldsFunc(strings.TrimSpace(raw), func(r rune) bool {
+		return r == ',' || r == ';' || r == ' ' || r == '\t' || r == '\r' || r == '\n'
+	})
+	if len(proxies) == 0 {
+		return server.SetTrustedProxies(nil)
+	}
+	return server.SetTrustedProxies(proxies)
+}
+
 func main() {
 	startTime := time.Now()
 
@@ -166,6 +180,14 @@ func main() {
 
 	// Initialize HTTP server
 	server := gin.New()
+	trustedProxies := os.Getenv("TRUSTED_PROXIES")
+	if err := configureTrustedProxies(server, trustedProxies); err != nil {
+		common.FatalLog("failed to configure TRUSTED_PROXIES: " + err.Error())
+		return
+	}
+	if strings.TrimSpace(trustedProxies) == "" {
+		common.SysLog("TRUSTED_PROXIES is not set; forwarded client IP headers are ignored")
+	}
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{

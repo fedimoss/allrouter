@@ -151,6 +151,7 @@ func DiscordOAuth(c *gin.Context) {
 			} else {
 				user.DisplayName = "Discord User"
 			}
+			user.RegisterIp = getRegistrationIP(c)
 			if !ensureGlobalUserIdentityAvailable(c, 0, user.Username, user.Email) {
 				return
 			}

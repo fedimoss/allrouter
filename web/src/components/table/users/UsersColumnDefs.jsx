@@ -104,6 +104,24 @@ const renderCreatedAt = (createdAt) => {
     : '-';
 };
 
+const renderRegisterIp = (registerIp) => {
+  const value = typeof registerIp === 'string' ? registerIp.trim() : '';
+  if (!value) {
+    return '-';
+  }
+
+  return (
+    <Tooltip content={value} position='top' showArrow>
+      <Typography.Text
+        ellipsis
+        style={{ display: 'inline-block', maxWidth: 150 }}
+      >
+        {value}
+      </Typography.Text>
+    </Tooltip>
+  );
+};
+
 const renderProviderSite = (record, t) => {
   const providerId = Number(record.provider_id) || 0;
   const siteName =
@@ -388,6 +406,12 @@ export const getUsersColumns = ({
       dataIndex: 'created_at',
       width: 180,
       render: (text) => renderCreatedAt(text),
+    },
+    {
+      title: t('注册 IP'),
+      dataIndex: 'register_ip',
+      width: 150,
+      render: (text) => renderRegisterIp(text),
     },
     ...(!providerMode
       ? [

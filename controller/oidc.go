@@ -154,6 +154,7 @@ func OidcAuth(c *gin.Context) {
 			} else {
 				user.DisplayName = "OIDC User"
 			}
+			user.RegisterIp = getRegistrationIP(c)
 			if !ensureGlobalUserIdentityAvailable(c, 0, user.Username, user.Email) {
 				return
 			}

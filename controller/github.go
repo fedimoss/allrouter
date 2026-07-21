@@ -141,6 +141,7 @@ func GitHubOAuth(c *gin.Context) {
 			user.Email = githubUser.Email
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
+			user.RegisterIp = getRegistrationIP(c)
 			if !ensureGlobalUserIdentityAvailable(c, 0, user.Username, user.Email) {
 				return
 			}

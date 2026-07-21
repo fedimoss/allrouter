@@ -95,6 +95,7 @@ func WeChatAuth(c *gin.Context) {
 			user.DisplayName = "WeChat User"
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
+			user.RegisterIp = getRegistrationIP(c)
 			if !ensureGlobalUserIdentityAvailable(c, 0, user.Username, user.Email) {
 				return
 			}

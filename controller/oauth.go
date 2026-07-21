@@ -262,6 +262,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
+	user.RegisterIp = getRegistrationIP(c)
 	usernameConflict, emailConflict, err := model.UserIdentityConflictFieldsGlobally(0, user.Username, user.Email)
 	if err != nil {
 		return nil, err
