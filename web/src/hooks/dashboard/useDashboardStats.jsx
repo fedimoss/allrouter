@@ -153,6 +153,7 @@ export const useDashboardStats = (
           {
             title: t('平均TPM'),
             value: performanceMetrics.avgTPM,
+            averageMinutes: performanceMetrics.timeDiff,
             icon: <IconTypograph />,
             avatarColor: 'orange',
             trendData: trendData.tpm,

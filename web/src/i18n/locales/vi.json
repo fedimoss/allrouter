@@ -5807,6 +5807,9 @@
     "较上一月": "So với tháng trước",
     "本年新增注册用户": "Người dùng đăng ký mới trong năm nay",
     "本年入金金额": "Số tiền nạp trong năm nay",
-    "较上一年": "So với năm trước"
+    "较上一年": "So với năm trước",
+    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X cũng có thể nhỏ hơn 1 để dùng làm mức giảm giá. Nếu muốn chỉ tăng giá đầu ra hoặc thêm phí cố định, hãy nhập trực tiếp công thức tính phí đầy đủ.",
+    "Token/分钟（最近 60 秒）": "Token/phút (60 giây gần nhất)",
+    "Token/分钟（{{duration}}平均）": "Token/phút (trung bình trong {{duration}})"
   }
 }
