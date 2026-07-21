@@ -4003,9 +4003,24 @@ html.dark .dashboard-stats-v3__compact-unit {
   font-size: 12px;
 }
 
+.dashboard-stats-v3__metric-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dashboard-stats-v3__metric-unit {
+  color: #64748b;
+  font-size: 11px;
+}
+
 html.dark .dashboard-stats-v3__metric-label,
 html.dark .dashboard-stats-v3__footer-row {
   color: #94a3b8;
+}
+
+html.dark .dashboard-stats-v3__metric-unit {
+  color: #64748b;
 }
 
 .dashboard-stats-v3__metric-value {

@@ -44,7 +44,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     token_name: '',
     model_name: '',
     start_timestamp: getInitialTimestamp(),
-    end_timestamp: timestamp2string(new Date().getTime() / 1000 + 3600),
+    end_timestamp: timestamp2string(new Date().getTime() / 1000),
     channel: '',
     data_export_default_time: '',
   });
@@ -61,7 +61,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [lineData, setLineData] = useState([]);
   const [modelColors, setModelColors] = useState({});
   const [displayCurrency, setDisplayCurrency] = useState({ currency: 'USD', rate: 1, symbol: '$' });
-  
+
   // ========== 图表状态 ==========
   const [activeChartTab, setActiveChartTab] = useState('1');
 
