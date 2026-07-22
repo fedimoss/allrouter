@@ -62,9 +62,9 @@ const Dashboard = () => {
   const [showScreenModal, setShowScreenModal] = useState(false);
   const [dateRangeValue, setDateRangeValue] = useState('24h');
   const DATE_RANGE_OPTIONS = [
-    { label: t('最近24小时'), value: '24h' },
-    { label: t('最近一周'), value: '7d' },
-    { label: t('最近一个月'), value: '30d' },
+    { label: '最近24小时', value: '24h' },
+    { label: '最近一周', value: '7d' },
+    { label: '最近一个月', value: '30d' },
   ];
 
   // ========== 主要数据管理 ==========
@@ -221,13 +221,11 @@ const Dashboard = () => {
               value={dateRangeValue}
               style={{ width: 120 }}
               onChange={handleDateRangeChange}
-            >
-              {DATE_RANGE_OPTIONS.map((option) => (
-                <Select.Option key={option.value} value={option.value}>
-                  {t(option.label)}
-                </Select.Option>
-              ))}
-            </Select>
+              optionList={DATE_RANGE_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.label),
+              }))}
+            />
           </div>
         </div>
         <div className="dashboard-dataAnalys-content">
