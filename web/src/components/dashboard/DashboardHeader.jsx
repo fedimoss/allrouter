@@ -53,7 +53,7 @@ const DashboardHeader = ({
   };
 
   const toPage = () => {
-    navigate('/console/playground');
+    navigate('/console/token');
   };
 
   return (
