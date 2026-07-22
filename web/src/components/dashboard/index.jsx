@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect,useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getRelativeTime } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -26,7 +27,6 @@ import DashboardHeader from './DashboardHeader';
 import StatsCards from './StatsCards';
 import ChartsPanel from './ChartsPanel';
 import ApiInfoPanel from './ApiInfoPanel';
-import ConfigurationTutorial from './ConfigurationTutorial';
 import ModelHeatRankingPanel from './ModelHeatRankingPanel';
 import ModelDataAnalysisPanel from './ModelDataAnalysisPanel';
 import AnnouncementsPanel from './AnnouncementsPanel';
@@ -52,10 +52,20 @@ import {
   getUptimeStatusText,
   renderMonitorList,
 } from '../../helpers/dashboard';
+import { Button, Select } from '@douyinfe/semi-ui';
+import { CalendarDays } from 'lucide-react';
 
 const Dashboard = () => {
+  const { t } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState, statusDispatch] = useContext(StatusContext);
+  const [showScreenModal, setShowScreenModal] = useState(false);
+  const [dateRangeValue, setDateRangeValue] = useState('24h');
+  const DATE_RANGE_OPTIONS = [
+    { label: t('最近24小时'), value: '24h' },
+    { label: t('最近一周'), value: '7d' },
+    { label: t('最近一个月'), value: '30d' },
+  ];
 
   // ========== 主要数据管理 ==========
   const dashboardData = useDashboardData(userState, userDispatch, statusState);
@@ -108,6 +118,16 @@ const Dashboard = () => {
 
   const handleSearchConfirm = async () => {
     await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
+    setShowScreenModal(false);
+  };
+
+  // 下拉快捷区间切换：与自定义弹窗一样调用三个接口刷新数据
+  const handleDateRangeChange = async (value) => {
+    setDateRangeValue(value);
+    await dashboardData.handleDateRangeChange(
+      value,
+      dashboardCharts.updateChartData,
+    );
   };
 
   // ========== 数据准备 ==========
@@ -160,10 +180,13 @@ const Dashboard = () => {
         t={dashboardData.t}
       />
 
+      {/* 搜索弹窗 */}
       <SearchModal
-        searchModalVisible={dashboardData.searchModalVisible}
+        // searchModalVisible={dashboardData.searchModalVisible}
+        // handleCloseModal={dashboardData.handleCloseModal}
+        searchModalVisible={showScreenModal}
         handleSearchConfirm={handleSearchConfirm}
-        handleCloseModal={dashboardData.handleCloseModal}
+        handleCloseModal={() => setShowScreenModal(false)}
         isMobile={dashboardData.isMobile}
         isAdminUser={dashboardData.isAdminUser}
         inputs={dashboardData.inputs}
@@ -173,6 +196,7 @@ const Dashboard = () => {
         t={dashboardData.t}
       />
 
+      {/* 面板数据统计 */}
       <StatsCards
         groupedStatsData={groupedStatsData}
         loading={dashboardData.loading}
@@ -183,21 +207,31 @@ const Dashboard = () => {
         t={dashboardData.t}
       />
 
-      <section className='dashboard-v2-overview-grid'>
-        <div className='dashboard-v2-overview-main'>
-          <div className='dashboard-v2-overview-main-top'>
-            <StatsCards
-              groupedStatsData={groupedStatsData}
-              loading={dashboardData.loading}
-              getTrendSpec={getTrendSpec}
-              CARD_PROPS={CARD_PROPS}
-              CHART_CONFIG={CHART_CONFIG}
-              displayMode='compact'
-              t={dashboardData.t}
-            />
+      <section className='dashboard-dataAnalys'>
+        <div className="dashboard-dataAnalys-header">
+          <div className='dataAnalys-header-left'>
+            <p>{t('数据分析')}</p>
+            <span>{t('统一按筛选周期查看消耗、请求与模型表现')}</span>
           </div>
-
-          <div className='dashboard-v2-overview-main-chart'>
+          <div className='dataAnalys-header-right'>
+            <Button theme='outline' type='tertiary' onClick={() => setShowScreenModal(true)}>
+              <CalendarDays size={14} />&nbsp;{t('自定义')}
+            </Button>
+            <Select
+              value={dateRangeValue}
+              style={{ width: 120 }}
+              onChange={handleDateRangeChange}
+            >
+              {DATE_RANGE_OPTIONS.map((option) => (
+                <Select.Option key={option.value} value={option.value}>
+                  {t(option.label)}
+                </Select.Option>
+              ))}
+            </Select>
+          </div>
+        </div>
+        <div className="dashboard-dataAnalys-content">
+          <div className="dashboard-dataAnalys-content-top">
             <ChartsPanel
               activeChartTab={dashboardData.activeChartTab}
               setActiveChartTab={dashboardData.setActiveChartTab}
@@ -212,49 +246,39 @@ const Dashboard = () => {
               t={dashboardData.t}
               panelHeight={dashboardChartPanelHeight}
             />
-          </div>
-        </div>
-
-        <aside
-          className={
-            dashboardData.hasApiInfoPanel
-              ? 'dashboard-v2-overview-side'
-              : 'dashboard-v2-overview-side dashboard-v2-overview-side--single'
-          }
-        >
-          <div className='dashboard-v2-overview-side-item dashboard-v2-overview-side-item--ranking'>
             <ModelHeatRankingPanel
               t={dashboardData.t}
               rankingData={dashboardData.modelPopularRank}
               className='h-full'
             />
           </div>
-
-          {/* {dashboardData.hasApiInfoPanel && (
-            <div className='dashboard-v2-overview-side-item dashboard-v2-overview-side-item--api'>
-              <ApiInfoPanel
-                apiInfoData={apiInfoData}
-                CARD_PROPS={CARD_PROPS}
-                t={dashboardData.t}
-                className='h-full'
-              />
-            </div>
-          )} */}
-
-          {/* 配置教程卡片 */}
-          <ConfigurationTutorial className='h-full' />
-        </aside>
+          <div className="dashboard-dataAnalys-content-bottom">
+            <ModelDataAnalysisPanel
+              t={dashboardData.t}
+              quotaRadioData={dashboardData.modelQuotaRadio}
+              spec_model_line={dashboardCharts.spec_model_line}
+              spec_pie={dashboardCharts.spec_pie}
+              spec_rank_bar={dashboardCharts.spec_rank_bar}
+              CHART_CONFIG={CHART_CONFIG}
+            />
+          </div>
+        </div>
       </section>
+      
+      {/* {dashboardData.hasApiInfoPanel && (
+        <div className='dashboard-v2-overview-side-item dashboard-v2-overview-side-item--api'>
+          <ApiInfoPanel
+            apiInfoData={apiInfoData}
+            CARD_PROPS={CARD_PROPS}
+            t={dashboardData.t}
+            className='h-full'
+          />
+        </div>
+      )} */}
+      {/* 配置教程卡片 */}
+      {/* <ConfigurationTutorial className='h-full' /> */}
 
-      <ModelDataAnalysisPanel
-        t={dashboardData.t}
-        quotaRadioData={dashboardData.modelQuotaRadio}
-        spec_model_line={dashboardCharts.spec_model_line}
-        spec_pie={dashboardCharts.spec_pie}
-        spec_rank_bar={dashboardCharts.spec_rank_bar}
-        CHART_CONFIG={CHART_CONFIG}
-      />
-
+      {/* ========== 底部信息面板 ========== */}
       {dashboardData.hasInfoPanels && (
         <section className='dashboard-v2-bottom-grid'>
           {dashboardData.announcementsEnabled && (

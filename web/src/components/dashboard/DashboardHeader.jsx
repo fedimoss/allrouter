@@ -81,13 +81,13 @@ const DashboardHeader = ({
         </div>
 
         <div className='dashboard-header-v2__actions'>
-            <Input
+            {/* <Input
               placeholder={t('搜索 API Key...')}
               size='large'
               prefix={<Search size={16} style={{marginRight:'10px'}} />}
               onFocus={showSearchModal}
               className='dashboard-header-v2__search-input'
-            />
+            /> */}
             <Button
               type='primary'
               theme='solid'

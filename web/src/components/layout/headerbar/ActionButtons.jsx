@@ -22,6 +22,7 @@ import NewYearButton from './NewYearButton';
 import NotificationButton from './NotificationButton';
 import ThemeToggle from './ThemeToggle';
 import LanguageSelector from './LanguageSelector';
+import ConfigurationTutorial from './ConfigurationTutorial';
 
 const ActionButtons = ({
   isNewYear,
@@ -35,6 +36,7 @@ const ActionButtons = ({
 }) => {
   return (
     <div className='flex items-center gap-2 md:gap-3'>
+      <ConfigurationTutorial />
       <NewYearButton isNewYear={isNewYear} />
       <ThemeToggle theme={theme} onThemeToggle={onThemeToggle} t={t} />
 

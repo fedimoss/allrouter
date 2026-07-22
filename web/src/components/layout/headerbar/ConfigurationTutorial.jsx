@@ -18,17 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useCallback } from 'react';
-import { SideSheet } from '@douyinfe/semi-ui';
+import { SideSheet,Button } from '@douyinfe/semi-ui';
+import {IconBookStroked} from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { Copy, Check, Download, X } from 'lucide-react';
-import { getSystemName } from '../../helpers';
-import pzjcImg from '../../../public/board-pzjc.svg';
-
-import './index.scss';
-
-// ──────────── Constants ────────────
-
-const systemName = getSystemName();
+import { useIsMobile } from '../../../hooks/common/useIsMobile';
 
 const TAB_ITEMS = [
   {
@@ -63,11 +57,6 @@ const OS_TABS = [
   { key: 'windows', label: 'Windows' },
 ];
 
-const CODE_LANG_TABS = [
-  { key: 'curl', label: 'cURL' },
-  { key: 'python', label: 'Python' },
-  { key: 'nodejs', label: 'Node.js' },
-];
 
 const MASKED_KEY = 'sk-*************';
 
@@ -130,7 +119,7 @@ function CodeBlockInner({ code, label, field, copied, onCopy }) {
     <div>
       {label && <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{label}</p>}
       <div className="relative group">
-        <pre className="bg-[#1e293b] dark:bg-slate-950 text-slate-100 rounded-xl p-4 text-xs sm:text-sm overflow-x-auto leading-relaxed border border-slate-700/50 whitespace-pre-wrap break-all">
+        <pre className="bg-[#1e293b] dark:bg-slate-950 text-slate-100 rounded-xl p-3 sm:p-4 text-xs sm:text-sm overflow-x-auto leading-relaxed border border-slate-700/50 whitespace-pre-wrap break-all">
           <code>{code}</code>
         </pre>
         <button
@@ -145,63 +134,20 @@ function CodeBlockInner({ code, label, field, copied, onCopy }) {
   );
 }
 
-function ConfigRow({ label, value, field, copied, onCopy }) {
-  const isCopied = copied === field;
-  return (
-    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-      <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 min-w-[56px]">{label}</span>
-      <code className="text-sm text-slate-800 dark:text-slate-200 font-mono flex-1 min-w-0 break-all">{value}</code>
-      <button
-        onClick={() => onCopy(value, field)}
-        className="shrink-0 p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-        type="button"
-      >
-        {isCopied ? (
-          <Check className="h-3.5 w-3.5 text-emerald-500" />
-        ) : (
-          <Copy className="h-3.5 w-3.5 text-slate-400" />
-        )}
-      </button>
-    </div>
-  );
-}
-
 function OsTabBar({ active, onChange, t }) {
   return (
-    <div className="flex gap-1 mb-4 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-fit">
+    <div className="flex gap-1 mb-4 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-fit max-w-full overflow-x-auto">
       {OS_TABS.map((tab) => (
         <button
           key={tab.key}
           onClick={() => onChange(tab.key)}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
-            active === tab.key
+          className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-md transition ${active === tab.key
               ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
-          }`}
+            }`}
           type="button"
         >
           {t ? t(tab.label) : tab.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function TabPillBar({ tabs, active, onChange }) {
-  return (
-    <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-fit">
-      {tabs.map((tab) => (
-        <button
-          key={tab.key}
-          onClick={() => onChange(tab.key)}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
-            active === tab.key
-              ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
-          }`}
-          type="button"
-        >
-          {tab.label}
         </button>
       ))}
     </div>
@@ -216,10 +162,10 @@ function OpenAIPanel() {
   const baseUrl = getBaseUrl();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Warning notice */}
       <div
-        className="flex items-start gap-3 rounded-xl px-4 py-3 border"
+        className="flex items-start gap-2 rounded-xl px-3 py-3 border sm:gap-3 sm:px-4"
         style={{ background: 'rgba(245, 158, 11, 0.08)', borderColor: 'rgba(245, 158, 11, 0.25)' }}
       >
         <svg className="h-5 w-5 shrink-0 mt-0.5 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
@@ -231,13 +177,13 @@ function OpenAIPanel() {
       </div>
 
       {/* 基础配置 */}
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-4 sm:p-5">
         <SectionTitle>{t('基础配置')}</SectionTitle>
         <div className="space-y-4">
           <div>
             <p className="text-xs text-slate-500 dark:text-slate-400 !mb-2">{t('站点地址')}</p>
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-              <code className="text-sm text-slate-800 dark:text-slate-200 font-mono flex-1 min-w-0 break-all">{baseUrl}</code>
+            <div className="flex items-center gap-2 px-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 sm:px-4 sm:gap-3">
+              <code className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 font-mono flex-1 min-w-0 break-all">{baseUrl}</code>
               <button
                 onClick={() => onCopy(baseUrl, 'openai-baseurl')}
                 className="shrink-0 p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition"
@@ -255,7 +201,7 @@ function OpenAIPanel() {
           <div>
             <p className="text-xs text-slate-500 dark:text-slate-400 !mb-2">{t('配置示例')}</p>
             <div className="relative group">
-              <pre className="bg-[#1e293b] dark:bg-slate-950 text-slate-100 rounded-xl p-4 text-xs sm:text-sm overflow-x-auto leading-relaxed border border-slate-700/50 whitespace-pre-wrap break-all">
+              <pre className="bg-[#1e293b] dark:bg-slate-950 text-slate-100 rounded-xl p-3 sm:p-4 text-xs sm:text-sm overflow-x-auto leading-relaxed border border-slate-700/50 whitespace-pre-wrap break-all">
                 <code>{`OPENAI_API_KEY=${MASKED_KEY}\nOPENAI_BASE_URL=${baseUrl}/v1`}</code>
               </pre>
               <button
@@ -271,7 +217,7 @@ function OpenAIPanel() {
       </section>
 
       {/* 使用说明 */}
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-4 sm:p-5">
         <SectionTitle>{t('使用说明')}</SectionTitle>
         <div className="space-y-3">
           <StepItem number={1}>{t('登录后进入控制台，创建一个新的 API Key')}</StepItem>
@@ -305,8 +251,8 @@ function ClaudeCodePanel() {
   };
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-4 sm:p-5">
         <SectionTitle>{t('使用前准备')}</SectionTitle>
         <div className="space-y-3">
           <StepItem number={1}>
@@ -339,7 +285,7 @@ function ClaudeCodePanel() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-4 sm:p-5">
         <SectionTitle>{t('终端配置指南')}</SectionTitle>
         <OsTabBar active={osTab} onChange={setOsTab} t={t} />
         <div className="space-y-4">
@@ -360,7 +306,7 @@ function ClaudeCodePanel() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-4 sm:p-5">
         <SectionTitle>{t('注意事项')}</SectionTitle>
         <ul className="space-y-2">
           <NoteItem>
@@ -409,10 +355,10 @@ env_key = "PACKYCODE_API_KEY"`;
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Info notice */}
       <div
-        className="flex items-start gap-3 rounded-xl px-4 py-3 border"
+        className="flex items-start gap-2 rounded-xl px-3 py-3 border sm:gap-3 sm:px-4"
         style={{ background: 'rgba(14, 165, 233, 0.06)', borderColor: 'rgba(14, 165, 233, 0.2)' }}
       >
         <svg className="h-5 w-5 shrink-0 mt-0.5 text-sky-500" viewBox="0 0 20 20" fill="currentColor">
@@ -424,7 +370,7 @@ env_key = "PACKYCODE_API_KEY"`;
       </div>
 
       {/* 安装 Codex CLI */}
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-4 sm:p-5">
         <SectionTitle>{t('安装 Codex CLI')}</SectionTitle>
         <div className="space-y-4">
           <div>
@@ -461,7 +407,7 @@ env_key = "PACKYCODE_API_KEY"`;
       </section>
 
       {/* 配置代理 */}
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-4 sm:p-5">
         <SectionTitle>{t('配置代理')}</SectionTitle>
         <div className="space-y-3 mb-4">
           <StepItem number={1}>
@@ -483,7 +429,7 @@ env_key = "PACKYCODE_API_KEY"`;
       </section>
 
       {/* 设置环境变量 */}
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-4 sm:p-5">
         <SectionTitle>{t('设置环境变量')}</SectionTitle>
         <OsTabBar active={osTab} onChange={setOsTab} t={t} />
         <div className="space-y-4">
@@ -505,7 +451,7 @@ env_key = "PACKYCODE_API_KEY"`;
       </section>
 
       {/* 启动使用 */}
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-4 sm:p-5">
         <SectionTitle>{t('启动使用')}</SectionTitle>
         <div className="space-y-3 mb-4">
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -524,7 +470,7 @@ env_key = "PACKYCODE_API_KEY"`;
       </section>
 
       {/* 注意事项 */}
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(148,163,184,0.1)] dark:border-slate-700 dark:bg-slate-800/60 dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] p-4 sm:p-5">
         <SectionTitle>{t('注意事项')}</SectionTitle>
         <ul className="space-y-2 mb-4">
           <NoteItem>
@@ -551,11 +497,10 @@ env_key = "PACKYCODE_API_KEY"`;
 
 export default function ConfigurationTutorial({ className }) {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState('openai');
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelTab, setPanelTab] = useState('openai');
-
-  const currentTab = TAB_ITEMS.find((tab) => tab.key === activeTab);
 
   const openPanel = () => {
     setPanelTab(activeTab);
@@ -577,60 +522,16 @@ export default function ConfigurationTutorial({ className }) {
 
   return (
     <>
-      {/* ── Sidebar Card ── */}
-      <div className={`dashboard-card ${className || ''}`}>
-        <div className="card-header">
-          <div className="header-title">
-            <img src={pzjcImg} className="w-[32px] h-[32px]" />
-            <span>{t('配置教程')}</span>
-          </div>
-          <button className="text-[#94A3B8] text-xs" onClick={openPanel} type="button">
-            {t('查看更多')}
-          </button>
-        </div>
-
-        <div className="flex flex-wrap gap-2 mb-4">
-          {TAB_ITEMS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-3 py-1.5 rounded-lg border border-[#EDF2F7] text-xs text-[#64748B]  font-medium transition ${
-                activeTab === tab.key
-                  ? ''
-                : 'bg-[#F8FAFC] dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-              }`}
-              style={activeTab === tab.key ? { background: 'var(--theme-primary-10)', color: 'var(--theme-primary)' } : undefined}
-              type="button"
-            >
-              {t(tab.label)}
-            </button>
-          ))}
-        </div>
-
-        <div
-          onClick={openPanel}
-          className="cursor-pointer rounded-xl p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/50 hover:border-[var(--theme-primary-30)] dark:hover:border-[var(--theme-primary-30)] transition"
-        >
-          <div className="flex items-start gap-2">
-            <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ background: 'var(--theme-primary)' }} />
-            <div>
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                {t(currentTab?.title || '')}
-              </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                {t(currentTab?.desc || '')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Button theme='outline' type='tertiary' onClick={openPanel}>
+        <IconBookStroked /><span className="hidden sm:inline">&nbsp;{t('配置教程')}</span>
+      </Button>
 
       {/* ── Right Slide-in Panel ── */}
       <SideSheet
         visible={panelOpen}
         onCancel={() => setPanelOpen(false)}
         placement="right"
-        width={600}
+        width={isMobile ? '100%' : 600}
         title={null}
         headerStyle={{ display: 'none' }}
         bodyStyle={{ padding: 0, height: '100%' }}
@@ -639,18 +540,17 @@ export default function ConfigurationTutorial({ className }) {
       >
         <div className="h-full flex flex-col">
           {/* Panel Nav */}
-          <div className="shrink-0 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex gap-4 sm:gap-6 overflow-x-auto">
+          <div className="shrink-0 border-b border-slate-200 dark:border-slate-700 px-4 py-3 sm:px-6 sm:py-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex gap-4 sm:gap-6 overflow-x-auto min-w-0 flex-1">
                 {PANEL_TABS.map((tab) => (
                   <button
                     key={tab.key}
                     onClick={() => setPanelTab(tab.key)}
-                    className={`relative shrink-0 pb-2 text-sm font-medium transition ${
-                      panelTab === tab.key
+                    className={`relative shrink-0 pb-2 text-sm font-medium transition ${panelTab === tab.key
                         ? ''
                         : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
-                    }`}
+                      }`}
                     style={panelTab === tab.key ? { color: 'var(--theme-primary)' } : undefined}
                     type="button"
                   >
@@ -666,7 +566,7 @@ export default function ConfigurationTutorial({ className }) {
               </div>
               <button
                 onClick={() => setPanelOpen(false)}
-                className="shrink-0 ml-4 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 transition"
+                className="shrink-0 ml-2 sm:ml-4 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 transition"
                 type="button"
               >
                 <X className="h-4 w-4" />
@@ -675,7 +575,7 @@ export default function ConfigurationTutorial({ className }) {
           </div>
 
           {/* Panel Body */}
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
             {renderPanelContent()}
           </div>
         </div>
