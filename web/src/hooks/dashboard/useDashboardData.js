@@ -166,27 +166,32 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const localStartTimestamp = Date.parse(start_timestamp) / 1000;
   const localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
-  const getDataQuery = useCallback(() => {
-    const params = new URLSearchParams({
-      username: username || '',
-      start_timestamp: String(localStartTimestamp),
-      end_timestamp: String(localEndTimestamp),
-      default_time: dataExportDefaultTime,
-    });
-    return params.toString();
-  }, [username, localStartTimestamp, localEndTimestamp, dataExportDefaultTime]);
+  const getDataQuery = useCallback(
+    (override) => {
+      const params = new URLSearchParams({
+        username: (override?.username ?? username) || '',
+        start_timestamp: String(
+          override?.start_timestamp ?? localStartTimestamp,
+        ),
+        end_timestamp: String(override?.end_timestamp ?? localEndTimestamp),
+        default_time: override?.default_time ?? dataExportDefaultTime,
+      });
+      return params.toString();
+    },
+    [username, localStartTimestamp, localEndTimestamp, dataExportDefaultTime],
+  );
 
   // ========== API 调用函数 ==========
   const loadQuotaData = useCallback(
-    async ({ updateStats = true } = {}) => {
+    async ({ updateStats = true, override } = {}) => {
       setLoading(true);
       try {
         let url = '';
 
         if (isAdminUser) {
-          url = `/api/data/?${getDataQuery()}`;
+          url = `/api/data/?${getDataQuery(override)}`;
         } else {
-          url = `/api/data/self/?${getDataQuery()}`;
+          url = `/api/data/self/?${getDataQuery(override)}`;
         }
 
         const res = await API.get(url);
@@ -213,43 +218,52 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     [getDataQuery, isAdminUser, now],
   );
 
-  const loadModelPopularRank = useCallback(async () => {
-    const endpoint = isAdminUser
-      ? '/api/data/modelPopularRank'
-      : '/api/data/self/modelPopularRank';
-    const res = await API.get(`${endpoint}?${getDataQuery()}`);
-    const { success, message, data } = res.data;
-    if (!success) {
-      showError(message);
-      return [];
-    }
-    const nextData = data || [];
-    setModelPopularRank(nextData);
-    return nextData;
-  }, [getDataQuery, isAdminUser]);
+  const loadModelPopularRank = useCallback(
+    async (override) => {
+      const endpoint = isAdminUser
+        ? '/api/data/modelPopularRank'
+        : '/api/data/self/modelPopularRank';
+      const res = await API.get(`${endpoint}?${getDataQuery(override)}`);
+      const { success, message, data } = res.data;
+      if (!success) {
+        showError(message);
+        return [];
+      }
+      const nextData = data || [];
+      setModelPopularRank(nextData);
+      return nextData;
+    },
+    [getDataQuery, isAdminUser],
+  );
 
-  const loadModelQuotaRadio = useCallback(async () => {
-    const endpoint = isAdminUser
-      ? '/api/data/modelQuotaRadio'
-      : '/api/data/self/modelQuotaRadio';
-    const res = await API.get(`${endpoint}?${getDataQuery()}`);
-    const { success, message, data } = res.data;
-    if (!success) {
-      showError(message);
-      return [];
-    }
-    const nextData = data || [];
-    setModelQuotaRadio(nextData);
-    return nextData;
-  }, [getDataQuery, isAdminUser]);
+  const loadModelQuotaRadio = useCallback(
+    async (override) => {
+      const endpoint = isAdminUser
+        ? '/api/data/modelQuotaRadio'
+        : '/api/data/self/modelQuotaRadio';
+      const res = await API.get(`${endpoint}?${getDataQuery(override)}`);
+      const { success, message, data } = res.data;
+      if (!success) {
+        showError(message);
+        return [];
+      }
+      const nextData = data || [];
+      setModelQuotaRadio(nextData);
+      return nextData;
+    },
+    [getDataQuery, isAdminUser],
+  );
 
-  const loadModelData = useCallback(async () => {
-    const [popularRank, quotaRadio] = await Promise.all([
-      loadModelPopularRank(),
-      loadModelQuotaRadio(),
-    ]);
-    return { popularRank, quotaRadio };
-  }, [loadModelPopularRank, loadModelQuotaRadio]);
+  const loadModelData = useCallback(
+    async (override) => {
+      const [popularRank, quotaRadio] = await Promise.all([
+        loadModelPopularRank(override),
+        loadModelQuotaRadio(override),
+      ]);
+      return { popularRank, quotaRadio };
+    },
+    [loadModelPopularRank, loadModelQuotaRadio],
+  );
 
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);
@@ -321,6 +335,60 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         updateChartDataCallback(data, { updateStats: false });
       }
       setSearchModalVisible(false);
+    },
+    [loadQuotaData, loadModelData],
+  );
+
+  // ========== 快捷时间区间筛选 ==========
+  // value: '24h' | '7d' | '30d'；按区间重新计算起止时间戳并刷新三接口
+  const handleDateRangeChange = useCallback(
+    async (value, updateChartDataCallback) => {
+      if (!value) return;
+      // 取整秒，避免带小数（如 1784542418.07）
+      const nowSec = Math.floor(new Date().getTime() / 1000);
+      let startSec = nowSec;
+      let defaultTime = 'hour';
+      switch (value) {
+        case '24h':
+          startSec = nowSec - 86400;
+          defaultTime = 'hour';
+          break;
+        case '7d':
+          startSec = nowSec - 86400 * 7;
+          defaultTime = 'day';
+          break;
+        case '30d':
+          startSec = nowSec - 86400 * 30;
+          defaultTime = 'day';
+          break;
+        default:
+          return;
+      }
+      const startStr = timestamp2string(startSec);
+      const endStr = timestamp2string(nowSec);
+      // 同步 inputs 与时间粒度，使后续 getDataQuery 生成正确参数
+      setInputs((prev) => ({
+        ...prev,
+        start_timestamp: startStr,
+        end_timestamp: endStr,
+      }));
+      setDataExportDefaultTime(defaultTime);
+      localStorage.setItem('data_export_default_time', defaultTime);
+
+      // 使用 override 立即触发请求（避免等待 state 更新）
+      const override = {
+        start_timestamp: startSec,
+        end_timestamp: nowSec,
+        default_time: defaultTime,
+      };
+
+      const [data] = await Promise.all([
+        loadQuotaData({ updateStats: false, override }),
+        loadModelData(override),
+      ]);
+      if (data && updateChartDataCallback) {
+        updateChartDataCallback(data, { updateStats: false, defaultTime });
+      }
     },
     [loadQuotaData, loadModelData],
   );
@@ -405,6 +473,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     getUserData,
     refresh,
     handleSearchConfirm,
+    handleDateRangeChange,
 
     // 导航和翻译
     navigate,

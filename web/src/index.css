@@ -2725,6 +2725,163 @@ html.dark .floating-support-icon-qq {
   padding-bottom: 8px;
 }
 
+/* ==================== Dashboard Data Analysis ==================== */
+.dashboard-dataAnalys {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top:30px;
+}
+
+.dashboard-dataAnalys-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.dataAnalys-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dataAnalys-header-left p {
+  margin: 0;
+  color: var(--semi-color-text-0);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.dataAnalys-header-left span {
+  color: #6B7A91;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dataAnalys-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.dashboard-dataAnalys-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 12px;
+  background: var(--semi-color-bg-0);
+}
+
+/* 容器内子组件去除自身边框/背景/阴影，融入白底容器 */
+.dashboard-dataAnalys-content .dashboard-trend-card,
+.dashboard-dataAnalys-content .dashboard-card,
+.dashboard-dataAnalys-content .dashboard-model-analysis {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Semi Card bordered 自身的边框/背景 */
+.dashboard-dataAnalys-content .semi-card {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* 桌面端：ChartsPanel 高度调低（覆盖内联 panelHeight）；
+   右侧 ModelHeatRankingPanel 借 align-items:stretch 自动等高 */
+.dashboard-dataAnalys-content .dashboard-trend-card {
+  height: 420px !important;
+}
+
+/* content-top / content-bottom 内部组件上下左右间距收紧 */
+.dashboard-dataAnalys-content-top {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+/* ChartsPanel：Card header / body / header 底部留白整体收紧 */
+.dashboard-dataAnalys-content .dashboard-trend-card .semi-card-header {
+  padding: 14px 16px 0 !important;
+}
+
+.dashboard-dataAnalys-content .dashboard-trend-card .dashboard-trend-header {
+  padding-bottom: 10px;
+}
+
+.dashboard-dataAnalys-content .dashboard-trend-card .dashboard-trend-body {
+  padding: 4px 12px 12px;
+}
+
+/* ModelHeatRankingPanel：dashboard-card 自身 padding 收紧 */
+.dashboard-dataAnalys-content .dashboard-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+
+.dashboard-dataAnalys-content .dashboard-card .card-header {
+  margin-bottom: 12px;
+}
+
+/* ModelDataAnalysisPanel：header / body padding 收紧 */
+.dashboard-dataAnalys-content .dashboard-model-analysis__header {
+  padding: 14px 16px 12px;
+}
+
+.dashboard-dataAnalys-content .dashboard-model-analysis__body {
+  padding: 4px 16px 14px;
+}
+
+/* ChartsPanel 占 3/5，ModelHeatRankingPanel 占 2/5 */
+.dashboard-dataAnalys-content-top > *:first-child {
+  flex: 3;
+  min-width: 0;
+}
+
+.dashboard-dataAnalys-content-top > *:last-child {
+  flex: 2;
+  min-width: 0;
+}
+
+.dashboard-dataAnalys-content-bottom {
+  width: 100%;
+  /* 与上方 content-top 之间的分割边框（上方间距由父级 gap 提供） */
+  border-top: 1px solid var(--semi-color-border);
+}
+
+/* 平板及以下：content-top 左右改为上下堆叠 */
+@media (max-width: 768px) {
+  .dashboard-dataAnalys-content-top {
+    flex-direction: column;
+  }
+
+  .dashboard-dataAnalys-content-top > *:first-child,
+  .dashboard-dataAnalys-content-top > *:last-child {
+    flex: none;
+    width: 100%;
+  }
+}
+
+/* 手机端：header 左右改为上下堆叠，操作区占满宽度 */
+@media (max-width: 640px) {
+  .dashboard-dataAnalys-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dataAnalys-header-right {
+    width: 100%;
+  }
+}
+
 .dashboard-header-v2 {
   padding: 20px 0;
 }
@@ -2783,7 +2940,7 @@ html.dark .floating-support-icon-qq {
   display: flex;
   align-items: center;
   gap: 14px;
-  width: min(100%, 440px);
+  /* width: min(100%, 440px); */
 }
 
 /* .dashboard-header-v2__search {
@@ -2845,6 +3002,11 @@ html.dark .floating-support-icon-qq {
 
 .dashboard-stats-v3__grid--six {
   grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+/* StatsCards：默认一行 3 个，两行铺排（最多 6 个卡时刚好 2 行） */
+.dashboard-stats-v3__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .dashboard-stats-v2__compact-grid {
@@ -3090,6 +3252,11 @@ html.dark .floating-support-icon-qq {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  /* StatsCards：平板/中屏降为一行 2 个 */
+  .dashboard-stats-v3__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .dashboard-v2-main-grid,
   .dashboard-v2-bottom-grid {
     grid-template-columns: 1fr;
@@ -3157,6 +3324,11 @@ html.dark .floating-support-icon-qq {
 
   .dashboard-stats-v2__primary-grid,
   .dashboard-stats-v2__compact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* StatsCards：手机端一行 1 个 */
+  .dashboard-stats-v3__grid {
     grid-template-columns: 1fr;
   }
 
@@ -3429,7 +3601,6 @@ html.dark .floating-support-icon-qq {
   justify-content: space-between;
   gap: 16px;
   padding: 22px 24px 18px;
-  border-bottom: 1px solid var(--semi-color-border);
 }
 
 .dashboard-model-analysis__title-wrap {
@@ -3824,7 +3995,7 @@ html.dark .floating-support-icon-qq {
 
 .dashboard-stats-v3__card {
   overflow: hidden;
-  border-radius: 24px !important;
+  border-radius: 14px !important;
   border: 1px solid rgba(226, 232, 240, 0.9) !important;
   background: radial-gradient(
       circle at top right,
@@ -3851,13 +4022,13 @@ html.dark .dashboard-stats-v3__card {
 }
 
 .dashboard-stats-v3__card .semi-card-body {
-  padding: 26px 26px 24px !important;
+  padding: 12px 16px 10px !important;
 }
 
 .dashboard-stats-v3__inner {
   display: flex;
   flex-direction: column;
-  min-height: 228px;
+  /* min-height: 168px; */
   height: 100%;
 }
 
@@ -3928,9 +4099,9 @@ html.dark .dashboard-stats-v3__icon--orange {
 }
 
 .dashboard-stats-v3__hero {
-  margin-top: 24px;
+  margin-top: 16px;
   color: #020617;
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.04em;
@@ -3972,7 +4143,7 @@ html.dark .dashboard-stats-v3__compact-unit {
 }
 
 .dashboard-stats-v3__action-wrap {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .dashboard-stats-v3__action-tag {
@@ -3987,14 +4158,22 @@ html.dark .dashboard-stats-v3__compact-unit {
 .dashboard-stats-v3__metrics {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  margin-top: 28px;
+  gap: 6px;
+  margin-top: 10px;
 }
 
 .dashboard-stats-v3__metric-block {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
+}
+
+/* 每张卡的第 2 个指标：标签与值同一行（统计次数 / 统计 Tokens / 平均TPM） */
+.dashboard-stats-v3__metric-block:last-child {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 12px;
 }
 
 .dashboard-stats-v3__metric-label,
@@ -4005,8 +4184,10 @@ html.dark .dashboard-stats-v3__compact-unit {
 
 .dashboard-stats-v3__metric-label {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .dashboard-stats-v3__metric-unit {
@@ -4025,9 +4206,13 @@ html.dark .dashboard-stats-v3__metric-unit {
 
 .dashboard-stats-v3__metric-value {
   color: #020617;
-  font-size: 30px;
+  font-size: 24px;
   font-weight: 900;
-  line-height: 36px;
+  line-height: 30px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 /* .dashboard-stats-v3__metric-value--compact {
@@ -4046,7 +4231,7 @@ html.dark .dashboard-stats-v3__metric-value {
 
 .dashboard-stats-v3__footer {
   margin-top: auto;
-  padding-top: 42px;
+  padding-top: 20px;
 }
 
 .dashboard-stats-v3__footer-row {
@@ -4072,11 +4257,11 @@ html.dark .dashboard-stats-v3__footer-row strong {
 
 @media (max-width: 900px) {
   .dashboard-stats-v3__card .semi-card-body {
-    padding: 22px 20px !important;
+    padding: 10px 14px 8px !important;
   }
 
   .dashboard-stats-v3__inner {
-    min-height: 212px;
+    min-height: 156px;
   }
 }
 
@@ -4086,18 +4271,18 @@ html.dark .dashboard-stats-v3__footer-row strong {
   }
 
   .dashboard-stats-v3__hero {
-    font-size: 30px;
+    font-size: 24px;
   }
 
   .dashboard-stats-v3__metric-value {
-    font-size: 30px;
+    font-size: 22px;
   }
 
   .dashboard-stats-v3__metric-value--compact {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .dashboard-stats-v3__footer {
-    padding-top: 28px;
+    padding-top: 16px;
   }
 }

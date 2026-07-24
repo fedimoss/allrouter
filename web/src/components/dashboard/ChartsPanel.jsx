@@ -76,7 +76,7 @@ const ChartsPanel = ({
               optionList={chartTypeOptions}
               style={{ width: 148, backgroundColor: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)', borderRadius: 12, color: 'var(--semi-color-text-0)' }}
             /> */}
-            <Button theme='borderless' type='tertiary'>{t('最近24小时')}</Button>
+            {/* <Button theme='borderless' type='tertiary'>{t('最近24小时')}</Button> */}
             {/* <Select
               value={timeRange}
               onChange={(value) => setTimeRange(String(value))}

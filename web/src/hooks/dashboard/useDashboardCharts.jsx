@@ -417,10 +417,11 @@ export const useDashboardCharts = (
   }, []);
 
   const updateChartData = useCallback(
-    (data, { updateStats = true } = {}) => {
+    (data, { updateStats = true, defaultTime } = {}) => {
+      const granularity = defaultTime || dataExportDefaultTime;
       const processedData = processRawData(
         data,
-        dataExportDefaultTime,
+        granularity,
         initializeMaps,
         updateMapValue,
       );
@@ -441,7 +442,7 @@ export const useDashboardCharts = (
         timeQuotaMap,
         timeTokensMap,
         timeCountMap,
-        dataExportDefaultTime,
+        granularity,
       );
       if (updateStats) {
         setTrendData(trendDataResult);
@@ -452,7 +453,7 @@ export const useDashboardCharts = (
 
       const aggregatedData = aggregateDataByTimeAndModel(
         data,
-        dataExportDefaultTime,
+        granularity,
       );
 
       const modelTotals = new Map();
@@ -470,7 +471,7 @@ export const useDashboardCharts = (
       const chartTimePoints = generateChartTimePoints(
         aggregatedData,
         data,
-        dataExportDefaultTime,
+        granularity,
       );
 
       let newLineData = [];
