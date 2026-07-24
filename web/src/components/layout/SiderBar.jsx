@@ -87,6 +87,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
   const logo = getLogo();
   const systemName = getSystemName();
+  const userIsAdmin = isAdmin();
 
   const [selectedKeys, setSelectedKeys] = useState(['home']);
   const [chatItems, setChatItems] = useState([]);
@@ -94,6 +95,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const [routerMapState, setRouterMapState] = useState(routerMap);
 
   const dashboardItems = useMemo(() => {
+    if (!userIsAdmin) return [];
+
     const items = [
       {
         text: t('数据看板'),
@@ -107,7 +110,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     ];
 
     return items.filter((item) => isModuleVisible('console', item.itemKey));
-  }, [localStorage.getItem('enable_data_export'), t, isModuleVisible]);
+  }, [
+    localStorage.getItem('enable_data_export'),
+    t,
+    isModuleVisible,
+    userIsAdmin,
+  ]);
 
   const workspaceItems = useMemo(() => {
     const items = [
@@ -131,12 +139,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       },
     ];
 
-    return items.filter((item) =>
-      isModuleVisible(item.section, item.itemKey),
+    return items.filter(
+      (item) =>
+        (userIsAdmin || item.itemKey !== 'playground') &&
+        isModuleVisible(item.section, item.itemKey),
     );
-  }, [t, isAdmin(), isModuleVisible]);
+  }, [t, userIsAdmin, isModuleVisible]);
 
   const logItems = useMemo(() => {
+    if (!userIsAdmin) return [];
+
     const items = [
       {
         text: t('使用日志'),
@@ -167,6 +179,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     localStorage.getItem('enable_task'),
     t,
     isModuleVisible,
+    userIsAdmin,
   ]);
 
   const financialItems = useMemo(() => {
@@ -694,7 +707,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           {hasVisible(workspaceItems) && (
             <>
               <div className='sidebar-section'>
-                {!collapsed && (
+                {!collapsed && userIsAdmin && (
                   <div className='sidebar-group-label'>{t('Workspace')}</div>
                 )}
                 {workspaceItems.map((item) => renderNavItem(item))}
@@ -721,7 +734,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           {hasVisible(financialItems) && (
             <>
               <div className='sidebar-section'>
-                {!collapsed && (
+                {!collapsed && userIsAdmin && (
                   <div className='sidebar-group-label'>{t('Financial')}</div>
                 )}
                 {financialItems.map((item) => renderNavItem(item))}
@@ -729,7 +742,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             </>
           )}
 
-          {(hasVisible(revenueMerchantItems) ||
+          {userIsAdmin && (hasVisible(revenueMerchantItems) ||
             hasVisible(revenueMarketingItems)) && (
             <>
               <Divider className='sidebar-divider' />
