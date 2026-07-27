@@ -309,3 +309,104 @@ html[data-theme="light"] .page-theme3-route-shell{background:#f4f8f6;color:#0715
 .page-theme3-route-shell{padding-top:84px}
 .page-theme3-route-content{min-height:calc(100vh - 84px)}
 }
+
+/* v9: pageTheme3 scoped brand colors from backend settings */
+.app-shell,.page-theme3-route-shell{
+--page-theme3-primary:#f8ff15;
+--page-theme3-secondary:#32fea5;
+--page-theme3-button-text:#07100d;
+--page-theme3-primary-rgb:248,255,21;
+--page-theme3-secondary-rgb:50,254,165;
+--page-theme3-gradient:linear-gradient(135deg,var(--page-theme3-primary) 0%,var(--page-theme3-secondary) 100%);
+--page-theme3-gradient-horizontal:linear-gradient(90deg,var(--page-theme3-primary) 0%,var(--page-theme3-secondary) 100%);
+--mint:var(--page-theme3-primary);
+--aqua:var(--page-theme3-secondary);
+--brand-cyan:var(--page-theme3-primary);
+--brand-yellow:var(--page-theme3-secondary);
+--brand-gradient:var(--page-theme3-gradient);
+--brand-gradient-text:linear-gradient(135deg,var(--page-theme3-primary),var(--page-theme3-secondary))
+}
+.app-shell .primary-cta,.app-shell .header-cta,.app-shell .footer-cta__btn,.page-theme3-route-shell .header-cta,.page-theme3-route-shell .footer-cta__btn{
+background:var(--page-theme3-gradient);
+color:var(--page-theme3-button-text);
+box-shadow:0 10px 30px rgba(var(--page-theme3-secondary-rgb),.22)
+}
+.app-shell .mobile-menu-footer a,.page-theme3-route-shell .mobile-menu-footer a{
+background:var(--page-theme3-primary);
+color:var(--page-theme3-button-text)
+}
+.app-shell .model-item:after,.app-shell .capability-item:before,.page-theme3-route-shell .model-item:after,.page-theme3-route-shell .capability-item:before{
+background:var(--page-theme3-gradient-horizontal)
+}
+.app-shell .theme-toggle__thumb,.app-shell .header-user-avatar,.page-theme3-route-shell .theme-toggle__thumb,.page-theme3-route-shell .header-user-avatar{
+background:var(--page-theme3-gradient);
+color:var(--page-theme3-button-text)
+}
+.app-shell .theme-toggle:hover,.app-shell .secondary-cta:hover,.app-shell .fab-btn:hover,.app-shell .header-user-trigger:hover,.app-shell .header-user-menu:focus-within .header-user-trigger,.page-theme3-route-shell .theme-toggle:hover,.page-theme3-route-shell .secondary-cta:hover,.page-theme3-route-shell .header-user-trigger:hover,.page-theme3-route-shell .header-user-menu:focus-within .header-user-trigger{
+border-color:rgba(var(--page-theme3-primary-rgb),.62)
+}
+.app-shell .hero-eyebrow i,.app-shell .model-ecosystem__label i,.page-theme3-route-shell .hero-eyebrow i,.page-theme3-route-shell .model-ecosystem__label i{
+box-shadow:0 0 16px rgba(var(--page-theme3-primary-rgb),.9)
+}
+.app-shell .model-ecosystem__label b,.page-theme3-route-shell .model-ecosystem__label b{
+color:rgba(var(--page-theme3-primary-rgb),.78)
+}
+.app-shell .capability-item:hover>svg,.page-theme3-route-shell .capability-item:hover>svg{
+filter:drop-shadow(0 0 8px rgba(var(--page-theme3-secondary-rgb),.5))
+}
+.app-shell .compute-card,.page-theme3-route-shell .compute-card{
+background:linear-gradient(135deg,rgba(255,255,255,.09),rgba(var(--page-theme3-primary-rgb),.05) 52%,rgba(var(--page-theme3-secondary-rgb),.1)),rgba(255,255,255,.03)
+}
+.app-shell .compute-card:before,.page-theme3-route-shell .compute-card:before{
+background:linear-gradient(145deg,rgba(255,255,255,.72),rgba(255,255,255,.08) 32%,rgba(var(--page-theme3-primary-rgb),.46) 74%,rgba(var(--page-theme3-secondary-rgb),.28))
+}
+.app-shell .compute-card:after,.page-theme3-route-shell .compute-card:after{
+background:radial-gradient(circle at 78% 51%,rgba(var(--page-theme3-secondary-rgb),.12),transparent 25%),linear-gradient(140deg,rgba(5,15,12,.82),rgba(7,20,16,.6))
+}
+.app-shell .compute-card__circuit path,.app-shell .compute-card__circuit circle,.page-theme3-route-shell .compute-card__circuit path,.page-theme3-route-shell .compute-card__circuit circle{
+stroke:rgba(var(--page-theme3-secondary-rgb),.55)
+}
+.app-shell .compute-card__core,.page-theme3-route-shell .compute-card__core{
+background:linear-gradient(90deg,transparent 48%,rgba(var(--page-theme3-secondary-rgb),.13) 50%,transparent 52%),linear-gradient(transparent 48%,rgba(var(--page-theme3-secondary-rgb),.13) 50%,transparent 52%),rgba(5,15,12,.28);
+border-color:rgba(var(--page-theme3-secondary-rgb),.32);
+box-shadow:inset 0 0 24px rgba(var(--page-theme3-secondary-rgb),.05),0 0 28px rgba(var(--page-theme3-secondary-rgb),.08)
+}
+.app-shell .compute-card__core:before,.page-theme3-route-shell .compute-card__core:before{
+border-color:rgba(var(--page-theme3-secondary-rgb),.28)
+}
+.app-shell .compute-card__core:after,.page-theme3-route-shell .compute-card__core:after{
+border-color:rgba(var(--page-theme3-primary-rgb),.24);
+box-shadow:0 0 12px rgba(var(--page-theme3-secondary-rgb),.12)
+}
+.app-shell .compute-card__core-chip,.page-theme3-route-shell .compute-card__core-chip{
+background:var(--page-theme3-gradient);
+box-shadow:0 0 18px rgba(var(--page-theme3-secondary-rgb),.24)
+}
+.app-shell .compute-card__core span,.page-theme3-route-shell .compute-card__core span{
+color:var(--page-theme3-button-text)
+}
+.app-shell .footer-cta,.page-theme3-route-shell .footer-cta,html[data-theme="light"] .app-shell .footer-cta,html[data-theme="light"] .page-theme3-route-shell .footer-cta{
+background:radial-gradient(circle at 50% 120%,rgba(var(--page-theme3-secondary-rgb),.16),transparent 55%),linear-gradient(135deg,#0e1a15,#0a110d)
+}
+html[data-theme="light"] .app-shell .theme-toggle:hover,html[data-theme="light"] .app-shell .secondary-cta:hover,html[data-theme="light"] .app-shell .fab-btn:hover,html[data-theme="light"] .app-shell .header-user-trigger:hover,html[data-theme="light"] .app-shell .header-user-menu:focus-within .header-user-trigger,html[data-theme="light"] .page-theme3-route-shell .theme-toggle:hover,html[data-theme="light"] .page-theme3-route-shell .secondary-cta:hover,html[data-theme="light"] .page-theme3-route-shell .header-user-trigger:hover,html[data-theme="light"] .page-theme3-route-shell .header-user-menu:focus-within .header-user-trigger{
+border-color:rgba(var(--page-theme3-primary-rgb),.55)
+}
+html[data-theme="light"] .app-shell .model-ecosystem__label b,html[data-theme="light"] .page-theme3-route-shell .model-ecosystem__label b{
+color:rgba(var(--page-theme3-primary-rgb),.78)
+}
+html[data-theme="light"] .app-shell .compute-card,html[data-theme="light"] .page-theme3-route-shell .compute-card{
+background:linear-gradient(135deg,rgba(255,255,255,.78),rgba(var(--page-theme3-primary-rgb),.05) 52%,rgba(var(--page-theme3-secondary-rgb),.08)),rgba(255,255,255,.5)
+}
+html[data-theme="light"] .app-shell .compute-card:before,html[data-theme="light"] .page-theme3-route-shell .compute-card:before{
+background:linear-gradient(145deg,rgba(255,255,255,.95),rgba(255,255,255,.16) 32%,rgba(var(--page-theme3-primary-rgb),.38) 74%,rgba(var(--page-theme3-secondary-rgb),.28))
+}
+html[data-theme="light"] .app-shell .compute-card:after,html[data-theme="light"] .page-theme3-route-shell .compute-card:after{
+background:radial-gradient(circle at 78% 51%,rgba(var(--page-theme3-secondary-rgb),.12),transparent 25%),linear-gradient(140deg,rgba(248,251,249,.94),rgba(239,246,242,.78))
+}
+html[data-theme="light"] .app-shell .compute-card__circuit path,html[data-theme="light"] .app-shell .compute-card__circuit circle,html[data-theme="light"] .page-theme3-route-shell .compute-card__circuit path,html[data-theme="light"] .page-theme3-route-shell .compute-card__circuit circle{
+stroke:rgba(var(--page-theme3-secondary-rgb),.5)
+}
+html[data-theme="light"] .app-shell .compute-card__core,html[data-theme="light"] .page-theme3-route-shell .compute-card__core{
+background:linear-gradient(90deg,transparent 48%,rgba(var(--page-theme3-secondary-rgb),.16) 50%,transparent 52%),linear-gradient(transparent 48%,rgba(var(--page-theme3-secondary-rgb),.16) 50%,transparent 52%),rgba(255,255,255,.42);
+border-color:rgba(var(--page-theme3-secondary-rgb),.45)
+}

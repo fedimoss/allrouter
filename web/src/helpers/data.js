@@ -18,12 +18,23 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { applyThemeColors, extractThemeColors } from './themeColors';
-import { buildSupportConfig } from './utils';
+import { applyBranding, buildSupportConfig, normalizeBrandValue } from './utils';
+
+function setLocalStorageValue(key, value) {
+  const normalized = normalizeBrandValue(value);
+  if (normalized) {
+    localStorage.setItem(key, normalized);
+  } else {
+    localStorage.removeItem(key);
+  }
+  return normalized;
+}
 
 export function setStatusData(data) {
   localStorage.setItem('status', JSON.stringify(data));
-  localStorage.setItem('system_name', data.system_name);
-  localStorage.setItem('logo', data.logo);
+  const systemName = setLocalStorageValue('system_name', data.system_name);
+  const logo = setLocalStorageValue('logo', data.logo);
+  applyBranding({ systemName, logo });
   const supportConfig = buildSupportConfig(data);
   localStorage.setItem('wechat_support', supportConfig.wechatQRCode || '');
   localStorage.setItem('wechat_support_desc', supportConfig.wechatDesc || '');

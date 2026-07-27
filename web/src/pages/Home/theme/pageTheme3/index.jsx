@@ -55,6 +55,7 @@ import {
   showError,
   withBrowserBaseUrl,
   buildSupportConfig,
+  extractThemeColors,
   getLogo,
   getSystemName,
 } from '../../../../helpers';
@@ -88,10 +89,12 @@ const INTRO_SEEN_KEY = 'allrouter_intro_seen';
 const PAGE_THEME_KEY = 'allrouter-theme';
 const LIGHT_BG = '#f2f6f4';
 const DARK_BG = '#070b0a';
+const PAGE_THEME3_DEFAULT_PRIMARY = '#f8ff15';
+const PAGE_THEME3_DEFAULT_SECONDARY = '#32fea5';
+const PAGE_THEME3_DEFAULT_BUTTON_TEXT = '#07100d';
 
 // 项目标识（与其它主题一致：后台可配置 systemName / logo）
 const systemName = getSystemName();
-const siteLogo = getLogo();
 
 // 顶部导航：保留静态页 4 项布局，跳转替换为项目内真实路由
 const NAV_ITEMS = [
@@ -176,6 +179,101 @@ const flattenPhrase = (segments) => {
 const getUserDisplayName = (user) =>
   user?.username || user?.email || user?.display_name || 'User';
 
+const normalizeHexColor = (value) => {
+  if (typeof value !== 'string') return '';
+  const color = value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+  if (/^#[0-9a-fA-F]{3}$/.test(color)) {
+    return `#${color
+      .slice(1)
+      .split('')
+      .map((char) => char + char)
+      .join('')}`;
+  }
+  return '';
+};
+
+const hexToRgbString = (hex) => {
+  const color = normalizeHexColor(hex);
+  if (!color) return '248, 255, 21';
+  const value = color.slice(1);
+  return [
+    parseInt(value.slice(0, 2), 16),
+    parseInt(value.slice(2, 4), 16),
+    parseInt(value.slice(4, 6), 16),
+  ].join(', ');
+};
+
+const getPageTheme3Colors = (status, webColors) => {
+  const statusColors = extractThemeColors(status);
+  const colors = {
+    ...statusColors,
+    ...Object.fromEntries(
+      Object.entries(webColors || {}).filter(([, value]) => value),
+    ),
+  };
+  const primary =
+    normalizeHexColor(colors.primaryColor) || PAGE_THEME3_DEFAULT_PRIMARY;
+  const secondary =
+    normalizeHexColor(colors.secondaryColor) || PAGE_THEME3_DEFAULT_SECONDARY;
+  const buttonText =
+    normalizeHexColor(colors.buttonTextColor) || PAGE_THEME3_DEFAULT_BUTTON_TEXT;
+
+  return { primary, secondary, buttonText };
+};
+
+const usePageTheme3BrandStyle = (statusState) => {
+  const [webColors, setWebColors] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshWebColors = async () => {
+      try {
+        const res = await API.get('/api/web_colors');
+        if (cancelled) return;
+        const colors = extractThemeColors(res);
+        setWebColors(colors);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to refresh web colors:', error);
+        }
+      }
+    };
+
+    refreshWebColors();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return useMemo(() => {
+    const { primary, secondary, buttonText } = getPageTheme3Colors(
+      statusState?.status,
+      webColors,
+    );
+    const primaryRgb = hexToRgbString(primary);
+    const secondaryRgb = hexToRgbString(secondary);
+
+    return {
+      '--page-theme3-primary': primary,
+      '--page-theme3-secondary': secondary,
+      '--page-theme3-button-text': buttonText,
+      '--page-theme3-primary-rgb': primaryRgb,
+      '--page-theme3-secondary-rgb': secondaryRgb,
+      '--page-theme3-gradient': `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)`,
+      '--page-theme3-gradient-horizontal': `linear-gradient(90deg, ${primary} 0%, ${secondary} 100%)`,
+      '--semi-color-primary': primary,
+      '--semi-color-primary-hover': primary,
+      '--semi-color-primary-active': primary,
+      '--semi-color-primary-light-default': `rgba(${primaryRgb}, 0.1)`,
+      '--semi-color-primary-light-hover': `rgba(${primaryRgb}, 0.2)`,
+      '--semi-color-primary-light-active': `rgba(${primaryRgb}, 0.3)`,
+    };
+  }, [statusState?.status, webColors]);
+};
+
 const HeaderUserMenu = ({ user, onLogout, mobile = false, tabIndex }) => {
   const displayName = getUserDisplayName(user);
   const initial = String(displayName).trim().slice(0, 1).toUpperCase() || 'U';
@@ -254,12 +352,28 @@ const TopIcon = () => (
 );
 
 // ---- 品牌锁 ----
-const BrandLockup = ({ size = 32 }) => (
-  <Link className='brand-lockup' to='/' aria-label='AllRouter.AI 首页'>
-    <img src={logoSvg} alt='' width={size} height={size} />
-    <span>AllRouter.AI</span>
-  </Link>
-);
+const BrandLockup = ({ size = 32 }) => {
+  const [statusState] = useContext(StatusContext);
+  const brandName =
+    statusState?.status?.system_name || getSystemName() || 'AllRouter.AI';
+  const brandLogo = statusState?.status?.logo || getLogo() || logoSvg;
+
+  return (
+    <Link className='brand-lockup' to='/' aria-label={`${brandName} 首页`}>
+      <img
+        src={brandLogo}
+        alt={brandName}
+        width={size}
+        height={size}
+        onError={(event) => {
+          event.currentTarget.onerror = null;
+          event.currentTarget.src = logoSvg;
+        }}
+      />
+      <span>{brandName}</span>
+    </Link>
+  );
+};
 
 // ---- 主题切换（本页独立体系：allrouter-theme + html[data-theme]） ----
 const ThemeToggle = ({ onToggle, mobile = false }) => (
@@ -685,7 +799,11 @@ const Hero = ({
           </filter>
           <linearGradient id='glow-color' x1='0' y1='0' x2='1' y2='0'>
             <stop offset='0' stopColor='#17372d' stopOpacity='0' />
-            <stop offset='0.48' stopColor='#68e4de' stopOpacity='0.48' />
+            <stop
+              offset='0.48'
+              stopColor='var(--page-theme3-secondary)'
+              stopOpacity='0.48'
+            />
             <stop offset='1' stopColor='#17372d' stopOpacity='0' />
           </linearGradient>
         </defs>
@@ -1142,12 +1260,13 @@ export const PageTheme3HeaderShell = ({ children }) => {
   const communityHref = withBrowserBaseUrl(
     '/zh/docs/support/community-interaction',
   );
+  const brandStyle = usePageTheme3BrandStyle(statusState);
   const footerHtml =
     statusState?.status?.footer_html ||
     `© ${new Date().getFullYear()} ${systemName}. All rights reserved.`;
 
   return (
-    <div className='page-theme3-route-shell'>
+    <div className='page-theme3-route-shell' style={brandStyle}>
       <PageTheme3NavOnly
         targets={targets}
         currentUser={currentUser}
@@ -1202,6 +1321,7 @@ const PageTheme3Home = () => {
     () => buildSupportConfig(statusState?.status),
     [statusState?.status],
   );
+  const brandStyle = usePageTheme3BrandStyle(statusState);
   const footerHtml =
     statusState?.status?.footer_html ||
     `© ${new Date().getFullYear()} ${systemName}. All rights reserved.`;
@@ -1266,7 +1386,7 @@ const PageTheme3Home = () => {
   const introActive = !seen;
 
   return (
-    <div className='app-shell'>
+    <div className='app-shell' style={brandStyle}>
       <NoticeModal
         visible={noticeVisible}
         onClose={() => setNoticeVisible(false)}

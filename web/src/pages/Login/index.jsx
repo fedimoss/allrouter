@@ -192,7 +192,7 @@ export default function LoginPage() {
     setUserData(data);
     updateAPI();
     setShowTwoFA(false);
-    navigate('/console');
+    navigate('/');
   };
 
   const handleLoginSubmit = async (e) => {
@@ -234,7 +234,7 @@ export default function LoginPage() {
       setUserData(data);
       updateAPI();
       showSuccess(t('登录成功'));
-      navigate('/console');
+      navigate('/');
     } catch {
       showError(t('登录失败，请重试'));
     } finally {
@@ -282,7 +282,7 @@ export default function LoginPage() {
         updateAPI();
         showSuccess(t('登录成功'));
         setShowWeChatLoginModal(false);
-        navigate('/console');
+        navigate('/');
       } else {
         showError(message);
       }

@@ -35,6 +35,19 @@ import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 const DEFAULT_PUBLIC_BASE_URL = 'https://allrouter.ai';
 const DEFAULT_DOCS_BRAND_NAME_PATTERN = /AllRouter(?:\.AI)?/g;
 
+export function normalizeBrandValue(value) {
+  if (value === undefined || value === null) return '';
+  const normalized = String(value).trim();
+  if (
+    !normalized ||
+    normalized === 'undefined' ||
+    normalized === 'null'
+  ) {
+    return '';
+  }
+  return normalized;
+}
+
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
 };
@@ -69,13 +82,13 @@ export function getProviderId() {
 }
 
 export function getSystemName() {
-  let system_name = localStorage.getItem('system_name');
+  let system_name = normalizeBrandValue(localStorage.getItem('system_name'));
   // if (!system_name) return 'All Router';
   return system_name;
 }
 
 export function getLogo() {
-  let logo = localStorage.getItem('logo');
+  let logo = normalizeBrandValue(localStorage.getItem('logo'));
   // if (!logo) return '/logo-white.svg';
   return logo;
 }
@@ -142,19 +155,33 @@ export function applyBranding({
   systemName = getSystemName(),
   logo = getLogo(),
 } = {}) {
-  if (systemName) {
-    document.title = systemName;
+  if (typeof document === 'undefined') return;
+
+  const normalizedSystemName = normalizeBrandValue(systemName);
+  const normalizedLogo = normalizeBrandValue(logo);
+
+  if (normalizedSystemName) {
+    document.title = normalizedSystemName;
   }
 
-  if (!logo) return;
+  if (!normalizedLogo) return;
 
-  let linkElement = document.querySelector("link[rel~='icon']");
-  if (!linkElement) {
-    linkElement = document.createElement('link');
+  const iconLinks = Array.from(
+    document.querySelectorAll(
+      "link[rel~='icon'], link[rel='apple-touch-icon']",
+    ),
+  );
+
+  if (iconLinks.length === 0) {
+    const linkElement = document.createElement('link');
     linkElement.rel = 'icon';
     document.head.appendChild(linkElement);
+    iconLinks.push(linkElement);
   }
-  linkElement.href = logo;
+
+  iconLinks.forEach((linkElement) => {
+    linkElement.href = normalizedLogo;
+  });
 }
 
 export function getBrowserBaseUrl() {
