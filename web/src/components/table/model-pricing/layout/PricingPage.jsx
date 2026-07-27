@@ -18,78 +18,258 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Layout, ImagePreview } from '@douyinfe/semi-ui';
-import PricingSidebar from './PricingSidebar';
-import PricingContent from './content/PricingContent';
+import { ImagePreview } from '@douyinfe/semi-ui';
+import { Link } from 'react-router-dom';
+import PricingCardView from '../view/card/PricingCardView';
 import ModelDetailSideSheet from '../modal/ModelDetailSideSheet';
 import { useModelPricingData } from '../../../../hooks/model-pricing/useModelPricingData';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import './PricingPage.css';
+import {
+  getLobeHubIcon,
+  getLogo,
+  getSystemName,
+  withBrowserBaseUrl,
+} from '../../../../helpers';
+import './PricingShowcase.css';
+
+const getVendorName = (model) => model?.vendor_name || 'unknown';
+
+const ProviderIcon = ({ icon, label, logo, isAll }) => {
+  if (isAll) {
+    return (
+      <img
+        src={logo || '/logo.png'}
+        alt=''
+        onError={(event) => {
+          event.currentTarget.onerror = null;
+          event.currentTarget.src = '/logo.png';
+        }}
+      />
+    );
+  }
+
+  if (icon) {
+    return getLobeHubIcon(icon, 20);
+  }
+
+  return (
+    <span className='pricing-showcase-provider-fallback' aria-hidden='true'>
+      {String(label || '?')
+        .slice(0, 1)
+        .toUpperCase()}
+    </span>
+  );
+};
+
+const PricingFooter = ({ systemName, logo, docsHref, consoleTarget, t }) => {
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <footer className='pricing-showcase-footer' aria-label={t('页脚')}>
+      <div className='pricing-showcase-footer-cta'>
+        <h2>{t('准备好优化您的 AI 工作流了吗？')}</h2>
+        <p>{t('加入 2,000+ 开发者，开始享受更稳定、更廉价的大模型服务。')}</p>
+        <Link className='pricing-showcase-footer-cta-button' to={consoleTarget}>
+          {t('免费开始构建')}
+        </Link>
+      </div>
+
+      <div className='pricing-showcase-footer-main'>
+        <div className='pricing-showcase-footer-brand'>
+          <Link className='pricing-showcase-brand' to='/'>
+            <img src={logo} alt='' />
+            <span>{systemName}</span>
+          </Link>
+          <p>
+            {t('统一 AI 接入网关，为团队提供模型接入、路由、计费与治理能力。')}
+          </p>
+        </div>
+
+        <nav className='pricing-showcase-footer-column' aria-label={t('产品')}>
+          <b>{t('产品')}</b>
+          <Link to='/about'>{t('功能特性')}</Link>
+          <Link to='/pricing'>{t('模型生态')}</Link>
+          <Link to='/pricing'>{t('定价')}</Link>
+          <Link to='/about'>{t('更新日志')}</Link>
+        </nav>
+
+        <nav className='pricing-showcase-footer-column' aria-label={t('资源')}>
+          <b>{t('资源')}</b>
+          <a href={docsHref} target='_blank' rel='noreferrer'>
+            {t('文档')}
+          </a>
+          <a href={docsHref} target='_blank' rel='noreferrer'>
+            {t('API 参考')}
+          </a>
+          <Link to='/about'>{t('社区')}</Link>
+          <Link to='/about'>{t('系统状态')}</Link>
+        </nav>
+
+        <nav
+          className='pricing-showcase-footer-column'
+          aria-label={t('帮助中心')}
+        >
+          <b>{t('帮助中心')}</b>
+          <Link to='/about'>{t('关于平台')}</Link>
+          <a
+            href='https://github.com/QuantumNous/new-api'
+            target='_blank'
+            rel='noreferrer'
+          >
+            {t('项目仓库')}
+          </a>
+          <Link to='/about'>{t('问题反馈')}</Link>
+          <Link to='/about'>{t('联系我们')}</Link>
+        </nav>
+      </div>
+
+      <div className='pricing-showcase-footer-bottom'>
+        &copy; {currentYear} {systemName}. {t('版权所有')}
+      </div>
+    </footer>
+  );
+};
 
 const PricingPage = () => {
   const pricingData = useModelPricingData();
-  const { Sider, Content } = Layout;
-  const isMobile = useIsMobile();
-  const [showRatio, setShowRatio] = React.useState(false);
-  const [viewMode, setViewMode] = React.useState('card');
-  const [sortMode, setSortMode] = React.useState('hot');
+  const { t } = pricingData;
+
+  const systemName =
+    pricingData.statusState?.status?.system_name || getSystemName() || '';
+  const logo =
+    pricingData.statusState?.status?.logo || getLogo() || '/logo.png';
+  const currentLanguage = localStorage.getItem('i18nextLng') || 'zh-CN';
+  const docsLanguage = currentLanguage.startsWith('zh') ? 'zh' : 'en';
+  const docsHref =
+    pricingData.statusState?.status?.docs_link ||
+    withBrowserBaseUrl(`/${docsLanguage}/docs`);
+  const consoleTarget = pricingData.userState?.user
+    ? '/console/token'
+    : '/login';
 
   const sortedModels = React.useMemo(() => {
-    const models = [...(pricingData.filteredModels || [])];
-
-    if (sortMode === 'value') {
-      return models.sort((a, b) => {
-        const aRatio = typeof a.model_ratio === 'number' ? a.model_ratio : Number.MAX_SAFE_INTEGER;
-        const bRatio = typeof b.model_ratio === 'number' ? b.model_ratio : Number.MAX_SAFE_INTEGER;
-        return aRatio - bRatio;
-      });
-    }
-
-    if (sortMode === 'latest') {
-      return models.sort((a, b) => {
-        const aNew = a.tags?.toLowerCase().includes('new') ? 1 : 0;
-        const bNew = b.tags?.toLowerCase().includes('new') ? 1 : 0;
-        if (aNew !== bNew) return bNew - aNew;
-        return String(a.model_name || '').localeCompare(String(b.model_name || ''));
-      });
-    }
-
-    return models.sort((a, b) => {
+    return [...(pricingData.filteredModels || [])].sort((a, b) => {
       const aHot = a.tags?.toLowerCase().includes('hot') ? 1 : 0;
       const bHot = b.tags?.toLowerCase().includes('hot') ? 1 : 0;
       if (aHot !== bHot) return bHot - aHot;
-      return String(a.model_name || '').localeCompare(String(b.model_name || ''));
+      return String(a.model_name || '').localeCompare(
+        String(b.model_name || ''),
+      );
     });
-  }, [pricingData.filteredModels, sortMode]);
+  }, [pricingData.filteredModels]);
 
-  const allProps = {
-    ...pricingData,
-    filteredModels: sortedModels,
-    showRatio,
-    setShowRatio,
-    viewMode,
-    setViewMode,
-    sortMode,
-    setSortMode,
+  const providerItems = React.useMemo(() => {
+    const providers = new Map();
+
+    (pricingData.models || []).forEach((model) => {
+      const value = getVendorName(model);
+      const existing = providers.get(value);
+      providers.set(value, {
+        value,
+        label: value === 'unknown' ? t('未知供应商') : value,
+        icon: existing?.icon || model.vendor_icon || model.icon,
+        count: (existing?.count || 0) + 1,
+      });
+    });
+
+    const items = Array.from(providers.values()).sort((a, b) => {
+      if (a.value === 'unknown') return 1;
+      if (b.value === 'unknown') return -1;
+      return a.label.localeCompare(b.label);
+    });
+
+    return [
+      {
+        value: 'all',
+        label: t('全部'),
+        icon: null,
+        count: pricingData.models?.length || 0,
+      },
+      ...items,
+    ];
+  }, [pricingData.models, t]);
+
+  const selectProvider = (value) => {
+    pricingData.setFilterVendor(value);
+    pricingData.setCurrentPage(1);
   };
 
   return (
-    <div className='pricing-market'>
-      <Layout className='pricing-layout'>
-        {!isMobile && (
-          <Sider className='pricing-scroll-hide pricing-sidebar'>
-            <PricingSidebar {...allProps} />
-          </Sider>
-        )}
+    <div className='pricing-showcase'>
+      <main className='pricing-showcase-main'>
+        <section className='pricing-showcase-hero' aria-label={t('模型广场')}>
+          <h1>
+            {t('现已全面接入')} <em>{systemName}</em>
+          </h1>
+          <p>
+            {t('更快的响应速度，更低的网络延迟，通过')} {systemName}{' '}
+            {t('智能路由引擎，自动为您选择最优渠道。')}
+          </p>
+          <div className='pricing-showcase-hero-actions'>
+            <Link
+              className='pricing-showcase-button-primary'
+              to={consoleTarget}
+            >
+              {t('立即调用')}
+            </Link>
+            <a
+              className='pricing-showcase-button-secondary'
+              href={docsHref}
+              target='_blank'
+              rel='noreferrer'
+            >
+              {t('查看文档')}
+            </a>
+          </div>
+        </section>
 
-        <Content className='pricing-scroll-hide pricing-content'>
-          <PricingContent
-            {...allProps}
-            isMobile={isMobile}
-            sidebarProps={allProps}
-          />
-        </Content>
-      </Layout>
+        <div
+          className='pricing-showcase-provider-bar'
+          role='tablist'
+          aria-label={t('模型供应商')}
+        >
+          {providerItems.map((provider) => {
+            const isActive = pricingData.filterVendor === provider.value;
+            return (
+              <button
+                key={provider.value}
+                type='button'
+                role='tab'
+                aria-selected={isActive}
+                className={`pricing-showcase-provider-tab${isActive ? ' is-active' : ''}`}
+                onClick={() => selectProvider(provider.value)}
+              >
+                <span className='pricing-showcase-provider-icon'>
+                  <ProviderIcon
+                    icon={provider.icon}
+                    label={provider.label}
+                    logo={logo}
+                    isAll={provider.value === 'all'}
+                  />
+                </span>
+                <span>{provider.label}</span>
+                <span className='pricing-showcase-provider-count'>
+                  {provider.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className='pricing-showcase-list-meta'>
+          <b>{t('共 {{count}} 个模型', { count: sortedModels.length })}</b>
+          <span>{t('热门优先')}</span>
+        </div>
+
+        <PricingCardView {...pricingData} filteredModels={sortedModels} />
+      </main>
+
+      <PricingFooter
+        systemName={systemName}
+        logo={logo}
+        docsHref={docsHref}
+        consoleTarget={consoleTarget}
+        t={t}
+      />
 
       <ImagePreview
         src={pricingData.modalImageUrl}
@@ -107,11 +287,11 @@ const PricingPage = () => {
         siteDisplayType={pricingData.siteDisplayType}
         tokenUnit={pricingData.tokenUnit}
         displayPrice={pricingData.displayPrice}
-        showRatio={allProps.showRatio}
+        showRatio={false}
         vendorsMap={pricingData.vendorsMap}
         endpointMap={pricingData.endpointMap}
         autoGroups={pricingData.autoGroups}
-        t={pricingData.t}
+        t={t}
       />
     </div>
   );
