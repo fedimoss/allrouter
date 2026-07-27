@@ -169,6 +169,7 @@ const supportChannels = [
 const HOME_PAGE_OPTIONS = [
   { label: '默认', value: 'default' },
   { label: '风格一', value: 'style_a' },
+  { label: '风格三', value: 'style_c' },
 ];
 
 const emptyDomain = {

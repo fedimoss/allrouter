@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   Notification,
   Button,
@@ -35,6 +35,7 @@ import {
 } from '@douyinfe/semi-illustrations';
 import {
   API,
+  formatDisplayMoney,
   renderNumber,
   renderQuota,
   showError,
@@ -42,17 +43,14 @@ import {
   selectFilter,
   timestamp2string,
 } from '../../../helpers';
+import { UserContext } from '../../../context/User';
 import EditTokenModal from './modals/EditTokenModal';
 import CCSwitchModal from './modals/CCSwitchModal';
 import CopyTokensModal from './modals/CopyTokensModal';
 import DeleteTokensModal from './modals/DeleteTokensModal';
 import { useTokensData } from '../../../hooks/tokens/useTokensData';
 import {
-  AlertCircle,
-  ChevronDown,
   Copy,
-  Eye,
-  EyeOff,
   Info,
   KeyRound,
   MessageSquare,
@@ -62,7 +60,7 @@ import {
   Search,
   Trash2,
   X,
-  EllipsisVertical
+  EllipsisVertical,
 } from 'lucide-react';
 
 const DEFAULT_GROUP_FILTER = '__default__';
@@ -148,6 +146,18 @@ const getTokenStatusMeta = (record, t) => {
         className: 'token-v2-status-badge token-v2-status-exhausted',
       };
     default:
+      if (
+        record.expired_time !== -1 &&
+        record.expired_time > Math.floor(Date.now() / 1000) &&
+        record.expired_time - Math.floor(Date.now() / 1000) <= 7 * 24 * 60 * 60
+      ) {
+        return {
+          key: 'expiring',
+          label: t('即将过期'),
+          className: 'token-v2-status-badge token-v2-status-expiring',
+        };
+      }
+
       return {
         key: 'active',
         label: t('活跃'),
@@ -278,7 +288,9 @@ function TokenDetailModal({ token, groupLabelMap, visible, onClose, t }) {
         <div className='token-v2-detail-grid'>
           <div className='token-v2-detail-item'>
             <span className='token-v2-detail-label'>{t('名称')}</span>
-            <span className='token-v2-detail-value'>{currentToken.name || '-'}</span>
+            <span className='token-v2-detail-value'>
+              {currentToken.name || '-'}
+            </span>
           </div>
           <div className='token-v2-detail-item'>
             <span className='token-v2-detail-label'>{t('状态')}</span>
@@ -295,13 +307,15 @@ function TokenDetailModal({ token, groupLabelMap, visible, onClose, t }) {
             </span>
           </div>
           <div className='token-v2-detail-item'>
-            <span className='token-v2-detail-label'>{t('剩余额度/总额度')}</span>
+            <span className='token-v2-detail-label'>
+              {t('剩余额度/总额度')}
+            </span>
             <span className='token-v2-detail-value'>
               {!token
                 ? '-'
                 : currentToken.unlimited_quota
-                ? t('无限额度')
-                : `${renderQuota(quotaMeta.remain)} / ${renderQuota(quotaMeta.total)}`}
+                  ? t('无限额度')
+                  : `${renderQuota(quotaMeta.remain)} / ${renderQuota(quotaMeta.total)}`}
             </span>
           </div>
           <div className='token-v2-detail-item'>
@@ -322,8 +336,8 @@ function TokenDetailModal({ token, groupLabelMap, visible, onClose, t }) {
               {!token
                 ? '-'
                 : currentToken.expired_time === -1
-                ? t('永不过期')
-                : timestamp2string(currentToken.expired_time)}
+                  ? t('永不过期')
+                  : timestamp2string(currentToken.expired_time)}
             </span>
           </div>
         </div>
@@ -375,6 +389,7 @@ function TokenDetailModal({ token, groupLabelMap, visible, onClose, t }) {
 }
 
 function TokensPage() {
+  const [userState] = useContext(UserContext);
   const openFluentNotificationRef = useRef(null);
   const openCCSwitchModalRef = useRef(null);
   const selectAllRef = useRef(null);
@@ -404,6 +419,7 @@ function TokensPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [detailToken, setDetailToken] = useState(null);
   const [detailVisible, setDetailVisible] = useState(false);
+  const [searchExpanded, setSearchExpanded] = useState(false);
 
   useEffect(() => {
     latestRef.current = {
@@ -757,12 +773,11 @@ function TokensPage() {
   const displayTokens = tokensData.tokens.filter((token) => {
     const matchesStatus =
       !statusFilter || getTokenStatusKey(token) === statusFilter;
-    const matchesGroup =
-      !groupFilter
-        ? true
-        : groupFilter === DEFAULT_GROUP_FILTER
-          ? !token.group
-          : token.group === groupFilter;
+    const matchesGroup = !groupFilter
+      ? true
+      : groupFilter === DEFAULT_GROUP_FILTER
+        ? !token.group
+        : token.group === groupFilter;
     return matchesStatus && matchesGroup;
   });
 
@@ -1001,24 +1016,32 @@ function TokensPage() {
       <div className='token-v2-shell'>
         <div className='token-v2-card'>
           <div className='token-v2-toolbar'>
-            <div className='token-v2-toolbar-title'>
-              {tokensData.t('令牌管理')}
-            </div>
-            <div className='token-v2-toolbar-desc'>
-              <div className='token-v2-toolbar-desc-txt'>{tokensData.t('管理您的 API 访问令牌，监控配额使用情况及分组权限。')}</div>
+            <div className='token-v2-toolbar-heading'>
+              <div className='token-v2-toolbar-copy'>
+                <h1 className='token-v2-toolbar-title'>
+                  {tokensData.t('令牌管理')}
+                </h1>
+                <div className='token-v2-toolbar-meta'>
+                  <p className='token-v2-toolbar-desc-txt'>
+                    {tokensData.t(
+                      '管理您的 API 访问令牌，监控配额使用情况及分组权限。',
+                    )}
+                  </p>
+                  <span className='token-v2-total-quota'>
+                    {tokensData.t('总额度')}:{' '}
+                    <strong>
+                      {formatDisplayMoney(
+                        userState?.user?.quota ?? 0,
+                        userState?.user?.display_symbol,
+                      )}
+                    </strong>
+                  </span>
+                </div>
+              </div>
               <div className='token-v2-toolbar-actions'>
                 <button
                   type='button'
-                  className='token-v2-primary-button theme-btn-color'
-                  onClick={handleOpenCreate}
-                >
-                  <Plus size={16} />
-                  {tokensData.t('添加令牌')}
-                </button>
-
-                <button
-                  type='button'
-                  className='token-v2-icon-button'
+                  className='token-v2-icon-button token-v2-refresh-button'
                   onClick={refreshCurrentView}
                   title={tokensData.t('刷新列表')}
                   aria-label={tokensData.t('刷新列表')}
@@ -1026,51 +1049,90 @@ function TokensPage() {
                   <RefreshCw
                     size={16}
                     className={tokensData.loading ? 'token-v2-spin' : ''}
-                  />{tokensData.t('刷新')}
+                  />
+                </button>
+                <button
+                  type='button'
+                  className='token-v2-primary-button theme-btn-color'
+                  onClick={handleOpenCreate}
+                >
+                  <Plus size={18} />
+                  {tokensData.t('添加令牌')}
                 </button>
               </div>
             </div>
+
             <div className='token-v2-toolbar-row'>
               <form
                 className='token-v2-toolbar-filters'
                 onSubmit={handleSearchSubmit}
               >
-                <label className='token-v2-search-field'>
-                  <Search size={16} />
-                  <input
-                    type='text'
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    placeholder={tokensData.t('搜索名称或密钥前缀...')}
-                  />
-                </label>
-
                 <Select
-                  prefix={tokensData.t('状态')}
                   className='token-v2-select'
                   value={statusFilter}
-                  onChange={val => setStatusFilter(val)}
+                  onChange={(val) => setStatusFilter(val)}
                 >
-                  <Select.Option value=''>{tokensData.t('所有状态')}</Select.Option>
-                  <Select.Option value='active'>{tokensData.t('活跃')}</Select.Option>
-                  <Select.Option value='expired'>{tokensData.t('已过期')}</Select.Option>
-                  <Select.Option value='disabled'>{tokensData.t('已禁用')}</Select.Option>
-                  <Select.Option value='exhausted'>{tokensData.t('已耗尽')}</Select.Option>
+                  <Select.Option value=''>
+                    {tokensData.t('所有状态')}
+                  </Select.Option>
+                  <Select.Option value='active'>
+                    {tokensData.t('活跃')}
+                  </Select.Option>
+                  <Select.Option value='expired'>
+                    {tokensData.t('已过期')}
+                  </Select.Option>
+                  <Select.Option value='disabled'>
+                    {tokensData.t('已禁用')}
+                  </Select.Option>
+                  <Select.Option value='exhausted'>
+                    {tokensData.t('已耗尽')}
+                  </Select.Option>
                 </Select>
 
                 <Select
-                  prefix={tokensData.t('分组')}
                   className='token-v2-select'
                   value={groupFilter}
-                  onChange={val => setGroupFilter(val)}
+                  onChange={(val) => setGroupFilter(val)}
                 >
-                  <Select.Option value=''>{tokensData.t('全部分组')}</Select.Option>
+                  <Select.Option value=''>
+                    {tokensData.t('全部分组')}
+                  </Select.Option>
                   {currentGroupOptions.map((group) => (
                     <Select.Option key={group.value} value={group.value}>
                       {group.label}
                     </Select.Option>
                   ))}
                 </Select>
+
+                <div
+                  className={`token-v2-search-wrap ${searchExpanded || searchQuery ? 'token-v2-search-wrap-expanded' : ''}`}
+                >
+                  {searchExpanded || searchQuery ? (
+                    <label className='token-v2-search-field'>
+                      <Search size={16} />
+                      <input
+                        autoFocus
+                        type='text'
+                        value={searchQuery}
+                        onChange={handleSearchChange}
+                        onBlur={() => {
+                          if (!searchQuery) setSearchExpanded(false);
+                        }}
+                        placeholder={tokensData.t('搜索名称或密钥前缀...')}
+                      />
+                    </label>
+                  ) : (
+                    <button
+                      type='button'
+                      className='token-v2-icon-button token-v2-search-button'
+                      onClick={() => setSearchExpanded(true)}
+                      title={tokensData.t('搜索')}
+                      aria-label={tokensData.t('搜索')}
+                    >
+                      <Search size={17} />
+                    </button>
+                  )}
+                </div>
               </form>
             </div>
 
@@ -1099,14 +1161,23 @@ function TokensPage() {
                         />
                       </th> */}
                       <th>{tokensData.t('名称')}</th>
-                      <th className='token-v2-col-status'>{tokensData.t('状态')}</th>
-                      <th className='token-v2-col-quota'>{tokensData.t('剩余额度 / 总额度')}</th>
-                      <th className='token-v2-col-quota'>{tokensData.t('Token 消耗总量')}</th>
-                      <th className='token-v2-col-group'>{tokensData.t('分组')}</th>
-                      <th className='token-v2-col-key'>{tokensData.t('密钥 (Key)')}</th>
+                      <th className='token-v2-col-status'>
+                        {tokensData.t('状态')}
+                      </th>
+                      <th className='token-v2-col-quota'>
+                        {tokensData.t('剩余额度 / 总额度')}
+                      </th>
+                      <th className='token-v2-col-group'>
+                        {tokensData.t('分组')}
+                      </th>
+                      <th className='token-v2-col-key'>
+                        {tokensData.t('密钥 (Key)')}
+                      </th>
                       <th className='token-v2-col-date'>
-                        <div>{tokensData.t('创建时间')}</div>
-                        <div>{tokensData.t('过期时间')}</div>
+                        {tokensData.t('创建时间')}
+                      </th>
+                      <th className='token-v2-col-expire'>
+                        {tokensData.t('过期时间')}
                       </th>
                       <th className='token-v2-actions-col'>
                         {tokensData.t('操作')}
@@ -1117,16 +1188,19 @@ function TokensPage() {
                     {displayTokens.map((record) => {
                       const chatItems = getChatMenuItems(record);
                       const quotaMeta = getQuotaMeta(record);
-                      const statusMeta = getTokenStatusMeta(record, tokensData.t);
+                      const statusMeta = getTokenStatusMeta(
+                        record,
+                        tokensData.t,
+                      );
                       const expireMeta = getExpireMeta(record, tokensData.t);
                       const isSelected = selectedIds.has(record.id);
-                      const isKeyVisible = !!tokensData.showKeys[record.id];
-                      const isLoadingKey = !!tokensData.loadingTokenKeys[record.id];
-                      const resolvedKey =
-                        isKeyVisible && tokensData.resolvedTokenKeys[record.id]
-                          ? tokensData.resolvedTokenKeys[record.id]
-                          : record.key || '';
-                      const displayedKey = resolvedKey ? `sk-${resolvedKey}` : '';
+                      const groupLabel = tokensData.t(
+                        getGroupLabel(record, groupLabelMap, tokensData.t),
+                      );
+                      const resolvedKey = record.key || '';
+                      const displayedKey = resolvedKey
+                        ? `sk-${resolvedKey}`
+                        : '';
 
                       return (
                         <tr
@@ -1147,13 +1221,8 @@ function TokensPage() {
                           </td> */}
                           <td>
                             <div className='token-v2-name-cell'>
-                              <div className='token-v2-name-title'>{record.name}</div>
-                              <div className='token-v2-name-subtitle'>
-                                {record.unlimited_quota
-                                  ? tokensData.t('无限额度')
-                                  : tokensData.t('剩余 {{remain}}', {
-                                      remain: renderQuota(quotaMeta.remain),
-                                    })}
+                              <div className='token-v2-name-title'>
+                                {record.name}
                               </div>
                             </div>
                           </td>
@@ -1168,76 +1237,43 @@ function TokensPage() {
                                 <span className='token-v2-inline-tag'>
                                   {tokensData.t('无限额度')}
                                 </span>
-                                {/* <div className='token-v2-quota-used-text'>
-                                  {`${tokensData.t('\u5df2\u7528')} Tokens ${renderNumber(getTotalTokenUsed(record))}`}
-                                </div> */}
                               </div>
                             ) : (
                               <div className='token-v2-quota-cell'>
-                                <div className='token-v2-quota-meter'>
-                                  <span className='token-v2-quota-percent'>
-                                    {`${Math.round(quotaMeta.percent)}%`}
-                                  </span>
-                                  <div className='token-v2-progress-track'>
-                                    <div
-                                      className={`token-v2-progress-fill ${quotaMeta.toneClassName}`}
-                                      style={{ width: `${quotaMeta.percent}%` }}
-                                    />
-                                  </div>
+                                <strong className='token-v2-quota-remain'>
+                                  {renderQuota(quotaMeta.remain)}
+                                </strong>
+                                <div className='token-v2-quota-total'>
+                                  / {renderQuota(quotaMeta.total)}
                                 </div>
-                                <div className='token-v2-quota-text'>
-                                  {`${renderQuota(quotaMeta.remain)} / ${renderQuota(quotaMeta.total)}`}
-                                </div>
-                                {/* <div className='token-v2-quota-used-text'>
-                                  {`${tokensData.t('\u5df2\u7528')} Tokens ${renderNumber(getTotalTokenUsed(record))}`}
-                                </div> */}
                               </div>
                             )}
                           </td>
-                          <td className='token-v2-col-quota'>
-                            <div className='token-v2-quota-used-text'>
-                              {`${renderNumber(getTotalTokenUsed(record))}`}
-                            </div>
-                          </td>
                           <td className='token-v2-col-group'>
-                            <span className='token-v2-group-chip'>
-                              {tokensData.t(getGroupLabel(record, groupLabelMap, tokensData.t))}
+                            <span
+                              className='token-v2-group-chip'
+                              title={groupLabel}
+                            >
+                              <span className='token-v2-group-chip-label'>
+                                {groupLabel}
+                              </span>
                             </span>
                           </td>
                           <td className='token-v2-col-key'>
                             <div className='token-v2-key-cell'>
                               <code
-                                className={
-                                  isKeyVisible
-                                    ? 'token-v2-key-box token-v2-key-box-visible'
-                                    : 'token-v2-key-box'
-                                }
+                                className='token-v2-key-box'
                                 title={displayedKey}
                               >
                                 {displayedKey}
                               </code>
                               <div className='token-v2-key-actions'>
-                                {/* <button
-                                  type='button'
-                                  className='token-v2-icon-button'
-                                  onClick={async () =>
-                                    tokensData.toggleTokenVisibility(record)
-                                  }
-                                  title={tokensData.t('显示/隐藏密钥')}
-                                  aria-label={tokensData.t('显示/隐藏密钥')}
-                                >
-                                  {isLoadingKey ? (
-                                    <RefreshCw size={16} className='token-v2-spin' />
-                                  ) : isKeyVisible ? (
-                                    <EyeOff size={16} />
-                                  ) : (
-                                    <Eye size={16} />
-                                  )}
-                                </button> */}
                                 <button
                                   type='button'
                                   className='token-v2-icon-button'
-                                  onClick={async () => tokensData.copyTokenKey(record)}
+                                  onClick={async () =>
+                                    tokensData.copyTokenKey(record)
+                                  }
                                   title={tokensData.t('复制密钥')}
                                   aria-label={tokensData.t('复制密钥')}
                                 >
@@ -1248,109 +1284,99 @@ function TokensPage() {
                           </td>
                           <td className='token-v2-date-cell token-v2-col-date'>
                             {timestamp2string(record.created_time)}
-                            <div>
-                              {expireMeta.warning ? (
+                          </td>
+                          <td className='token-v2-date-cell token-v2-col-expire'>
+                            {expireMeta.warning ? (
                               <span className='token-v2-expire-warning'>
-                                <AlertCircle size={13} />
-                                {expireMeta.text}
+                                {timestamp2string(record.expired_time)}
+                                <small>({expireMeta.text})</small>
                               </span>
                             ) : (
                               expireMeta.text
                             )}
-                            </div>
                           </td>
                           <td className='token-v2-actions-col'>
                             <div className='token-v2-row-actions'>
-                              <div className='token-v2-split-action'>
+                              {record.status === 1 ? (
                                 <button
                                   type='button'
-                                  className='token-v2-action-button'
-                                  onClick={() => handlePrimaryChat(record)}
+                                  className='token-v2-action-button token-v2-action-warning'
+                                  onClick={async () => {
+                                    await tokensData.manageToken(
+                                      record.id,
+                                      'disable',
+                                      record,
+                                    );
+                                    await refreshCurrentView();
+                                  }}
                                 >
-                                  <MessageSquare size={14} />
-                                  {tokensData.t('聊天')}
+                                  {tokensData.t('禁用')}
                                 </button>
-                                <Dropdown
-                                  trigger='click'
-                                  position='bottomRight'
-                                  menu={chatItems}
+                              ) : (
+                                <button
+                                  type='button'
+                                  className='token-v2-action-button token-v2-action-success'
+                                  onClick={async () => {
+                                    await tokensData.manageToken(
+                                      record.id,
+                                      'enable',
+                                      record,
+                                    );
+                                    await refreshCurrentView();
+                                  }}
                                 >
-                                  <button
-                                    type='button'
-                                    className='token-v2-action-chevron'
-                                    aria-label={tokensData.t('聊天下拉菜单')}
-                                  >
-                                    <ChevronDown size={14} />
-                                  </button>
-                                </Dropdown>
-                              </div>
-                              <button
-                                type='button'
-                                className='token-v2-action-button'
-                                onClick={() => {
-                                  tokensData.setEditingToken(record);
-                                  tokensData.setShowEdit(true);
-                                }}
-                              >
-                                <PenLine size={14} />
-                              </button>
+                                  {tokensData.t('启用')}
+                                </button>
+                              )}
                               <button
                                 type='button'
                                 className='token-v2-action-button token-v2-action-danger'
                                 onClick={() => handleDeleteRecord(record)}
                               >
-                                <Trash2 size={14} />
+                                {tokensData.t('删除')}
                               </button>
 
                               <Dropdown
-                                  render={
+                                trigger='click'
+                                position='bottomRight'
+                                render={
                                   <Dropdown.Menu>
-                                    <Dropdown.Item>
-                                      <button
-                                        type='button'
-                                        className='token-v2-action-button'
-                                        onClick={() => handleOpenDetail(record)}
+                                    <Dropdown.Item
+                                      icon={<PenLine size={14} />}
+                                      onClick={() => {
+                                        tokensData.setEditingToken(record);
+                                        tokensData.setShowEdit(true);
+                                      }}
+                                    >
+                                      {tokensData.t('编辑')}
+                                    </Dropdown.Item>
+                                    <Dropdown.Item
+                                      icon={<Info size={14} />}
+                                      onClick={() => handleOpenDetail(record)}
+                                    >
+                                      {tokensData.t('详情')}
+                                    </Dropdown.Item>
+                                    {chatItems.length > 0 && (
+                                      <Dropdown.Item
+                                        icon={<MessageSquare size={14} />}
+                                        onClick={() =>
+                                          handlePrimaryChat(record)
+                                        }
                                       >
-                                        {tokensData.t('详情')}
-                                      </button>
-                                    </Dropdown.Item>
-                                    <Dropdown.Item>
-                                      {record.status === 1 ? (
-                                        <button
-                                          type='button'
-                                          className='token-v2-action-button'
-                                          onClick={async () => {
-                                            await tokensData.manageToken(
-                                              record.id,
-                                              'disable',
-                                              record,
-                                            );
-                                            await refreshCurrentView();
-                                          }}
-                                        >
-                                          {tokensData.t('禁用')}
-                                        </button>
-                                      ) : (
-                                        <button
-                                          type='button'
-                                          className='token-v2-action-button token-v2-action-success'
-                                          onClick={async () => {
-                                            await tokensData.manageToken(
-                                              record.id,
-                                              'enable',
-                                              record,
-                                            );
-                                            await refreshCurrentView();
-                                          }}
-                                        >
-                                          {tokensData.t('启用')}
-                                        </button>
-                                      )}
-                                    </Dropdown.Item>
+                                        {tokensData.t('聊天')}
+                                      </Dropdown.Item>
+                                    )}
                                   </Dropdown.Menu>
                                 }
                               >
-                                <Button theme='borderless' type='tertiary' icon={<EllipsisVertical />} />
+                                <button
+                                  type='button'
+                                  className='token-v2-more-button'
+                                  title={tokensData.t('更多操作')}
+                                  aria-label={tokensData.t('更多操作')}
+                                >
+                                  <EllipsisVertical size={17} />
+                                </button>
                               </Dropdown>
                             </div>
                           </td>
@@ -1363,7 +1389,9 @@ function TokensPage() {
                 <div className='token-v2-empty-state'>
                   <Empty
                     image={
-                      <IllustrationNoResult style={{ width: 140, height: 140 }} />
+                      <IllustrationNoResult
+                        style={{ width: 140, height: 140 }}
+                      />
                     }
                     darkModeImage={
                       <IllustrationNoResultDark

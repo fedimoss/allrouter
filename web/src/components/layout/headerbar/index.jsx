@@ -80,9 +80,14 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const showAgentPartnerNav = shouldShowProviderAgentPartner(
     statusState?.status,
   );
-  const headerClassName = isPublicRoute
-    ? 'landing-v2-nav landing-v2-nav-shell'
-    : 'landing-v2-nav landing-v2-nav-shell landing-v2-nav-console';
+  const headerClassName = [
+    isPublicRoute
+      ? 'landing-v2-nav landing-v2-nav-shell'
+      : 'landing-v2-nav landing-v2-nav-shell landing-v2-nav-console',
+    location.pathname === '/pricing' ? 'pricing-showcase-site-header' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const breadcrumbLabelMap = {
     '/console': t('数据看板'),
@@ -148,6 +153,10 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
                 src={logo || '/logo.png'}
                 alt={`${systemName} Logo`}
                 className='landing-v2-real-logo'
+                onError={(event) => {
+                  event.currentTarget.onerror = null;
+                  event.currentTarget.src = '/logo.png';
+                }}
               />
             </div>
             <span>{systemName}</span>
@@ -156,24 +165,66 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
           <div
             className={`landing-v2-nav-links ${location.pathname === '/pricing' ? 'nav-left' : ''}`}
           >
-            <Link to='/' className={location.pathname === '/' ? 'landing-v2-nav-link-active' : ''}>
+            <Link
+              to='/'
+              className={
+                location.pathname === '/' ? 'landing-v2-nav-link-active' : ''
+              }
+            >
               {t('首页')}
             </Link>
-            <Link to={consoleNavTarget} className={location.pathname === '/console' ? 'landing-v2-nav-link-active' : ''}>
+            <Link
+              to={consoleNavTarget}
+              className={
+                location.pathname === '/console'
+                  ? 'landing-v2-nav-link-active'
+                  : ''
+              }
+            >
               {t('控制台')}
             </Link>
-            <Link to={pricingNavTarget} className={location.pathname === '/pricing' ? 'landing-v2-nav-link-active' : ''}>
+            <Link
+              to={pricingNavTarget}
+              className={
+                location.pathname === '/pricing'
+                  ? 'landing-v2-nav-link-active'
+                  : ''
+              }
+            >
               {t('模型广场')}
             </Link>
             {showAgentPartnerNav ? (
-              <Link to='/agent-partner' className={location.pathname === '/agent-partner' ? 'landing-v2-nav-link-active' : ''}>
+              <Link
+                to='/agent-partner'
+                className={
+                  location.pathname === '/agent-partner'
+                    ? 'landing-v2-nav-link-active'
+                    : ''
+                }
+              >
                 {t('代理加盟')}
               </Link>
             ) : null}
-            <a href={docsHref} target='_blank' rel='noreferrer' className={location.pathname === '/docs' ? 'landing-v2-nav-link-active' : ''}>
+            <a
+              href={docsHref}
+              target='_blank'
+              rel='noreferrer'
+              className={
+                location.pathname === '/docs'
+                  ? 'landing-v2-nav-link-active'
+                  : ''
+              }
+            >
               {t('文档')}
             </a>
-            <Link to='/about' className={location.pathname === '/about' ? 'landing-v2-nav-link-active' : ''}>
+            <Link
+              to='/about'
+              className={
+                location.pathname === '/about'
+                  ? 'landing-v2-nav-link-active'
+                  : ''
+              }
+            >
               {t('关于')}
             </Link>
           </div>
