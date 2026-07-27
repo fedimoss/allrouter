@@ -70,6 +70,7 @@ import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
+import { PageTheme3HeaderShell } from './pages/Home/theme/pageTheme3';
 
 const HomeThemes = {
   default: lazy(() => import('./pages/Home')),
@@ -110,6 +111,10 @@ const UserAgreement = lazy(() => import('./pages/UserAgreement/index_new'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy/index_new'));
 const ServiceClause = lazy(() => import('./pages/serviceClause'));
 const Docs = lazy(() => import('./pages/Docs'));
+
+const withHomeHeader = (children) => (
+  <PageTheme3HeaderShell>{children}</PageTheme3HeaderShell>
+);
 
 function DynamicOAuth2Callback() {
   const { provider } = useParams();
@@ -299,6 +304,14 @@ function App() {
           element={
             <PrivateRoute>
               <Token />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/token'
+          element={
+            <PrivateRoute>
+              {withHomeHeader(<Token />)}
             </PrivateRoute>
           }
         />
@@ -497,6 +510,18 @@ function App() {
           }
         />
         <Route
+          path='/topup'
+          element={
+            <PrivateRoute>
+              {withHomeHeader(
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <TopUp />
+                </Suspense>,
+              )}
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/payment/lakala/qrcode'
           element={
             <PrivateRoute>
@@ -549,17 +574,21 @@ function App() {
           element={
             pricingRequireAuth ? (
               <PrivateRoute>
-                <Suspense
-                  fallback={<Loading></Loading>}
-                  key={location.pathname}
-                >
-                  <Pricing />
-                </Suspense>
+                {withHomeHeader(
+                  <Suspense
+                    fallback={<Loading></Loading>}
+                    key={location.pathname}
+                  >
+                    <Pricing />
+                  </Suspense>,
+                )}
               </PrivateRoute>
             ) : (
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Pricing />
-              </Suspense>
+              withHomeHeader(
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <Pricing />
+                </Suspense>,
+              )
             )
           }
         />

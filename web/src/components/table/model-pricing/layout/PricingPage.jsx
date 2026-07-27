@@ -143,7 +143,7 @@ const PricingPage = () => {
     pricingData.statusState?.status?.docs_link ||
     withBrowserBaseUrl(`/${docsLanguage}/docs`);
   const consoleTarget = pricingData.userState?.user
-    ? '/console/token'
+    ? '/token'
     : '/login';
 
   const sortedModels = React.useMemo(() => {
@@ -262,14 +262,6 @@ const PricingPage = () => {
 
         <PricingCardView {...pricingData} filteredModels={sortedModels} />
       </main>
-
-      <PricingFooter
-        systemName={systemName}
-        logo={logo}
-        docsHref={docsHref}
-        consoleTarget={consoleTarget}
-        t={t}
-      />
 
       <ImagePreview
         src={pricingData.modalImageUrl}

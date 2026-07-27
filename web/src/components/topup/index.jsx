@@ -264,8 +264,8 @@ const TopUp = () => {
             if (isLakalaQRCodePayment(url, params)) {
               // 保存拉卡拉订单信息和返回路径，供二维码页支付成功后跳回充值页。
               const tradeNo = saveLakalaQRCodePayment(params, {
-                returnTo: '/console/topup',
-                successPath: '/console/topup?pay=success',
+                returnTo: '/topup',
+                successPath: '/topup?pay=success',
               });
               window.open(
                 `${LAKALA_QRCODE_ROUTE}?trade_no=${encodeURIComponent(tradeNo)}`,
@@ -781,7 +781,7 @@ const TopUp = () => {
   };
 
   return (
-    <div className='w-full max-w-[1150px] mx-auto relative min-h-screen lg:min-h-0 px-4 md:px-6'>
+    <div className='w-full max-w-[1150px] mx-auto mt-8 relative min-h-screen lg:min-h-0 px-4 md:px-6'>
       {/* 划转模态框 */}
       <TransferModal
         t={t}

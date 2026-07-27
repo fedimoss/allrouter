@@ -80,8 +80,10 @@ const PageLayout = () => {
     '/landing',
     '/payment/lakala/qrcode',
   ];
+  const homeHeaderPages = ['/pricing', '/token', '/topup'];
   const shouldHideFooter =
     cardProPages.includes(location.pathname) ||
+    homeHeaderPages.includes(location.pathname) ||
     selfContainedPages.includes(location.pathname);
 
   const shouldInnerPadding =
@@ -103,6 +105,7 @@ const PageLayout = () => {
   const shouldShowHeader =
     location.pathname !== '/' &&
     !authRoutesWithoutHeader.includes(location.pathname) &&
+    !homeHeaderPages.includes(location.pathname) &&
     !selfContainedPages.includes(location.pathname);
   const shouldSplitConsoleLayout = isConsoleRoute && !isMobile;
 

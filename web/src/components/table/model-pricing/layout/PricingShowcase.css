@@ -31,7 +31,7 @@
   width: 100%;
   max-width: 1150px;
   margin: 0 auto;
-  padding: 120px 24px 0;
+  padding: 20px 24px 0;
 }
 
 .pricing-showcase-hero {
@@ -724,7 +724,7 @@ html.dark .pricing-showcase-footer-bottom {
 
 @media (min-width: 900px) {
   .pricing-showcase-main {
-    padding-top: 140px;
+    padding-top: 20px;
   }
 
   .pricing-showcase-card-grid {

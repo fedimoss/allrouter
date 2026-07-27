@@ -278,3 +278,34 @@ html[data-theme="light"] .hero h1 .tw-sub{color:rgba(14,25,21,.7)}
 .capability-rail__items{max-width:none}
 .site-footer{padding-left:24px;padding-right:24px}
 .footer-cta,.footer-main,.footer-bottom{max-width:1150px}
+
+/* v8: shared home nav shell + logged-in avatar menu */
+.header-user-menu{position:relative;display:inline-flex;align-items:center;z-index:85}
+.header-user-menu:after{content:"";position:absolute;right:0;top:100%;width:max(100%,132px);height:12px}
+.header-user-trigger{height:40px;display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.08);color:#fff;padding:3px 12px 3px 4px;cursor:pointer;transition:border-color .18s,background-color .18s,color .18s}
+.header-user-trigger:hover,.header-user-menu:focus-within .header-user-trigger{border-color:rgba(94,210,156,.62);background:rgba(255,255,255,.12);color:var(--mint)}
+.header-user-avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#f8ff15,#32fea5);color:#07100d;font-size:13px;font-weight:800}
+.header-user-name{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600}
+.header-user-dropdown{position:absolute;right:0;top:calc(100% + 10px);z-index:90;min-width:132px;padding:6px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(8,14,12,.96);box-shadow:0 18px 44px rgba(0,0,0,.32);opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-4px);transition:opacity .18s,visibility .18s,transform .18s}
+.header-user-menu:hover .header-user-dropdown,.header-user-menu:focus-within .header-user-dropdown{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0)}
+.header-user-dropdown button{width:100%;min-height:36px;display:flex;align-items:center;gap:8px;border-radius:8px;color:#fff;background:transparent;padding:0 10px;font-size:13px;font-weight:600;text-align:left;cursor:pointer}
+.header-user-dropdown button:hover,.header-user-dropdown button:focus-visible{background:rgba(255,255,255,.09);color:var(--mint);outline:0}
+.header-user-menu--mobile .header-user-trigger{height:42px;padding-right:10px}
+.header-user-menu--mobile:after{top:auto;bottom:100%}
+.header-user-menu--mobile .header-user-dropdown{right:0;top:auto;bottom:calc(100% + 10px)}
+.page-theme3-route-shell{min-height:100vh;padding-top:78px;background:#f4f8f6;color:#07151c}
+.page-theme3-route-content{min-height:calc(100vh - 78px)}
+html[data-theme="light"] .header-user-trigger{border-color:rgba(12,25,20,.16);background:rgba(255,255,255,.58);color:#0e1915}
+html[data-theme="light"] .header-user-trigger:hover,html[data-theme="light"] .header-user-menu:focus-within .header-user-trigger{border-color:rgba(12,156,96,.5);background:rgba(255,255,255,.82);color:var(--mint)}
+html[data-theme="light"] .header-user-dropdown{border-color:rgba(12,25,20,.12);background:rgba(255,255,255,.98);box-shadow:0 18px 44px rgba(12,25,20,.16)}
+html[data-theme="light"] .header-user-dropdown button{color:#0e1915}
+html[data-theme="light"] .header-user-dropdown button:hover,html[data-theme="light"] .header-user-dropdown button:focus-visible{background:rgba(12,25,20,.06);color:var(--mint)}
+html[data-theme="light"] .page-theme3-route-shell{background:#f4f8f6;color:#07151c}
+@media (width<640px){
+.page-theme3-route-shell{padding-top:64px}
+.page-theme3-route-content{min-height:calc(100vh - 64px)}
+}
+@media (width>=900px){
+.page-theme3-route-shell{padding-top:84px}
+.page-theme3-route-content{min-height:calc(100vh - 84px)}
+}

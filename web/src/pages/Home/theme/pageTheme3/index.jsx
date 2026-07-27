@@ -35,10 +35,11 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   Braces,
+  LogOut,
   Menu,
   Play,
   RotateCcw,
@@ -170,6 +171,36 @@ const flattenPhrase = (segments) => {
     });
   });
   return chars;
+};
+
+const getUserDisplayName = (user) =>
+  user?.username || user?.email || user?.display_name || 'User';
+
+const HeaderUserMenu = ({ user, onLogout, mobile = false, tabIndex }) => {
+  const displayName = getUserDisplayName(user);
+  const initial = String(displayName).trim().slice(0, 1).toUpperCase() || 'U';
+
+  return (
+    <div className={`header-user-menu ${mobile ? 'header-user-menu--mobile' : ''}`}>
+      <button
+        type='button'
+        className='header-user-trigger'
+        tabIndex={tabIndex}
+        aria-haspopup='menu'
+      >
+        <span className='header-user-avatar' aria-hidden='true'>
+          {initial}
+        </span>
+        <span className='header-user-name'>{displayName}</span>
+      </button>
+      <div className='header-user-dropdown' role='menu'>
+        <button type='button' onClick={onLogout} tabIndex={tabIndex} role='menuitem'>
+          <LogOut size={15} aria-hidden='true' />
+          <span>退出登录</span>
+        </button>
+      </div>
+    </div>
+  );
 };
 
 const SunIcon = () => (
@@ -308,7 +339,15 @@ const VideoLayer = () => {
 };
 
 // ---- 顶部 Header + 移动菜单 ----
-const Header = ({ menuOpen, setMenuOpen, onToggleTheme, targets }) => (
+const Header = ({
+  menuOpen,
+  setMenuOpen,
+  onToggleTheme,
+  targets,
+  currentUser,
+  isLoggedIn,
+  onLogout,
+}) => (
   <>
     <header className='site-header'>
       <BrandLockup />
@@ -321,9 +360,13 @@ const Header = ({ menuOpen, setMenuOpen, onToggleTheme, targets }) => (
       </nav>
       <div className='header-actions'>
         <ThemeToggle onToggle={onToggleTheme} />
-        <Link className='login-link' to={targets.login}>
-          登录
-        </Link>
+        {isLoggedIn ? (
+          <HeaderUserMenu user={currentUser} onLogout={onLogout} />
+        ) : (
+          <Link className='login-link' to={targets.login}>
+            登录
+          </Link>
+        )}
         <Link className='header-cta' to={targets.console}>
           获取 API Key
           <ArrowRight size={16} aria-hidden='true' />
@@ -361,9 +404,18 @@ const Header = ({ menuOpen, setMenuOpen, onToggleTheme, targets }) => (
       </nav>
       <div className='mobile-menu-footer'>
         <span>ALL MODELS. ONE ROUTE.</span>
-        <Link to={targets.console} tabIndex={menuOpen ? 0 : -1}>
-          免费开始构建
-        </Link>
+        {isLoggedIn ? (
+          <HeaderUserMenu
+            user={currentUser}
+            onLogout={onLogout}
+            mobile
+            tabIndex={menuOpen ? 0 : -1}
+          />
+        ) : (
+          <Link to={targets.console} tabIndex={menuOpen ? 0 : -1}>
+            免费开始构建
+          </Link>
+        )}
       </div>
     </div>
   </>
@@ -579,7 +631,15 @@ const CapabilityRail = () => (
 );
 
 // ---- Hero 主体 ----
-const Hero = ({ onToggleTheme, onReplay, targets, introActive }) => {
+const Hero = ({
+  onToggleTheme,
+  onReplay,
+  targets,
+  introActive,
+  currentUser,
+  isLoggedIn,
+  onLogout,
+}) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const heroRef = useRef(null);
 
@@ -644,6 +704,9 @@ const Hero = ({ onToggleTheme, onReplay, targets, introActive }) => {
         setMenuOpen={setMenuOpen}
         onToggleTheme={onToggleTheme}
         targets={targets}
+        currentUser={currentUser}
+        isLoggedIn={isLoggedIn}
+        onLogout={onLogout}
       />
 
       <section className='hero-content' aria-labelledby='hero-title'>
@@ -929,34 +992,10 @@ const Fab = ({ supportConfig }) => {
   );
 };
 
-// ---- 主组件 ----
-const PageTheme3Home = () => {
-  const [userState] = useContext(UserContext);
-  const [statusState, statusDispatch] = useContext(StatusContext);
-  const isMobile = useIsMobile();
-
-  const [noticeVisible, setNoticeVisible] = useState(false);
-  const [seen, setSeen] = useState(
-    () =>
-      prefersReducedMotion() ||
-      (() => {
-        try {
-          return localStorage.getItem(INTRO_SEEN_KEY) === '1';
-        } catch {
-          return false;
-        }
-      })(),
-  );
-  const [runId, setRunId] = useState(0);
-  const [pageTheme, setPageTheme] = useState(() => {
-    try {
-      return localStorage.getItem(PAGE_THEME_KEY) === 'light'
-        ? 'light'
-        : 'dark';
-    } catch {
-      return 'dark';
-    }
-  });
+const usePageTheme3NavState = () => {
+  const [statusState] = useContext(StatusContext);
+  const [userState, userDispatch] = useContext(UserContext);
+  const navigate = useNavigate();
 
   const currentUser = userState?.user || getStoredUser();
   const isLoggedIn = Boolean(currentUser?.id);
@@ -986,32 +1025,53 @@ const PageTheme3Home = () => {
 
   const docsLink = statusState?.status?.docs_link || '';
   const docsHref = docsLink || withBrowserBaseUrl('/zh/docs');
-  const apiReferenceHref = withBrowserBaseUrl('/zh/docs/api');
-  const communityHref = withBrowserBaseUrl(
-    '/zh/docs/support/community-interaction',
-  );
-  const supportConfig = useMemo(
-    () => buildSupportConfig(statusState?.status),
-    [statusState?.status],
-  );
-  const footerHtml =
-    statusState?.status?.footer_html ||
-    `© ${new Date().getFullYear()} ${systemName}. All rights reserved.`;
 
   const targets = useMemo(
     () => ({
       home: '/',
-      token: isLoggedIn ? '/console/token' : '/login',
+      token: isLoggedIn ? '/token' : '/login',
       pricing: !isLoggedIn && pricingRequireAuth ? '/login' : '/pricing',
-      wallet: isLoggedIn ? '/console/billing' : '/login',
-      console: isLoggedIn ? '/console' : '/login',
+      wallet: isLoggedIn ? '/topup' : '/login',
+      console: isLoggedIn ? '/token' : '/login',
       login: '/login',
       docs: docsHref,
     }),
     [isLoggedIn, pricingRequireAuth, docsHref],
   );
 
-  // 本页主题：allrouter-theme + html[data-theme] + meta theme-color
+  const logout = useCallback(async () => {
+    try {
+      await API.get('/api/user/logout');
+    } catch (error) {
+      console.error('Failed to logout:', error);
+    } finally {
+      localStorage.removeItem('user');
+      userDispatch({ type: 'logout' });
+      navigate('/login');
+    }
+  }, [navigate, userDispatch]);
+
+  return {
+    statusState,
+    currentUser,
+    isLoggedIn,
+    targets,
+    docsHref,
+    logout,
+  };
+};
+
+const usePageTheme3Theme = () => {
+  const [pageTheme, setPageTheme] = useState(() => {
+    try {
+      return localStorage.getItem(PAGE_THEME_KEY) === 'light'
+        ? 'light'
+        : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', pageTheme);
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -1023,12 +1083,128 @@ const PageTheme3Home = () => {
     }
   }, [pageTheme]);
 
-  // 退场时移除本页设置的全局属性，避免影响其它主题
   useEffect(() => {
     return () => {
       document.documentElement.removeAttribute('data-theme');
     };
   }, []);
+
+  return useCallback(() => {
+    setPageTheme((p) => (p === 'light' ? 'dark' : 'light'));
+  }, []);
+};
+
+const PageTheme3NavOnly = ({
+  targets,
+  currentUser,
+  isLoggedIn,
+  onLogout,
+  onToggleTheme,
+}) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.toggle('menu-open', menuOpen);
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.classList.remove('menu-open');
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  return (
+    <Header
+      menuOpen={menuOpen}
+      setMenuOpen={setMenuOpen}
+      onToggleTheme={onToggleTheme}
+      targets={targets}
+      currentUser={currentUser}
+      isLoggedIn={isLoggedIn}
+      onLogout={onLogout}
+    />
+  );
+};
+
+export const PageTheme3HeaderShell = ({ children }) => {
+  const {
+    statusState,
+    targets,
+    currentUser,
+    isLoggedIn,
+    docsHref,
+    logout,
+  } = usePageTheme3NavState();
+  const handleToggleTheme = usePageTheme3Theme();
+  const apiReferenceHref = withBrowserBaseUrl('/zh/docs/api');
+  const communityHref = withBrowserBaseUrl(
+    '/zh/docs/support/community-interaction',
+  );
+  const footerHtml =
+    statusState?.status?.footer_html ||
+    `© ${new Date().getFullYear()} ${systemName}. All rights reserved.`;
+
+  return (
+    <div className='page-theme3-route-shell'>
+      <PageTheme3NavOnly
+        targets={targets}
+        currentUser={currentUser}
+        isLoggedIn={isLoggedIn}
+        onLogout={logout}
+        onToggleTheme={handleToggleTheme}
+      />
+      <div className='page-theme3-route-content'>{children}</div>
+      <SiteFooter
+        targets={targets}
+        docsHref={docsHref}
+        apiReferenceHref={apiReferenceHref}
+        communityHref={communityHref}
+        footerHtml={footerHtml}
+      />
+    </div>
+  );
+};
+
+// ---- 主组件 ----
+const PageTheme3Home = () => {
+  const [, statusDispatch] = useContext(StatusContext);
+  const {
+    statusState,
+    currentUser,
+    isLoggedIn,
+    targets,
+    docsHref,
+    logout,
+  } = usePageTheme3NavState();
+  const isMobile = useIsMobile();
+
+  const [noticeVisible, setNoticeVisible] = useState(false);
+  const [seen, setSeen] = useState(
+    () =>
+      prefersReducedMotion() ||
+      (() => {
+        try {
+          return localStorage.getItem(INTRO_SEEN_KEY) === '1';
+        } catch {
+          return false;
+        }
+      })(),
+  );
+  const [runId, setRunId] = useState(0);
+  const handleToggleTheme = usePageTheme3Theme();
+  const apiReferenceHref = withBrowserBaseUrl('/zh/docs/api');
+  const communityHref = withBrowserBaseUrl(
+    '/zh/docs/support/community-interaction',
+  );
+  const supportConfig = useMemo(
+    () => buildSupportConfig(statusState?.status),
+    [statusState?.status],
+  );
+  const footerHtml =
+    statusState?.status?.footer_html ||
+    `© ${new Date().getFullYear()} ${systemName}. All rights reserved.`;
 
   // 拉取站点状态
   useEffect(() => {
@@ -1073,10 +1249,6 @@ const PageTheme3Home = () => {
     check();
   }, []);
 
-  const handleToggleTheme = useCallback(() => {
-    setPageTheme((p) => (p === 'light' ? 'dark' : 'light'));
-  }, []);
-
   const handleReplay = useCallback(() => {
     setRunId((r) => r + 1);
     setSeen(false);
@@ -1105,6 +1277,9 @@ const PageTheme3Home = () => {
         onReplay={handleReplay}
         targets={targets}
         introActive={introActive}
+        currentUser={currentUser}
+        isLoggedIn={isLoggedIn}
+        onLogout={logout}
       />
       {!seen && (
         <Intro key={runId} runId={runId} onComplete={handleIntroComplete} />
