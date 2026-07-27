@@ -23,7 +23,7 @@ import './token-v2.css';
 
 const Token = () => {
   return (
-    <div className='token-v2-page mt-[10px] px-2'>
+    <div className='token-v2-page'>
       <TokensTable />
     </div>
   );
