@@ -485,6 +485,7 @@
     "充值返利": "Remboursement de recharge",
     "充值返佣": "Commission de parrainage",
     "充值返佣已自动入账，无需手动处理。": "Les commissions de parrainage sont cr?dit?es automatiquement, aucune action manuelle n'est requise.",
+    "充值方式": "Méthode de recharge",
     "充值方式设置": "Méthodes recharge",
     "充值方式设置不是合法的 JSON 字符串": "Les paramètres de la méthode de recharge ne sont pas une chaîne JSON valide",
     "充值分成透明结算": "Règlement transparent des commissions",

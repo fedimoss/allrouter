@@ -884,20 +884,437 @@ html.dark .sbg-variant-green {
   display: none !important;
 }
 
-.charge-input .semi-input-wrapper {
-  height: 62px;
-  border-bottom: 2px solid var(--semi-color-border);
+/* ==================== 账户充值模块（pay.html 像素级复刻） ==================== */
+.topup-recharge {
+  --tr-mint: #0c9c60;
+  --tr-mint-strong: rgba(12, 156, 96, 0.65);
+  --tr-mint-border: rgba(12, 156, 96, 0.6);
+  --tr-mint-bg: rgba(12, 156, 96, 0.08);
+  --tr-mint-bg-soft: rgba(12, 156, 96, 0.07);
+  --tr-mint-ring: rgba(12, 156, 96, 0.12);
+  --tr-mint-ring-soft: rgba(12, 156, 96, 0.1);
+  --tr-ink: #0e1915;
+  --tr-border: rgba(12, 25, 20, 0.14);
+  --tr-border-soft: rgba(12, 25, 20, 0.12);
+  --tr-mute: rgba(14, 25, 21, 0.55);
+  --tr-mute-2: rgba(14, 25, 21, 0.5);
+  --tr-summary-bg: rgba(12, 25, 20, 0.04);
+  --tr-card-bg: #fff;
+  color: var(--tr-ink);
+}
+.dark .topup-recharge {
+  --tr-mint: #3fe9a8;
+  --tr-mint-strong: rgba(63, 233, 168, 0.7);
+  --tr-mint-border: rgba(63, 233, 168, 0.55);
+  --tr-mint-bg: rgba(63, 233, 168, 0.12);
+  --tr-mint-bg-soft: rgba(63, 233, 168, 0.1);
+  --tr-mint-ring: rgba(63, 233, 168, 0.18);
+  --tr-mint-ring-soft: rgba(63, 233, 168, 0.14);
+  --tr-ink: #e8f0ec;
+  --tr-border: rgba(255, 255, 255, 0.14);
+  --tr-border-soft: rgba(255, 255, 255, 0.1);
+  --tr-mute: rgba(232, 240, 236, 0.6);
+  --tr-mute-2: rgba(232, 240, 236, 0.5);
+  --tr-summary-bg: rgba(255, 255, 255, 0.05);
+  --tr-card-bg: rgba(255, 255, 255, 0.04);
+}
+
+.topup-recharge .tr-label {
+  display: block;
+  margin: 22px 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tr-mute);
+  letter-spacing: 0.02em;
+}
+.topup-recharge .tr-label:first-child {
+  margin-top: 0;
+}
+
+.topup-recharge .pay-methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.topup-recharge .pay-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--tr-border);
+  border-radius: 12px;
+  background: var(--tr-card-bg);
+  color: var(--tr-ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.18s, background-color 0.18s, transform 0.18s;
+}
+.topup-recharge .pay-chip:hover {
+  transform: translateY(-1px);
+}
+.topup-recharge .pay-chip input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--tr-mint);
+}
+.topup-recharge .pay-chip.is-checked {
+  border-color: var(--tr-mint-border);
+  background: var(--tr-mint-bg);
+}
+.topup-recharge .pay-chip.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.topup-recharge .pay-chip.is-disabled:hover {
+  transform: none;
+}
+
+.topup-recharge .amount-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 18px;
+  border: 1px solid var(--tr-border);
+  border-radius: 14px;
+  background: var(--tr-card-bg);
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.topup-recharge .amount-input:focus-within {
+  border-color: var(--tr-mint-border);
+  box-shadow: 0 0 0 3px var(--tr-mint-ring);
+}
+.topup-recharge .amount-input > span {
+  flex: none;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tr-mute-2);
+}
+.topup-recharge .amount-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
   background: transparent;
-  border-radius: 0 !important;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tr-ink);
 }
-.charge-input .semi-input-wrapper input {
-  height: 100%;
-  font-size: 36px;
-  font-weight: 900;
+.topup-recharge .amount-input input::placeholder {
+  color: var(--tr-mute-2);
+  font-weight: 600;
 }
-.charge-input .semi-input-wrapper-focus {
-  border-color: transparent !important;
-  border-bottom: 2px solid var(--semi-color-border) !important;
+.topup-recharge .amount-input.is-disabled {
+  opacity: 0.6;
+}
+/* 隐藏 number 输入框的浏览器自带增减按钮，保持与 pay.html 一致的简洁外观 */
+.topup-recharge .amount-input input::-webkit-outer-spin-button,
+.topup-recharge .amount-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.topup-recharge .amount-input input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.topup-recharge .tier-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+@media (max-width: 479px) {
+  .topup-recharge .tier-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.topup-recharge .tier {
+  position: relative;
+  border: 1px solid var(--tr-border-soft);
+  border-radius: 14px;
+  padding: 14px 10px;
+  text-align: center;
+  background: var(--tr-card-bg);
+  cursor: pointer;
+  transition: border-color 0.18s, background-color 0.18s, transform 0.18s,
+    box-shadow 0.18s;
+}
+.topup-recharge .tier:hover {
+  transform: translateY(-2px);
+}
+.topup-recharge .tier b {
+  display: block;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--tr-ink);
+}
+.topup-recharge .tier small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--tr-mute-2);
+}
+.topup-recharge .tier .off {
+  position: absolute;
+  top: -9px;
+  right: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #07100d;
+  background: linear-gradient(135deg, #f8ff15, #32fea5);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.topup-recharge .tier.is-active {
+  border-color: var(--tr-mint-strong);
+  background: var(--tr-mint-bg-soft);
+  box-shadow: 0 0 0 3px var(--tr-mint-ring-soft);
+}
+.topup-recharge .tier.is-active b {
+  color: var(--tr-mint);
+}
+
+.topup-recharge .pay-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--tr-summary-bg);
+  font-size: 14px;
+  color: var(--tr-mute);
+}
+.topup-recharge .pay-summary b {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--tr-ink);
+}
+
+.topup-recharge .hint-card {
+  margin-top: 18px;
+  border-radius: 14px;
+  background: rgba(12, 156, 96, 0.07);
+  border: 1px solid rgba(12, 156, 96, 0.18);
+  padding: 14px 16px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: rgba(14, 25, 21, 0.65);
+}
+.topup-recharge .hint-card b {
+  color: #0c9c60;
+}
+.dark .topup-recharge .hint-card {
+  background: rgba(63, 233, 168, 0.08);
+  border-color: rgba(63, 233, 168, 0.2);
+  color: rgba(232, 240, 236, 0.65);
+}
+.dark .topup-recharge .hint-card b {
+  color: #3fe9a8;
+}
+
+.topup-recharge .pay-submit {
+  width: 100%;
+  margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  height: 48px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f8ff15 0%, #32fea5 100%);
+  color: #07100d;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 10px 30px rgba(50, 254, 165, 0.22);
+  cursor: pointer;
+  transition: filter 0.18s, transform 0.18s;
+}
+.topup-recharge .pay-submit:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+}
+.topup-recharge .pay-submit:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.topup-recharge .pay-submit .semi-spin,
+.topup-recharge .pay-submit .semi-spin-wrapper {
+  color: #07100d !important;
+}
+
+/* ==================== 充值记录（pay.html 像素级复刻） ==================== */
+.topup-records {
+  margin-top: 20px;
+  background: #fff;
+  border: 1px solid rgba(12, 25, 20, 0.1);
+  border-radius: 18px;
+  overflow: hidden;
+  color: #0e1915;
+}
+.dark .topup-records {
+  background: #0f172a;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e8f0ec;
+}
+.topup-records .records-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 20px 26px 0;
+}
+.topup-records .records-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+.topup-records .table-wrap {
+  position: relative;
+  overflow-x: auto;
+  margin-top: 8px;
+}
+.topup-records .records-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.6);
+}
+.dark .topup-records .records-loading-overlay {
+  background: rgba(15, 23, 42, 0.6);
+}
+.topup-records table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+}
+.topup-records thead th {
+  background: rgba(12, 25, 20, 0.03);
+  padding: 12px 26px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(14, 25, 21, 0.5);
+  border-bottom: 1px solid rgba(12, 25, 20, 0.08);
+  white-space: nowrap;
+}
+.dark .topup-records thead th {
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(232, 240, 236, 0.5);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+.topup-records tbody td {
+  padding: 15px 26px;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(12, 25, 20, 0.06);
+  vertical-align: middle;
+}
+.dark .topup-records tbody td {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+.topup-records tbody tr:hover {
+  background: rgba(12, 156, 96, 0.04);
+}
+.dark .topup-records tbody tr:hover {
+  background: rgba(63, 233, 168, 0.06);
+}
+.topup-records tbody tr:last-child td {
+  border-bottom: 0;
+}
+.topup-records .trade-no {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  color: rgba(14, 25, 21, 0.65);
+}
+.dark .topup-records .trade-no {
+  color: rgba(232, 240, 236, 0.65);
+}
+.topup-records .muted {
+  color: rgba(14, 25, 21, 0.4);
+}
+.dark .topup-records .muted {
+  color: rgba(232, 240, 236, 0.4);
+}
+.topup-records .amount-pos {
+  color: #0c9c60;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.dark .topup-records .amount-pos {
+  color: #3fe9a8;
+}
+.topup-records .method-tag {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(12, 25, 20, 0.06);
+  border-radius: 8px;
+  padding: 4px 10px;
+  color: rgba(14, 25, 21, 0.65);
+  white-space: nowrap;
+}
+.dark .topup-records .method-tag {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(232, 240, 236, 0.65);
+}
+.topup-records .status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+.topup-records .status:before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.topup-records .status--ok {
+  background: rgba(12, 156, 96, 0.12);
+  color: #0c9c60;
+}
+.dark .topup-records .status--ok {
+  background: rgba(63, 233, 168, 0.14);
+  color: #3fe9a8;
+}
+.topup-records .status--pending {
+  background: rgba(217, 145, 10, 0.12);
+  color: #b87708;
+}
+.topup-records .status--failed {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+.topup-records .records-pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 26px 20px;
 }
 
 /* 页脚样式 */

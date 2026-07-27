@@ -484,6 +484,7 @@
     "充值返利": "Recharge Rebate",
     "充值返佣": "Referral rebate",
     "充值返佣已自动入账，无需手动处理。": "Referral rebates are credited automatically and do not require manual processing.",
+    "充值方式": "Top Up method",
     "充值方式设置": "Top Up method settings",
     "充值方式设置不是合法的 JSON 字符串": "Top Up method settings is not a valid JSON string",
     "充值分成透明结算": "Transparent commission settlement",

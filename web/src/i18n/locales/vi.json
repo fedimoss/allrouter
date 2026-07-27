@@ -510,6 +510,7 @@
     "充值返利": "Hoàn tiền nạp tiền",
     "充值返佣": "Hoa hồng giới thiệu",
     "充值返佣已自动入账，无需手动处理。": "Hoa hồng giới thiệu đã tự động ghi có, kh?ng c?n x? l? th? c?ng.",
+    "充值方式": "Phương thức nạp tiền",
     "充值方式设置": "Cài đặt phương thức nạp tiền",
     "充值方式设置不是合法的 JSON 字符串": "Cài đặt phương thức nạp tiền không phải là chuỗi JSON hợp lệ",
     "充值分成透明结算": "Thanh toán hoa hồng minh bạch",
