@@ -130,6 +130,8 @@ type providerBaseModelChannelPrice struct {
 	CostPrice        float64  `json:"cost_price"`
 	CostCompletion   float64  `json:"cost_completion_price"`
 	CostCache        *float64 `json:"cost_cache_price,omitempty"`
+	BillingMode      string   `json:"billing_mode,omitempty"`
+	BillingExpr      string   `json:"billing_expr,omitempty"`
 }
 
 type providerBaseModelPriceAbility struct {
@@ -1136,8 +1138,12 @@ func listProviderModelPricing(c *gin.Context, providerId int) {
 		common.ApiError(c, err)
 		return
 	}
+	pricingMap := getPricingByModelName()
 	for i := range rows {
 		rows[i].ConsumeRebateRatioLevel2 = 0
+		if basePricing, ok := pricingMap[rows[i].BaseModelName]; ok {
+			rows[i].BaseBillingMode = basePricing.BillingMode
+		}
 	}
 	common.ApiSuccess(c, rows)
 }
@@ -1242,11 +1248,15 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 		modelRatio := 0.0
 		modelPrice := 0.0
 		completionRatio := 0.0
+		billingMode := ""
+		billingExpr := ""
 		if pricing, ok := pricingMap[modelName]; ok {
 			quotaType = pricing.QuotaType
 			modelRatio = pricing.ModelRatio
 			modelPrice = pricing.ModelPrice
 			completionRatio = pricing.CompletionRatio
+			billingMode = pricing.BillingMode
+			billingExpr = pricing.BillingExpr
 		} else if price, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 			quotaType = 1
 			modelPrice = price
@@ -1286,6 +1296,8 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 			CostPrice:        originalPrice * importPriceRatio,
 			CostCompletion:   completionPrice * importPriceRatio,
 			CostCache:        costCache,
+			BillingMode:      billingMode,
+			BillingExpr:      billingExpr,
 		})
 	}
 	return result, nil

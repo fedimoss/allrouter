@@ -92,8 +92,11 @@ type ProviderModelPricing struct {
 	DeltaModelPrice          float64 `json:"delta_model_price" gorm:"type:decimal(18,8);default:0"`
 	ConsumeRebateRatioLevel1 float64 `json:"consume_rebate_ratio_level1" gorm:"type:decimal(10,6);not null;default:0"`
 	ConsumeRebateRatioLevel2 float64 `json:"consume_rebate_ratio_level2" gorm:"type:decimal(10,6);not null;default:0"`
-	CreatedAt                int64   `json:"created_at" gorm:"bigint"`
-	UpdatedAt                int64   `json:"updated_at" gorm:"bigint"`
+	// BaseBillingMode is response-only metadata populated by the provider
+	// pricing controller and is never persisted in provider rows.
+	BaseBillingMode string `json:"base_billing_mode,omitempty" gorm:"-"`
+	CreatedAt       int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt       int64  `json:"updated_at" gorm:"bigint"`
 }
 
 type ProviderContext struct {

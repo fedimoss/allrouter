@@ -57,6 +57,7 @@ import {
   timestamp2string,
 } from '../../helpers';
 import ProviderRewardModal from './ProviderRewardModal';
+import DynamicPricingBreakdown from '../../components/table/model-pricing/modal/components/DynamicPricingBreakdown';
 import { useNavigate } from 'react-router-dom';
 
 const { Text } = Typography;
@@ -879,6 +880,17 @@ const ProviderPage = () => {
     [baseModelPrices, selectedBaseModel],
   );
 
+  const selectedDynamicBaseModelPrices = useMemo(
+    () =>
+      selectedBaseModelPrices.filter(
+        (item) => item.billing_mode === 'tiered_expr' && item.billing_expr,
+      ),
+    [selectedBaseModelPrices],
+  );
+
+  const selectedBaseModelUsesDynamicPricing =
+    selectedDynamicBaseModelPrices.length > 0;
+
   // 若当前实际模型已被主站下架，强制把“启用”置为 false，避免提交一个无法启用的配置
   useEffect(() => {
     if (selectedBaseModelUnavailable) {
@@ -1593,6 +1605,16 @@ const ProviderPage = () => {
     { title: t('展示模型'), dataIndex: 'public_model_name' },
     { title: t('实际模型'), dataIndex: 'base_model_name' },
     {
+      title: t('计费类型'),
+      dataIndex: 'base_billing_mode',
+      render: (billingMode) =>
+        billingMode === 'tiered_expr' ? (
+          <Tag color='amber'>{t('动态计费')}</Tag>
+        ) : (
+          '-'
+        ),
+    },
+    {
       title: t('计价方式'),
       dataIndex: 'pricing_type',
       render: (type) =>
@@ -1711,28 +1733,39 @@ const ProviderPage = () => {
     {
       title: t('计费类型'),
       dataIndex: 'quota_type',
-      render: (quotaType) =>
-        quotaType === 1 ? t('按次价格') : t('Token 倍率'),
+      render: (quotaType, record) =>
+        record.billing_mode === 'tiered_expr'
+          ? t('动态计费')
+          : quotaType === 1
+            ? t('按次价格')
+            : t('Token 倍率'),
     },
     {
       title: t('输入价格'),
       dataIndex: 'original_price',
-      render: (value, record) => (
-        <Space vertical align='start' spacing={1}>
-          <Text>
-            {t('原价')}：{formatPriceNumber(value)}
+      render: (value, record) =>
+        record.billing_mode === 'tiered_expr' ? (
+          <Text type='tertiary' size='small'>
+            {t('见上方动态计费详情')}
           </Text>
-          <Text>
-            {t('服务商成本价')}：{formatPriceNumber(record.cost_price)}
-          </Text>
-        </Space>
-      ),
+        ) : (
+          <Space vertical align='start' spacing={1}>
+            <Text>
+              {t('原价')}：{formatPriceNumber(value)}
+            </Text>
+            <Text>
+              {t('服务商成本价')}：{formatPriceNumber(record.cost_price)}
+            </Text>
+          </Space>
+        ),
     },
     {
       title: t('补全价格'),
       dataIndex: 'completion_price',
       render: (value, record) =>
-        record.quota_type === 0 ? (
+        record.billing_mode === 'tiered_expr' ? (
+          '-'
+        ) : record.quota_type === 0 ? (
           <Space vertical align='start' spacing={1}>
             <Text>
               {t('原价')}：{formatPriceNumber(value)}
@@ -1750,7 +1783,9 @@ const ProviderPage = () => {
       title: t('缓存读取价格'),
       dataIndex: 'cache_price',
       render: (value, record) =>
-        record.quota_type === 0 && value !== undefined && value !== null ? (
+        record.billing_mode === 'tiered_expr' ? (
+          '-'
+        ) : record.quota_type === 0 && value !== undefined && value !== null ? (
           <Space vertical align='start' spacing={1}>
             <Text>
               {t('原价')}：{formatPriceNumber(value)}
@@ -2510,6 +2545,61 @@ const ProviderPage = () => {
                       '下面是这个模型在主站不同渠道里的原价和你的成本价。同一个模型如果有多个渠道，会分别计算；例如主站原价 100，服务商折扣 3 折，那么服务商成本价就是 30。你设置的加价，会在这个成本价基础上继续计算。',
                     )}
                   </Text>
+                  {selectedBaseModelUsesDynamicPricing ? (
+                    <div style={{ marginTop: 12 }}>
+                      {selectedDynamicBaseModelPrices.map((record) => (
+                        <div
+                          key={`${record.model_name}-${record.channel_id}-${record.group}-dynamic`}
+                          style={{
+                            marginBottom: 12,
+                            padding: 12,
+                            border: '1px solid var(--semi-color-border)',
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Space style={{ marginBottom: 12 }} wrap>
+                            <Text strong>
+                              {record.channel_name || `#${record.channel_id}`}
+                            </Text>
+                            <Tag color='blue'>{record.group || '-'}</Tag>
+                            <Tag color='amber'>{t('动态计费')}</Tag>
+                          </Space>
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns:
+                                'repeat(auto-fit, minmax(320px, 1fr))',
+                              gap: 16,
+                            }}
+                          >
+                            <div>
+                              <DynamicPricingBreakdown
+                                billingExpr={record.billing_expr}
+                                title={t('主站原价')}
+                                description={false}
+                                priceMultiplier={Number(
+                                  record.group_ratio || 1,
+                                )}
+                                t={t}
+                              />
+                            </div>
+                            <div>
+                              <DynamicPricingBreakdown
+                                billingExpr={record.billing_expr}
+                                title={t('服务商成本价')}
+                                description={false}
+                                priceMultiplier={
+                                  Number(record.group_ratio || 1) *
+                                  Number(record.import_price_ratio || 1)
+                                }
+                                t={t}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   <Table
                     size='small'
                     style={{ marginTop: 8 }}
