@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"strconv"
 	"strings"
@@ -53,6 +54,19 @@ func ensureSubscriptionPlanPurchasable(c *gin.Context, plan *model.SubscriptionP
 		return false
 	}
 	return true
+}
+
+func respondSubscriptionCreateError(c *gin.Context, err error, fallback string) {
+	switch {
+	case errors.Is(err, model.ErrSubscriptionPlanSoldOut):
+		common.ApiErrorMsg(c, "该套餐已发放完毕")
+	case errors.Is(err, model.ErrSubscriptionPurchaseLimit):
+		common.ApiErrorMsg(c, "已达到该套餐购买上限")
+	case errors.Is(err, model.ErrSubscriptionLimitTooSmall):
+		common.ApiErrorMsg(c, err.Error())
+	default:
+		common.ApiErrorMsg(c, fallback)
+	}
 }
 
 // buildSubscriptionPlanDTO 将单个 SubscriptionPlan 包装成统一的 DTO 结构 { plan: {...} }。
@@ -194,6 +208,8 @@ func ProviderCreateSubscriptionPlan(c *gin.Context) {
 	// 强制新建：Id 清零由 GORM 重新分配，ProviderId 绑定当前服务商，避免越权创建到他人名下。
 	req.Plan.Id = 0
 	req.Plan.ProviderId = provider.Id
+	req.Plan.IssuedCount = 0
+	req.Plan.ReservedCount = 0
 	if !normalizeSubscriptionPlanFields(c, &req.Plan) {
 		return
 	}
@@ -288,14 +304,22 @@ func ProviderUpdateSubscriptionPlan(c *gin.Context) {
 		"creem_product_id":           req.Plan.CreemProductId,
 		"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 		"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
+		"total_purchase_limit":       req.Plan.TotalPurchaseLimit,
 		"total_amount":               req.Plan.TotalAmount,
 		"upgrade_group":              req.Plan.UpgradeGroup,
 		"quota_reset_period":         req.Plan.QuotaResetPeriod,
 		"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 		"updated_at":                 common.GetTimestamp(),
 	}
-	if err := model.DB.Model(&model.SubscriptionPlan{}).Where("id = ? AND provider_id = ?", id, provider.Id).Updates(updateMap).Error; err != nil {
-		common.ApiError(c, err)
+	res := model.DB.Model(&model.SubscriptionPlan{}).
+		Where("id = ? AND provider_id = ? AND (? = 0 OR issued_count + reserved_count <= ?)", id, provider.Id, req.Plan.TotalPurchaseLimit, req.Plan.TotalPurchaseLimit).
+		Updates(updateMap)
+	if res.Error != nil {
+		common.ApiError(c, res.Error)
+		return
+	}
+	if res.RowsAffected == 0 {
+		respondSubscriptionCreateError(c, model.ErrSubscriptionLimitTooSmall, "更新失败")
 		return
 	}
 	model.InvalidateSubscriptionPlanCache(id)
@@ -469,6 +493,10 @@ func normalizeSubscriptionPlanFields(c *gin.Context, plan *model.SubscriptionPla
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return false
 	}
+	if plan.TotalPurchaseLimit < 0 {
+		common.ApiErrorMsg(c, "全局发放上限不能为负数")
+		return false
+	}
 	if plan.TotalAmount < 0 {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return false
@@ -501,6 +529,8 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 	req.Plan.Id = 0
+	req.Plan.IssuedCount = 0
+	req.Plan.ReservedCount = 0
 	if strings.TrimSpace(req.Plan.Title) == "" {
 		common.ApiErrorMsg(c, "套餐标题不能为空")
 		return
@@ -527,6 +557,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	}
 	if req.Plan.MaxPurchasePerUser < 0 {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
+		return
+	}
+	if req.Plan.TotalPurchaseLimit < 0 {
+		common.ApiErrorMsg(c, "全局发放上限不能为负数")
 		return
 	}
 	if req.Plan.TotalAmount < 0 {
@@ -632,6 +666,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
+	if req.Plan.TotalPurchaseLimit < 0 {
+		common.ApiErrorMsg(c, "全局发放上限不能为负数")
+		return
+	}
 	if req.Plan.TotalAmount < 0 {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
@@ -685,14 +723,21 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"creem_product_id":           req.Plan.CreemProductId,
 			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
+			"total_purchase_limit":       req.Plan.TotalPurchaseLimit,
 			"total_amount":               req.Plan.TotalAmount,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),
 		}
-		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
-			return err
+		res := tx.Model(&model.SubscriptionPlan{}).
+			Where("id = ? AND (? = 0 OR issued_count + reserved_count <= ?)", id, req.Plan.TotalPurchaseLimit, req.Plan.TotalPurchaseLimit).
+			Updates(updateMap)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return model.ErrSubscriptionLimitTooSmall
 		}
 		return nil
 	})

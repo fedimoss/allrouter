@@ -7156,3 +7156,103 @@ COMMENT ON COLUMN topup_bonus_grants.currency IS '赠送币种 USD/CNY（跟随�
 
 
 CREATE UNIQUE INDEX ux_topup_bonus_user_rule ON topup_bonus_grants USING btree (user_id, rule_id);
+
+
+-- =============================================================
+-- 订阅套餐全局发放上限
+-- 0=无限；购买、赠送、空投、注册赠送均计入已发放数量
+-- =============================================================
+BEGIN;
+
+ALTER TABLE subscription_plans
+    ADD COLUMN IF NOT EXISTS total_purchase_limit bigint NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS issued_count bigint NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS reserved_count bigint NOT NULL DEFAULT 0;
+
+ALTER TABLE subscription_orders
+    ADD COLUMN IF NOT EXISTS stock_status varchar(16) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS stock_expires_at bigint NOT NULL DEFAULT 0;
+
+-- 将升级时仍待支付的历史订阅订单纳入预占。过期订单会在新版本启动后由定时任务释放。
+UPDATE subscription_orders
+SET stock_status = 'reserved',
+    stock_expires_at = CASE
+        WHEN stock_expires_at > 0 THEN stock_expires_at
+        ELSE create_time + 2700
+    END
+WHERE status = 'pending'
+  AND stock_status = '';
+
+-- 历史上所有已经创建的用户订阅都算作已发放；重复执行不会把计数调小。
+WITH historical_issued AS (
+    SELECT plan_id, COUNT(*)::bigint AS issued_count
+    FROM user_subscriptions
+    GROUP BY plan_id
+)
+UPDATE subscription_plans AS plans
+SET issued_count = GREATEST(plans.issued_count, historical_issued.issued_count)
+FROM historical_issued
+WHERE plans.id = historical_issued.plan_id;
+
+-- 预占数量以当前仍待支付且持有预占的订单为准。
+UPDATE subscription_plans AS plans
+SET reserved_count = (
+    SELECT COUNT(*)::bigint
+    FROM subscription_orders AS orders
+    WHERE orders.plan_id = plans.id
+      AND orders.status = 'pending'
+      AND orders.stock_status = 'reserved'
+);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'chk_subscription_plans_total_purchase_limit_non_negative'
+          AND conrelid = 'subscription_plans'::regclass
+    ) THEN
+        ALTER TABLE subscription_plans
+            ADD CONSTRAINT chk_subscription_plans_total_purchase_limit_non_negative
+            CHECK (total_purchase_limit >= 0);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'chk_subscription_plans_issue_counters_non_negative'
+          AND conrelid = 'subscription_plans'::regclass
+    ) THEN
+        ALTER TABLE subscription_plans
+            ADD CONSTRAINT chk_subscription_plans_issue_counters_non_negative
+            CHECK (issued_count >= 0 AND reserved_count >= 0);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'chk_subscription_plans_issue_limit_not_exceeded'
+          AND conrelid = 'subscription_plans'::regclass
+    ) THEN
+        ALTER TABLE subscription_plans
+            ADD CONSTRAINT chk_subscription_plans_issue_limit_not_exceeded
+            CHECK (
+                total_purchase_limit = 0
+                OR issued_count + reserved_count <= total_purchase_limit
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'chk_subscription_orders_stock_status'
+          AND conrelid = 'subscription_orders'::regclass
+    ) THEN
+        ALTER TABLE subscription_orders
+            ADD CONSTRAINT chk_subscription_orders_stock_status
+            CHECK (stock_status IN ('', 'reserved', 'issued', 'released'));
+    END IF;
+END
+$$;
+
+CREATE INDEX IF NOT EXISTS idx_subscription_orders_reserved_stock_expiry
+    ON subscription_orders (stock_expires_at, id)
+    WHERE status = 'pending' AND stock_status = 'reserved';
+
+COMMIT;

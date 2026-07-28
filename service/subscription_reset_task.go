@@ -53,6 +53,18 @@ func runSubscriptionQuotaResetOnce() {
 	ctx := context.Background()
 	totalReset := 0
 	totalExpired := 0
+	totalExpiredOrders := 0
+	for {
+		n, err := model.ExpireReservedSubscriptionOrders(subscriptionResetBatchSize)
+		if err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("subscription order stock release task failed: %v", err))
+			return
+		}
+		totalExpiredOrders += n
+		if n < subscriptionResetBatchSize {
+			break
+		}
+	}
 	for {
 		n, err := model.ExpireDueSubscriptions(subscriptionResetBatchSize)
 		if err != nil {
@@ -87,7 +99,7 @@ func runSubscriptionQuotaResetOnce() {
 			subscriptionCleanupLast.Store(time.Now().Unix())
 		}
 	}
-	if common.DebugEnabled && (totalReset > 0 || totalExpired > 0) {
-		logger.LogDebug(ctx, "subscription maintenance: reset_count=%d, expired_count=%d", totalReset, totalExpired)
+	if common.DebugEnabled && (totalReset > 0 || totalExpired > 0 || totalExpiredOrders > 0) {
+		logger.LogDebug(ctx, "subscription maintenance: reset_count=%d, expired_count=%d, expired_order_count=%d", totalReset, totalExpired, totalExpiredOrders)
 	}
 }

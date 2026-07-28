@@ -5362,6 +5362,15 @@
     "较上一年": "vs. previous year",
     "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X can also be less than 1 to apply a discount. To increase only the output price or add a fixed fee, write the complete billing formula directly.",
     "Token/分钟（最近 60 秒）": "Tokens/min (last 60 seconds)",
-    "Token/分钟（{{duration}}平均）": "Tokens/min ({{duration}} average)"
+    "Token/分钟（{{duration}}平均）": "Tokens/min ({{duration}} average)",
+    "每用户购买上限": "Per-user Purchase Limit",
+    "全局发放上限": "Global Issuance Limit",
+    "0 表示不限；购买、赠送、空投和注册赠送都会占用": "0 means unlimited; purchases, gifts, airdrops, and registration gifts all count",
+    "已发放": "Issued",
+    "预占": "Reserved",
+    "剩余": "Remaining",
+    "份": "units",
+    "该套餐已发放完毕": "This plan has been fully issued",
+    "已发放完毕": "Fully Issued"
   }
 }

@@ -104,12 +104,12 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	// 对参考号做 SHA1 哈希，加上 "sub_ref_" 前缀作为最终订单号，避免重复
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
-	// 调用 Stripe API 创建订阅 Checkout Session，传入币种对应的 priceId 和计算出的应付金额
-	trustedDomains := getStripeTrustedDomains(c)
-	payLink, actualCharge, err := genStripeSubscriptionLink(c, referenceId, user.StripeCustomer, user.Email, priceId, chargeMoney, trustedDomains)
+	// 先计算 Stripe Price 数量和真实扣款金额，再在创建 Checkout 前预占本地库存。
+	stripe.Key = setting.StripeApiSecret
+	quantity, actualCharge, err := getStripeSubscriptionQuantity(priceId, chargeMoney)
 	if err != nil {
-		log.Println("获取Stripe Checkout支付链接失败", err)
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+		log.Println("获取Stripe Price失败", err)
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "计算支付金额失败"})
 		return
 	}
 
@@ -133,7 +133,16 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		Status:        common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
+		respondSubscriptionCreateError(c, err, "创建订单失败")
+		return
+	}
+
+	trustedDomains := getStripeTrustedDomains(c)
+	payLink, err := genStripeSubscriptionLink(c, referenceId, user.StripeCustomer, user.Email, priceId, quantity, trustedDomains)
+	if err != nil {
+		_ = model.ExpireSubscriptionOrder(referenceId, PaymentMethodStripe)
+		log.Println("获取Stripe Checkout支付链接失败", err)
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
 
@@ -146,26 +155,19 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 }
 
 // genStripeSubscriptionLink 生成 Stripe 订阅 Checkout Session 的支付链接
-// chargeMoney 为根据币种换算后的应付金额，需要通过查询 Stripe Price 的单价来计算 quantity
-func genStripeSubscriptionLink(c *gin.Context, referenceId string, customerId string, email string, priceId string, chargeMoney float64, trustedDomains []string) (string, float64, error) {
+func genStripeSubscriptionLink(c *gin.Context, referenceId string, customerId string, email string, priceId string, quantity int64, trustedDomains []string) (string, error) {
 	// 设置 Stripe API 密钥
 	stripe.Key = setting.StripeApiSecret
-
-	// 通过 Stripe Price API 查询该 priceId 的单价，然后用 chargeMoney / 单价 计算出 quantity
-	quantity, actualCharge, err := getStripeSubscriptionQuantity(priceId, chargeMoney)
-	if err != nil {
-		return "", 0, err
-	}
 
 	// 构建 Checkout Session 参数并创建会话
 	params := buildStripeSubscriptionCheckoutParams(c, referenceId, customerId, email, priceId, quantity, trustedDomains)
 	// 调用 Stripe SDK 创建 Checkout Session
 	result, err := session.New(params)
 	if err != nil {
-		return "", 0, err
+		return "", err
 	}
 	// 返回支付链接 URL
-	return result.URL, actualCharge, nil
+	return result.URL, nil
 }
 
 // buildStripeSubscriptionCheckoutParams 构建 Stripe 订阅 Checkout Session 的请求参数
@@ -175,6 +177,7 @@ func buildStripeSubscriptionCheckoutParams(c *gin.Context, referenceId string, c
 		ClientReferenceID: stripe.String(referenceId),                // 客户端引用 ID，用于 Webhook 回调时匹配订单
 		SuccessURL:        stripe.String(baseURL + "/console/topup"), // 支付成功后跳回发起请求的域名
 		CancelURL:         stripe.String(baseURL + "/console/topup"), // 支付取消后跳回发起请求的域名
+		ExpiresAt:         stripe.Int64(time.Now().Add(time.Duration(model.DefaultSubscriptionCheckoutSeconds) * time.Second).Unix()),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
 				Price:    stripe.String(priceId), // 使用币种对应的 Stripe Price ID

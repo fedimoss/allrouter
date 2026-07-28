@@ -176,7 +176,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		Status:        common.TopUpStatusPending,
 	}
 	if err := model.CreateSubscriptionOrderWithTopUp(order); err != nil {
-		common.ApiErrorMsg(c, "创建订单失败")
+		respondSubscriptionCreateError(c, err, "创建订单失败")
 		return
 	}
 
