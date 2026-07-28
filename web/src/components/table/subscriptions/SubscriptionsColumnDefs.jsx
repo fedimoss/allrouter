@@ -91,10 +91,16 @@ const renderPlanTitle = (text, record, t) => {
         )}
         <Text type='tertiary'>{t('升级分组')}</Text>
         <Text>{plan?.upgrade_group ? plan.upgrade_group : t('不升级')}</Text>
-        <Text type='tertiary'>{t('购买上限')}</Text>
+        <Text type='tertiary'>{t('每用户购买上限')}</Text>
         <Text>
           {plan?.max_purchase_per_user > 0
             ? plan.max_purchase_per_user
+            : t('不限')}
+        </Text>
+        <Text type='tertiary'>{t('全局发放上限')}</Text>
+        <Text>
+          {plan?.total_purchase_limit > 0
+            ? `${Number(plan?.issued_count || 0) + Number(plan?.reserved_count || 0)}/${plan.total_purchase_limit}`
             : t('不限')}
         </Text>
         <Text type='tertiary'>{t('有效期')}</Text>
@@ -139,6 +145,23 @@ const renderPurchaseLimit = (text, record, t) => {
     <Text type={limit > 0 ? 'secondary' : 'tertiary'}>
       {limit > 0 ? limit : t('不限')}
     </Text>
+  );
+};
+
+const renderGlobalLimit = (text, record, t) => {
+  const plan = record?.plan || {};
+  const limit = Number(plan.total_purchase_limit || 0);
+  const issued = Number(plan.issued_count || 0);
+  const reserved = Number(plan.reserved_count || 0);
+  const content = (
+    <Text type={limit > 0 ? 'secondary' : 'tertiary'}>
+      {limit > 0 ? `${issued + reserved}/${limit}` : t('不限')}
+    </Text>
+  );
+  return (
+    <Tooltip content={`${t('已发放')}: ${issued}，${t('预占')}: ${reserved}`}>
+      {content}
+    </Tooltip>
   );
 };
 
@@ -351,9 +374,14 @@ export const getSubscriptionsColumns = ({
       render: (text) => renderPrice(text),
     },
     {
-      title: t('购买上限'),
+      title: t('每用户购买上限'),
       width: 90,
       render: (text, record) => renderPurchaseLimit(text, record, t),
+    },
+    {
+      title: t('全局发放上限'),
+      width: 120,
+      render: (text, record) => renderGlobalLimit(text, record, t),
     },
     {
       title: t('优先级'),

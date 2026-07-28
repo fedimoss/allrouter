@@ -93,7 +93,8 @@ function submitEpayForm({ url, params }) {
 function getStripePriceIdForDisplayCurrency(plan, displayCurrency) {
   if (!plan) return ''; // 套餐为空时返回空字符串
   const normalized = normalizeDisplayCurrency(displayCurrency); // 标准化币种配置
-  if (normalized.currency === 'CNY') { // 如果是人民币
+  if (normalized.currency === 'CNY') {
+    // 如果是人民币
     return plan.stripe_price_cny_id || ''; // 返回人民币 Stripe Price ID
   }
   return plan.stripe_price_id || ''; // 否则返回美元 Stripe Price ID
@@ -186,7 +187,8 @@ const SubscriptionPlansCard = ({
       selectedPlan?.plan, // 当前选中的套餐
       normalizedDisplayCurrency, // 标准化后的币种配置
     );
-    if (!stripePriceId) { // 如果当前币种没有配置对应的 Stripe Price ID
+    if (!stripePriceId) {
+      // 如果当前币种没有配置对应的 Stripe Price ID
       showError(t('该套餐未配置 Stripe'));
       return;
     }
@@ -299,7 +301,12 @@ const SubscriptionPlansCard = ({
     if (!planId) throw new Error('No plan selected');
     const resp = await fetch('/api/subscription/crypto/pay', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'New-Api-User': String(JSON.parse(localStorage.getItem('user') || '{}').id || '') },
+      headers: {
+        'Content-Type': 'application/json',
+        'New-Api-User': String(
+          JSON.parse(localStorage.getItem('user') || '{}').id || '',
+        ),
+      },
       credentials: 'include',
       body: JSON.stringify({ plan_id: planId, network: networkName }),
     });
@@ -311,7 +318,12 @@ const SubscriptionPlansCard = ({
   const confirmSubscriptionCryptoOrder = async (tradeNo, txHash) => {
     const resp = await fetch('/api/subscription/crypto/confirm', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'New-Api-User': String(JSON.parse(localStorage.getItem('user') || '{}').id || '') },
+      headers: {
+        'Content-Type': 'application/json',
+        'New-Api-User': String(
+          JSON.parse(localStorage.getItem('user') || '{}').id || '',
+        ),
+      },
       credentials: 'include',
       body: JSON.stringify({ trade_no: tradeNo, tx_hash: txHash }),
     });
@@ -612,9 +624,8 @@ const SubscriptionPlansCard = ({
                                 </span>
                                 {usedAmount > 0 && (
                                   <span className='text-[11px] text-gray-400'>
-                                    {t('原生额度')}:{' '}
-                                    {renderNumber(usedAmount)} /{' '}
-                                    {renderNumber(totalAmount)}
+                                    {t('原生额度')}: {renderNumber(usedAmount)}{' '}
+                                    / {renderNumber(totalAmount)}
                                   </span>
                                 )}
                               </span>
@@ -663,6 +674,18 @@ const SubscriptionPlansCard = ({
                 const isPopular = index === 0 && plans.length > 1;
                 const limit = Number(plan?.max_purchase_per_user || 0);
                 const limitLabel = limit > 0 ? `${t('限购')} ${limit}` : null;
+                const globalLimit = Number(plan?.total_purchase_limit || 0);
+                const globalAllocated =
+                  Number(plan?.issued_count || 0) +
+                  Number(plan?.reserved_count || 0);
+                const globalRemaining = Math.max(
+                  0,
+                  globalLimit - globalAllocated,
+                );
+                const globalLimitLabel =
+                  globalLimit > 0
+                    ? `${t('剩余')} ${globalRemaining} ${t('份')}`
+                    : null;
                 const totalLabel =
                   totalAmount > 0
                     ? `${t('总额度')}: ${renderQuota(totalAmount)}`
@@ -686,6 +709,7 @@ const SubscriptionPlansCard = ({
                       }
                     : { label: totalLabel },
                   limitLabel ? { label: limitLabel } : null,
+                  globalLimitLabel ? { label: globalLimitLabel } : null,
                   upgradeLabel ? { label: upgradeLabel } : null,
                 ].filter(Boolean);
 
@@ -779,12 +803,16 @@ const SubscriptionPlansCard = ({
                           const reached = limit > 0 && count >= limit;
                           const notPurchasable =
                             Number(plan?.allow_purchase ?? 1) !== 1;
-                          const disabled = reached || notPurchasable;
-                          const tip = notPurchasable
-                            ? t('该套餐暂不允许订阅')
-                            : reached
-                              ? t('已达到购买上限') + ` (${count}/${limit})`
-                              : '';
+                          const soldOut =
+                            globalLimit > 0 && globalRemaining <= 0;
+                          const disabled = soldOut || reached || notPurchasable;
+                          const tip = soldOut
+                            ? t('该套餐已发放完毕')
+                            : notPurchasable
+                              ? t('该套餐暂不允许订阅')
+                              : reached
+                                ? t('已达到购买上限') + ` (${count}/${limit})`
+                                : '';
                           const buttonEl = (
                             <Button
                               theme='outline'
@@ -795,11 +823,13 @@ const SubscriptionPlansCard = ({
                                 if (!disabled) openBuy(p);
                               }}
                             >
-                              {notPurchasable
-                                ? t('暂不可订阅')
-                                : reached
-                                  ? t('已达上限')
-                                  : t('立即订阅')}
+                              {soldOut
+                                ? t('已发放完毕')
+                                : notPurchasable
+                                  ? t('暂不可订阅')
+                                  : reached
+                                    ? t('已达上限')
+                                    : t('立即订阅')}
                             </Button>
                           );
                           return disabled ? (
