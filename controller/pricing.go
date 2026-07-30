@@ -1,6 +1,10 @@
 package controller
 
 import (
+	"math"
+	"strconv"
+	"strings"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
@@ -9,6 +13,85 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func providerPricingRatio(rule model.ProviderModelPricing) float64 {
+	if rule.Ratio == 0 {
+		return 1
+	}
+	return rule.Ratio
+}
+
+// scaleBillingExprForDisplay wraps a billing expression in a numeric
+// multiplier while preserving an optional version prefix. The provider-site
+// pricing endpoint uses this display-only expression so the model marketplace
+// shows the same dynamic prices that provider users are actually charged.
+func scaleBillingExprForDisplay(expr string, multiplier float64) string {
+	expr = strings.TrimSpace(expr)
+	if expr == "" {
+		return ""
+	}
+	if math.IsNaN(multiplier) || math.IsInf(multiplier, 0) {
+		multiplier = 1
+	}
+	if multiplier < 0 {
+		multiplier = 0
+	}
+	if multiplier == 1 {
+		return expr
+	}
+
+	prefix := ""
+	body := expr
+	if strings.HasPrefix(expr, "v") {
+		if colon := strings.IndexByte(expr, ':'); colon > 1 {
+			if _, err := strconv.Atoi(expr[1:colon]); err == nil {
+				prefix = expr[:colon+1]
+				body = strings.TrimSpace(expr[colon+1:])
+			}
+		}
+	}
+
+	// Provider ratios are persisted with finite decimal precision. Round away
+	// binary floating-point artifacts before embedding the factor in a public
+	// expression (for example 0.4*1.5 should be rendered as 0.6).
+	multiplier = math.Round(multiplier*1e14) / 1e14
+	factor := strconv.FormatFloat(multiplier, 'f', -1, 64)
+	return prefix + "(" + body + ") * " + factor
+}
+
+func applyProviderPricingRule(item model.Pricing, rule model.ProviderModelPricing, importPriceRatio float64) model.Pricing {
+	if importPriceRatio <= 0 {
+		importPriceRatio = 1
+	}
+	item.ModelName = rule.PublicModelName
+	item.ModelRatio *= importPriceRatio
+	item.ModelPrice *= importPriceRatio
+
+	if rule.PricingType == model.ProviderPricingTypeDelta {
+		item.ModelRatio += rule.DeltaModelRatio
+		item.ModelPrice += rule.DeltaModelPrice
+		if item.BillingMode == "tiered_expr" && strings.TrimSpace(item.BillingExpr) != "" {
+			item.BillingExpr = scaleBillingExprForDisplay(item.BillingExpr, importPriceRatio)
+			item.ProviderPricingType = model.ProviderPricingTypeDelta
+			item.ProviderDeltaModelRatio = rule.DeltaModelRatio
+		}
+	} else {
+		ratio := providerPricingRatio(rule)
+		item.ModelRatio *= ratio
+		item.ModelPrice *= ratio
+		if item.BillingMode == "tiered_expr" && strings.TrimSpace(item.BillingExpr) != "" {
+			item.BillingExpr = scaleBillingExprForDisplay(item.BillingExpr, importPriceRatio*ratio)
+			item.ProviderPricingType = model.ProviderPricingTypeRatio
+		}
+	}
+	if item.ModelRatio < 0 {
+		item.ModelRatio = 0
+	}
+	if item.ModelPrice < 0 {
+		item.ModelPrice = 0
+	}
+	return item
+}
 
 func applyProviderPricingView(providerId int, pricing []model.Pricing) []model.Pricing {
 	if providerId == 0 || len(pricing) == 0 {
@@ -34,23 +117,7 @@ func applyProviderPricingView(providerId int, pricing []model.Pricing) []model.P
 		if !ok {
 			continue
 		}
-		item.ModelName = rule.PublicModelName
-		item.ModelRatio *= importPriceRatio
-		item.ModelPrice *= importPriceRatio
-		if rule.PricingType == model.ProviderPricingTypeDelta {
-			item.ModelRatio += rule.DeltaModelRatio
-			item.ModelPrice += rule.DeltaModelPrice
-		} else {
-			item.ModelRatio *= rule.Ratio
-			item.ModelPrice *= rule.Ratio
-		}
-		if item.ModelRatio < 0 {
-			item.ModelRatio = 0
-		}
-		if item.ModelPrice < 0 {
-			item.ModelPrice = 0
-		}
-		result = append(result, item)
+		result = append(result, applyProviderPricingRule(item, rule, importPriceRatio))
 	}
 	return result
 }

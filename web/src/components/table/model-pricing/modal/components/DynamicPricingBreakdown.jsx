@@ -20,7 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Avatar, Tag, Table, Typography } from '@douyinfe/semi-ui';
 import { IconPriceTag } from '@douyinfe/semi-icons';
-import { parseTiersFromExpr, getCurrencyConfig } from '../../../../../helpers';
+import {
+  extractBillingDisplayScale,
+  parseTiersFromExpr,
+  getCurrencyConfig,
+} from '../../../../../helpers';
 import { BILLING_PRICING_VARS } from '../../../../../constants';
 import {
   splitBillingExprAndRequestRules,
@@ -93,10 +97,29 @@ function describeGroup(group, t) {
   return parts.join(' && ');
 }
 
-export default function DynamicPricingBreakdown({ billingExpr, t }) {
+export default function DynamicPricingBreakdown({
+  billingExpr,
+  t,
+  title,
+  description,
+  priceMultiplier = 1,
+  providerPricingType = '',
+  providerDeltaModelRatio = 0,
+}) {
   const { symbol, rate } = getCurrencyConfig();
+  const normalizedPriceMultiplier = Number.isFinite(Number(priceMultiplier))
+    ? Math.max(0, Number(priceMultiplier))
+    : 1;
+  const heading = title || t('动态计费');
+  const subtitle =
+    description === false
+      ? ''
+      : description || t('价格根据用量档位和请求条件动态调整');
+  const displayExpr = extractBillingDisplayScale(billingExpr || '');
+  const finalPriceMultiplier =
+    normalizedPriceMultiplier * displayExpr.multiplier;
   const { billingExpr: baseExpr, requestRuleExpr: ruleExpr } =
-    splitBillingExprAndRequestRules(billingExpr || '');
+    splitBillingExprAndRequestRules(displayExpr.billingExpr);
 
   const tiers = parseTiersFromExpr(baseExpr);
   const ruleGroups = tryParseRequestRuleExpr(ruleExpr || '');
@@ -111,7 +134,7 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
           <Avatar size='small' color='amber' className='mr-2 shadow-md'>
             <IconPriceTag size={16} />
           </Avatar>
-          <Text className='text-lg font-medium'>{t('动态计费')}</Text>
+          <Text className='text-lg font-medium'>{heading}</Text>
         </div>
         <div className='text-sm text-gray-500'>
           <code style={{ fontSize: 12, wordBreak: 'break-all' }}>
@@ -161,7 +184,10 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
         label: tier.label,
         condSummary: formatConditionSummary(tier.conditions, t),
         ...Object.fromEntries(
-          priceFields.map(([field]) => [field, tier[field] || 0]),
+          priceFields.map(([field]) => [
+            field,
+            (tier[field] || 0) * finalPriceMultiplier,
+          ]),
         ),
       }))
     : [];
@@ -173,10 +199,10 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
           <IconPriceTag size={16} />
         </Avatar>
         <div>
-          <Text className='text-lg font-medium'>{t('动态计费')}</Text>
-          <div className='text-xs text-gray-600'>
-            {t('价格根据用量档位和请求条件动态调整')}
-          </div>
+          <Text className='text-lg font-medium'>{heading}</Text>
+          {subtitle ? (
+            <div className='text-xs text-gray-600'>{subtitle}</div>
+          ) : null}
         </div>
       </div>
 
@@ -230,6 +256,26 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
           ))}
         </div>
       )}
+
+      {providerPricingType === 'delta' &&
+        Number(providerDeltaModelRatio || 0) !== 0 && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              padding: '10px 12px',
+              borderRadius: 6,
+              background: 'var(--semi-color-fill-0)',
+            }}
+          >
+            <Text size='small'>{t('Token 模型加价倍率')}</Text>
+            <Tag color='orange' size='small'>
+              +{Number(providerDeltaModelRatio)}
+            </Tag>
+          </div>
+        )}
     </div>
   );
 }

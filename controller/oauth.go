@@ -270,6 +270,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	// 仅在首次创建 OAuth 用户时消费该值；已有用户登录不会覆盖其个人时区。
 	registrationTimezone, _ := session.Get(oauthRegistrationTimezoneSessionKey).(string)
 	user.Timezone = normalizeRegistrationTimezone(registrationTimezone)
+	user.RegisterIp = getRegistrationIP(c)
 	usernameConflict, emailConflict, err := model.UserIdentityConflictFieldsGlobally(0, user.Username, user.Email)
 	if err != nil {
 		return nil, err

@@ -36,7 +36,13 @@ type Pricing struct {
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
-	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	// Provider pricing metadata is returned only on provider sites. For ratio
+	// pricing BillingExpr is already scaled to the provider user's final price.
+	// Delta pricing keeps the scaled dynamic base expression and exposes the
+	// fixed surcharge separately because it is settled from total token usage.
+	ProviderPricingType     string  `json:"provider_pricing_type,omitempty"`
+	ProviderDeltaModelRatio float64 `json:"provider_delta_model_ratio,omitempty"`
+	PricingVersion          string  `json:"pricing_version,omitempty"`
 }
 
 type PricingVendor struct {

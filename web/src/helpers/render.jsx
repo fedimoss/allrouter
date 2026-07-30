@@ -2338,6 +2338,38 @@ function stripExprVersion(exprStr) {
   return { version: 1, body: exprStr };
 }
 
+// Provider-site dynamic pricing wraps the main billing expression in a
+// numeric multiplier, for example: (tier("base", p * 3 + c * 15)) * 1.35.
+// Peel off those display-only wrappers so tier parsing can keep using the
+// original expression grammar while presenting the final provider-user price.
+function unwrapNumericBillingScale(bodyStr) {
+  let body = String(bodyStr || '').trim();
+  let multiplier = 1;
+  const numericScalePattern =
+    /^\(([\s\S]*)\)\s*\*\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/;
+
+  while (body) {
+    const match = body.match(numericScalePattern);
+    if (!match) break;
+    const scale = Number(match[2]);
+    if (!Number.isFinite(scale)) break;
+    multiplier *= scale;
+    body = match[1].trim();
+  }
+
+  return { body, multiplier };
+}
+
+export function extractBillingDisplayScale(exprStr) {
+  const versioned = stripExprVersion(exprStr || '');
+  const scaled = unwrapNumericBillingScale(versioned.body);
+  return {
+    version: versioned.version,
+    billingExpr: scaled.body,
+    multiplier: scaled.multiplier,
+  };
+}
+
 function parseTierBody(bodyStr) {
   const coeffs = {};
   const re = new RegExp(BILLING_VAR_REGEX.source, 'g');
@@ -2355,7 +2387,9 @@ function parseTierBody(bodyStr) {
 export function parseTiersFromExpr(exprStr) {
   if (!exprStr) return [];
   try {
-    const { body } = stripExprVersion(exprStr);
+    const display = extractBillingDisplayScale(exprStr);
+    const body = display.billingExpr;
+    const multiplier = display.multiplier;
     const condGroup =
       '((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)';
     const tierRe = new RegExp(
@@ -2382,6 +2416,9 @@ export function parseTiersFromExpr(exprStr) {
         }
       }
       const tier = parseTierBody(m[3]);
+      for (const field of Object.values(BILLING_VAR_KEY_TO_FIELD)) {
+        tier[field] = (tier[field] || 0) * multiplier;
+      }
       tier.label = m[2];
       tier.conditions = conditions;
       tiers.push(tier);

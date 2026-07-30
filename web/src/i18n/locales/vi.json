@@ -4200,6 +4200,7 @@
     "项目操作按钮组": "Nhóm nút hành động dự án",
     "项目内容": "Nội dung dự án",
     "消费": "Tiêu thụ",
+    "消费和错误日志记录发起调用的客户端 IP": "Nhật ký tiêu thụ và lỗi ghi lại địa chỉ IP máy khách đã khởi tạo lời gọi",
     "消费返利": "Hoàn trả tiêu dùng",
     "消费返利比例": "Tỷ lệ hoàn trả tiêu dùng",
     "消费返佣比例": "Tỷ lệ hoa hồng tiêu dùng",
@@ -5225,6 +5226,7 @@
     "主账号": "Tài khoản chính",
     "注 册": "Đăng ký",
     "注册": "Đăng ký",
+    "注册 IP": "IP đăng ký",
     "注册 Mini App 后，群里的“绑定账号”按钮才能启动 Mini App（拿到 Telegram 用户身份）。": "Sau khi đăng ký Mini App, nút「Liên kết tài khoản」trong nhóm mới khởi động được Mini App（lấy danh tính người dùng Telegram）.",
     "注册 Passkey": "Đăng ký Passkey",
     "注册成功": "Đăng ký thành công",
@@ -5814,6 +5816,15 @@
     "较上一年": "So với năm trước",
     "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X cũng có thể nhỏ hơn 1 để dùng làm mức giảm giá. Nếu muốn chỉ tăng giá đầu ra hoặc thêm phí cố định, hãy nhập trực tiếp công thức tính phí đầy đủ.",
     "Token/分钟（最近 60 秒）": "Token/phút (60 giây gần nhất)",
-    "Token/分钟（{{duration}}平均）": "Token/phút (trung bình trong {{duration}})"
+    "Token/分钟（{{duration}}平均）": "Token/phút (trung bình trong {{duration}})",
+    "每用户购买上限": "Giới hạn mua cho mỗi người dùng",
+    "全局发放上限": "Giới hạn cấp phát toàn cục",
+    "0 表示不限；购买、赠送、空投和注册赠送都会占用": "0 nghĩa là không giới hạn; lượt mua, tặng, airdrop và quà đăng ký đều được tính",
+    "已发放": "Đã cấp",
+    "预占": "Đã giữ chỗ",
+    "剩余": "Còn lại",
+    "份": "suất",
+    "该套餐已发放完毕": "Gói này đã được cấp phát hết",
+    "已发放完毕": "Đã cấp phát hết"
   }
 }

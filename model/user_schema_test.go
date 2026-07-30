@@ -35,6 +35,19 @@ func TestUserProfileColumnLengthsMatchSQLSnapshot(t *testing.T) {
 	}
 }
 
+func TestUserRegisterIpSchema(t *testing.T) {
+	field, ok := reflect.TypeOf(User{}).FieldByName("RegisterIp")
+	if !ok {
+		t.Fatal("field RegisterIp not found")
+	}
+	if got := field.Tag.Get("json"); got != "register_ip" {
+		t.Fatalf("json tag = %q, want %q", got, "register_ip")
+	}
+	if got := field.Tag.Get("gorm"); got != "type:varchar(45);column:register_ip;default:'';<-:create" {
+		t.Fatalf("gorm tag = %q", got)
+	}
+}
+
 func TestFillUserProviderNames(t *testing.T) {
 	tx := DB.Begin()
 	if tx.Error != nil {

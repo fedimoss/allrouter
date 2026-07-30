@@ -139,7 +139,7 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 			CreateTime:    now,                         // 创建时间
 			Status:        common.TopUpStatusPending,   // 订单状态：待支付
 		}
-		if err := tx.Create(order).Error; err != nil {
+		if err := model.CreateSubscriptionOrderTx(tx, order); err != nil {
 			return err
 		}
 		// 创建加密货币交易记录（存储链上支付参数，确认时回查）
@@ -159,7 +159,7 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 		return tx.Create(&cryptoTx).Error
 	})
 	if err != nil {
-		common.ApiErrorMsg(c, "创建订单失败")
+		respondSubscriptionCreateError(c, err, "创建订单失败")
 		return
 	}
 

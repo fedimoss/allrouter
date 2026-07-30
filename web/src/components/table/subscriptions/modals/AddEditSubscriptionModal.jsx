@@ -107,6 +107,7 @@ const AddEditSubscriptionModal = ({
     model_limits: [],
     sort_order: 0,
     max_purchase_per_user: 0,
+    total_purchase_limit: 0,
     total_amount: 0,
     upgrade_group: '',
     stripe_price_id: '',
@@ -137,6 +138,7 @@ const AddEditSubscriptionModal = ({
           : [],
       sort_order: Number(p.sort_order || 0),
       max_purchase_per_user: Number(p.max_purchase_per_user || 0),
+      total_purchase_limit: Number(p.total_purchase_limit || 0),
       total_amount: Number(
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
       ),
@@ -219,6 +221,7 @@ const AddEditSubscriptionModal = ({
               : 0,
           sort_order: Number(values.sort_order || 0),
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
+          total_purchase_limit: Number(values.total_purchase_limit || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
           allow_purchase: values.allow_purchase === false ? 0 : 1,
@@ -426,10 +429,23 @@ const AddEditSubscriptionModal = ({
                     <Col span={12}>
                       <Form.InputNumber
                         field='max_purchase_per_user'
-                        label={t('购买上限')}
+                        label={t('每用户购买上限')}
                         min={0}
                         precision={0}
                         extraText={t('0 表示不限')}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.InputNumber
+                        field='total_purchase_limit'
+                        label={t('全局发放上限')}
+                        min={0}
+                        precision={0}
+                        extraText={t(
+                          '0 表示不限；购买、赠送、空投和注册赠送都会占用',
+                        )}
                         style={{ width: '100%' }}
                       />
                     </Col>

@@ -222,7 +222,6 @@ const PersonalSetting = () => {
     gotifyPriority: 5,
     upstreamModelUpdateNotifyEnabled: false,
     acceptUnsetModelRatioModel: false,
-    recordIpLog: false,
   });
 
   const currentUser = userState?.user || {};
@@ -442,7 +441,6 @@ const PersonalSetting = () => {
           settings.upstream_model_update_notify_enabled === true,
         acceptUnsetModelRatioModel:
           settings.accept_unset_model_ratio_model || false,
-        recordIpLog: settings.record_ip_log || false,
       });
     }
   }, [currentUser?.setting]);
@@ -871,7 +869,6 @@ const PersonalSetting = () => {
           notificationSettings.upstreamModelUpdateNotifyEnabled === true,
         accept_unset_model_ratio_model:
           notificationSettings.acceptUnsetModelRatioModel,
-        record_ip_log: notificationSettings.recordIpLog,
       });
 
       if (res.data.success) {
@@ -1235,18 +1232,6 @@ const PersonalSetting = () => {
                     />
                   </div>
 
-                  <div className='personal-v3-setting-row'>
-                    <div>
-                      <h4>{t('记录请求与错误日志 IP')}</h4>
-                      <p>{t('控制日志中是否保留客户端 IP 信息')}</p>
-                    </div>
-                    <Switch
-                      checked={notificationSettings.recordIpLog}
-                      onChange={(checked) =>
-                        handleNotificationSettingChange('recordIpLog', checked)
-                      }
-                    />
-                  </div>
                 </div>
 
                 <div className='personal-v3-card-actions personal-v3-card-actions-split'>

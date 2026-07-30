@@ -3837,6 +3837,7 @@
     "项目操作按钮组": "Groupe de boutons d'action du projet",
     "项目内容": "Contenu de l'élément",
     "消费": "Consommer",
+    "消费和错误日志记录发起调用的客户端 IP": "Les journaux de consommation et d'erreur enregistrent l'adresse IP cliente à l'origine de l'appel",
     "消费返利": "Remboursement de consommation",
     "消费返利比例": "Taux de remboursement de la consommation",
     "消费返佣比例": "Taux de commission de consommation",
@@ -4769,6 +4770,7 @@
     "主账号": "Compte principal",
     "注 册": "S'inscrire",
     "注册": "S'inscrire",
+    "注册 IP": "IP d'inscription",
     "注册 Mini App 后，群里的“绑定账号”按钮才能启动 Mini App（拿到 Telegram 用户身份）。": "Après l'enregistrement du Mini App, le bouton « Lier le compte » du groupe peut lancer le Mini App (pour obtenir l'identité Telegram).",
     "注册 Passkey": "Enregistrer un Passkey",
     "注册成功": "Inscription réussie",
@@ -5326,6 +5328,15 @@
     "较上一年": "Par rapport à l'année précédente",
     "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X peut aussi être inférieur à 1 pour appliquer une remise. Pour augmenter uniquement le prix de sortie ou ajouter des frais fixes, écrivez directement la formule de facturation complète.",
     "Token/分钟（最近 60 秒）": "Tokens/min (60 dernières secondes)",
-    "Token/分钟（{{duration}}平均）": "Tokens/min (moyenne sur {{duration}})"
+    "Token/分钟（{{duration}}平均）": "Tokens/min (moyenne sur {{duration}})",
+    "每用户购买上限": "Limite d’achat par utilisateur",
+    "全局发放上限": "Limite globale d’attribution",
+    "0 表示不限；购买、赠送、空投和注册赠送都会占用": "0 signifie illimité ; les achats, cadeaux, airdrops et cadeaux d’inscription sont tous comptabilisés",
+    "已发放": "Attribué",
+    "预占": "Réservé",
+    "剩余": "Restant",
+    "份": "unités",
+    "该套餐已发放完毕": "Ce forfait a été entièrement attribué",
+    "已发放完毕": "Entièrement attribué"
   }
 }

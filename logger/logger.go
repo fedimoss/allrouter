@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -13,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,14 +22,48 @@ const (
 	loggerDebug = "DEBUG"
 )
 
-const maxLogCount = 1000000
-
-var logCount int
 var setupLogLock sync.Mutex
-var setupLogWorking bool
+var dailyRotationOnce sync.Once
 var currentLogPath string
 var currentLogPathMu sync.RWMutex
 var currentLogFile *os.File
+
+// Gin captures its writers when its logging middleware is created. Keep these
+// writer instances stable and rotate only the file they write to.
+var stdoutDailyWriter = &dailyLogWriter{console: os.Stdout}
+var stderrDailyWriter = &dailyLogWriter{console: os.Stderr}
+
+type dailyLogWriter struct {
+	console io.Writer
+}
+
+func (w *dailyLogWriter) Write(p []byte) (int, error) {
+	ensureLoggerForDate(time.Now())
+
+	// Keep the read lock for the whole file write so a rotation cannot close
+	// the file while a captured Gin writer is still using it.
+	currentLogPathMu.RLock()
+	defer currentLogPathMu.RUnlock()
+
+	n, err := w.console.Write(p)
+	if err != nil {
+		return n, err
+	}
+	if n != len(p) {
+		return n, io.ErrShortWrite
+	}
+	if currentLogFile == nil {
+		return n, nil
+	}
+	n, err = currentLogFile.Write(p)
+	if err != nil {
+		return n, err
+	}
+	if n != len(p) {
+		return n, io.ErrShortWrite
+	}
+	return n, nil
+}
 
 func GetCurrentLogPath() string {
 	currentLogPathMu.RLock()
@@ -39,37 +71,90 @@ func GetCurrentLogPath() string {
 	return currentLogPath
 }
 
-func SetupLogger() {
-	defer func() {
-		setupLogWorking = false
-	}()
-	if *common.LogDir != "" {
-		ok := setupLogLock.TryLock()
-		if !ok {
-			log.Println("setup log is already working")
-			return
-		}
-		defer func() {
-			setupLogLock.Unlock()
-		}()
-		logPath := filepath.Join(*common.LogDir, fmt.Sprintf("oneapi-%s.log", time.Now().Format("20060102150405")))
-		fd, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Fatal("failed to open log file")
-		}
-		currentLogPathMu.Lock()
-		oldFile := currentLogFile
-		currentLogPath = logPath
-		currentLogFile = fd
-		currentLogPathMu.Unlock()
+func logPathForDate(logDir string, now time.Time) string {
+	return filepath.Join(logDir, fmt.Sprintf("oneapi-%s.log", now.Format("20060102")))
+}
 
-		common.LogWriterMu.Lock()
-		gin.DefaultWriter = io.MultiWriter(os.Stdout, fd)
-		gin.DefaultErrorWriter = io.MultiWriter(os.Stderr, fd)
-		if oldFile != nil {
-			_ = oldFile.Close()
-		}
-		common.LogWriterMu.Unlock()
+func SetupLogger() {
+	if common.LogDir == nil || *common.LogDir == "" {
+		return
+	}
+	installDailyWriters()
+	if err := setupLoggerAt(time.Now()); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to open daily log file: %v\n", err)
+		return
+	}
+	startDailyRotation()
+}
+
+func installDailyWriters() {
+	common.LogWriterMu.Lock()
+	gin.DefaultWriter = stdoutDailyWriter
+	gin.DefaultErrorWriter = stderrDailyWriter
+	common.LogWriterMu.Unlock()
+}
+
+func setupLoggerAt(now time.Time) error {
+	if common.LogDir == nil || *common.LogDir == "" {
+		return nil
+	}
+
+	setupLogLock.Lock()
+	defer setupLogLock.Unlock()
+
+	logPath := logPathForDate(*common.LogDir, now)
+	currentLogPathMu.RLock()
+	alreadyActive := currentLogPath == logPath && currentLogFile != nil
+	currentLogPathMu.RUnlock()
+	if alreadyActive {
+		return nil
+	}
+
+	fd, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", logPath, err)
+	}
+
+	currentLogPathMu.Lock()
+	oldFile := currentLogFile
+	currentLogPath = logPath
+	currentLogFile = fd
+	if oldFile != nil {
+		_ = oldFile.Close()
+	}
+	currentLogPathMu.Unlock()
+	return nil
+}
+
+func startDailyRotation() {
+	dailyRotationOnce.Do(func() {
+		go func() {
+			for {
+				now := time.Now()
+				nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+				timer := time.NewTimer(time.Until(nextMidnight))
+				<-timer.C
+				if err := setupLoggerAt(time.Now()); err != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "failed to rotate daily log file: %v\n", err)
+				}
+			}
+		}()
+	})
+}
+
+func ensureLoggerForDate(now time.Time) {
+	if common.LogDir == nil || *common.LogDir == "" {
+		return
+	}
+	logPath := logPathForDate(*common.LogDir, now)
+	currentLogPathMu.RLock()
+	alreadyActive := currentLogPath == logPath && currentLogFile != nil
+	currentLogPathMu.RUnlock()
+	if alreadyActive {
+		return
+	}
+	if err := setupLoggerAt(now); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to rotate daily log file: %v\n", err)
 	}
 }
 
@@ -109,14 +194,6 @@ func logHelper(ctx context.Context, level string, msg string) {
 	}
 	_, _ = fmt.Fprintf(writer, "[%s] %v | %s | %s \n", level, now.Format("2006/01/02 - 15:04:05"), id, msg)
 	common.LogWriterMu.RUnlock()
-	logCount++ // we don't need accurate count, so no lock here
-	if logCount > maxLogCount && !setupLogWorking {
-		logCount = 0
-		setupLogWorking = true
-		gopool.Go(func() {
-			SetupLogger()
-		})
-	}
 }
 
 func LogQuota(quota int) string {

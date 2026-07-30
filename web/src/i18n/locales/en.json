@@ -3864,6 +3864,7 @@
     "项目操作按钮组": "Project action button group",
     "项目内容": "Project content",
     "消费": "Consume",
+    "消费和错误日志记录发起调用的客户端 IP": "Consumption and error logs record the client IP address that initiated the request",
     "消费返利": "Consumption Rebate",
     "消费返利比例": "Consumption Rebate Ratio",
     "消费返佣比例": "Consumption Commission Ratio",
@@ -4795,6 +4796,7 @@
     "主账号": "Main Account",
     "注 册": "Sign Up",
     "注册": "Sign up",
+    "注册 IP": "Registration IP",
     "注册 Mini App 后，群里的“绑定账号”按钮才能启动 Mini App（拿到 Telegram 用户身份）。": "After registering the Mini App, the \"Bind account\" button in the group can launch the Mini App (obtaining the Telegram user identity).",
     "注册 Passkey": "Register Passkey",
     "注册成功": "Registration successful",
@@ -5360,6 +5362,15 @@
     "较上一年": "vs. previous year",
     "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X can also be less than 1 to apply a discount. To increase only the output price or add a fixed fee, write the complete billing formula directly.",
     "Token/分钟（最近 60 秒）": "Tokens/min (last 60 seconds)",
-    "Token/分钟（{{duration}}平均）": "Tokens/min ({{duration}} average)"
+    "Token/分钟（{{duration}}平均）": "Tokens/min ({{duration}} average)",
+    "每用户购买上限": "Per-user Purchase Limit",
+    "全局发放上限": "Global Issuance Limit",
+    "0 表示不限；购买、赠送、空投和注册赠送都会占用": "0 means unlimited; purchases, gifts, airdrops, and registration gifts all count",
+    "已发放": "Issued",
+    "预占": "Reserved",
+    "剩余": "Remaining",
+    "份": "units",
+    "该套餐已发放完毕": "This plan has been fully issued",
+    "已发放完毕": "Fully Issued"
   }
 }

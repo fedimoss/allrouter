@@ -14,6 +14,7 @@ import (
 	"github.com/samber/hot"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // Subscription duration units
@@ -37,6 +38,21 @@ const (
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
+	ErrSubscriptionPlanSoldOut        = errors.New("该套餐已发放完毕")
+	ErrSubscriptionPurchaseLimit      = errors.New("已达到该套餐购买上限")
+	ErrSubscriptionStockInvalid       = errors.New("subscription stock state invalid")
+	ErrSubscriptionLimitTooSmall      = errors.New("全局发放上限不能小于已发放和预占数量")
+)
+
+const (
+	SubscriptionStockStatusReserved = "reserved"
+	SubscriptionStockStatusIssued   = "issued"
+	SubscriptionStockStatusReleased = "released"
+
+	// 支付订单默认预占 45 分钟。支付渠道的结账有效期应不晚于该时间。
+	DefaultSubscriptionStockReservationSeconds int64 = 45 * 60
+	// 外部结账会话使用 40 分钟，给支付成功回调预留 5 分钟宽限期。
+	DefaultSubscriptionCheckoutSeconds int64 = 40 * 60
 )
 
 const (
@@ -186,6 +202,14 @@ type SubscriptionPlan struct {
 
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
+
+	// TotalPurchaseLimit 是套餐全局发放上限，0 表示无限量。
+	// 购买、管理员赠送、空投和注册赠送都会占用该额度。
+	TotalPurchaseLimit int64 `json:"total_purchase_limit" gorm:"type:bigint;not null;default:0"`
+	// IssuedCount 是已经成功创建过的用户订阅数量；订阅到期、取消后不返还。
+	IssuedCount int64 `json:"issued_count" gorm:"type:bigint;not null;default:0"`
+	// ReservedCount 是待支付订单临时占用的数量；失败或超时后释放。
+	ReservedCount int64 `json:"reserved_count" gorm:"type:bigint;not null;default:0"`
 
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
@@ -370,15 +394,16 @@ type SubscriptionOrder struct {
 	Status          string  `json:"status"`
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
+	StockStatus     string  `json:"stock_status" gorm:"type:varchar(16);not null;default:'';index"`
+	StockExpiresAt  int64   `json:"stock_expires_at" gorm:"type:bigint;not null;default:0;index"`
 
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 }
 
 func (o *SubscriptionOrder) Insert() error {
-	if o.CreateTime == 0 {
-		o.CreateTime = common.GetTimestamp()
-	}
-	return DB.Create(o).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		return CreateSubscriptionOrderTx(tx, o)
+	})
 }
 
 // CreateSubscriptionOrderWithTopUp 创建订阅订单，并在同一事务中同步创建或更新对应的充值记录。
@@ -386,11 +411,8 @@ func CreateSubscriptionOrderWithTopUp(order *SubscriptionOrder) error {
 	if order == nil {
 		return errors.New("subscription order is nil")
 	}
-	if order.CreateTime == 0 {
-		order.CreateTime = common.GetTimestamp()
-	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(order).Error; err != nil {
+		if err := CreateSubscriptionOrderTx(tx, order); err != nil {
 			return err
 		}
 		return upsertSubscriptionTopUpTx(tx, order)
@@ -618,7 +640,8 @@ func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 		return nil, errors.New("invalid plan id")
 	}
 	key := subscriptionPlanCacheKey(id)
-	if key != "" {
+	// 事务内读取必须绕开缓存：库存和归属校验需要使用数据库中的最新值。
+	if tx == nil && key != "" {
 		// 将套餐 ID 作为键从缓存中获取订阅套餐详情
 		if cached, found, err := getSubscriptionPlanCache().Get(key); err == nil && found {
 			return &cached, nil
@@ -632,7 +655,9 @@ func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	if err := query.Where("id = ?", id).First(&plan).Error; err != nil {
 		return nil, err
 	}
-	_ = getSubscriptionPlanCache().SetWithTTL(key, plan, subscriptionPlanCacheTTL())
+	if tx == nil {
+		_ = getSubscriptionPlanCache().SetWithTTL(key, plan, subscriptionPlanCacheTTL())
+	}
 	return &plan, nil
 }
 
@@ -647,6 +672,134 @@ func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+// CreateSubscriptionOrderTx 创建待支付订阅订单并原子预占一份套餐额度。
+// 所有支付渠道必须通过此方法下单，不能在控制器中直接 tx.Create(order)。
+func CreateSubscriptionOrderTx(tx *gorm.DB, order *SubscriptionOrder) error {
+	if tx == nil || order == nil {
+		return errors.New("invalid subscription order")
+	}
+	if order.UserId <= 0 || order.PlanId <= 0 || strings.TrimSpace(order.TradeNo) == "" {
+		return errors.New("invalid subscription order")
+	}
+	if order.CreateTime == 0 {
+		order.CreateTime = common.GetTimestamp()
+	}
+	if order.Status == "" {
+		order.Status = common.TopUpStatusPending
+	}
+
+	// 同一用户的订单创建和赠送统一锁住 user 行，使每用户购买上限在多实例下也严格生效。
+	var user User
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id", "provider_id").Where("id = ?", order.UserId).First(&user).Error; err != nil {
+		return err
+	}
+	if user.ProviderId != order.ProviderId {
+		return errors.New("subscription provider does not match user provider")
+	}
+
+	var plan SubscriptionPlan
+	if err := tx.Where("id = ?", order.PlanId).First(&plan).Error; err != nil {
+		return err
+	}
+	if plan.ProviderId != order.ProviderId {
+		return errors.New("subscription plan does not belong to user provider")
+	}
+	if !plan.Enabled || plan.AllowPurchase != 1 {
+		return errors.New("该套餐暂不允许订阅")
+	}
+	if err := checkUserSubscriptionPurchaseLimitTx(tx, order.UserId, order.PlanId, plan.MaxPurchasePerUser); err != nil {
+		return err
+	}
+	if err := reserveSubscriptionPlanStockTx(tx, order.PlanId); err != nil {
+		return err
+	}
+
+	order.StockStatus = SubscriptionStockStatusReserved
+	if order.StockExpiresAt <= 0 {
+		order.StockExpiresAt = order.CreateTime + DefaultSubscriptionStockReservationSeconds
+	}
+	return tx.Create(order).Error
+}
+
+// checkUserSubscriptionPurchaseLimitTx 的调用方必须先锁定对应用户行，避免并发下重复突破每用户上限。
+func checkUserSubscriptionPurchaseLimitTx(tx *gorm.DB, userId int, planId int, maxPurchasePerUser int) error {
+	if maxPurchasePerUser <= 0 {
+		return nil
+	}
+	var issuedCount int64
+	if err := tx.Model(&UserSubscription{}).
+		Where("user_id = ? AND plan_id = ?", userId, planId).
+		Count(&issuedCount).Error; err != nil {
+		return err
+	}
+	var reservedCount int64
+	if err := tx.Model(&SubscriptionOrder{}).
+		Where("user_id = ? AND plan_id = ? AND status = ? AND stock_status = ?", userId, planId, common.TopUpStatusPending, SubscriptionStockStatusReserved).
+		Count(&reservedCount).Error; err != nil {
+		return err
+	}
+	if issuedCount+reservedCount >= int64(maxPurchasePerUser) {
+		return ErrSubscriptionPurchaseLimit
+	}
+	return nil
+}
+
+func reserveSubscriptionPlanStockTx(tx *gorm.DB, planId int) error {
+	res := tx.Model(&SubscriptionPlan{}).
+		Where("id = ? AND (total_purchase_limit = 0 OR issued_count + reserved_count < total_purchase_limit)", planId).
+		UpdateColumn("reserved_count", gorm.Expr("reserved_count + ?", 1))
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrSubscriptionPlanSoldOut
+	}
+	return nil
+}
+
+func issueSubscriptionPlanStockTx(tx *gorm.DB, planId int) error {
+	res := tx.Model(&SubscriptionPlan{}).
+		Where("id = ? AND (total_purchase_limit = 0 OR issued_count + reserved_count < total_purchase_limit)", planId).
+		UpdateColumn("issued_count", gorm.Expr("issued_count + ?", 1))
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrSubscriptionPlanSoldOut
+	}
+	return nil
+}
+
+func commitReservedSubscriptionPlanStockTx(tx *gorm.DB, planId int) error {
+	res := tx.Model(&SubscriptionPlan{}).
+		Where("id = ? AND reserved_count > 0", planId).
+		Updates(map[string]interface{}{
+			"reserved_count": gorm.Expr("reserved_count - ?", 1),
+			"issued_count":   gorm.Expr("issued_count + ?", 1),
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrSubscriptionStockInvalid
+	}
+	return nil
+}
+
+func releaseReservedSubscriptionPlanStockTx(tx *gorm.DB, planId int) error {
+	res := tx.Model(&SubscriptionPlan{}).
+		Where("id = ? AND reserved_count > 0", planId).
+		UpdateColumn("reserved_count", gorm.Expr("reserved_count - ?", 1))
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrSubscriptionStockInvalid
+	}
+	return nil
 }
 
 func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
@@ -720,6 +873,16 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 // 未传入时回退到从用户表查 provider_id，保证订阅实例归属与用户一致。
 // 这样既支持"按订单归属"也支持"按用户归属"两种语义，且保持向后兼容(原签名仍可用)。
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, providerIds ...int) (*UserSubscription, error) {
+	return createUserSubscriptionFromPlanTx(tx, userId, plan, source, false, providerIds...)
+}
+
+// createUserSubscriptionFromReservedPlanTx 用于支付订单完成：订单在下单时已经预占库存，
+// 此处只把预占原子转换为已发放，不能再次占用。
+func createUserSubscriptionFromReservedPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, providerIds ...int) (*UserSubscription, error) {
+	return createUserSubscriptionFromPlanTx(tx, userId, plan, source, true, providerIds...)
+}
+
+func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, stockReserved bool, providerIds ...int) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -729,16 +892,10 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
 	}
-	if plan.MaxPurchasePerUser > 0 {
-		var count int64
-		if err := tx.Model(&UserSubscription{}).
-			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
-			Count(&count).Error; err != nil {
-			return nil, err
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			return nil, errors.New("已达到该套餐购买上限")
-		}
+	var lockedUser User
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id", "provider_id").Where("id = ?", userId).First(&lockedUser).Error; err != nil {
+		return nil, err
 	}
 	nowUnix := getDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)
@@ -754,10 +911,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	// 解析订阅实例归属服务商：优先用显式传入的 providerIds[0]，
 	// 否则按用户表的 provider_id 自动继承，保证订阅与用户在同一服务商上下文。
-	userProviderId, err := getUserProviderIdByIdTx(tx, userId)
-	if err != nil {
-		return nil, err
-	}
+	userProviderId := lockedUser.ProviderId
 	providerId := userProviderId
 	if len(providerIds) > 0 {
 		providerId = providerIds[0]
@@ -767,6 +921,18 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	if plan.ProviderId != providerId {
 		return nil, errors.New("subscription plan does not belong to user provider")
+	}
+	if stockReserved {
+		if err := commitReservedSubscriptionPlanStockTx(tx, plan.Id); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := checkUserSubscriptionPurchaseLimitTx(tx, userId, plan.Id, plan.MaxPurchasePerUser); err != nil {
+			return nil, err
+		}
+		if err := issueSubscriptionPlanStockTx(tx, plan.Id); err != nil {
+			return nil, err
+		}
 	}
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
 	prevGroup := ""
@@ -828,7 +994,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	var providerIncomeCreated bool
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
 		}
 		// 订阅补单/回调处理时，必须确认当前回调网关和本地订单支付方式一致。
@@ -863,8 +1029,14 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			// still allow completion for already purchased orders
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		// 用订单上的 ProviderId 创建订阅实例，确保实例归属与订单一致（服务商私有套餐 → 服务商站点用户实例）。
-		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order", order.ProviderId)
+		// 新订单在下单时已预占；历史订单没有库存状态，完成时再原子占用一份。
+		if order.StockStatus == SubscriptionStockStatusReserved {
+			_, err = createUserSubscriptionFromReservedPlanTx(tx, order.UserId, plan, "order", order.ProviderId)
+		} else if order.StockStatus == "" {
+			_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order", order.ProviderId)
+		} else {
+			return ErrSubscriptionStockInvalid
+		}
 		if err != nil {
 			return err
 		}
@@ -876,6 +1048,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			}
 		}
 		order.Status = common.TopUpStatusSuccess
+		order.StockStatus = SubscriptionStockStatusIssued
 		order.CompleteTime = common.GetTimestamp()
 		if providerPayload != "" {
 			order.ProviderPayload = providerPayload
@@ -1001,7 +1174,7 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentMethod string) error
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
 		}
 		// 过期/关闭订单也要做同样的支付方式校验，避免不同支付通道互相影响订单状态。
@@ -1011,6 +1184,12 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentMethod string) error
 		if order.Status != common.TopUpStatusPending {
 			return nil
 		}
+		if order.StockStatus == SubscriptionStockStatusReserved {
+			if err := releaseReservedSubscriptionPlanStockTx(tx, order.PlanId); err != nil {
+				return err
+			}
+			order.StockStatus = SubscriptionStockStatusReleased
+		}
 		order.Status = common.TopUpStatusExpired
 		order.CompleteTime = common.GetTimestamp()
 		if err := tx.Save(&order).Error; err != nil {
@@ -1018,6 +1197,31 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentMethod string) error
 		}
 		return upsertSubscriptionTopUpTx(tx, &order)
 	})
+}
+
+// ExpireReservedSubscriptionOrders 释放过期但尚未支付的库存预占。
+// 每个订单都通过 ExpireSubscriptionOrder 单独事务处理，因此多实例重复执行也安全。
+func ExpireReservedSubscriptionOrders(limit int) (int, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	now := common.GetTimestamp()
+	var tradeNos []string
+	if err := DB.Model(&SubscriptionOrder{}).
+		Where("status = ? AND stock_status = ? AND stock_expires_at > 0 AND stock_expires_at <= ?", common.TopUpStatusPending, SubscriptionStockStatusReserved, now).
+		Order("stock_expires_at asc, id asc").
+		Limit(limit).
+		Pluck("trade_no", &tradeNos).Error; err != nil {
+		return 0, err
+	}
+	expired := 0
+	for _, tradeNo := range tradeNos {
+		if err := ExpireSubscriptionOrder(tradeNo, ""); err != nil {
+			return expired, err
+		}
+		expired++
+	}
+	return expired, nil
 }
 
 // AdminBindSubscription 管理员手动为用户绑定订阅套餐（无需支付）。

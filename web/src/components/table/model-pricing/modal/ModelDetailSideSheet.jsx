@@ -96,6 +96,10 @@ const ModelDetailSideSheet = ({
                   <Divider margin={12} />
                   <DynamicPricingBreakdown
                     billingExpr={modelData.billing_expr}
+                    providerPricingType={modelData.provider_pricing_type}
+                    providerDeltaModelRatio={
+                      modelData.provider_delta_model_ratio
+                    }
                     t={t}
                   />
                 </>

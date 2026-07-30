@@ -1809,7 +1809,8 @@ CREATE TABLE users (
     phone_number character varying(20),
     timezone character varying(64),
     avatar character varying(255),
-    signup_source character varying(64)
+    signup_source character varying(64),
+    register_ip character varying(45) NOT NULL DEFAULT ''::character varying
 );
 
 
@@ -1842,6 +1843,13 @@ COMMENT ON COLUMN users.avatar IS '头像';
 --
 
 COMMENT ON COLUMN users.signup_source IS '注册来源';
+
+
+--
+-- Name: COLUMN users.register_ip; Type: COMMENT; Schema: public; Owner: allrouter
+--
+
+COMMENT ON COLUMN users.register_ip IS '注册 IP';
 
 
 --
@@ -2973,7 +2981,7 @@ INSERT INTO two_fas (id, user_id, secret, is_enabled, failed_attempts, locked_un
 
 
 
-INSERT INTO users (id, username, password, display_name, role, status, email, github_id, discord_id, oidc_id, wechat_id, telegram_id, access_token, quota, used_quota, request_count, "group", aff_code, aff_count, aff_quota, aff_history, inviter_id, deleted_at, linux_do_id, setting, remark, stripe_customer, created_at, phone_country_code, phone_number, timezone, avatar, signup_source) VALUES (1, 'admin', '$2a$10$0x7Vi0I3FyptefsyuA2C.etw1adn5X/fpwrMY0iOjPjMQi83QYYAS', 'Root User', 100, 1, '', '', '', '', '', '', NULL, 100000000, 0, 0, 'default', '2hWc', 1, 0, 0, 0, NULL, '', '{"gotify_priority":0,"language":"zh-CN"}', '', 'cus_U7BvsXV7SS3lGt', 0, '+86', '', 'Asia/Shanghai', '/assets/logo-white-D3lyOuka.svg', '0');
+INSERT INTO users (id, username, password, display_name, role, status, email, github_id, discord_id, oidc_id, wechat_id, telegram_id, access_token, quota, used_quota, request_count, "group", aff_code, aff_count, aff_quota, aff_history, inviter_id, deleted_at, linux_do_id, setting, remark, stripe_customer, created_at, phone_country_code, phone_number, timezone, avatar, signup_source, register_ip) VALUES (1, 'admin', '$2a$10$0x7Vi0I3FyptefsyuA2C.etw1adn5X/fpwrMY0iOjPjMQi83QYYAS', 'Root User', 100, 1, '', '', '', '', '', '', NULL, 100000000, 0, 0, 'default', '2hWc', 1, 0, 0, 0, NULL, '', '{"gotify_priority":0,"language":"zh-CN"}', '', 'cus_U7BvsXV7SS3lGt', 0, '+86', '', 'Asia/Shanghai', '/assets/logo-white-D3lyOuka.svg', '0', '');
 
 
 INSERT INTO vendors (id, name, description, icon, status, created_time, updated_time, deleted_at) VALUES (1, 'openai', '', 'OpenAI.Avatar.type={''platform''}', 1, 1771905962, 1771905962, NULL);

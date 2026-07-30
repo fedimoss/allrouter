@@ -62,6 +62,7 @@ type User struct {
 	Timezone                   string         `json:"timezone" gorm:"type:varchar(64);column:timezone" validate:"max=64"`                     // 时区标识（IANA），如 Asia/Shanghai
 	Avatar                     string         `json:"avatar" gorm:"type:varchar(2048);column:avatar" validate:"max=2048"`                     // 头像                   // 头像 URL
 	SignupSource               string         `json:"signup_source" gorm:"type:varchar(64);column:signup_source" validate:"max=64"`           // 注册来源
+	RegisterIp                 string         `json:"register_ip" gorm:"type:varchar(45);column:register_ip;default:'';<-:create"`            // 注册 IP（仅创建时写入）
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -844,6 +845,10 @@ func grantRegisterGiftSubscriptionTx(tx *gorm.DB, userId int, providerId int) (s
 		return "", nil
 	}
 	if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "register_reward"); err != nil {
+		// 注册赠送耗尽时不应回滚整笔用户注册；仅跳过本次赠送。
+		if errors.Is(err, ErrSubscriptionPlanSoldOut) {
+			return "", nil
+		}
 		return "", err
 	}
 	return plan.Title, nil

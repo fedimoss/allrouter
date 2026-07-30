@@ -97,6 +97,31 @@ func requestSubscriptionLakalaPay(c *gin.Context, plan *model.SubscriptionPlan, 
 		return
 	}
 
+	// 先在本地原子预占库存，再向支付渠道发起预下单；否则多人同时扫码时无法保证最后一份不超发。
+	order := &model.SubscriptionOrder{
+		UserId:          userId,
+		PlanId:          plan.Id,
+		ProviderId:      c.GetInt("provider_id"),
+		Money:           usdPrice,
+		Currency:        "¥",
+		OriginalMoney:   lakalaPayMoney.InexactFloat64(),
+		TradeNo:         tradeNo,
+		PaymentMethod:   req.PaymentMethod,
+		PaymentProvider: model.PaymentProviderLakala,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
+	}
+	if err := model.CreateSubscriptionOrderWithTopUp(order); err != nil {
+		respondSubscriptionCreateError(c, err, "创建订单失败")
+		return
+	}
+	paymentReady := false
+	defer func() {
+		if !paymentReady {
+			_ = model.ExpireSubscriptionOrder(tradeNo, req.PaymentMethod)
+		}
+	}()
+
 	// 构造HTTP请求
 	httpReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, lakalaPreorderURL, bytes.NewReader(body))
 	if err != nil {
@@ -142,27 +167,8 @@ func requestSubscriptionLakalaPay(c *gin.Context, plan *model.SubscriptionPlan, 
 		return
 	}
 
-	// 创建本地订阅订单记录
-	order := &model.SubscriptionOrder{
-		UserId: userId,
-		PlanId: plan.Id,
-		// 订单归属服务商（0=主站），完成订单时据此给服务商 owner 结算订阅收入。
-		ProviderId:      c.GetInt("provider_id"),
-		Money:           usdPrice,                        // 套餐原价（USD）
-		Currency:        "¥",                             // 拉卡拉固定人民币
-		OriginalMoney:   lakalaPayMoney.InexactFloat64(), // 实际支付的人民币金额
-		TradeNo:         tradeNo,
-		PaymentMethod:   req.PaymentMethod,
-		PaymentProvider: model.PaymentProviderLakala,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
-	}
-	if err := model.CreateSubscriptionOrderWithTopUp(order); err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
-		return
-	}
-
 	// 返回二维码和订单信息给前端展示（url 使用 lakalaQRCodePath，与充值共用同一二维码页面）
+	paymentReady = true
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"url":     lakalaQRCodePath,
