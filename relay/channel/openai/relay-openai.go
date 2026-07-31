@@ -239,6 +239,8 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	// 并将非流式 Chat Completions 响应转换为 Responses 响应格式
 	if info != nil && info.RelayFormat == types.RelayFormatOpenAIResponses {
 		logger.LogInfo(c, fmt.Sprintf("responses compatibility upstream chat response body: %s", string(responseBody)))
+		// [3] chat→response 前响应体：上游 Chat Completions 响应（非流式）
+		// helper.DumpResponsesCompatSection(c, helper.ResponsesCompatDumpResponseBefore, responseBody)
 		return OaiChatToResponsesHandler(c, info, &simpleResponse)
 	}
 

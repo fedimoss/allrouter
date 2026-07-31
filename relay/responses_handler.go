@@ -207,21 +207,18 @@ func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo) *t
 		)
 	}
 
-	// 对于 Responses→Chat 类型通道，记录原始请求体用于诊断调试
-	// if info.ApiType == appconstant.APITypeResponsesChat || info.ChannelType == appconstant.ChannelTypeResponsesChat {
-	// 	if storage, err := common.GetBodyStorage(c); err == nil {
-	// 		if rawBody, bErr := storage.Bytes(); bErr == nil {
-	// 			logResponsesCompatFullBody(c, info, "original responses request body before conversion", info.RequestURLPath, rawBody)
-	// 		} else {
-	// 			logger.LogWarn(c, fmt.Sprintf("failed to read original Responses→Chat request body for diagnostic logging: %s", bErr.Error()))
-	// 		}
-	// 	} else {
-	// 		logger.LogWarn(c, fmt.Sprintf("failed to get original Responses→Chat request body for diagnostic logging: %s", err.Error()))
-	// 	}
+	// === Responses→Chat 诊断 dump：初始化缓冲，并在处理结束时（defer）写盘 ===
+	// helper.BeginResponsesCompatDump(c, info)
+	// defer helper.FlushResponsesCompatDump(c)
+	// // [1] response→chat 前请求体：客户端发来的原始 Responses 请求
+	// if rawReqBytes, mErr := common.Marshal(responsesReq); mErr == nil {
+	// 	helper.DumpResponsesCompatSection(c, helper.ResponsesCompatDumpRequestBefore, rawReqBytes)
 	// }
 
-	// 将 Responses 请求转换为 Chat Completions 兼容请求
-	chatReq, err := service.ResponsesRequestToChatCompletionsCompatRequest(responsesReq)
+	// 将 Responses 请求转换为 Chat Completions 兼容请求，同时取出请求阶段构造的工具上下文。
+	// 该上下文记录了 function/custom/tool_search/namespace 工具与 chat function 名的映射，
+	// 响应阶段（relay/channel/openai）据此把上游返回的 chat function_call 恢复成原始 Codex 工具类型。
+	chatReq, toolCtx, err := service.ResponsesRequestToChatCompletionsCompatRequestWithContext(responsesReq)
 	if err != nil {
 		return types.NewErrorWithStatusCode(
 			fmt.Errorf("failed to convert responses request to chat request: %w", err),
@@ -230,6 +227,8 @@ func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo) *t
 			types.ErrOptionWithSkipRetry(),
 		)
 	}
+	// 把工具上下文挂到 RelayInfo，供响应阶段读取（仅 Responses→Chat 渠道路径使用）。
+	info.ResponsesChatToolCtx = toolCtx
 
 	// 保存原始的请求信息，以便在 defer 中恢复，避免影响后续处理
 	savedRequest := info.Request                                       // 原始请求对象

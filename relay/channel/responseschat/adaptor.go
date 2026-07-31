@@ -27,11 +27,13 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 // 然后委托给 OpenAI 适配器的 ConvertOpenAIRequest 方法处理。
 // 这使得仅支持 /v1/chat/completions 的上游供应商也能接收源自 /v1/responses 的请求。
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// 将 Responses 请求转换为 Chat Completions 兼容请求
-	chatReq, err := openaicompat.ResponsesRequestToChatCompletionsCompatRequest(&request)
+	// 将 Responses 请求转换为 Chat Completions 兼容请求，同时构造工具上下文挂到 info，
+	// 供响应阶段恢复 function/custom/tool_search/namespace 工具类型（与 runtime 路径 responsesViaChatCompletions 保持一致）。
+	chatReq, toolCtx, err := openaicompat.ResponsesRequestToChatCompletionsCompatRequestWithContext(&request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert responses request to chat completions: %w", err)
 	}
+	info.ResponsesChatToolCtx = toolCtx
 
 	// 委托给 OpenAI 适配器处理转换后的 Chat Completions 请求
 	return a.Adaptor.ConvertOpenAIRequest(c, info, chatReq)

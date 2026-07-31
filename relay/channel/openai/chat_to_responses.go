@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -19,12 +20,13 @@ import (
 
 // responsesToolCallState 用于在流式转换过程中跟踪工具调用的累积状态。
 type responsesToolCallState struct {
-	ID          string // 工具调用条目的唯一标识（前缀 "fc_"）
-	CallID      string // 原始调用 ID（通常来自上游）
-	Name        string // 函数名称
-	Arguments   string // 累积的函数参数 JSON 字符串
-	OutputIndex int    // 该工具调用在 Responses output 数组中的位置索引
-	Added       bool   // 是否已发送 item.added 事件
+	ID          string                             // 工具调用条目的唯一标识（前缀 "fc_" 或 "ctc_"）
+	CallID      string                             // 原始调用 ID（通常来自上游）
+	Name        string                             // chat function 名称（上游返回）
+	Spec        *relaycommon.ResponsesChatToolSpec // 经工具上下文解析出的原始 Responses 工具规范（nil 表示未知，按普通 function_call 处理）
+	Arguments   string                             // 累积的函数参数 JSON 字符串
+	OutputIndex int                                // 该工具调用在 Responses output 数组中的位置索引
+	Added       bool                               // 是否已发送 item.added 事件
 }
 
 // responsesStatus 将状态字符串序列化为 JSON 字节切片。
@@ -69,6 +71,118 @@ func responsesArgumentsRaw(arguments string) []byte {
 	return raw
 }
 
+// responsesToolSpec 经 Responses→Chat 工具上下文解析 chat function 名对应的原始工具规范。
+// 无上下文或名称未知时返回 nil，调用方按普通 function_call 处理。
+func responsesToolSpec(info *relaycommon.RelayInfo, chatName string) *relaycommon.ResponsesChatToolSpec {
+	if info == nil || info.ResponsesChatToolCtx == nil {
+		return nil
+	}
+	return info.ResponsesChatToolCtx.Lookup(chatName)
+}
+
+// responsesToolItemID 返回恢复后工具条目的 ID：custom 工具用 "ctc_" 前缀，其余用 "fc_"。
+// 对齐 cc-switch response_tool_call_item_id_from_chat_name。
+func responsesToolItemID(callID string, spec *relaycommon.ResponsesChatToolSpec) string {
+	if spec != nil && spec.Kind == relaycommon.ResponsesChatToolKindCustom {
+		return "ctc_" + callID
+	}
+	return "fc_" + callID
+}
+
+// responsesIsCustomToolSpec 判断 spec 是否为 custom 工具（流式阶段不发 arguments.delta，改发 input 事件）。
+func responsesIsCustomToolSpec(spec *relaycommon.ResponsesChatToolSpec) bool {
+	return spec != nil && spec.Kind == relaycommon.ResponsesChatToolKindCustom
+}
+
+// responsesToolItemFromChat 根据解析出的 spec 把 chat function_call 还原成 Responses 工具条目。
+// spec 决定条目类型：tool_search_call / custom_tool_call / (namespace) function_call；
+// spec 为 nil 时回退为普通 function_call（用 chat 名）。reasoning 非空时附挂 reasoning_content。
+// 对齐 cc-switch response_tool_call_item_from_chat_name。
+func responsesToolItemFromChat(itemID, status, callID, chatName, arguments, reasoning string, spec *relaycommon.ResponsesChatToolSpec) dto.ResponsesOutput {
+	switch {
+	case spec != nil && spec.Kind == relaycommon.ResponsesChatToolKindToolSearch:
+		// tool_search_call：无 id/name，arguments 为对象，execution 固定 "client"。
+		return dto.ResponsesOutput{
+			Type:             "tool_search_call",
+			Status:           status,
+			CallId:           callID,
+			Execution:        "client",
+			Arguments:        responsesToolSearchArgumentsRaw(arguments),
+			ReasoningContent: reasoning,
+		}
+	case spec != nil && spec.Kind == relaycommon.ResponsesChatToolKindCustom:
+		// custom_tool_call：从 chat arguments 解包出原始 input 字符串。
+		return dto.ResponsesOutput{
+			Type:             "custom_tool_call",
+			ID:               itemID,
+			Status:           status,
+			CallId:           callID,
+			Name:             spec.Name,
+			Input:            responsesCustomToolInputFromChat(arguments),
+			ReasoningContent: reasoning,
+		}
+	case spec != nil && (spec.Kind == relaycommon.ResponsesChatToolKindNamespace || spec.Kind == relaycommon.ResponsesChatToolKindFunction):
+		// function_call（可能带 namespace）：用原始工具名，namespace 非空时附带。
+		return dto.ResponsesOutput{
+			Type:             "function_call",
+			ID:               itemID,
+			Status:           status,
+			CallId:           callID,
+			Name:             spec.Name,
+			Arguments:        responsesArgumentsRaw(arguments),
+			Namespace:        spec.Namespace,
+			ReasoningContent: reasoning,
+		}
+	default:
+		// 未知 chat 名：回退为普通 function_call，沿用 chat 名。
+		return dto.ResponsesOutput{
+			Type:             "function_call",
+			ID:               itemID,
+			Status:           status,
+			CallId:           callID,
+			Name:             chatName,
+			Arguments:        responsesArgumentsRaw(arguments),
+			ReasoningContent: reasoning,
+		}
+	}
+}
+
+// responsesToolSearchArgumentsRaw 把 chat 参数字符串解析为 tool_search_call 要求的对象形式。
+// 空 → {}；合法 JSON 对象 → 该对象；否则 → {query: arguments}。对齐 cc-switch parse_tool_arguments_object。
+func responsesToolSearchArgumentsRaw(arguments string) json.RawMessage {
+	s := strings.TrimSpace(arguments)
+	if s == "" {
+		return json.RawMessage(`{}`)
+	}
+	var obj map[string]any
+	if err := common.UnmarshalJsonStr(s, &obj); err == nil {
+		if b, err := common.Marshal(obj); err == nil {
+			return b
+		}
+	}
+	out := map[string]any{"query": arguments}
+	if b, err := common.Marshal(out); err == nil {
+		return b
+	}
+	return json.RawMessage(`{}`)
+}
+
+// responsesCustomToolInputFromChat 从 chat arguments 中解包 custom 工具的原始 input 字符串。
+// 空 → ""；含 input 字符串字段 → 该字符串；否则 → 原始 arguments。对齐 cc-switch custom_tool_input_from_chat_arguments。
+func responsesCustomToolInputFromChat(arguments string) string {
+	s := strings.TrimSpace(arguments)
+	if s == "" {
+		return ""
+	}
+	var obj map[string]any
+	if err := common.UnmarshalJsonStr(s, &obj); err == nil {
+		if input, ok := obj[relaycommon.ResponsesChatCustomInputField()].(string); ok {
+			return input
+		}
+	}
+	return arguments
+}
+
 // sendResponsesEvent 向客户端发送一个 Responses API 流式事件。
 // 同时记录事件日志以便调试兼容性问题。
 func sendResponsesEvent(c *gin.Context, event dto.ResponsesStreamResponse) error {
@@ -78,15 +192,32 @@ func sendResponsesEvent(c *gin.Context, event dto.ResponsesStreamResponse) error
 	}
 	// logger.LogInfo(c, fmt.Sprintf("responses compatibility converted stream event: event=%s body=%s", event.Type, string(data)))
 	helper.ResponseChunkData(c, event, string(data))
+	// [4] chat→response 后响应体：转换后发给客户端的 Responses 流式事件
+	// helper.DumpResponsesCompatSection(c, helper.ResponsesCompatDumpResponseAfter, []byte("event: "+event.Type+"\ndata: "+string(data)+"\n"))
 	return nil
 }
 
 // chatStreamToResponsesResponse 根据流式处理过程中收集的数据，
 // 构建一个完整的 Responses API 非流式响应对象。
-// 按索引顺序排列 message 和 function_call 输出条目。
-func chatStreamToResponsesResponse(responseID string, createdAt int64, model string, text string, usage *dto.Usage, sentMessage bool, messageOutputIndex int, toolCalls map[int]*responsesToolCallState) *dto.OpenAIResponsesResponse {
+// 按索引顺序排列 reasoning / message / function_call 输出条目。
+func chatStreamToResponsesResponse(responseID string, createdAt int64, model string, text string, usage *dto.Usage, sentMessage bool, messageOutputIndex int, toolCalls map[int]*responsesToolCallState, reasoningText string, reasoningOutputIndex int) *dto.OpenAIResponsesResponse {
 	// 按索引构建输出条目映射
 	outputByIndex := map[int]dto.ResponsesOutput{}
+	// 若有推理内容，构建 reasoning 输出条目（位于 message 之前）
+	maxOutputIndex := -1
+	if reasoningText != "" && reasoningOutputIndex >= 0 {
+		outputByIndex[reasoningOutputIndex] = dto.ResponsesOutput{
+			Type:   "reasoning",
+			ID:     "rs_" + responseID,
+			Status: "completed",
+			Summary: []dto.ResponsesReasoningSummaryPart{
+				{Type: "summary_text", Text: reasoningText},
+			},
+		}
+		if reasoningOutputIndex > maxOutputIndex {
+			maxOutputIndex = reasoningOutputIndex
+		}
+	}
 	// 如果有文本消息内容，构建 message 输出条目
 	if sentMessage || text != "" {
 		if messageOutputIndex < 0 {
@@ -105,19 +236,16 @@ func chatStreamToResponsesResponse(responseID string, createdAt int64, model str
 				},
 			},
 		}
-	}
-	// 记录最大输出索引，用于后续按序生成数组
-	maxOutputIndex := messageOutputIndex
-	// 将工具调用按其 OutputIndex 放入映射
-	for _, state := range toolCalls {
-		outputByIndex[state.OutputIndex] = dto.ResponsesOutput{
-			Type:      "function_call",
-			ID:        state.ID,
-			Status:    "completed",
-			CallId:    state.CallID,
-			Name:      state.Name,
-			Arguments: responsesArgumentsRaw(state.Arguments),
+		if messageOutputIndex > maxOutputIndex {
+			maxOutputIndex = messageOutputIndex
 		}
+	}
+	// 将工具调用按其 OutputIndex 放入映射：经工具上下文恢复成 function_call /
+	// custom_tool_call / tool_search_call / namespace function_call（对齐 cc-switch）。
+	for _, state := range toolCalls {
+		outputByIndex[state.OutputIndex] = responsesToolItemFromChat(
+			state.ID, "completed", state.CallID, state.Name, state.Arguments, reasoningText, state.Spec,
+		)
 		if state.OutputIndex > maxOutputIndex {
 			maxOutputIndex = state.OutputIndex
 		}
@@ -170,6 +298,10 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		sentCreated bool               // 是否已发送 response.created 事件
 		sentMessage bool               // 是否已发送 message 条目的 item.added 事件
 		sentPart    bool               // 是否已发送内容部件的 content_part.added 事件
+		// reasoning 输出条目状态（仅当上游返回 reasoning_content 且未合并进正文时使用）
+		reasoningStarted     bool   // 是否已发送 reasoning 条目的 item.added
+		reasoningOutputIndex int    // reasoning 条目在输出数组中的索引
+		reasoningItemID      string // reasoning 条目 ID（rs_<responseID>）
 	)
 	toolCalls := map[int]*responsesToolCallState{} // 工具调用状态映射（按工具索引）
 
@@ -296,8 +428,72 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		return true
 	}
 
+	// sendReasoningStart 发送 reasoning 条目的 item.added 与 summary_part.added（仅一次）。
+	sendReasoningStart := func() bool {
+		if reasoningStarted {
+			return true
+		}
+		if !sendCreated() {
+			return false
+		}
+		reasoningOutputIndex = nextOutputIndex
+		nextOutputIndex++
+		reasoningItemID = "rs_" + responseID
+		reasoningStarted = true
+		// 发送 reasoning 条目的 item.added 事件
+		if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+			Type:        dto.ResponsesOutputTypeItemAdded,
+			OutputIndex: &reasoningOutputIndex,
+			Item: &dto.ResponsesOutput{
+				Type:   "reasoning",
+				ID:     reasoningItemID,
+				Status: "in_progress",
+			},
+		}); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			return false
+		}
+		// 发送 summary_part.added 事件
+		summaryIndex := 0
+		if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+			Type:         "response.reasoning_summary_part.added",
+			ItemID:       reasoningItemID,
+			OutputIndex:  &reasoningOutputIndex,
+			SummaryIndex: &summaryIndex,
+			Part:         &dto.ResponsesReasoningSummaryPart{Type: "summary_text"},
+		}); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			return false
+		}
+		return true
+	}
+
+	// sendReasoningDelta 发送 reasoning summary_text 增量事件。
+	sendReasoningDelta := func(delta string) bool {
+		if delta == "" {
+			return true
+		}
+		if !sendReasoningStart() {
+			return false
+		}
+		summaryIndex := 0
+		if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+			Type:         "response.reasoning_summary_text.delta",
+			ItemID:       reasoningItemID,
+			OutputIndex:  &reasoningOutputIndex,
+			SummaryIndex: &summaryIndex,
+			Delta:        delta,
+		}); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			return false
+		}
+		return true
+	}
+
 	// getToolState 获取或创建指定工具调用的跟踪状态。
 	// 使用工具的 Index 字段作为映射键来追踪同一工具调用的多次增量更新。
+	// 注意：item ID（fc_/ctc_ 前缀）与 spec 在 sendToolDelta 发送 item.added 时才解析锁定，
+	// 因为它们依赖 chat function 名（可能晚于 call_id 到达）。
 	getToolState := func(tool dto.ToolCallResponse) *responsesToolCallState {
 		index := 0
 		if tool.Index != nil {
@@ -312,62 +508,82 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				callID = "call_" + responseID + "_" + strconv.Itoa(index)
 			}
 			state = &responsesToolCallState{
-				ID:          "fc_" + callID,
 				CallID:      callID,
 				OutputIndex: nextOutputIndex,
 			}
 			nextOutputIndex++
 			toolCalls[index] = state
 		}
-		// 用最新的工具调用信息更新状态
-		if strings.TrimSpace(tool.ID) != "" {
-			state.CallID = strings.TrimSpace(tool.ID)
-			state.ID = "fc_" + state.CallID
+		// 用最新的工具调用信息更新状态（call_id / name 可能分多块到达）。
+		// 不在此处设置 state.ID：前缀（fc_/ctc_）依赖 spec，由 sendToolDelta 在 item.added 时锁定。
+		if id := strings.TrimSpace(tool.ID); id != "" {
+			state.CallID = id
 		}
-		if strings.TrimSpace(tool.Function.Name) != "" {
-			state.Name = strings.TrimSpace(tool.Function.Name)
+		if name := strings.TrimSpace(tool.Function.Name); name != "" {
+			state.Name = name
 		}
 		return state
 	}
 
 	// sendToolDelta 处理工具调用的增量数据。
-	// 首次遇到某工具调用时发送 item.added 事件，之后发送参数增量事件。
+	// 首次遇到某工具调用（且 name 已知）时发送 item.added 事件，之后发送参数增量事件。
+	// custom 工具不发 function_call_arguments.delta，改在 finalize 阶段发 custom_tool_call_input 事件
+	// （对齐 cc-switch streaming_codex_chat）。
 	sendToolDelta := func(tool dto.ToolCallResponse) bool {
 		// 确保 response.created 事件已发送
 		if !sendCreated() {
 			return false
 		}
 		state := getToolState(tool)
-		// 首次遇到该工具调用，发送 item.added 事件
+		// 先累积参数（即便尚未发送 item.added，name 可能晚到）
+		if tool.Function.Arguments != "" {
+			state.Arguments += tool.Function.Arguments
+		}
+		// 首次处理该工具调用：等待 name 到达后解析 spec 并发送 item.added（spec 依赖 name）
 		if !state.Added {
-			err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+			if strings.TrimSpace(state.Name) == "" {
+				return true
+			}
+			spec := responsesToolSpec(info, state.Name)
+			state.Spec = spec
+			state.ID = responsesToolItemID(state.CallID, spec)
+			addedItem := responsesToolItemFromChat(state.ID, "in_progress", state.CallID, state.Name, "", "", spec)
+			if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
 				Type:        dto.ResponsesOutputTypeItemAdded,
 				OutputIndex: &state.OutputIndex,
-				Item: &dto.ResponsesOutput{
-					Type:      "function_call",
-					ID:        state.ID,
-					Status:    "in_progress",
-					CallId:    state.CallID,
-					Name:      state.Name,
-					Arguments: responsesArgumentsRaw(""),
-				},
-			})
-			if err != nil {
+				Item:        &addedItem,
+			}); err != nil {
 				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 				return false
 			}
 			state.Added = true
+			// 非 custom 工具：把 name 到达前已累积的参数作为首个 delta 批量发出。
+			if state.Arguments != "" && !responsesIsCustomToolSpec(spec) {
+				if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+					Type:        "response.function_call_arguments.delta",
+					ItemID:      state.ID,
+					OutputIndex: &state.OutputIndex,
+					Delta:       state.Arguments,
+				}); err != nil {
+					streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+					return false
+				}
+			}
+			return true
 		}
-		// 无新增参数则跳过
+		// 已发送 item.added：custom 工具不发 arguments.delta
+		if responsesIsCustomToolSpec(state.Spec) {
+			return true
+		}
 		if tool.Function.Arguments == "" {
 			return true
 		}
-		// 累积函数参数并发送增量事件
-		state.Arguments += tool.Function.Arguments
+		// 发送参数增量事件
 		err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
-			Type:   "response.function_call_arguments.delta",
-			ItemID: state.ID,
-			Delta:  tool.Function.Arguments,
+			Type:        "response.function_call_arguments.delta",
+			ItemID:      state.ID,
+			OutputIndex: &state.OutputIndex,
+			Delta:       tool.Function.Arguments,
 		})
 		if err != nil {
 			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -383,6 +599,8 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			sr.Stop(streamErr)
 			return
 		}
+		// [3] chat→response 前响应体：上游 Chat Completions 流式块（逐块累积）
+		//helper.DumpResponsesCompatSection(c, helper.ResponsesCompatDumpResponseBefore, []byte(data+"\n"))
 		// logger.LogInfo(c, fmt.Sprintf("responses compatibility upstream chat stream body: %s", data))
 		// 解析 Chat Completions 流式响应块
 		var chunk dto.ChatCompletionsStreamResponse
@@ -414,6 +632,12 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				// 如果配置了将推理内容作为正文输出，则发送推理增量文本
 				if info.ChannelSetting.ThinkingToContent {
 					if !sendTextDelta(reasoningDelta) {
+						sr.Stop(streamErr)
+						return
+					}
+				} else {
+					// 否则作为独立 reasoning 条目的 summary_text 增量输出
+					if !sendReasoningDelta(reasoningDelta) {
 						sr.Stop(streamErr)
 						return
 					}
@@ -450,6 +674,47 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	// 确保至少发送了 response.created 事件（空响应场景）
 	if !sendCreated() {
 		return nil, streamErr
+	}
+
+	// 关闭 reasoning 条目（位于 message 之前）：summary_text.done + summary_part.done + item.done
+	if reasoningStarted {
+		summaryIndex := 0
+		fullReasoning := reasonText.String()
+		// 发送 summary_text.done 事件，携带完整推理文本
+		if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+			Type:         "response.reasoning_summary_text.done",
+			ItemID:       reasoningItemID,
+			OutputIndex:  &reasoningOutputIndex,
+			SummaryIndex: &summaryIndex,
+			Delta:        fullReasoning,
+		}); err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
+		// 发送 summary_part.done 事件
+		if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+			Type:         "response.reasoning_summary_part.done",
+			ItemID:       reasoningItemID,
+			OutputIndex:  &reasoningOutputIndex,
+			SummaryIndex: &summaryIndex,
+			Part:         &dto.ResponsesReasoningSummaryPart{Type: "summary_text", Text: fullReasoning},
+		}); err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
+		// 发送 reasoning 条目的 item.done 事件
+		if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+			Type:        dto.ResponsesOutputTypeItemDone,
+			OutputIndex: &reasoningOutputIndex,
+			Item: &dto.ResponsesOutput{
+				Type:   "reasoning",
+				ID:     reasoningItemID,
+				Status: "completed",
+				Summary: []dto.ResponsesReasoningSummaryPart{
+					{Type: "summary_text", Text: fullReasoning},
+				},
+			},
+		}); err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
 	}
 
 	// 发送文本内容部件的完成事件
@@ -503,37 +768,84 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		}
 	}
 
-	// 发送所有工具调用的完成事件
+	// 发送所有工具调用的完成事件。
+	// 经工具上下文恢复类型：custom 工具发 custom_tool_call_input.delta/.done，
+	// 其余发 function_call_arguments.done，最后统一发 item.done（对齐 cc-switch finalize_tools）。
+	toolReasoning := reasonText.String()
 	for _, state := range toolCalls {
-		// 发送函数参数完成事件
-		if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
-			Type:   "response.function_call_arguments.done",
-			ItemID: state.ID,
-			Delta:  state.Arguments,
-		}); err != nil {
-			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		// 防御：跳过缺少 name 的工具调用（部分模型可能产出无名 tool_call）
+		if strings.TrimSpace(state.Name) == "" {
+			continue
+		}
+		// 兜底：极少数情况下 item.added 尚未发送（如 name 在最后一块才到达），在此补发并锁定 spec/ID。
+		if !state.Added {
+			spec := responsesToolSpec(info, state.Name)
+			state.Spec = spec
+			state.ID = responsesToolItemID(state.CallID, spec)
+			addedItem := responsesToolItemFromChat(state.ID, "in_progress", state.CallID, state.Name, "", toolReasoning, spec)
+			if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+				Type:        dto.ResponsesOutputTypeItemAdded,
+				OutputIndex: &state.OutputIndex,
+				Item:        &addedItem,
+			}); err != nil {
+				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			}
+			state.Added = true
+		}
+		// 构建完成条目（类型按 spec 还原，附挂推理内容）
+		doneItem := responsesToolItemFromChat(state.ID, "completed", state.CallID, state.Name, state.Arguments, toolReasoning, state.Spec)
+		if responsesIsCustomToolSpec(state.Spec) {
+			// custom 工具：从 chat arguments 解包 input，发 custom_tool_call_input.delta/.done
+			input := responsesCustomToolInputFromChat(state.Arguments)
+			if input != "" {
+				if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+					Type:        "response.custom_tool_call_input.delta",
+					ItemID:      state.ID,
+					OutputIndex: &state.OutputIndex,
+					Delta:       input,
+				}); err != nil {
+					return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+				}
+			}
+			if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+				Type:        "response.custom_tool_call_input.done",
+				ItemID:      state.ID,
+				OutputIndex: &state.OutputIndex,
+				Input:       input,
+			}); err != nil {
+				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			}
+		} else {
+			// 非 custom：发 function_call_arguments.done（携带完整参数）
+			if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
+				Type:        "response.function_call_arguments.done",
+				ItemID:      state.ID,
+				OutputIndex: &state.OutputIndex,
+				Arguments:   state.Arguments,
+			}); err != nil {
+				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			}
 		}
 		// 发送工具调用条目完成事件（item.done）
 		if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
 			Type:        dto.ResponsesOutputTypeItemDone,
 			OutputIndex: &state.OutputIndex,
-			Item: &dto.ResponsesOutput{
-				Type:      "function_call",
-				ID:        state.ID,
-				Status:    "completed",
-				CallId:    state.CallID,
-				Name:      state.Name,
-				Arguments: responsesArgumentsRaw(state.Arguments),
-			},
+			Item:        &doneItem,
 		}); err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 		}
 	}
 
 	// 发送最终的 response.completed 事件，携带完整的响应对象
+	finalReasoningText := ""
+	finalReasoningIdx := -1
+	if reasoningStarted {
+		finalReasoningText = reasonText.String()
+		finalReasoningIdx = reasoningOutputIndex
+	}
 	if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
 		Type:     "response.completed",
-		Response: chatStreamToResponsesResponse(responseID, createdAt, model, outputText.String(), usage, sentMessage, messageOutputIndex, toolCalls),
+		Response: chatStreamToResponsesResponse(responseID, createdAt, model, outputText.String(), usage, sentMessage, messageOutputIndex, toolCalls, finalReasoningText, finalReasoningIdx),
 	}); err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
@@ -589,7 +901,48 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, chat
 
 	// 转换用量信息并构建 Responses 响应对象
 	usage := responsesUsageFromChat(&chatResp.Usage)
-	responsesResp := chatStreamToResponsesResponse(responseID, createdAt, model, text, usage, text != "", 0, nil)
+	// 推理内容：仅当未合并进正文时，作为独立 reasoning 条目输出（位于 message 之前，索引 0）
+	reasoningItemText := ""
+	reasoningIdx := -1
+	msgIdx := 0
+	if info != nil && !info.ChannelSetting.ThinkingToContent && reasoningText != "" {
+		reasoningItemText = reasoningText
+		reasoningIdx = 0
+		msgIdx = 1
+	}
+	// 解析 chat tool_calls 并经工具上下文恢复成 function_call / custom_tool_call /
+	// tool_search_call / namespace function_call（对齐 cc-switch chat_tool_calls_to_response_output_items）。
+	toolCalls := map[int]*responsesToolCallState{}
+	if len(chatResp.Choices) > 0 {
+		parsed := chatResp.Choices[0].Message.ParseToolCalls()
+		toolStartIdx := msgIdx
+		if text != "" {
+			toolStartIdx = msgIdx + 1 // message 条目占用 msgIdx，工具紧随其后
+		}
+		placed := 0
+		for _, tc := range parsed {
+			name := strings.TrimSpace(tc.Function.Name)
+			// 防御：跳过缺少 name 的 tool_call（部分模型可能产出无名调用）
+			if name == "" {
+				continue
+			}
+			callID := strings.TrimSpace(tc.ID)
+			if callID == "" {
+				callID = fmt.Sprintf("call_%d", placed)
+			}
+			spec := responsesToolSpec(info, name)
+			toolCalls[placed] = &responsesToolCallState{
+				ID:          responsesToolItemID(callID, spec),
+				CallID:      callID,
+				Name:        name,
+				Spec:        spec,
+				Arguments:   tc.Function.Arguments,
+				OutputIndex: toolStartIdx + placed,
+			}
+			placed++
+		}
+	}
+	responsesResp := chatStreamToResponsesResponse(responseID, createdAt, model, text, usage, text != "", msgIdx, toolCalls, reasoningItemText, reasoningIdx)
 
 	// 序列化并发送给客户端
 	responseBody, err := common.Marshal(responsesResp)
@@ -597,6 +950,8 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, chat
 		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
 	}
 	// logger.LogInfo(c, fmt.Sprintf("responses compatibility converted response body: %s", string(responseBody)))
+	// [4] chat→response 后响应体：转换后发给客户端的 Responses 响应（非流式）
+	// helper.DumpResponsesCompatSection(c, helper.ResponsesCompatDumpResponseAfter, responseBody)
 	service.IOCopyBytesGracefully(c, nil, responseBody)
 	// 设置内容审计文本
 	service.SetModelContentAuditResponseText(c, text)
