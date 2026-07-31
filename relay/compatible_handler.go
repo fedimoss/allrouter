@@ -221,6 +221,11 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		// 	logResponsesCompatFullBody(c, info, "converted chat completions request body after conversion", info.RequestURLPath, jsonData)
 		// }
 
+		// [2] response→chat 后请求体：转换后实际发往上游的 Chat Completions 请求
+		// if info.ForceRequestBodyConversion {
+		// 	helper.DumpResponsesCompatSection(c, helper.ResponsesCompatDumpRequestAfter, jsonData)
+		// }
+
 		logger.LogDebug(c, "text request body: %s", jsonData)
 
 		requestBody = bytes.NewBuffer(jsonData)

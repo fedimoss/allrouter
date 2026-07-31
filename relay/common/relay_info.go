@@ -182,6 +182,11 @@ type RelayInfo struct {
 
 	Request dto.Request
 
+	// ResponsesChatToolCtx 仅用于 Responses→Chat 渠道：保存请求阶段构造的工具上下文，
+	// 供响应阶段把上游 chat function_call 恢复为 function_call / custom_tool_call /
+	// tool_search_call / namespace function_call。其他渠道路径保持 nil。
+	ResponsesChatToolCtx *ResponsesChatToolContext
+
 	// RequestConversionChain records request format conversions in order, e.g.
 	// ["openai", "openai_responses"] or ["openai", "claude"].
 	RequestConversionChain []types.RelayFormat

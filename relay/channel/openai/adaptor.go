@@ -232,7 +232,18 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		return nil, errors.New("request is nil")
 	}
 	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
-		request.StreamOptions = nil
+		// responses→chat 兼容渠道：流式时强制注入 stream_options.include_usage，
+		// 否则 OpenAI 兼容上游默认不在 SSE 末尾返回 usage，导致 token/成本/缓存全部漏记。
+		// 对齐 cc-switch inject_openai_stream_include_usage；其他渠道仍清空 StreamOptions。
+		if info.ChannelType == constant.ChannelTypeResponsesChat && lo.FromPtrOr(request.Stream, false) {
+			if request.StreamOptions == nil {
+				request.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+			} else {
+				request.StreamOptions.IncludeUsage = true
+			}
+		} else {
+			request.StreamOptions = nil
+		}
 	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
 		if len(request.Usage) == 0 {

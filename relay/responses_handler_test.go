@@ -239,7 +239,10 @@ func TestResponsesChatCompatViaChatCompletionsStreamsResponsesEvents(t *testing.
 	require.NotContains(t, body, "chat.completion.chunk")
 }
 
-func TestResponsesChatCompatViaChatCompletionsDoesNotExposeReasoningContent(t *testing.T) {
+// TestResponsesChatCompatViaChatCompletionsExposesReasoningContent 验证 Responses→Chat 渠道
+// 会把上游 chat 的 reasoning_content 作为 Responses 的 reasoning 条目暴露给客户端
+// （对齐 cc-switch streaming_codex_chat 与项目其它渠道的默认行为：暴露推理，而非剥离）。
+func TestResponsesChatCompatViaChatCompletionsExposesReasoningContent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	service.InitHttpClient()
 	originalStreamingTimeout := constant.StreamingTimeout
@@ -308,7 +311,11 @@ func TestResponsesChatCompatViaChatCompletionsDoesNotExposeReasoningContent(t *t
 	body := recorder.Body.String()
 	require.Contains(t, body, `"delta":"visible answer"`)
 	require.Contains(t, body, `"text":"visible answer"`)
-	require.NotContains(t, body, "internal plan")
+	// reasoning_content 被作为独立 reasoning 条目暴露（对齐 cc-switch）：
+	// 出现在 reasoning summary 增量/完成事件与最终 reasoning 输出条目中。
+	require.Contains(t, body, "internal plan")
+	require.Contains(t, body, `"type":"reasoning"`)
+	require.Contains(t, body, `"type":"summary_text"`)
 }
 
 func TestResponsesChatCompatViaChatCompletionsStreamsToolCallForCodex(t *testing.T) {
