@@ -387,9 +387,9 @@
 }
 
 /* v10: 试排 - Hero 内容整体下移约 200px */
-@media (width>=900px){
+/* @media (width>=900px){
 .t3-app .hero-content{transform:translateY(80px)}
-}
+} */
 
 /* 移动端重置：取消桌面端 hero-copy 固定宽度 / 内容下移 / 下沿对齐，避免宽度溢出 */
 @media (max-width:899px){

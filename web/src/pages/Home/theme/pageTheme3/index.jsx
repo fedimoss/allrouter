@@ -406,7 +406,7 @@ const VideoLayer = () => {
   );
 };
 
-const IntroSequence = ({ logo, name, runId, onComplete }) => {
+const IntroSequence = ({ logo, name, runId, onComplete,t }) => {
   useEffect(() => {
     const id = window.setTimeout(onComplete, 3100);
     return () => window.clearTimeout(id);
@@ -1203,6 +1203,7 @@ const Theme3Home = () => {
             name={systemName}
             runId={introRunId}
             onComplete={onIntroComplete}
+            t={t}
           />
         )}
       </div>
