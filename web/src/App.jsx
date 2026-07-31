@@ -91,7 +91,7 @@ const HomeRoute = () => {
   const themeKey = getHomeThemeKey(
     statusState?.status?.provider_config?.home_page_theme,
   );
-  const HomeComp = HomeThemes['style_c']; // 默认使用 style_c 主题
+  const HomeComp = HomeThemes[themeKey]; // 默认使用 style_c 主题
 
   if (!statusLoaded) {
     return <Loading />;
