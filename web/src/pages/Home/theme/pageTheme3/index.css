@@ -270,7 +270,7 @@
 @media (width>=1300px){.t3-app .hero-content{grid-template-columns:minmax(0,1fr)}}
 
 /* v4: footer section (CTA card + link columns) */
-.t3-app .site-footer{position:relative;z-index:2;background:#050a08;border-top:1px solid rgba(255,255,255,.08);padding:72px 24px 36px}
+.t3-app .site-footer{background:#050a08;border-top:1px solid rgba(255,255,255,.08);padding:72px 24px 36px}
 .t3-app .footer-cta{position:relative;overflow:hidden;max-width:1100px;margin:0 auto 72px;border-radius:24px;border:1px solid rgba(255,255,255,.09);background:radial-gradient(circle at 50% 120%,rgba(50,254,165,.14),transparent 55%),linear-gradient(135deg,#0e1a15,#0a110d);padding:76px 32px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.35)}
 .t3-app .footer-cta h2{color:#fff;margin:0 0 16px;font-size:36px;font-weight:700;line-height:1.25;letter-spacing:0}
 .t3-app .footer-cta p{color:rgba(255,255,255,.62);margin:0 0 34px;font-size:16px;line-height:1.7}
@@ -464,4 +464,79 @@
 
 .t3-app--light .lang-toggle__option--active:hover {
   background: rgba(var(--theme-primary-rgb, 94, 210, 156), 0.1);
+}
+
+/* Keep longer English navigation labels readable without crowding the tools. */
+@media (min-width: 1200px) {
+  .t3-app .site-header {
+    padding-left: max(24px, calc((100vw - 1320px) / 2));
+    padding-right: max(24px, calc((100vw - 1320px) / 2));
+  }
+
+  .t3-app .desktop-nav {
+    min-width: 0;
+    margin-left: clamp(24px, 3vw, 48px);
+    gap: clamp(16px, 1.8vw, 30px);
+  }
+
+  .t3-app .desktop-nav a {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .t3-app .header-actions {
+    flex: none;
+    gap: 14px;
+    padding-left: clamp(24px, 2.5vw, 38px);
+  }
+}
+
+@media (min-width: 1200px) and (max-width: 1399px) {
+  .t3-app .desktop-nav {
+    margin-left: 24px;
+    gap: 16px;
+  }
+
+  .t3-app .desktop-nav a {
+    font-size: 13px;
+  }
+
+  .t3-app .header-actions {
+    gap: 12px;
+    padding-left: 24px;
+  }
+
+  .t3-app .lang-toggle__trigger {
+    padding: 0 10px;
+  }
+
+  .t3-app .login-btn {
+    min-width: 80px;
+    padding: 0 14px;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1199px) {
+  .t3-app .site-header {
+    justify-content: space-between;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .t3-app .desktop-nav,
+  .t3-app .header-actions {
+    display: none;
+  }
+
+  .t3-app .mobile-menu-button {
+    display: grid;
+  }
+
+  .t3-app .mobile-menu {
+    display: flex;
+  }
+
+  .t3-app .mobile-menu-tools {
+    display: flex;
+  }
 }

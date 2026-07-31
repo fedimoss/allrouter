@@ -119,7 +119,7 @@ const buildTypewriterPhrases = (t) => [
     { t: t('一套 API，') },
     { t: '\n' },
     { t: t('畅连所有 AI') },
-    { t: '。', mint: true },
+    { t: '', mint: true },
   ],
   // phrase 2
   [
@@ -813,43 +813,42 @@ const SupportFab = ({ support }) => {
     <div className='fab'>
       {showTg && (
         <div className='fab-contact'>
-          <button className='fab-btn fab-tg' type='button' aria-label='Telegram 联系方式'>
+          <button className='fab-btn fab-tg' type='button'>
             {TG_ICON}
           </button>
           <div className='fab-qr'>
-            {tgQrSrc ? <img src={tgQrSrc} alt='Telegram 二维码' loading='lazy' /> : null}
-            {tgDesc ? <span>{tgDesc}</span> : <span>Telegram 扫码联系</span>}
+            {tgQrSrc ? <img src={tgQrSrc} loading='lazy' /> : null}
+            {tgDesc ? <span>{tgDesc}</span> : <span></span>}
           </div>
         </div>
       )}
       {showQq && (
         <div className='fab-contact'>
-          <button className='fab-btn fab-qq' type='button' aria-label='QQ 联系方式'>
+          <button className='fab-btn fab-qq' type='button'>
             QQ
           </button>
           <div className='fab-qr'>
-            {qqQrSrc ? <img src={qqQrSrc} alt='QQ 二维码' loading='lazy' /> : null}
-            {qqDesc ? <span>{qqDesc}</span> : <span>QQ 扫码联系</span>}
+            {qqQrSrc ? <img src={qqQrSrc}  loading='lazy' /> : null}
+            {qqDesc ? <span>{qqDesc}</span> : <span></span>}
           </div>
         </div>
       )}
       {showWx && (
         <div className='fab-contact'>
-          <button className='fab-btn fab-wx' type='button' aria-label='微信联系方式'>
+          <button className='fab-btn fab-wx' type='button'>
             <svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true' width='20' height='20'>
               <path d='M9.5 4C5.36 4 2 6.91 2 10.5c0 1.86.95 3.53 2.46 4.67L4 18l2.86-1.64c.82.23 1.7.35 2.64.35.28 0 .56-.01.83-.04A6.5 6.5 0 0 1 10 14.5c0-3.59 3.36-6.5 7.5-6.5.24 0 .48.01.71.03C17.19 5.6 13.72 4 9.5 4zM7 8a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5.5 3c-3.04 0-5.5 2.02-5.5 4.5s2.46 4.5 5.5 4.5c.73 0 1.42-.1 2.06-.28L22 21l-.43-1.87C22.79 18.34 23.5 17 23.5 15.5c0-2.48-2.46-4.5-6-4.5zm-2 2.25a.88.88 0 1 1 0 1.75.88.88 0 0 1 0-1.75zm4 0a.88.88 0 1 1 0 1.75.88.88 0 0 1 0-1.75z' />
             </svg>
           </button>
           <div className='fab-qr'>
-            {wxImage ? <img src={wxImage} alt='微信二维码' loading='lazy' /> : null}
-            {wxDesc ? <span>{wxDesc}</span> : <span>微信扫码联系</span>}
+            {wxImage ? <img src={wxImage}  loading='lazy' /> : null}
+            {wxDesc ? <span>{wxDesc}</span> : <span></span>}
           </div>
         </div>
       )}
       <button
         className={`fab-btn fab-top ${showTop ? 'fab-top--show' : ''}`}
         type='button'
-        aria-label='回到顶部'
         onClick={scrollTop}
       >
         <ArrowUp size={20} aria-hidden='true' />
@@ -1150,7 +1149,7 @@ const Theme3Home = () => {
             <h1 id='hero-title' ref={heroTitleRef}>
               {t('一套 API，')}
               <br />
-              {t('畅连所有 AI')}<span>。</span>
+              {t('畅连所有 AI')}
             </h1>
             <p className='hero-description'>
               {t('在 OpenAI、Claude、Llama 及 50+ 模型间即时切换。通过智能路由与自建算力，为每次调用选择更稳、更快、更划算的路径。')}
