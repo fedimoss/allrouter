@@ -55,6 +55,7 @@ const NOTICE_SHOW_TO_PROVIDERS_KEY = 'NoticeShowToProviders';
 const HOME_PAGE_THEME_OPTIONS = [
   { label: '默认', value: 'default' },
   { label: '风格一', value: 'style_a' },
+  { label: '风格三', value: 'style_c' },
 ];
 
 const OtherSetting = () => {
