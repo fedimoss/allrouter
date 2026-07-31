@@ -467,7 +467,7 @@ const Header = ({
       <BrandLockup />
       <nav className='desktop-nav' aria-label='主导航'>
         {NAV_ITEMS.map((item) => (
-          <Link key={item.kind} to={targets[item.kind]}>
+          <Link key={item.kind}>
             {item.label}
           </Link>
         ))}
@@ -477,11 +477,11 @@ const Header = ({
         {isLoggedIn ? (
           <HeaderUserMenu user={currentUser} onLogout={onLogout} />
         ) : (
-          <Link className='login-link' to={targets.login}>
+          <Link className='login-link'>
             登录
           </Link>
         )}
-        <Link className='header-cta' to={targets.console}>
+        <Link className='header-cta'>
           获取 API Key
           <ArrowRight size={16} aria-hidden='true' />
         </Link>
@@ -505,7 +505,6 @@ const Header = ({
         {NAV_ITEMS.map((item, idx) => (
           <Link
             key={item.kind}
-            to={targets[item.kind]}
             onClick={() => setMenuOpen(false)}
             style={{ '--menu-index': idx }}
             tabIndex={menuOpen ? 0 : -1}
@@ -526,7 +525,7 @@ const Header = ({
             tabIndex={menuOpen ? 0 : -1}
           />
         ) : (
-          <Link to={targets.console} tabIndex={menuOpen ? 0 : -1}>
+          <Link tabIndex={menuOpen ? 0 : -1}>
             免费开始构建
           </Link>
         )}
@@ -652,7 +651,6 @@ const ModelMarquee = ({ pricingTarget }) => (
               <Link
                 key={`${group}-${model.name}`}
                 className='model-item'
-                to={pricingTarget}
                 tabIndex={group === 1 ? -1 : 0}
                 title={`查看 ${model.name} 模型`}
               >
@@ -842,11 +840,11 @@ const Hero = ({
           </p>
 
           <div className='hero-buttons'>
-            <Link className='primary-cta' to={targets.console}>
+            <Link className='primary-cta'>
               免费开始构建
               <ArrowRight size={18} strokeWidth={2} aria-hidden='true' />
             </Link>
-            <a className='secondary-cta' href={targets.docs} rel='noreferrer'>
+            <a className='secondary-cta' rel='noreferrer'>
               <Play size={15} fill='currentColor' aria-hidden='true' />
               阅读文档
             </a>
@@ -936,7 +934,7 @@ const SiteFooter = ({
     <div className='footer-cta'>
       <h2>准备好优化您的 AI 工作流了吗？</h2>
       <p>加入 2,000+ 开发者，开始享受更稳定、更廉价的大模型服务。</p>
-      <Link className='footer-cta__btn' to={targets.console}>
+      <Link className='footer-cta__btn'>
         免费开始构建
       </Link>
     </div>
@@ -947,23 +945,22 @@ const SiteFooter = ({
       </div>
       <nav className='footer-col' aria-label='产品'>
         <b>产品</b>
-        <Link to={targets.console}>控制面板</Link>
-        <Link to={targets.pricing}>模型广场</Link>
-        <Link to='/about'>关于平台</Link>
+        <Link>控制面板</Link>
+        <Link>模型广场</Link>
+        <Link>关于平台</Link>
       </nav>
       <nav className='footer-col' aria-label='资源'>
         <b>资源</b>
-        <a href={docsHref} target='_blank' rel='noreferrer'>
+        <a target='_blank' rel='noreferrer'>
           文档
         </a>
-        <a href={apiReferenceHref} target='_blank' rel='noreferrer'>
+        <a target='_blank' rel='noreferrer'>
           API 参考
         </a>
-        <a href={communityHref} target='_blank' rel='noreferrer'>
+        <a target='_blank' rel='noreferrer'>
           社区
         </a>
         <a
-          href={`https://status.${String(systemName).toLowerCase()}/`}
           target='_blank'
           rel='noreferrer'
         >
@@ -973,20 +970,18 @@ const SiteFooter = ({
       <nav className='footer-col' aria-label='帮助中心'>
         <b>帮助中心</b>
         <a
-          href='https://github.com/fedimoss/allrouter'
           target='_blank'
           rel='noreferrer'
         >
           项目仓库
         </a>
         <a
-          href='https://github.com/fedimoss/allrouter/issues'
           target='_blank'
           rel='noreferrer'
         >
           问题反馈
         </a>
-        <a href={`mailto:support@${String(systemName).toLowerCase()}`}>
+        <a>
           联系我们
         </a>
       </nav>
