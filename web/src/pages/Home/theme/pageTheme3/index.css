@@ -540,3 +540,34 @@
     display: flex;
   }
 }
+
+/* Shared header host used by theme3, /agent-partner, and /about. */
+.t3-app .desktop-nav a.site-nav-link--active {
+  color: var(--mint);
+}
+
+.t3-app .desktop-nav a.site-nav-link--active::after {
+  transform: scaleX(1);
+}
+
+.t3-app .mobile-menu nav a.site-nav-link--active {
+  color: var(--mint);
+  background: rgba(var(--theme-primary-rgb, 94, 210, 156), 0.08);
+}
+
+.t3-app--light .mobile-menu nav a.site-nav-link--active {
+  color: var(--theme-primary, #0c9c60);
+  background: rgba(var(--theme-primary-rgb, 12, 156, 96), 0.08);
+}
+
+.theme3-header-host.t3-app,
+.theme3-header-host.t3-app.t3-app--light {
+  position: relative;
+  z-index: 60;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 0;
+  overflow: visible;
+  background: transparent;
+}

@@ -26,12 +26,12 @@ import {
   IllustrationConstructionDark,
 } from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
+import Theme3Header from '../Home/theme/pageTheme3/Theme3Header';
 
 const About = () => {
   const { t } = useTranslation();
   const [about, setAbout] = useState('');
   const [aboutLoaded, setAboutLoaded] = useState(false);
-  const currentYear = new Date().getFullYear();
 
   const displayAbout = async () => {
     setAbout(localStorage.getItem('about') || '');
@@ -59,42 +59,42 @@ const About = () => {
     padding: '24px',
   };
 
- 
-
   return (
-    <div className='mt-[60px] px-2'>
-      {aboutLoaded && about === '' ? (
-        <div className='flex justify-center items-center h-screen p-8'>
-          <Empty
-            image={
-              <IllustrationConstruction style={{ width: 150, height: 150 }} />
-            }
-            darkModeImage={
-              <IllustrationConstructionDark
-                style={{ width: 150, height: 150 }}
-              />
-            }
-            description={t('管理员暂时未设置任何关于内容')}
-            style={emptyStyle}
-          >
-           
-          </Empty>
-        </div>
-      ) : (
-        <>
-          {about.startsWith('https://') ? (
-            <iframe
-              src={about}
-              style={{ width: '100%', height: '100vh', border: 'none' }}
+    <div className='min-h-screen'>
+      <Theme3Header />
+      <main className='pt-[60px] sm:pt-[84px] px-2'>
+        {aboutLoaded && about === '' ? (
+          <div className='flex justify-center items-center min-h-[calc(100vh-84px)] p-8'>
+            <Empty
+              image={
+                <IllustrationConstruction style={{ width: 150, height: 150 }} />
+              }
+              darkModeImage={
+                <IllustrationConstructionDark
+                  style={{ width: 150, height: 150 }}
+                />
+              }
+              description={t('管理员暂时未设置任何关于内容')}
+              style={emptyStyle}
             />
-          ) : (
-            <div
-              style={{ fontSize: 'larger' }}
-              dangerouslySetInnerHTML={{ __html: about }}
-            ></div>
-          )}
-        </>
-      )}
+          </div>
+        ) : about.startsWith('https://') ? (
+          <iframe
+            src={about}
+            title={t('关于')}
+            style={{
+              width: '100%',
+              height: 'calc(100vh - 84px)',
+              border: 'none',
+            }}
+          />
+        ) : (
+          <div
+            style={{ fontSize: 'larger' }}
+            dangerouslySetInnerHTML={{ __html: about }}
+          />
+        )}
+      </main>
     </div>
   );
 };

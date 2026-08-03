@@ -29,12 +29,10 @@ import {
   ArrowRight,
   ArrowUp,
   Braces,
-  Menu,
   Play,
   RotateCcw,
   ServerCog,
   ShieldCheck,
-  X,
   Zap,
 } from 'lucide-react';
 import {
@@ -46,24 +44,19 @@ import {
   getLogo,
   getSystemName,
   setStatusData,
-  shouldShowProviderAgentPartner,
   showError,
   withBrowserBaseUrl,
 } from '../../../../helpers';
 import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
-import {
-  useActualTheme,
-  useSetTheme,
-  useTheme,
-} from '../../../../context/Theme';
+import { useActualTheme } from '../../../../context/Theme';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import NoticeModal from '../../../../components/layout/NoticeModal';
-import UserArea from '../../../../components/layout/headerbar/UserArea';
 import Hls from 'hls.js';
+import Theme3Header from './Theme3Header';
 
 import './index.css';
 
@@ -248,130 +241,6 @@ const BrandLockup = ({ logo, name }) => (
   </Link>
 );
 
-// --- Design-spec theme toggle (TDesign-style switch: track + sun/moon icons) ---
-const DesignThemeToggle = () => {
-  const theme = useTheme();
-  const setTheme = useSetTheme();
-  const actualTheme = useActualTheme();
-
-  // 设计稿: light = checked (track orange), dark = unchecked
-  const isChecked = actualTheme === 'light';
-
-  const toggle = useCallback(() => {
-    const next = isChecked ? 'dark' : 'light';
-    setTheme(next);
-  }, [isChecked, setTheme]);
-
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
-        e.preventDefault();
-        toggle();
-      }
-    },
-    [toggle],
-  );
-
-  return (
-    <div
-      className={`theme-toggle ${isChecked ? 't-is-checked' : ''}`}
-      role='switch'
-      tabIndex={0}
-      aria-checked={isChecked}
-      aria-label='切换深色 / 浅色模式'
-      title='切换深色 / 浅色模式'
-      onClick={toggle}
-      onKeyDown={handleKeyDown}
-    >
-      <div className='theme-toggle__handle'>
-        <span className='theme-toggle__icon theme-toggle__icon--sun' aria-hidden='true'>
-          <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round'>
-            <circle cx='12' cy='12' r='4' />
-            <path d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4' />
-          </svg>
-        </span>
-        <span className='theme-toggle__icon theme-toggle__icon--moon' aria-hidden='true'>
-          <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <path d='M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z' />
-          </svg>
-        </span>
-      </div>
-    </div>
-  );
-};
-
-// --- Design-spec language toggle (TDesign-style dropdown: 中文 / EN) ---
-const LANG_OPTIONS = [
-  { value: 'zh-CN', label: '中文' },
-  { value: 'en', label: 'EN' },
-];
-
-const DesignLangToggle = ({ currentLang, onChange }) => {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-
-  // Normalise lang value: 'zh-CN', 'zh-TW', 'zh', 'en', ...
-  const isZh = String(currentLang || '').toLowerCase().startsWith('zh');
-  const active = isZh ? 'zh-CN' : 'en';
-  const displayLabel = isZh ? '中文' : 'EN';
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDocClick = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('click', onDocClick);
-    return () => document.removeEventListener('click', onDocClick);
-  }, [open]);
-
-  const select = (val) => {
-    setOpen(false);
-    if (val !== active) onChange(val);
-  };
-
-  return (
-    <div className='lang-toggle' ref={wrapRef}>
-      <button
-        type='button'
-        className={`lang-toggle__trigger ${open ? 'lang-toggle__trigger--open' : ''}`}
-        aria-haspopup='listbox'
-        aria-expanded={open}
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((v) => !v);
-        }}
-      >
-        <span className='lang-toggle__label'>{displayLabel}</span>
-        <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' aria-hidden='true'>
-          <polyline points='6 9 12 15 18 9' />
-        </svg>
-      </button>
-      <div
-        className={`lang-toggle__dropdown ${open ? 'lang-toggle__dropdown--open' : ''}`}
-        role='listbox'
-      >
-        {LANG_OPTIONS.map((opt) => (
-          <div
-            key={opt.value}
-            data-lang={opt.value}
-            role='option'
-            aria-selected={active === opt.value}
-            className={`lang-toggle__option ${active === opt.value ? 'lang-toggle__option--active' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              select(opt.value);
-            }}
-          >
-            {opt.label}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 const VideoLayer = () => {
   const videoRef = useRef(null);
   const [fallback, setFallback] = useState(false);
@@ -451,131 +320,6 @@ const IntroSequence = ({ logo, name, runId, onComplete,t }) => {
         <ArrowRight size={14} strokeWidth={1.8} aria-hidden='true' />
       </button>
     </section>
-  );
-};
-
-const SiteHeader = ({
-  logo,
-  name,
-  menuOpen,
-  setMenuOpen,
-  isLoggedIn,
-  isSelfUseMode,
-  currentLang,
-  currentUser,
-  handleLanguageChange,
-  logout,
-  navigate,
-  t,
-  navLinks,
-}) => {
-  useEffect(() => {
-    document.body.classList.toggle('menu-open', menuOpen);
-    const onEsc = (e) => {
-      if (e.key === 'Escape') setMenuOpen(false);
-    };
-    window.addEventListener('keydown', onEsc);
-    return () => {
-      document.body.classList.remove('menu-open');
-      window.removeEventListener('keydown', onEsc);
-    };
-  }, [menuOpen, setMenuOpen]);
-
-  return (
-    <>
-      <header className='site-header'>
-        <BrandLockup logo={logo} name={name} />
-        <nav className='desktop-nav' aria-label='主导航'>
-          {navLinks.map((l) =>
-            l.external ? (
-              <a key={l.label} href={l.href} target='_blank' rel='noreferrer'>
-                {l.label}
-              </a>
-            ) : (
-              <Link key={l.label} to={l.to}>
-                {l.label}
-              </Link>
-            ),
-          )}
-        </nav>
-        <div className='header-actions'>
-          <DesignLangToggle currentLang={currentLang} onChange={handleLanguageChange} />
-          <DesignThemeToggle />
-          {isLoggedIn ? (
-            <UserArea
-              userState={{ user: currentUser }}
-              isLoading={false}
-              isMobile={false}
-              isSelfUseMode={isSelfUseMode}
-              logout={logout}
-              navigate={navigate}
-              t={t}
-            />
-          ) : (
-            <Link className='login-btn' to='/login'>
-              {t('登录')}
-            </Link>
-          )}
-        </div>
-
-        {/* mobile-side quick actions live inside the mobile menu to avoid header crowding */}
-
-        <button
-          type='button'
-          className='mobile-menu-button'
-          aria-label={menuOpen ? '关闭菜单' : '打开菜单'}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((v) => !v)}
-          title={menuOpen ? '关闭菜单' : '打开菜单'}
-        >
-          {menuOpen ? <X aria-hidden='true' /> : <Menu aria-hidden='true' />}
-        </button>
-      </header>
-
-      <div className={`mobile-menu ${menuOpen ? 'mobile-menu--open' : ''}`} aria-hidden={!menuOpen}>
-        <div className='mobile-menu-tools'>
-          <DesignLangToggle currentLang={currentLang} onChange={handleLanguageChange} />
-          <DesignThemeToggle />
-        </div>
-        <nav aria-label='移动端导航'>
-          {navLinks.map((l, i) =>
-            l.external ? (
-              <a
-                key={l.label}
-                href={l.href}
-                onClick={() => setMenuOpen(false)}
-                style={{ '--menu-index': i }}
-                tabIndex={menuOpen ? 0 : -1}
-                target='_blank'
-                rel='noreferrer'
-              >
-                <span>{`0${i + 1}`}</span>
-                {l.label}
-                <ArrowRight size={22} aria-hidden='true' />
-              </a>
-            ) : (
-              <Link
-                key={l.label}
-                to={l.to}
-                onClick={() => setMenuOpen(false)}
-                style={{ '--menu-index': i }}
-                tabIndex={menuOpen ? 0 : -1}
-              >
-                <span>{`0${i + 1}`}</span>
-                {l.label}
-                <ArrowRight size={22} aria-hidden='true' />
-              </Link>
-            ),
-          )}
-        </nav>
-        <div className='mobile-menu-footer'>
-          <span>ALL MODELS. ONE ROUTE.</span>
-          <Link to='/console' tabIndex={menuOpen ? 0 : -1}>
-            免费开始构建
-          </Link>
-        </div>
-      </div>
-    </>
   );
 };
 
@@ -870,15 +614,13 @@ const SupportFab = ({ support }) => {
 
 const Theme3Home = () => {
   const { t, i18n } = useTranslation();
-  const [userState, userDispatch] = useContext(UserContext);
+  const [userState] = useContext(UserContext);
   const [statusState, statusDispatch] = useContext(StatusContext);
   const actualTheme = useActualTheme();
-  const navigate = useNavigate();
   const isMobile = useIsMobile();
 
   const [noticeVisible, setNoticeVisible] = useState(false);
   const [versionLogVisible, setVersionLogVisible] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [introDone, setIntroDone] = useState(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced) return true;
@@ -909,94 +651,11 @@ const Theme3Home = () => {
 
   const currentUser = userState?.user || null;
   const isLoggedIn = Boolean(currentUser?.id);
-  const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
 
   const supportConfig = useMemo(
     () => buildSupportConfig(statusState?.status),
     [statusState?.status],
   );
-
-  const headerNavModules = useMemo(() => {
-    const cfg = statusState?.status?.HeaderNavModules;
-    if (!cfg) return null;
-    try {
-      const modules = typeof cfg === 'string' ? JSON.parse(cfg) : cfg;
-      if (typeof modules.pricing === 'boolean') {
-        modules.pricing = { enabled: modules.pricing, requireAuth: false };
-      }
-      return modules;
-    } catch {
-      return null;
-    }
-  }, [statusState?.status?.HeaderNavModules]);
-
-  const showAgentPartnerNav = shouldShowProviderAgentPartner(
-    statusState?.status,
-  );
-
-  // 与默认首页 (web/src/pages/Home/index.jsx) 的导航保持一致
-  const pricingRequireAuth = useMemo(() => {
-    if (headerNavModules?.pricing) {
-      return typeof headerNavModules.pricing === 'object'
-        ? headerNavModules.pricing.requireAuth
-        : false;
-    }
-    return false;
-  }, [headerNavModules]);
-  const consoleNavTarget = isLoggedIn ? '/console' : '/login';
-  const pricingNavTarget =
-    !isLoggedIn && pricingRequireAuth ? '/login' : '/pricing';
-
-  const navLinks = useMemo(() => {
-    const list = [
-      { label: t('首页'), to: '/' },
-      { label: t('控制台'), to: consoleNavTarget },
-      { label: t('模型广场'), to: pricingNavTarget },
-    ];
-    if (showAgentPartnerNav) {
-      list.push({ label: t('代理加盟'), to: '/agent-partner' });
-    }
-    list.push({ label: t('文档'), href: docsHref, external: true });
-    list.push({ label: t('关于'), to: '/about' });
-    return list;
-  }, [t, consoleNavTarget, pricingNavTarget, showAgentPartnerNav, docsHref]);
-
-  const handleLanguageChange = useCallback(
-    async (lang) => {
-      i18n.changeLanguage(lang);
-      try {
-        localStorage.setItem('i18nextLng', lang);
-      } catch {
-        // noop
-      }
-      if (!currentUser?.id) return;
-      try {
-        const res = await API.put('/api/user/self', { language: lang });
-        if (res.data.success && currentUser?.setting) {
-          const settings = JSON.parse(currentUser.setting);
-          settings.language = lang;
-          userDispatch({
-            type: 'login',
-            payload: {
-              ...currentUser,
-              setting: JSON.stringify(settings),
-            },
-          });
-        }
-      } catch (error) {
-        console.error('Failed to save language preference:', error);
-      }
-    },
-    [currentUser, i18n, userDispatch],
-  );
-
-  const logout = useCallback(async () => {
-    await API.get('/api/user/logout');
-    userDispatch({ type: 'logout' });
-    localStorage.removeItem('user');
-    navigate('/login');
-  }, [navigate, userDispatch]);
-
 
   // Fetch theme colors + status
   useEffect(() => {
@@ -1131,21 +790,7 @@ const Theme3Home = () => {
           <ellipse cx='450' cy='110' rx='390' ry='22' fill='url(#glow-color)' filter='url(#glow-blur)' />
         </svg>
 
-        <SiteHeader
-          logo={logo}
-          name={systemName}
-          menuOpen={menuOpen}
-          setMenuOpen={setMenuOpen}
-          isLoggedIn={isLoggedIn}
-          isSelfUseMode={isSelfUseMode}
-          currentUser={currentUser}
-          currentLang={i18n.language}
-          handleLanguageChange={handleLanguageChange}
-          logout={logout}
-          navigate={navigate}
-          t={t}
-          navLinks={navLinks}
-        />
+        <Theme3Header />
 
         <section className='hero-content' aria-labelledby='hero-title'>
           <div className='hero-copy'>
