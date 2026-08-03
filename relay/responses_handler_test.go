@@ -395,3 +395,71 @@ func TestResponsesChatCompatViaChatCompletionsStreamsToolCallForCodex(t *testing
 	require.Contains(t, body, `"arguments":"{\"command\":\"cat /dev/null\"}"`)
 	require.Contains(t, body, `"output":[{"type":"function_call"`)
 }
+
+// TestResponsesChatChannelChatRequestHandledAsOpenAI 验证 Responses→Chat 渠道在收到
+// /v1/chat/completions 请求时，按普通 OpenAI 渠道直接处理（路由到 openai 适配器，不反向转换为 responses）。
+// 即便全局 ChatCompletionsToResponsesPolicy 命中该模型，也应直接放行 chat：该渠道上游仅支持
+// /v1/chat/completions，反向转换必定失败。与 responses 请求走 responses→chat 转换形成对称镜像。
+func TestResponsesChatChannelChatRequestHandledAsOpenAI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+
+	// 启用全局 ChatCompletionsToResponsesPolicy 并命中 GLM5.1，验证即便策略命中也不反向转换。
+	globalSettings := model_setting.GetGlobalSettings()
+	originalPolicy := globalSettings.ChatCompletionsToResponsesPolicy
+	globalSettings.ChatCompletionsToResponsesPolicy = model_setting.ChatCompletionsToResponsesPolicy{
+		Enabled:       true,
+		AllChannels:   true,
+		ModelPatterns: []string{"GLM.*"},
+	}
+	t.Cleanup(func() {
+		globalSettings.ChatCompletionsToResponsesPolicy = originalPolicy
+	})
+
+	var upstreamPath string
+	var upstreamBody []byte
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPath = r.URL.Path
+		var err error
+		upstreamBody, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+		http.Error(w, "captured", http.StatusBadRequest)
+	}))
+	defer upstream.Close()
+
+	rawBody := []byte(`{
+		"model":"GLM5.1",
+		"messages":[{"role":"user","content":"hello"}]
+	}`)
+
+	var chatReq dto.GeneralOpenAIRequest
+	require.NoError(t, common.Unmarshal(rawBody, &chatReq))
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(rawBody))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	common.SetContextKey(ctx, constant.ContextKeyChannelType, constant.ChannelTypeResponsesChat)
+	common.SetContextKey(ctx, constant.ContextKeyChannelId, 43)
+	common.SetContextKey(ctx, constant.ContextKeyChannelBaseUrl, upstream.URL)
+	common.SetContextKey(ctx, constant.ContextKeyChannelKey, "test-key")
+	common.SetContextKey(ctx, constant.ContextKeyOriginalModel, "GLM5.1")
+
+	info := &relaycommon.RelayInfo{
+		Request:         &chatReq,
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		RequestURLPath:  "/v1/chat/completions",
+		OriginModelName: "GLM5.1",
+	}
+
+	relayErr := TextHelper(ctx, info)
+	require.NotNil(t, relayErr) // 上游返回 400，预期错误返回
+
+	// 关键断言：上游收到 chat completions 路径与 messages 体，未被反向转换为 responses
+	require.Equal(t, "/v1/chat/completions", upstreamPath)
+	var sent map[string]any
+	require.NoError(t, common.Unmarshal(upstreamBody, &sent))
+	require.Contains(t, sent, "messages")
+	require.NotContains(t, sent, "input")
+}

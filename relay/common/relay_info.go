@@ -210,6 +210,12 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
 	headerOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelHeaderOverride)
 	apiType, _ := common.ChannelType2APIType(channelType)
+	// Responses→Chat 渠道在 chat 协议下无需 responses→chat 转换，按普通 OpenAI 渠道处理，
+	// 使单一 Responses→Chat 渠道同时支持 /v1/responses 与 /v1/chat/completions 两种请求。
+	// responses 协议请求仍走 ResponsesChat 适配器执行 responses→chat 转换，不受影响。
+	if channelType == constant.ChannelTypeResponsesChat && info.RelayMode == relayconstant.RelayModeChatCompletions {
+		apiType = constant.APITypeOpenAI
+	}
 	channelMeta := &ChannelMeta{
 		ChannelType:          channelType,
 		ChannelId:            common.GetContextKeyInt(c, constant.ContextKeyChannelId),
