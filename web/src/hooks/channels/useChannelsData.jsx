@@ -32,6 +32,10 @@ import {
   CHANNEL_OPTIONS,
   ITEMS_PER_PAGE,
   MODEL_TABLE_PAGE_SIZE,
+  CHANNEL_TYPE_RESPONSES_CHAT,
+  RESPONSES_CHAT_TEST_PROTOCOLS,
+  modelTestKey,
+  modelTestingKey,
 } from '../../constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -839,7 +843,13 @@ export const useChannelsData = () => {
     endpointType = '',
     stream = false,
   ) => {
-    const testKey = `${record.id}-${model}`;
+    // Responses→Chat 渠道按协议追加后缀,使同一模型两种协议结果并存、互不覆盖;
+    // 其余渠道沿用单键,行为不变。proto 仅用于键,URL 仍用原始 endpointType 参数。
+    const isRespChat = record?.type === CHANNEL_TYPE_RESPONSES_CHAT;
+    const proto =
+      endpointType || (isRespChat ? RESPONSES_CHAT_TEST_PROTOCOLS[0] : '');
+    const testKey = modelTestKey(record?.type, record.id, model, proto);
+    const testingKey = modelTestingKey(record?.type, model, proto);
 
     // 检查是否应该停止批量测试
     if (shouldStopBatchTestingRef.current && isBatchTesting) {
@@ -847,7 +857,7 @@ export const useChannelsData = () => {
     }
 
     // 添加到正在测试的模型集合
-    setTestingModels((prev) => new Set([...prev, model]));
+    setTestingModels((prev) => new Set([...prev, testingKey]));
 
     try {
       let url = `/api/channel/test/${record.id}?model=${model}`;
@@ -892,12 +902,14 @@ export const useChannelsData = () => {
               .replace('${time.toFixed(2)}', time.toFixed(2)),
           );
         } else {
+          // Responses→Chat 渠道在文案中附带协议,便于区分两种协议各自的耗时
+          const modelDisplay = isRespChat ? `${model} (${proto})` : model;
           showInfo(
             t(
               '通道 ${name} 测试成功，模型 ${model} 耗时 ${time.toFixed(2)} 秒。',
             )
               .replace('${name}', record.name)
-              .replace('${model}', model)
+              .replace('${model}', modelDisplay)
               .replace('${time.toFixed(2)}', time.toFixed(2)),
           );
         }
@@ -905,8 +917,7 @@ export const useChannelsData = () => {
         showError(message);
       }
     } catch (error) {
-      // 处理网络错误
-      const testKey = `${record.id}-${model}`;
+      // 处理网络错误(testKey 复用外层派生,已含 Responses→Chat 协议后缀)
       setModelTestResults((prev) => ({
         ...prev,
         [testKey]: {
@@ -922,7 +933,7 @@ export const useChannelsData = () => {
       // 从正在测试的模型集合中移除
       setTestingModels((prev) => {
         const newSet = new Set(prev);
-        newSet.delete(model);
+        newSet.delete(testingKey);
         return newSet;
       });
     }
@@ -949,12 +960,33 @@ export const useChannelsData = () => {
     setIsBatchTesting(true);
     shouldStopBatchTestingRef.current = false; // 重置停止标志
 
-    // 清空该渠道之前的测试结果
+    // Responses→Chat 渠道每模型测两种协议;其余渠道按全局选中协议(单协议)
+    const isRespChatChannel =
+      currentTestChannel.type === CHANNEL_TYPE_RESPONSES_CHAT;
+    const protosToTest = isRespChatChannel
+      ? RESPONSES_CHAT_TEST_PROTOCOLS
+      : [selectedEndpointType];
+    // 展开为 (model, proto) 任务列表,统一走并发闸
+    const tasks = [];
+    models.forEach((model) => {
+      protosToTest.forEach((proto) => {
+        tasks.push({ model, proto });
+      });
+    });
+
+    // 清空该渠道之前的测试结果(Responses→Chat 渠道清掉两种协议各自的键)
     setModelTestResults((prev) => {
       const newResults = { ...prev };
       models.forEach((model) => {
-        const testKey = `${currentTestChannel.id}-${model}`;
-        delete newResults[testKey];
+        protosToTest.forEach((proto) => {
+          const testKey = modelTestKey(
+            currentTestChannel.type,
+            currentTestChannel.id,
+            model,
+            proto,
+          );
+          delete newResults[testKey];
+        });
       });
       return newResults;
     });
@@ -971,28 +1003,23 @@ export const useChannelsData = () => {
       const concurrencyLimit = 5;
       const results = [];
 
-      for (let i = 0; i < models.length; i += concurrencyLimit) {
+      for (let i = 0; i < tasks.length; i += concurrencyLimit) {
         // 检查是否应该停止
         if (shouldStopBatchTestingRef.current) {
           showInfo(t('批量测试已停止'));
           break;
         }
 
-        const batch = models.slice(i, i + concurrencyLimit);
+        const batch = tasks.slice(i, i + concurrencyLimit);
         showInfo(
-          t('正在测试第 ${current} - ${end} 个模型 (共 ${total} 个)')
+          t('正在测试第 ${current} - ${end} 项 (共 ${total} 项)')
             .replace('${current}', i + 1)
-            .replace('${end}', Math.min(i + concurrencyLimit, models.length))
-            .replace('${total}', models.length),
+            .replace('${end}', Math.min(i + concurrencyLimit, tasks.length))
+            .replace('${total}', tasks.length),
         );
 
-        const batchPromises = batch.map((model) =>
-          testChannel(
-            currentTestChannel,
-            model,
-            selectedEndpointType,
-            isStreamTest,
-          ),
+        const batchPromises = batch.map((task) =>
+          testChannel(currentTestChannel, task.model, task.proto, isStreamTest),
         );
         const batchResults = await Promise.allSettled(batchPromises);
         results.push(...batchResults);
@@ -1004,7 +1031,7 @@ export const useChannelsData = () => {
         }
 
         // 短暂延迟避免过于频繁的请求
-        if (i + concurrencyLimit < models.length) {
+        if (i + concurrencyLimit < tasks.length) {
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
       }
@@ -1018,8 +1045,13 @@ export const useChannelsData = () => {
           let successCount = 0;
           let failCount = 0;
 
-          models.forEach((model) => {
-            const testKey = `${currentTestChannel.id}-${model}`;
+          tasks.forEach((task) => {
+            const testKey = modelTestKey(
+              currentTestChannel.type,
+              currentTestChannel.id,
+              task.model,
+              task.proto,
+            );
             const result = currentResults[testKey];
             if (result && result.success) {
               successCount++;
@@ -1034,7 +1066,7 @@ export const useChannelsData = () => {
               t('批量测试完成！成功: ${success}, 失败: ${fail}, 总计: ${total}')
                 .replace('${success}', successCount)
                 .replace('${fail}', failCount)
-                .replace('${total}', models.length),
+                .replace('${total}', tasks.length),
             );
           }, 100);
 

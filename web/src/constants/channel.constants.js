@@ -202,3 +202,24 @@ export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;
+
+// Responses→Chat 渠道类型(与后端 constant.ChannelTypeResponsesChat = 58 对齐)。
+// 该渠道同一模型同时支持 /v1/responses 与 /v1/chat/completions 两种请求,
+// 因此渠道测试模态框中每个模型需提供两种协议的独立测试按钮与状态。
+export const CHANNEL_TYPE_RESPONSES_CHAT = 58;
+
+// Responses→Chat 渠道逐模型测试的两种协议(endpoint_type 值)。
+// 顺序即测试模态框中状态行从上到下、操作按钮从左到右的展示顺序。
+export const RESPONSES_CHAT_TEST_PROTOCOLS = ['openai-response', 'openai'];
+
+// 渠道测试结果/测试中状态的键构造。
+// 仅 Responses→Chat 渠道按协议追加后缀,使同一模型的两种协议结果并存、互不覆盖;
+// 其余渠道沿用单键,行为与改动前一致。
+// 与 useChannelsData.testChannel、ModelTestModal 的读取保持一致。
+export const modelTestKey = (channelType, channelId, model, proto) =>
+  channelType === CHANNEL_TYPE_RESPONSES_CHAT
+    ? `${channelId}-${model}-${proto}`
+    : `${channelId}-${model}`;
+
+export const modelTestingKey = (channelType, model, proto) =>
+  channelType === CHANNEL_TYPE_RESPONSES_CHAT ? `${model}-${proto}` : model;

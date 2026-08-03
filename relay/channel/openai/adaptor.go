@@ -168,7 +168,17 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			info.RelayMode != relayconstant.RelayModeResponsesCompact {
 			return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 		}
-		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
+		// 火山引擎方舟 coding 端点（ark.cn-beijing.volces.com）：chat completions 路径为
+		// /api/coding/v3/chat/completions（与 ResponsesChatCompletionsPath 保持一致）。
+		// base url 配置为裸域名 https://ark.cn-beijing.volces.com 时，最终命中
+		// …/api/coding/v3/chat/completions。仅改写 chat completions 端点；其他端点
+		// （embeddings 等）保持 /v1 前缀不变。responses→chat 路径进入此处时
+		// RequestURLPath 已被改写为 /api/coding/v3/chat/completions，守卫为 false，不受影响。
+		requestURL := info.RequestURLPath
+		if strings.Contains(info.ChannelBaseUrl, "ark.cn-beijing.volces.com") && requestURL == "/v1/chat/completions" {
+			requestURL = "/api/coding/v3/chat/completions"
+		}
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, requestURL, info.ChannelType), nil
 	}
 }
 
