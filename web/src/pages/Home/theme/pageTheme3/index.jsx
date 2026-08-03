@@ -113,23 +113,30 @@ const MODEL_LIST = [
 // 打字机短语：通过 t() 国际化（键见 i18n locales）。
 // segment 形状：{ t: 文本, mint?: 是否高亮薄荷色, sub?: 是否副标题样式 }
 // 注意：换行 '\n' 与标点 '。' / 'H200 / B300' 不参与翻译。
-const buildTypewriterPhrases = (t) => [
-  // phrase 1
-  [
-    { t: t('一套 API，') },
-    { t: '\n' },
-    { t: t('畅连所有 AI') },
-    { t: '', mint: true },
-  ],
-  // phrase 2
-  [
-    { t: t('自建') },
-    { t: t('算力'), mint: true },
-    { t: t('集群') },
-    { t: '\n' },
-    { t: 'H200 / B300', sub: true },
-  ],
-];
+const buildTypewriterPhrases = (t, language) => {
+  const isChinese = String(language || '')
+    .toLowerCase()
+    .startsWith('zh');
+
+  return [
+    // phrase 1
+    [
+      { t: t('一套 API，') },
+      { t: '\n' },
+      { t: t('畅连所有 AI') },
+      { t: '', mint: true },
+    ],
+    // phrase 2
+    [
+      { t: t('自建') },
+      ...(!isChinese ? [{ t: '\n' }] : []),
+      { t: t('算力'), mint: true },
+      { t: t('集群') },
+      { t: '\n' },
+      { t: 'H200 / B300', sub: true },
+    ],
+  ];
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1051,7 +1058,7 @@ const Theme3Home = () => {
 
   // 打字机短语：随语言切换重新生成，i18n.language 变化时动效自动重播
   const typewriterPhrases = useMemo(
-    () => buildTypewriterPhrases(t),
+    () => buildTypewriterPhrases(t, i18n.language),
     [t, i18n.language],
   );
 
