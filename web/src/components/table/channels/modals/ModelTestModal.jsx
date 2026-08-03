@@ -28,11 +28,32 @@ import {
   Select,
   Switch,
   Banner,
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import { IconSearch, IconInfoCircle } from '@douyinfe/semi-icons';
 import { Settings } from 'lucide-react';
 import { copy, showError, showInfo, showSuccess } from '../../../../helpers';
-import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
+import {
+  MODEL_TABLE_PAGE_SIZE,
+  CHANNEL_TYPE_RESPONSES_CHAT,
+  RESPONSES_CHAT_TEST_PROTOCOLS,
+  modelTestKey,
+  modelTestingKey,
+} from '../../../../constants';
+
+// Responses→Chat 渠道逐协议测试按钮/状态展示元数据
+const PROTO_META = {
+  'openai-response': {
+    short: 'Resp',
+    path: '/v1/responses',
+    color: 'var(--semi-color-purple)',
+  },
+  'openai': {
+    short: 'Chat',
+    path: '/v1/chat/completions',
+    color: 'var(--semi-color-blue)',
+  },
+};
 
 const ModelTestModal = ({
   showModelTestModal,
@@ -58,12 +79,19 @@ const ModelTestModal = ({
   t,
 }) => {
   const hasChannel = Boolean(currentTestChannel);
-  const streamToggleDisabled = [
-    'embeddings',
-    'image-generation',
-    'jina-rerank',
-    'openai-response-compact',
-  ].includes(selectedEndpointType);
+  // Responses→Chat 渠道:同一模型同时支持 /v1/responses 与 /v1/chat/completions,
+  // 测试时每模型提供 Response、Chat 两个独立按钮与两行独立状态。
+  const isRespChatChannel =
+    hasChannel && currentTestChannel.type === CHANNEL_TYPE_RESPONSES_CHAT;
+  // Responses→Chat 的两种协议都支持流式,流式开关始终可用;其余渠道按端点类型决定
+  const streamToggleDisabled =
+    !isRespChatChannel &&
+    [
+      'embeddings',
+      'image-generation',
+      'jina-rerank',
+      'openai-response-compact',
+    ].includes(selectedEndpointType);
 
   React.useEffect(() => {
     if (streamToggleDisabled && isStreamTest) {
@@ -125,6 +153,20 @@ const ModelTestModal = ({
       .split(',')
       .filter((m) => m.toLowerCase().includes(modelSearchKeyword.toLowerCase()))
       .filter((m) => {
+        if (isRespChatChannel) {
+          // Responses→Chat 渠道:任一协议成功即视为该模型可用
+          return RESPONSES_CHAT_TEST_PROTOCOLS.some(
+            (proto) =>
+              modelTestResults[
+                modelTestKey(
+                  currentTestChannel.type,
+                  currentTestChannel.id,
+                  m,
+                  proto,
+                )
+              ]?.success,
+          );
+        }
         const result = modelTestResults[`${currentTestChannel.id}-${m}`];
         return result && result.success;
       });
@@ -132,6 +174,106 @@ const ModelTestModal = ({
       showInfo(t('暂无成功模型'));
     }
     setSelectedModelKeys(successKeys);
+  };
+
+  // 渲染单个协议的测试状态(withPrefix=true 时附色点+短标签前缀,仅 Responses→Chat 渠道用)。
+  // 非 Responses→Chat 渠道调用时 proto 仅作占位,键构造退化为单键,行为与原实现一致。
+  const renderStatusForProto = (model, proto, withPrefix) => {
+    const testResult =
+      modelTestResults[
+        modelTestKey(currentTestChannel.type, currentTestChannel.id, model, proto)
+      ];
+    const isTesting = testingModels.has(
+      modelTestingKey(currentTestChannel.type, model, proto),
+    );
+    const prefix = withPrefix ? (
+      <>
+        <span
+          aria-hidden
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: PROTO_META[proto].color,
+            display: 'inline-block',
+            flexShrink: 0,
+          }}
+        />
+        <Typography.Text
+          type='tertiary'
+          size='small'
+          className='shrink-0'
+          style={{ minWidth: 32 }}
+        >
+          {PROTO_META[proto].short}
+        </Typography.Text>
+      </>
+    ) : null;
+
+    if (isTesting) {
+      return (
+        <div className='flex items-center gap-2'>
+          {prefix}
+          <Tag color='blue' shape='circle'>
+            {t('测试中')}
+          </Tag>
+        </div>
+      );
+    }
+    if (!testResult) {
+      return (
+        <div className='flex items-center gap-2'>
+          {prefix}
+          <Tag color='grey' shape='circle'>
+            {t('未开始')}
+          </Tag>
+        </div>
+      );
+    }
+    return (
+      <div className='flex flex-col gap-1'>
+        <div className='flex items-center gap-2'>
+          {prefix}
+          <Tag color={testResult.success ? 'green' : 'red'} shape='circle'>
+            {testResult.success ? t('成功') : t('失败')}
+          </Tag>
+          {testResult.success && (
+            <Typography.Text type='tertiary'>
+              {t('请求时长: ${time}s').replace(
+                '${time}',
+                testResult.time.toFixed(2),
+              )}
+            </Typography.Text>
+          )}
+        </div>
+        {!testResult.success && testResult.message && (
+          <div className='flex flex-col gap-1'>
+            <Typography.Text
+              type='danger'
+              size='small'
+              className='break-all'
+              style={{ maxWidth: '400px', fontSize: '12px' }}
+            >
+              {testResult.message}
+            </Typography.Text>
+            {testResult.errorCode === 'model_price_error' && (
+              <Button
+                size='small'
+                theme='light'
+                type='warning'
+                icon={<Settings size={12} />}
+                onClick={() =>
+                  window.open('/console/setting?tab=ratio', '_blank')
+                }
+                style={{ width: 'fit-content' }}
+              >
+                {t('前往设置')}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const columns = [
@@ -148,74 +290,72 @@ const ModelTestModal = ({
       title: t('状态'),
       dataIndex: 'status',
       render: (text, record) => {
-        const testResult =
-          modelTestResults[`${currentTestChannel.id}-${record.model}`];
-        const isTesting = testingModels.has(record.model);
-
-        if (isTesting) {
+        if (isRespChatChannel) {
           return (
-            <Tag color='blue' shape='circle'>
-              {t('测试中')}
-            </Tag>
-          );
-        }
-
-        if (!testResult) {
-          return (
-            <Tag color='grey' shape='circle'>
-              {t('未开始')}
-            </Tag>
-          );
-        }
-
-        return (
-          <div className='flex flex-col gap-1'>
-            <div className='flex items-center gap-2'>
-              <Tag color={testResult.success ? 'green' : 'red'} shape='circle'>
-                {testResult.success ? t('成功') : t('失败')}
-              </Tag>
-              {testResult.success && (
-                <Typography.Text type='tertiary'>
-                  {t('请求时长: ${time}s').replace(
-                    '${time}',
-                    testResult.time.toFixed(2),
-                  )}
-                </Typography.Text>
-              )}
+            <div className='flex flex-col gap-2'>
+              {RESPONSES_CHAT_TEST_PROTOCOLS.map((proto) => (
+                <React.Fragment key={proto}>
+                  {renderStatusForProto(record.model, proto, true)}
+                </React.Fragment>
+              ))}
             </div>
-            {!testResult.success && testResult.message && (
-              <div className='flex flex-col gap-1'>
-                <Typography.Text
-                  type='danger'
-                  size='small'
-                  className='break-all'
-                  style={{ maxWidth: '400px', fontSize: '12px' }}
-                >
-                  {testResult.message}
-                </Typography.Text>
-                {testResult.errorCode === 'model_price_error' && (
-                  <Button
-                    size='small'
-                    theme='light'
-                    type='warning'
-                    icon={<Settings size={12} />}
-                    onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
-                    style={{ width: 'fit-content' }}
-                  >
-                    {t('前往设置')}
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        );
+          );
+        }
+        return renderStatusForProto(record.model, selectedEndpointType, false);
       },
     },
     {
       title: '',
       dataIndex: 'operate',
       render: (text, record) => {
-        const isTesting = testingModels.has(record.model);
+        if (isRespChatChannel) {
+          return (
+            <div className='flex items-center justify-end gap-1'>
+              {RESPONSES_CHAT_TEST_PROTOCOLS.map((proto) => {
+                const meta = PROTO_META[proto];
+                const isTesting = testingModels.has(
+                  modelTestingKey(currentTestChannel.type, record.model, proto),
+                );
+                return (
+                  <Tooltip key={proto} content={meta.path}>
+                    <Button
+                      size='small'
+                      loading={isTesting}
+                      onClick={() =>
+                        testChannel(
+                          currentTestChannel,
+                          record.model,
+                          proto,
+                          isStreamTest,
+                        )
+                      }
+                    >
+                      <span
+                        aria-hidden
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: '50%',
+                          background: meta.color,
+                          display: 'inline-block',
+                          marginRight: 5,
+                        }}
+                      />
+                      {t(meta.short)}
+                    </Button>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          );
+        }
+        const isTesting = testingModels.has(
+          modelTestingKey(
+            currentTestChannel.type,
+            record.model,
+            selectedEndpointType,
+          ),
+        );
         return (
           <Button
             type='tertiary'
@@ -304,18 +444,28 @@ const ModelTestModal = ({
         <div className='model-test-scroll'>
           {/* Endpoint toolbar */}
           <div className='flex flex-col sm:flex-row sm:items-center gap-2 w-full mb-2'>
-            <div className='flex items-center gap-2 flex-1 min-w-0'>
-              <Typography.Text strong className='shrink-0'>
-                {t('端点类型')}:
-              </Typography.Text>
-              <Select
-                value={selectedEndpointType}
-                onChange={setSelectedEndpointType}
-                optionList={endpointTypeOptions}
-                className='!w-full min-w-0'
-                placeholder={t('选择端点类型')}
-              />
-            </div>
+            {isRespChatChannel ? (
+              <div className='flex items-center gap-2 flex-1 min-w-0'>
+                <Typography.Text type='tertiary' size='small'>
+                  {t(
+                    'Responses→Chat 渠道：每个模型提供 Response 与 Chat 两种测试',
+                  )}
+                </Typography.Text>
+              </div>
+            ) : (
+              <div className='flex items-center gap-2 flex-1 min-w-0'>
+                <Typography.Text strong className='shrink-0'>
+                  {t('端点类型')}:
+                </Typography.Text>
+                <Select
+                  value={selectedEndpointType}
+                  onChange={setSelectedEndpointType}
+                  optionList={endpointTypeOptions}
+                  className='!w-full min-w-0'
+                  placeholder={t('选择端点类型')}
+                />
+              </div>
+            )}
             <div className='flex items-center justify-between sm:justify-end gap-2 shrink-0'>
               <Typography.Text strong className='shrink-0'>
                 {t('流式')}:
