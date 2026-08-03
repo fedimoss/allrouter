@@ -88,14 +88,17 @@ const (
 )
 
 type NewAPIError struct {
-	Err            error
-	RelayError     any
-	skipRetry      bool
-	recordErrorLog *bool
-	errorType      ErrorType
-	errorCode      ErrorCode
-	StatusCode     int
-	Metadata       json.RawMessage
+	Err        error
+	RelayError any
+	skipRetry  bool
+	// skipChannelErrorHandling 表示错误来自当前文本渠道之外的内部子请求，
+	// 外层中继不应将它记到当前所选渠道，也不应据此自动禁用当前渠道。
+	skipChannelErrorHandling bool
+	recordErrorLog           *bool
+	errorType                ErrorType
+	errorCode                ErrorCode
+	StatusCode               int
+	Metadata                 json.RawMessage
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
@@ -382,6 +385,19 @@ func ErrOptionWithSkipRetry() NewAPIErrorOptions {
 	return func(e *NewAPIError) {
 		e.skipRetry = true
 	}
+}
+
+// ErrOptionWithSkipChannelErrorHandling 阻止外层中继把错误归因到当前所选渠道。
+// 典型场景是一个文本请求内部又调用了独立的图片渠道，而失败实际来自图片子请求。
+func ErrOptionWithSkipChannelErrorHandling() NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.skipChannelErrorHandling = true
+	}
+}
+
+// IsSkipChannelErrorHandling 返回该错误是否应跳过当前渠道的错误记录与自动禁用流程。
+func IsSkipChannelErrorHandling(err *NewAPIError) bool {
+	return err != nil && err.skipChannelErrorHandling
 }
 
 func ErrOptionWithNoRecordErrorLog() NewAPIErrorOptions {

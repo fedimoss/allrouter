@@ -24,6 +24,15 @@ import (
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
+	// 普通 Responses 请求先检查本地生图桥接。除 Responses→Chat 渠道外，
+	// 普通 OpenAI 兼容渠道也可在客户端未挂载图片工具、但用户明确要求生图时
+	// 使用该桥接；显式 image_generation 仍保留原生 Responses 透传。
+	if info.RelayMode == relayconstant.RelayModeResponses {
+		if handled, newAPIError := tryResponsesImageGenerationBridge(c, info); handled {
+			return newAPIError
+		}
+	}
+
 	// Responses→Chat channel: convert /v1/responses to /v1/chat/completions.
 	if info.ApiType == appconstant.APITypeResponsesChat {
 		return responsesViaChatCompletions(c, info)

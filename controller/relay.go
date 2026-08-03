@@ -327,7 +327,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relayInfo.LastError = newAPIError
 
 		forceBalanceFailover := service.IsUpstreamAccountBalanceError(newAPIError)
-		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		// 某些复合请求会在当前文本渠道内部调用另一个独立渠道。例如 Responses
+		// 生图桥接的图片子请求失败时，错误已经按图片渠道记录，不能再归因到文本渠道。
+		if !types.IsSkipChannelErrorHandling(newAPIError) {
+			processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		}
 		newAPIError = service.NormalizeUpstreamAccountBalanceError(newAPIError)
 		relayInfo.LastError = newAPIError
 

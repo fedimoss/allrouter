@@ -578,18 +578,42 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, chat
 	// 提取文本内容和推理内容
 	text := ""
 	reasoningText := ""
+	toolCalls := make(map[int]*responsesToolCallState)
+	messageOutputIndex := -1
 	if len(chatResp.Choices) > 0 {
-		text = chatResp.Choices[0].Message.StringContent()
-		reasoningText = chatResp.Choices[0].Message.GetReasoningContent()
+		message := &chatResp.Choices[0].Message
+		text = message.StringContent()
+		reasoningText = message.GetReasoningContent()
 		// 如果配置了将推理内容合并到正文输出
 		if info != nil && info.ChannelSetting.ThinkingToContent && reasoningText != "" {
 			text = reasoningText + text
+		}
+		if text != "" {
+			messageOutputIndex = 0
+		}
+		for index, toolCall := range message.ParseToolCalls() {
+			callID := strings.TrimSpace(toolCall.ID)
+			if callID == "" {
+				callID = "call_" + responseID + "_" + strconv.Itoa(index)
+			}
+			outputIndex := index
+			if messageOutputIndex >= 0 {
+				outputIndex++
+			}
+			toolCalls[index] = &responsesToolCallState{
+				ID:          "fc_" + callID,
+				CallID:      callID,
+				Name:        strings.TrimSpace(toolCall.Function.Name),
+				Arguments:   toolCall.Function.Arguments,
+				OutputIndex: outputIndex,
+				Added:       true,
+			}
 		}
 	}
 
 	// 转换用量信息并构建 Responses 响应对象
 	usage := responsesUsageFromChat(&chatResp.Usage)
-	responsesResp := chatStreamToResponsesResponse(responseID, createdAt, model, text, usage, text != "", 0, nil)
+	responsesResp := chatStreamToResponsesResponse(responseID, createdAt, model, text, usage, text != "", messageOutputIndex, toolCalls)
 
 	// 序列化并发送给客户端
 	responseBody, err := common.Marshal(responsesResp)
