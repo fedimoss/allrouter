@@ -339,7 +339,7 @@ type IncompleteDetails struct {
 
 type ResponsesOutput struct {
 	Type          string                   `json:"type"`
-	ID            string                   `json:"id"`
+	ID            string                   `json:"id,omitempty"`
 	Status        string                   `json:"status"`
 	Role          string                   `json:"role,omitempty"`
 	Content       []ResponsesOutputContent `json:"content,omitempty"`
@@ -350,6 +350,18 @@ type ResponsesOutput struct {
 	CallId        string                   `json:"call_id,omitempty"`
 	Name          string                   `json:"name,omitempty"`
 	Arguments     json.RawMessage          `json:"arguments,omitempty"`
+	// Summary 用于 reasoning 输出条目（type="reasoning"），承载 summary_text 部件数组。
+	Summary []ResponsesReasoningSummaryPart `json:"summary,omitempty"`
+	// 以下字段用于 Responses→Chat 渠道恢复 Codex 专用工具调用条目
+	// （对齐 cc-switch chat_completion_to_response_with_context）。
+	// Namespace 仅 namespace function_call 非空，携带原始命名空间名。
+	Namespace string `json:"namespace,omitempty"`
+	// Execution 仅 tool_search_call 使用，固定为 "client"。
+	Execution string `json:"execution,omitempty"`
+	// Input 仅 custom_tool_call 使用，承载从 chat arguments 解包出的原始输入。
+	Input string `json:"input,omitempty"`
+	// ReasoningContent 携带附挂到工具调用条目的推理内容（部分思考型模型会产出）。
+	ReasoningContent string `json:"reasoning_content,omitempty"`
 }
 
 // ArgumentsString returns function call arguments in the string form expected by Chat Completions.
@@ -396,6 +408,10 @@ type ResponsesStreamResponse struct {
 	Response *OpenAIResponsesResponse `json:"response,omitempty"`
 	Delta    string                   `json:"delta,omitempty"`
 	Item     *ResponsesOutput         `json:"item,omitempty"`
+	// Arguments 用于 response.function_call_arguments.done 的完整参数（区别于 delta 的增量片段）。
+	Arguments string `json:"arguments,omitempty"`
+	// Input 用于 response.custom_tool_call_input.done 的完整输入（custom 工具专属）。
+	Input string `json:"input,omitempty"`
 	// - response.function_call_arguments.delta
 	// - response.function_call_arguments.done
 	OutputIndex  *int                           `json:"output_index,omitempty"`

@@ -75,6 +75,7 @@ const HomeThemes = {
   default: lazy(() => import('./pages/Home')),
   style_a: lazy(() => import('./pages/Home/theme/pageTheme1')),
   style_b: lazy(() => import('./pages/Home/theme/pageTheme2')),
+  style_c: lazy(() => import('./pages/Home/theme/pageTheme3')),
 };
 
 const getHomeThemeKey = (theme) => {
@@ -90,7 +91,7 @@ const HomeRoute = () => {
   const themeKey = getHomeThemeKey(
     statusState?.status?.provider_config?.home_page_theme,
   );
-  const HomeComp = HomeThemes[themeKey];
+  const HomeComp = HomeThemes[themeKey]; // 默认使用 style_c 主题
 
   if (!statusLoaded) {
     return <Loading />;

@@ -1,4 +1,23 @@
-import React, { useCallback, useContext, useMemo, useState } from 'react';
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+import React, { useContext, useMemo, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import {
   Network,
@@ -6,24 +25,17 @@ import {
   Server,
   LayoutDashboard,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  API,
   getLogo,
   getQQSupport,
   getSystemName,
   getWechatSupport,
-  shouldShowProviderAgentPartner,
   withBrowserBaseUrl,
 } from '../../helpers';
 import { StatusContext } from '../../context/Status';
-import { UserContext } from '../../context/User';
-import { useActualTheme, useSetTheme, useTheme } from '../../context/Theme';
-import { useIsMobile } from '../../hooks/common/useIsMobile';
-import ThemeToggle from '../../components/layout/headerbar/ThemeToggle';
-import LanguageSelector from '../../components/layout/headerbar/LanguageSelector';
-import UserArea from '../../components/layout/headerbar/UserArea';
+import Theme3Header from '../Home/theme/pageTheme3/Theme3Header';
 import studentIcon from '../../../public/agency-franchise/student.png';
 import mediaIcon from '../../../public/agency-franchise/media.png';
 import sideBusinessIcon from '../../../public/agency-franchise/side-business.png';
@@ -33,7 +45,6 @@ import channelImg from '../../../public/agency-franchise/channel.png';
 import connectionImg from '../../../public/agency-franchise/connection.png';
 import fanContentImg from '../../../public/agency-franchise/fan-content.png';
 import idleOperationImg from '../../../public/agency-franchise/idle-operation.png';
-
 
 const logo = getLogo();
 const systemName = getSystemName();
@@ -157,12 +168,7 @@ function WhyUsCard({ t, title, desc }) {
 
 const AgentPartner = () => {
   const { t, i18n } = useTranslation();
-  const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
-  const theme = useTheme();
-  const setTheme = useSetTheme();
-  const navigate = useNavigate();
-  const isMobile = useIsMobile();
   const [showSupport, setShowSupport] = useState(false);
 
   const supportConfig = useMemo(() => {
@@ -195,125 +201,9 @@ const AgentPartner = () => {
     `/${docsLangPrefix}/docs/support/community-interaction`,
   );
 
-  const getStoredUser = () => {
-    try {
-      const raw = localStorage.getItem('user');
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const currentUser = userState?.user || getStoredUser();
-  const isLoggedIn = Boolean(currentUser?.id);
-  const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
-  const consoleNavTarget = isLoggedIn ? '/console' : '/login';
-  const showAgentPartnerNav = shouldShowProviderAgentPartner(
-    statusState?.status,
-  );
-  const normalizedUserState = { user: currentUser };
-
-  const handleThemeToggle = useCallback(
-    (newTheme) => {
-      if (newTheme === 'light' || newTheme === 'dark' || newTheme === 'auto') {
-        setTheme(newTheme);
-      }
-    },
-    [setTheme],
-  );
-
-  const handleLanguageChange = useCallback(
-    async (lang) => {
-      i18n.changeLanguage(lang);
-      if (!currentUser?.id) return;
-      try {
-        const res = await API.put('/api/user/self', { language: lang });
-        if (res.data.success && currentUser?.setting) {
-          const settings = JSON.parse(currentUser.setting);
-          settings.language = lang;
-          userDispatch({
-            type: 'login',
-            payload: {
-              ...currentUser,
-              setting: JSON.stringify(settings),
-            },
-          });
-        }
-      } catch (error) {
-        console.error('Failed to save language preference:', error);
-      }
-    },
-    [currentUser, i18n, userDispatch],
-  );
-
-  const logout = useCallback(async () => {
-    await API.get('/api/user/logout');
-    userDispatch({ type: 'logout' });
-    localStorage.removeItem('user');
-    navigate('/login');
-  }, [navigate, userDispatch]);
-
   return (
     <div className='landing-home landing-v2 landing-v2-guest-home'>
-      {/* ===== Same nav as Home page ===== */}
-      <nav className='landing-v2-nav landing-v2-nav-fixed'>
-        <div className='landing-v2-logo'>
-          <div className='landing-v2-logo-bg'>
-            <img src={logo} className='landing-v2-real-logo' />
-          </div>
-          <span>{systemName}</span>
-        </div>
-
-        <div className='landing-v2-nav-links'>
-          <Link to='/'>{t('首页')}</Link>
-          <Link to={consoleNavTarget}>{t('控制台')}</Link>
-          <Link to='/pricing'>{t('模型广场')}</Link>
-          {showAgentPartnerNav ? (
-            <Link to='/agent-partner' className='landing-v2-nav-link-active'>
-              {t('代理加盟')}
-            </Link>
-          ) : null}
-          <a href={docsHref} target='_blank' rel='noreferrer'>
-            {t('文档')}
-          </a>
-          <Link to='/about'>{t('关于')}</Link>
-        </div>
-
-        <div className='landing-v2-nav-actions'>
-          <div className='landing-v2-nav-tools'>
-            <ThemeToggle
-              theme={theme}
-              onThemeToggle={handleThemeToggle}
-              t={t}
-            />
-            <LanguageSelector
-              currentLang={i18n.language}
-              onLanguageChange={handleLanguageChange}
-              t={t}
-            />
-          </div>
-          {isLoggedIn ? (
-            <UserArea
-              userState={normalizedUserState}
-              isLoading={false}
-              isMobile={isMobile}
-              isSelfUseMode={isSelfUseMode}
-              logout={logout}
-              navigate={navigate}
-              t={t}
-            />
-          ) : (
-            <>
-              <Link to='/login' className='landing-v2-btn-text'>
-                {t('登录')}
-              </Link>
-              <Link to='/console' className='landing-v2-btn-primary'>
-                {t('获取 API Key')}
-              </Link>
-            </>
-          )}
-        </div>
-      </nav>
+      <Theme3Header />
 
       <main className='landing-v2-main'>
         {/* ===== Hero Section — left/right layout ===== */}

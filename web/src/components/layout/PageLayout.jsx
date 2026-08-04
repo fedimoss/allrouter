@@ -77,6 +77,7 @@ const PageLayout = () => {
 
   const selfContainedPages = [
     '/agent-partner',
+    '/about',
     '/landing',
     '/payment/lakala/qrcode',
   ];

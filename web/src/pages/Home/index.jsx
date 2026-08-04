@@ -49,6 +49,7 @@ import UserArea from '../../components/layout/headerbar/UserArea';
 import MarqueeLogos from '../../components/common/MarqueeLogos';
 import FloatingSupport from '../../components/common/FloatingSupport';
 import PageTheme1Home from './theme/pageTheme1';
+import PageTheme3Home from './theme/pageTheme3';
 
 import {
   buildSupportConfig,
@@ -168,8 +169,15 @@ const Home = () => {
     homePageContentLoaded &&
     !hasCustomHomePageContent &&
     homePageTheme === 'style_a';
+  const showStyleCHome =
+    homePageContentLoaded &&
+    !hasCustomHomePageContent &&
+    homePageTheme === 'style_c';
   const showDefaultHome =
-    homePageContentLoaded && !hasCustomHomePageContent && !showStyleAHome;
+    homePageContentLoaded &&
+    !hasCustomHomePageContent &&
+    !showStyleAHome &&
+    !showStyleCHome;
   const docsLangPrefix = i18n.language.startsWith('zh') ? 'zh' : 'en';
 
   const docsHref = docsLink || withBrowserBaseUrl(`/${docsLangPrefix}/docs`);
@@ -458,6 +466,10 @@ const Home = () => {
 
   if (showStyleAHome) {
     return <PageTheme1Home />;
+  }
+
+  if (showStyleCHome) {
+    return <PageTheme3Home />;
   }
 
   return (

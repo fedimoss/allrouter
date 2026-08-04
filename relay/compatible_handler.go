@@ -104,9 +104,13 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	// 当满足以下条件时，将 Chat Completions 请求转换为 Responses API 请求发送给上游：
 	//   1. 当前中继模式为 Chat Completions
 	//   2. 未启用请求体透传（需要经过转换）
-	//   3. 全局配置允许该模型/通道使用 Responses API
+	//   3. 渠道不是 Responses→Chat（该渠道上游不支持 /v1/responses，反向转换必定失败；
+	//      其 chat 请求已在 InitChannelMeta 重映射为 OpenAI 适配器直接处理。注意此处
+	//      必须用 ChannelType 判断，因为此时 info.ApiType 已被改写为 OpenAI）
+	//   4. 全局配置允许该模型/通道使用 Responses API
 	if info.RelayMode == relayconstant.RelayModeChatCompletions &&
 		!passThroughBodyEnabled &&
+		info.ChannelType != constant.ChannelTypeResponsesChat &&
 		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
 		applySystemPromptIfNeeded(c, info, request)
 		usage, newApiErr := chatCompletionsViaResponses(c, info, adaptor, request)
@@ -219,6 +223,11 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		// if info.ApiType == constant.APITypeResponsesChat || info.ChannelType == constant.ChannelTypeResponsesChat || info.ForceRequestBodyConversion {
 		// 	logResponsesCompatChatRequestSummary(c, info, convertedRequest, len(jsonData))
 		// 	logResponsesCompatFullBody(c, info, "converted chat completions request body after conversion", info.RequestURLPath, jsonData)
+		// }
+
+		// [2] response→chat 后请求体：转换后实际发往上游的 Chat Completions 请求
+		// if info.ForceRequestBodyConversion {
+		// 	helper.DumpResponsesCompatSection(c, helper.ResponsesCompatDumpRequestAfter, jsonData)
 		// }
 
 		logger.LogDebug(c, "text request body: %s", jsonData)
