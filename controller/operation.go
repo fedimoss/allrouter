@@ -13,8 +13,30 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// getOperationProviderID 统一解析运营数据的服务商范围：管理员可按查询参数切换，
-// 服务商站长只能访问当前服务商站点，普通用户无权访问。
+// lookupOwnedProviderID 返回当前用户名下(作为 owner)的服务商 ID。
+// 服务商 owner 在主站(provider_id=0)登录时,域名租户上下文不再携带其服务商信息,
+// 因此回落到按用户身份解析。拆分为变量便于单测替换,避免直接依赖数据库。
+var lookupOwnedProviderID = func(userId int) (int, bool) {
+	if userId <= 0 {
+		return 0, false
+	}
+	provider, err := model.GetProviderByOwnerUserId(userId)
+	if err != nil || provider == nil || provider.Id <= 0 {
+		return 0, false
+	}
+	// 与 IsProviderOwner 保持一致:禁用的服务商不视为有效归属。
+	if provider.Status != model.ProviderStatusEnabled {
+		return 0, false
+	}
+	return provider.Id, true
+}
+
+// getOperationProviderID 统一解析运营数据的服务商范围：
+//   - 管理员可按查询参数 provider_id 切换(0 表示主站);
+//   - 服务商 owner 在自己站点时,直接采用域名租户上下文绑定的服务商;
+//   - 服务商 owner 在主站登录时,域名上下文为主站(provider_id=0),此时回落到
+//     其名下服务商,确保跨站点看到的数据一致(始终是自己的服务商);
+//   - 普通用户(非 owner)无权访问。
 func getOperationProviderID(c *gin.Context) (int, bool) {
 	if c.GetInt("role") >= common.RoleAdminUser {
 		rawProviderID := strings.TrimSpace(c.Query("provider_id"))
@@ -32,12 +54,18 @@ func getOperationProviderID(c *gin.Context) (int, bool) {
 
 	providerID := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	ownerUserID := common.GetContextKeyInt(c, constant.ContextKeyProviderOwnerUserId)
-	if providerID <= 0 || ownerUserID != c.GetInt("id") {
-		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
-		return 0, false
+	// 服务商 owner 在自己站点: 域名租户上下文已绑定到其服务商。
+	if providerID > 0 && ownerUserID == c.GetInt("id") {
+		return providerID, true
 	}
 
-	return providerID, true
+	// 服务商 owner 在主站登录: 域名上下文为主站, 回落到其名下服务商。
+	if ownedProviderID, ok := lookupOwnedProviderID(c.GetInt("id")); ok {
+		return ownedProviderID, true
+	}
+
+	common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
+	return 0, false
 }
 
 // GetDashboardByPeriod 看板数据
