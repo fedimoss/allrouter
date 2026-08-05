@@ -191,7 +191,7 @@ export default function ProviderRechargeGift({ provider }) {
           borderRadius: 8,
           padding: '16px 20px',
           marginBottom: 16,
-          background: '#fff',
+          background: 'var(--semi-color-bg-1)',
         }}
       >
         <div style={{ marginBottom: 12, fontWeight: 600 }}>
