@@ -12,6 +12,10 @@ import (
 func TestGetOperationProviderID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
+	// 保留并最终还原默认的归属服务商解析,避免影响其它测试。
+	origLookup := lookupOwnedProviderID
+	defer func() { lookupOwnedProviderID = origLookup }()
+
 	tests := []struct {
 		name              string
 		role              int
@@ -19,6 +23,8 @@ func TestGetOperationProviderID(t *testing.T) {
 		query             string
 		currentProviderID int
 		ownerUserID       int
+		ownedProviderID   int // lookupOwnedProviderID 对该 userID 的模拟返回值
+		ownedProviderOK   bool
 		wantProviderID    int
 		wantOK            bool
 	}{
@@ -27,11 +33,20 @@ func TestGetOperationProviderID(t *testing.T) {
 		{name: "admin rejects invalid provider", role: common.RoleAdminUser, query: "?provider_id=invalid", wantOK: false},
 		{name: "provider owner is bound to current site", role: common.RoleCommonUser, userID: 42, query: "?provider_id=99", currentProviderID: 7, ownerUserID: 42, wantProviderID: 7, wantOK: true},
 		{name: "provider member is rejected", role: common.RoleCommonUser, userID: 43, currentProviderID: 7, ownerUserID: 42, wantOK: false},
-		{name: "provider owner on main site is rejected", role: common.RoleCommonUser, userID: 42, currentProviderID: 0, ownerUserID: 42, wantOK: false},
+		{name: "provider owner on main site sees own data", role: common.RoleCommonUser, userID: 42, currentProviderID: 0, ownerUserID: 0, ownedProviderID: 7, ownedProviderOK: true, wantProviderID: 7, wantOK: true},
+		{name: "non-owner on main site is rejected", role: common.RoleCommonUser, userID: 44, currentProviderID: 0, ownerUserID: 0, wantOK: false},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// 按用例模拟"用户名下服务商"的解析结果。
+			lookupOwnedProviderID = func(userId int) (int, bool) {
+				if userId == test.userID {
+					return test.ownedProviderID, test.ownedProviderOK
+				}
+				return 0, false
+			}
+
 			recorder := httptest.NewRecorder()
 			context, _ := gin.CreateTestContext(recorder)
 			context.Request = httptest.NewRequest("GET", "/api/operation/dashboard"+test.query, nil)
