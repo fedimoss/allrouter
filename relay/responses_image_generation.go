@@ -2,10 +2,14 @@ package relay
 
 import (
 	"bytes"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"runtime"
 	"strings"
 	"time"
 
@@ -20,6 +24,8 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +36,9 @@ const (
 	responsesImagePlannerToolName          = "__new_api_responses_image_generation"
 	responsesImageChildRequestIDMaxRunes   = 64
 	responsesImageChildRequestIDHashLength = 12
+	responsesImageClientStreamPath         = "/v1/responses/images/execute"
+	responsesImageClientStreamMaxBodyBytes = 32 * 1024
+	responsesImageClientStreamMaxImageSize = 64 * 1024 * 1024
 )
 
 type responsesImageToolDefaults struct {
@@ -61,6 +70,20 @@ type responsesImageResult struct {
 	RevisedPrompt string
 }
 
+type responsesImageClientCommandTool struct {
+	Type            string
+	Name            string
+	CommandArgument string
+	SupportsTimeout bool
+	PowerShell      bool
+	NestedCommand   string
+	SupportsPreview bool
+}
+
+type responsesImageClientStreamExecuteRequest struct {
+	Ticket string `json:"ticket"`
+}
+
 func responsesImagePublicModelName(info *relaycommon.RelayInfo) string {
 	if info == nil {
 		return ""
@@ -82,8 +105,8 @@ func responsesImagePublicModelName(info *relaycommon.RelayInfo) string {
 //  1. 判断当前请求是否满足桥接条件；
 //  2. 将 image_generation 临时转换为唯一的内部 function tool；
 //  3. 让文本模型充当规划器，生成 prompt、size、quality 等图片参数；
-//  4. 截获内部函数调用，并通过现有图片渠道执行真实生图；
-//  5. 将内部 function_call 原位替换为标准 image_generation_call；
+//  4. 截获内部函数调用，选择立即走图片渠道或签发 client_stream 执行票据；
+//  5. 将内部调用替换为标准 image_generation_call 或客户端 shell function_call；
 //  6. 按客户端原始 stream 设置返回普通 JSON 或合成的 Responses SSE。
 //
 // 返回值中的 handled 表示本方法是否已经接管请求：
@@ -123,6 +146,7 @@ func tryResponsesImageGenerationBridge(c *gin.Context, info *relaycommon.RelayIn
 	if !ok || request == nil || !operation_setting.ShouldBridgeResponsesImageGeneration(publicModelName) {
 		return false, nil
 	}
+	bridgeSetting := operation_setting.GetResponsesImageGenerationSetting()
 
 	// 从客户端 tools 中查找 image_generation。
 	// 即使声明了该工具，如果 tool_choice=none，或 allowed_tools 没有允许图片工具，
@@ -135,12 +159,32 @@ func tryResponsesImageGenerationBridge(c *gin.Context, info *relaycommon.RelayIn
 	originalRequest := request
 	plannerSourceRequest := request
 	implicitImageRequest := false
+	var clientCommandTool *responsesImageClientCommandTool
 	if !found {
-		// Codex 等客户端可能没有把内置 image_gen 工具挂载到会话，因此请求中
-		// 根本不会出现 image_generation。只在最新用户文本明确表达生图意图时
-		// 注入，避免普通文本请求被无谓地改成非流式规划请求。
-		if !operation_setting.ShouldAutoInjectResponsesImageGeneration(responsesImageLatestUserPrompt(request)) {
+		// 只检查当前新用户轮次。工具执行后的续传请求通常仍携带此前的用户消息，
+		// 若向后搜索历史文本会把每个 function_call_output 都误判成一次新生图，
+		// 造成重复生成、重复计费，并打断客户端原本的工具调用链。
+		currentPrompt := responsesImageCurrentTurnUserPrompt(request)
+		if !operation_setting.ShouldAutoInjectResponsesImageGeneration(currentPrompt) {
 			return false, nil
+		}
+
+		// client 模式明确要求保留原始客户端工具流程，不由网关规划或执行生图。
+		if responsesImageShouldDelegateToClientTools(request, bridgeSetting) {
+			logger.LogInfo(c, fmt.Sprintf(
+				"responses image bridge bypassed: api_type=%d channel_id=%d model=%q reason=client_tools mode=%q",
+				info.ApiType,
+				info.ChannelId,
+				publicModelName,
+				responsesImageImplicitExecutionMode(bridgeSetting),
+			))
+			return false, nil
+		}
+		// auto/client_stream 在客户端暴露命令工具时采用零持久化交付：文本模型仍
+		// 负责规划真实图片参数，但图片渠道延迟到客户端执行一次性 shell 调用时才运行。
+		// 没有命令工具则保持原来的 gateway/Base64 路径，避免返回客户端无法执行的调用。
+		if tool, useClientStream := responsesImageClientStreamToolForRequest(request, bridgeSetting); useClientStream {
+			clientCommandTool = tool
 		}
 		var injectErr error
 		plannerSourceRequest, imageTool, injectErr = injectResponsesImageTool(request)
@@ -172,8 +216,7 @@ func tryResponsesImageGenerationBridge(c *gin.Context, info *relaycommon.RelayIn
 
 	// -------------------- 第二阶段：预先确认图片执行渠道 --------------------
 
-	// 读取桥接配置，并取得内部真正调用的图片模型名称，默认通常为 gpt-image-2。
-	bridgeSetting := operation_setting.GetResponsesImageGenerationSetting()
+	// 取得内部真正调用的图片模型名称，默认通常为 gpt-image-2。
 	imageModel := strings.TrimSpace(bridgeSetting.ImageModel)
 
 	// 在当前令牌分组中，为配置的图片模型预选一个普通图片渠道。
@@ -191,13 +234,18 @@ func tryResponsesImageGenerationBridge(c *gin.Context, info *relaycommon.RelayIn
 		// 自动工具选择场景允许安全退化：不接管请求，调用方继续执行普通文本流程。
 		return false, nil
 	}
+	executionMode := "gateway"
+	if clientCommandTool != nil {
+		executionMode = "client_stream"
+	}
 	logger.LogInfo(c, fmt.Sprintf(
-		"responses image bridge activated: api_type=%d channel_id=%d model=%q image_model=%q implicit=%t",
+		"responses image bridge activated: api_type=%d channel_id=%d model=%q image_model=%q implicit=%t execution=%q",
 		info.ApiType,
 		info.ChannelId,
 		publicModelName,
 		imageModel,
 		implicitImageRequest,
+		executionMode,
 	))
 
 	// -------------------- 第三阶段：构造并执行文本规划请求 --------------------
@@ -269,6 +317,8 @@ func tryResponsesImageGenerationBridge(c *gin.Context, info *relaycommon.RelayIn
 
 	// 一个规划响应可能同时包含文本、用户函数和一个或多个内部图片调用。
 	// 这里只串行执行图片调用，并在原输出位置替换对应的内部 function_call，其他输出保持不变。
+	artifactURLs := make([]string, 0, len(callIndexes))
+	artifactMode := responsesImageArtifactModeForRequest(c, bridgeSetting)
 	for callNumber, outputIndex := range callIndexes {
 		// 保存当前内部函数调用；其 call_id 用于构造图片子请求 ID 和最终图片输出 ID。
 		output := plannerResponse.Output[outputIndex]
@@ -283,6 +333,37 @@ func tryResponsesImageGenerationBridge(c *gin.Context, info *relaycommon.RelayIn
 
 		// 将内部函数参数转换成标准图片请求，并使用配置的图片模型和 Base64 响应格式。
 		imageRequest := responsesImageRequestFromArguments(imageModel, arguments)
+
+		if clientCommandTool != nil {
+			// client_stream 只在此处签发一次性执行票据，不调用图片渠道。客户端执行
+			// shell_command 后，新的 HTTP 请求才会即时生成图片并把字节直接写入工作区。
+			ticket, ticketErr := service.IssueResponsesImageExecutionTicket(
+				service.ResponsesImageExecutionTicketClaims{
+					UserID:     info.UserId,
+					TokenID:    info.TokenId,
+					RequestID:  info.RequestId,
+					CallID:     output.CallId,
+					CallNumber: callNumber,
+					Request:    *imageRequest,
+				},
+				responsesImageClientStreamTicketTTL(bridgeSetting),
+			)
+			if ticketErr != nil {
+				return true, types.NewErrorWithStatusCode(ticketErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(), types.ErrOptionWithSkipChannelErrorHandling())
+			}
+			clientOutput, outputErr := responsesImageClientStreamToolCall(
+				c,
+				output,
+				*clientCommandTool,
+				ticket,
+				arguments.OutputFormat,
+			)
+			if outputErr != nil {
+				return true, types.NewErrorWithStatusCode(outputErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(), types.ErrOptionWithSkipChannelErrorHandling())
+			}
+			plannerResponse.Output[outputIndex] = clientOutput
+			continue
+		}
 
 		// 通过独立图片渠道执行真实生图。
 		// 该过程拥有自己的渠道上下文、计费、退款和状态码重试逻辑；
@@ -313,7 +394,31 @@ func tryResponsesImageGenerationBridge(c *gin.Context, info *relaycommon.RelayIn
 			Result:        result.Base64,
 			RevisedPrompt: revisedPrompt,
 		}
+
+		// 一些 Responses 客户端（包括当前的 Codex 远端消费路径）会把 result
+		// 写进会话记录，却不会自动解码或渲染 image_generation_call。网关因此
+		// 将同一张图片保存为私有工件，并额外返回标准 output_text Markdown 链接。
+		// 工件写入失败不覆盖已经成功的图片结果，保证支持原生结果的客户端仍可使用。
+		if artifactMode != "base64" {
+			artifact, artifactErr := service.SaveResponsesImageArtifact(
+				result.Base64,
+				bridgeSetting.ArtifactDirectory,
+				responsesImageArtifactTTL(bridgeSetting),
+			)
+			if artifactErr != nil {
+				logger.LogError(c, "save responses image artifact failed: "+artifactErr.Error())
+			} else if artifactURL := artifact.PublicURL(responsesImageArtifactBaseURL(c)); artifactURL != "" {
+				artifactURLs = append(artifactURLs, artifactURL)
+				plannerResponse.Output[outputIndex].ResultURL = artifactURL
+				if artifactMode == "artifact" {
+					// artifact 模式面向不会消费 image_generation_call.result 的客户端；
+					// 清空大 Base64，避免 Responses JSON 和 Codex JSONL 无谓膨胀。
+					plannerResponse.Output[outputIndex].Result = ""
+				}
+			}
+		}
 	}
+	appendResponsesImageArtifactMessage(plannerResponse, artifactURLs)
 
 	// -------------------- 第五阶段：返回客户端可见结果 --------------------
 
@@ -338,6 +443,178 @@ func findResponsesImageTool(request *dto.OpenAIResponsesRequest) (map[string]any
 		}
 	}
 	return nil, false
+}
+
+// responsesImageImplicitExecutionMode 归一化隐式生图的执行策略。
+// 空值保持向后兼容，按 auto 处理；别名只用于兼容早期配置草案。
+func responsesImageImplicitExecutionMode(setting *operation_setting.ResponsesImageGenerationSetting) string {
+	if setting == nil {
+		return "auto"
+	}
+	switch strings.ToLower(strings.TrimSpace(setting.ImplicitExecutionMode)) {
+	case "gateway", "bridge":
+		return "gateway"
+	case "client", "client_tools", "native":
+		return "client"
+	case "client_stream", "client-stream", "stream_to_client":
+		return "client_stream"
+	default:
+		return "auto"
+	}
+}
+
+// responsesImageShouldDelegateToClientTools 判断隐式生图是否应保留客户端工具链。
+// 显式 image_generation 不会调用本函数，仍按标准图片工具语义处理。
+func responsesImageShouldDelegateToClientTools(
+	_ *dto.OpenAIResponsesRequest,
+	setting *operation_setting.ResponsesImageGenerationSetting,
+) bool {
+	return responsesImageImplicitExecutionMode(setting) == "client"
+}
+
+// responsesImageClientStreamToolForRequest 为 auto/client_stream 选择客户端命令工具。
+// client_stream 没有可用命令工具时返回 false，调用方会继续使用 gateway/Base64，
+// 而不是向客户端返回一个无法执行的 function_call。
+func responsesImageClientStreamToolForRequest(
+	request *dto.OpenAIResponsesRequest,
+	setting *operation_setting.ResponsesImageGenerationSetting,
+) (*responsesImageClientCommandTool, bool) {
+	mode := responsesImageImplicitExecutionMode(setting)
+	if mode != "auto" && mode != "client_stream" {
+		return nil, false
+	}
+	return responsesImageFindClientCommandTool(request)
+}
+
+func responsesImageFindClientCommandTool(request *dto.OpenAIResponsesRequest) (*responsesImageClientCommandTool, bool) {
+	if request == nil {
+		return nil, false
+	}
+	for _, tool := range responsesImageClientTools(request) {
+		toolType := strings.ToLower(strings.TrimSpace(common.Interface2String(tool["type"])))
+		name := strings.ToLower(strings.TrimSpace(responsesFunctionToolName(tool)))
+		if toolType == "custom" && name == "exec" {
+			descriptor, _ := common.Marshal(tool)
+			descriptorText := strings.ToLower(string(descriptor))
+			// Codex 0.146+ 将本地工具放在 input[].additional_tools 中，只向模型
+			// 暴露一个 custom exec。shell_command/view_image 是 exec JavaScript
+			// 运行时中的嵌套工具，不能作为普通 function_call 直接返回。
+			if !strings.Contains(descriptorText, "tools: { shell_command") {
+				continue
+			}
+			return &responsesImageClientCommandTool{
+				Type:            "custom",
+				Name:            name,
+				PowerShell:      strings.Contains(descriptorText, "powershell") || strings.Contains(descriptorText, "windows"),
+				NestedCommand:   "shell_command",
+				SupportsPreview: strings.Contains(descriptorText, "tools: { view_image"),
+			}, true
+		}
+		if name != "shell_command" && name != "exec_command" {
+			continue
+		}
+
+		parameters := tool["parameters"]
+		if function, ok := tool["function"].(map[string]any); ok {
+			if parameters == nil {
+				parameters = function["parameters"]
+			}
+		}
+		properties := map[string]any{}
+		if parameterMap, ok := parameters.(map[string]any); ok {
+			if propertyMap, ok := parameterMap["properties"].(map[string]any); ok {
+				properties = propertyMap
+			}
+		}
+
+		commandArgument := "command"
+		if _, exists := properties["command"]; !exists {
+			if _, hasCmd := properties["cmd"]; hasCmd || name == "exec_command" {
+				commandArgument = "cmd"
+			}
+		}
+		_, supportsTimeout := properties["timeout_ms"]
+		descriptor, _ := common.Marshal(tool)
+		descriptorText := strings.ToLower(string(descriptor))
+		powerShell := strings.Contains(descriptorText, "powershell") || strings.Contains(descriptorText, "windows")
+
+		return &responsesImageClientCommandTool{
+			Type:            "function",
+			Name:            name,
+			CommandArgument: commandArgument,
+			SupportsTimeout: supportsTimeout,
+			PowerShell:      powerShell,
+		}, true
+	}
+	return nil, false
+}
+
+// responsesImageClientTools 汇总客户端本轮声明的可执行工具。普通 Responses
+// 客户端使用顶层 tools；Codex 0.146+ 则把动态工具定义放在 input 中的
+// additional_tools 开发者条目里。这里只读取工具描述，不改写原始 input。
+func responsesImageClientTools(request *dto.OpenAIResponsesRequest) []map[string]any {
+	if request == nil {
+		return nil
+	}
+	tools := append([]map[string]any(nil), request.GetToolsMap()...)
+	if len(request.Input) == 0 || common.GetJsonType(request.Input) != "array" {
+		return tools
+	}
+
+	var inputItems []map[string]any
+	if err := common.Unmarshal(request.Input, &inputItems); err != nil {
+		return tools
+	}
+	for _, item := range inputItems {
+		if !strings.EqualFold(strings.TrimSpace(common.Interface2String(item["type"])), "additional_tools") {
+			continue
+		}
+		additionalTools, ok := item["tools"].([]any)
+		if !ok {
+			continue
+		}
+		for _, candidate := range additionalTools {
+			tool, ok := candidate.(map[string]any)
+			if ok {
+				tools = append(tools, tool)
+			}
+		}
+	}
+	return tools
+}
+
+// responsesImageHasLocalClientTools 检查请求是否同时暴露本地命令执行和图片预览工具。
+// 两者缺一时不旁路：只有执行工具无法稳定向用户展示结果，只有预览工具则无法落盘。
+func responsesImageHasLocalClientTools(request *dto.OpenAIResponsesRequest) bool {
+	if request == nil {
+		return false
+	}
+	hasExecutionTool := false
+	hasPreviewTool := false
+	for _, tool := range responsesImageClientTools(request) {
+		toolType := strings.ToLower(strings.TrimSpace(common.Interface2String(tool["type"])))
+		name := strings.ToLower(strings.TrimSpace(responsesFunctionToolName(tool)))
+		if toolType == "custom" && name == "exec" {
+			descriptor, _ := common.Marshal(tool)
+			descriptorText := strings.ToLower(string(descriptor))
+			if strings.Contains(descriptorText, "tools: { shell_command") {
+				hasExecutionTool = true
+			}
+			if strings.Contains(descriptorText, "tools: { view_image") {
+				hasPreviewTool = true
+			}
+		}
+		switch name {
+		case "shell_command", "exec_command":
+			hasExecutionTool = true
+		case "view_image":
+			hasPreviewTool = true
+		}
+		if hasExecutionTool && hasPreviewTool {
+			return true
+		}
+	}
+	return false
 }
 
 // injectResponsesImageTool 为没有声明内置图片工具的客户端创建一个等价的
@@ -368,6 +645,60 @@ func injectResponsesImageTool(request *dto.OpenAIResponsesRequest) (*dto.OpenAIR
 		return nil, nil, fmt.Errorf("marshal implicit image tool choice: %w", err)
 	}
 	return plannerRequest, imageTool, nil
+}
+
+// responsesImageCurrentTurnUserPrompt 只在 input 的最后一个有效条目是用户文本时
+// 返回提示词。它用于隐式工具注入，不能向前搜索历史，否则工具回传轮次会重复生图。
+func responsesImageCurrentTurnUserPrompt(request *dto.OpenAIResponsesRequest) string {
+	if request == nil || len(request.Input) == 0 {
+		return ""
+	}
+	if common.GetJsonType(request.Input) == "string" {
+		var text string
+		if common.Unmarshal(request.Input, &text) == nil {
+			return strings.TrimSpace(text)
+		}
+		return ""
+	}
+
+	var value any
+	if common.Unmarshal(request.Input, &value) != nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case []any:
+		for index := len(typed) - 1; index >= 0; index-- {
+			if typed[index] == nil {
+				continue
+			}
+			return responsesImageCurrentUserTextFromItem(typed[index])
+		}
+	case map[string]any:
+		return responsesImageCurrentUserTextFromItem(typed)
+	}
+	return ""
+}
+
+func responsesImageCurrentUserTextFromItem(value any) string {
+	switch item := value.(type) {
+	case string:
+		return strings.TrimSpace(item)
+	case map[string]any:
+		role := strings.ToLower(strings.TrimSpace(common.Interface2String(item["role"])))
+		typeName := strings.ToLower(strings.TrimSpace(common.Interface2String(item["type"])))
+		if role != "user" {
+			// input_text/text 可以作为 input 数组中的用户简写；其他无 role 条目
+			// 包括 function_call_output、reasoning 和 assistant message，均不是新用户轮次。
+			if role != "" || (typeName != "input_text" && typeName != "text") {
+				return ""
+			}
+		}
+		if text := responsesImageTextFromValue(item["content"]); text != "" {
+			return text
+		}
+		return strings.TrimSpace(common.Interface2String(item["text"]))
+	}
+	return ""
 }
 
 // responsesImageLatestUserPrompt 提取 Responses input 中最后一条用户文本。
@@ -526,6 +857,10 @@ func prepareResponsesImagePlannerRequest(
 	if err != nil {
 		return nil, responsesImageToolDefaults{}, "", fmt.Errorf("copy responses request: %w", err)
 	}
+	plannerRequest.Input, err = responsesImagePlannerInput(request.Input)
+	if err != nil {
+		return nil, responsesImageToolDefaults{}, "", err
+	}
 	defaults := responsesImageToolDefaults{
 		Size:         strings.TrimSpace(setting.DefaultSize),
 		Quality:      strings.TrimSpace(setting.DefaultQuality),
@@ -545,12 +880,19 @@ func prepareResponsesImagePlannerRequest(
 	//生成唯一的内部函数名
 	plannerToolName := uniqueResponsesImagePlannerToolName(request.GetToolsMap())
 	allowedFunctionNames, restrictFunctions := responsesImageAllowedFunctionNames(plannerRequest.ToolChoice)
+	forceImagePlannerTool := isExplicitResponsesImageToolChoice(plannerRequest.ToolChoice)
 
 	tools := request.GetToolsMap()
 	convertedTools := make([]map[string]any, 0, len(tools))
 	addedImagePlannerTool := false
 	for _, tool := range tools {
 		if common.Interface2String(tool["type"]) != responsesImageToolType {
+			// 客户端明确选择图片工具时，规划请求只能暴露内部图片函数。
+			// 部分兼容上游会忽略 tool_choice；若仍把 shell/view_image 等工具发给它，
+			// 它可能启动客户端本地工作流，同时网关又执行一次图片请求。
+			if forceImagePlannerTool {
+				continue
+			}
 			if restrictFunctions && common.Interface2String(tool["type"]) == "function" {
 				if _, allowed := allowedFunctionNames[responsesFunctionToolName(tool)]; !allowed {
 					continue
@@ -578,6 +920,37 @@ func prepareResponsesImagePlannerRequest(
 	}
 	plannerRequest.ToolChoice = toolChoice
 	return plannerRequest, defaults, plannerToolName, nil
+}
+
+// responsesImagePlannerInput 移除只供 Codex 客户端运行时使用的 additional_tools。
+// 私有规划请求只需要图片规划函数；把 custom exec 的完整嵌套工具说明继续发送给
+// 文本上游既会增加上下文，也可能让兼容层未来将客户端工具误暴露给规划模型。
+func responsesImagePlannerInput(raw []byte) ([]byte, error) {
+	if len(raw) == 0 || common.GetJsonType(raw) != "array" {
+		return raw, nil
+	}
+	var items []any
+	if err := common.Unmarshal(raw, &items); err != nil {
+		return nil, fmt.Errorf("parse responses planner input: %w", err)
+	}
+	filtered := make([]any, 0, len(items))
+	removed := false
+	for _, item := range items {
+		if object, ok := item.(map[string]any); ok &&
+			strings.EqualFold(strings.TrimSpace(common.Interface2String(object["type"])), "additional_tools") {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	if !removed {
+		return raw, nil
+	}
+	encoded, err := common.Marshal(filtered)
+	if err != nil {
+		return nil, fmt.Errorf("marshal responses planner input: %w", err)
+	}
+	return encoded, nil
 }
 
 func validateResponsesImageToolForBridge(imageTool map[string]any) error {
@@ -697,8 +1070,8 @@ func responsesImagePlannerToolChoice(raw []byte, plannerToolName string) ([]byte
 			return raw, nil
 		}
 		return common.Marshal(map[string]any{
-			"type":     "function",
-			"function": map[string]any{"name": plannerToolName},
+			"type": "function",
+			"name": plannerToolName,
 		})
 	}
 
@@ -711,8 +1084,8 @@ func responsesImagePlannerToolChoice(raw []byte, plannerToolName string) ([]byte
 		mode := common.Interface2String(choice["mode"])
 		if mode == "required" && isExplicitResponsesImageToolChoice(raw) {
 			return common.Marshal(map[string]any{
-				"type":     "function",
-				"function": map[string]any{"name": plannerToolName},
+				"type": "function",
+				"name": plannerToolName,
 			})
 		}
 		if mode == "auto" || mode == "required" {
@@ -726,16 +1099,16 @@ func responsesImagePlannerToolChoice(raw []byte, plannerToolName string) ([]byte
 			return raw, nil
 		}
 		return common.Marshal(map[string]any{
-			"type":     "function",
-			"function": map[string]any{"name": name},
+			"type": "function",
+			"name": name,
 		})
 	}
 	if choiceType != responsesImageToolType {
 		return raw, nil
 	}
 	return common.Marshal(map[string]any{
-		"type":     "function",
-		"function": map[string]any{"name": plannerToolName},
+		"type": "function",
+		"name": plannerToolName,
 	})
 }
 
@@ -991,6 +1364,207 @@ func responsesImageBridgeClientError(source *types.NewAPIError) *types.NewAPIErr
 	)
 }
 
+// ExecuteResponsesImageClientStream 消费 client_stream 票据并直接返回图片字节。
+// 该端点不写文件、不创建图片工件记录，也不把 Base64 再包装进 JSON。账号、令牌、
+// 分组和余额都在执行时重新读取，随后复用与 gateway 模式完全相同的渠道、计费和重试链。
+func ExecuteResponsesImageClientStream(c *gin.Context) {
+	if c == nil || c.Request == nil {
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, responsesImageClientStreamMaxBodyBytes)
+
+	var executeRequest responsesImageClientStreamExecuteRequest
+	if err := common.DecodeJson(c.Request.Body, &executeRequest); err != nil {
+		writeResponsesImageClientStreamError(c, types.NewErrorWithStatusCode(
+			fmt.Errorf("invalid image execution request"),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		))
+		return
+	}
+
+	claims, err := service.ConsumeResponsesImageExecutionTicket(executeRequest.Ticket)
+	if err != nil {
+		statusCode := http.StatusUnauthorized
+		message := "invalid image execution ticket"
+		if errors.Is(err, service.ErrResponsesImageExecutionTicketExpired) {
+			statusCode = http.StatusGone
+			message = "image execution ticket expired"
+		} else if errors.Is(err, service.ErrResponsesImageExecutionTicketReplay) {
+			statusCode = http.StatusConflict
+			message = "image execution ticket already consumed"
+		}
+		writeResponsesImageClientStreamError(c, types.NewErrorWithStatusCode(
+			fmt.Errorf("%s", message),
+			types.ErrorCodeAccessDenied,
+			statusCode,
+			types.ErrOptionWithSkipRetry(),
+		))
+		return
+	}
+
+	parentInfo, authError := restoreResponsesImageClientStreamContext(c, claims)
+	if authError != nil {
+		writeResponsesImageClientStreamError(c, authError)
+		return
+	}
+	result, imageError := executeResponsesImageWithRetry(
+		c,
+		parentInfo,
+		nil,
+		&claims.Request,
+		claims.CallID,
+		claims.CallNumber,
+	)
+	if imageError != nil {
+		writeResponsesImageClientStreamError(c, imageError)
+		return
+	}
+
+	imageBytes, err := decodeResponsesImageClientStreamResult(result.Base64)
+	if err != nil {
+		writeResponsesImageClientStreamError(c, types.NewErrorWithStatusCode(
+			err,
+			types.ErrorCodeBadResponseBody,
+			http.StatusBadGateway,
+			types.ErrOptionWithSkipRetry(),
+		))
+		return
+	}
+	contentType := http.DetectContentType(imageBytes)
+	if !strings.HasPrefix(contentType, "image/") {
+		writeResponsesImageClientStreamError(c, types.NewErrorWithStatusCode(
+			fmt.Errorf("image service returned unsupported content type %s", contentType),
+			types.ErrorCodeBadResponseBody,
+			http.StatusBadGateway,
+			types.ErrOptionWithSkipRetry(),
+		))
+		return
+	}
+
+	filename := responsesImageClientStreamFilename(
+		executeRequest.Ticket,
+		responsesImageRequestOutputFormat(&claims.Request),
+	)
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "default-src 'none'")
+	c.Data(http.StatusOK, contentType, imageBytes)
+}
+
+func restoreResponsesImageClientStreamContext(
+	c *gin.Context,
+	claims *service.ResponsesImageExecutionTicketClaims,
+) (*relaycommon.RelayInfo, *types.NewAPIError) {
+	if claims == nil {
+		return nil, types.NewErrorWithStatusCode(fmt.Errorf("invalid image execution claims"), types.ErrorCodeAccessDenied, http.StatusUnauthorized, types.ErrOptionWithSkipRetry())
+	}
+
+	token, err := model.ValidateUserTokenByIds(claims.TokenID, claims.UserID)
+	if err != nil || token == nil || token.Id != claims.TokenID || token.UserId != claims.UserID {
+		statusCode := http.StatusUnauthorized
+		if errors.Is(err, model.ErrDatabase) {
+			statusCode = http.StatusInternalServerError
+		}
+		return nil, types.NewErrorWithStatusCode(fmt.Errorf("image execution token validation failed"), types.ErrorCodeAccessDenied, statusCode, types.ErrOptionWithSkipRetry())
+	}
+
+	userCache, err := model.GetUserCache(claims.UserID)
+	if err != nil || userCache == nil {
+		return nil, types.NewErrorWithStatusCode(fmt.Errorf("load image execution user failed"), types.ErrorCodeAccessDenied, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+	}
+	if userCache.Status != common.UserStatusEnabled {
+		return nil, types.NewErrorWithStatusCode(fmt.Errorf("image execution user is disabled"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+	}
+
+	usingGroup := userCache.Group
+	if token.Group != "" {
+		if _, allowed := service.GetUserUsableGroups(userCache.Group)[token.Group]; !allowed {
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("image execution token group is no longer available"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
+		if token.Group != "auto" && !ratio_setting.ContainsGroupRatio(token.Group) {
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("image execution token group is disabled"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
+		usingGroup = token.Group
+	}
+
+	userCache.WriteContext(c)
+	common.SetContextKey(c, constant.ContextKeyUserId, token.UserId)
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
+	common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
+	if err := middleware.SetupContextForToken(c, token); err != nil {
+		return nil, types.NewErrorWithStatusCode(fmt.Errorf("restore image execution token context failed"), types.ErrorCodeAccessDenied, http.StatusUnauthorized, types.ErrOptionWithSkipRetry())
+	}
+	requestID := strings.TrimSpace(claims.RequestID)
+	if requestID == "" {
+		requestID = common.GetTimeString() + common.GetRandomString(8)
+	}
+	c.Set(common.RequestIdKey, requestID)
+
+	tokenGroup := token.Group
+	if tokenGroup == "" {
+		tokenGroup = userCache.Group
+	}
+	return &relaycommon.RelayInfo{
+		TokenId:           token.Id,
+		TokenKey:          token.Key,
+		TokenGroup:        tokenGroup,
+		TokenUnlimited:    token.UnlimitedQuota,
+		UserId:            userCache.Id,
+		UserGroup:         userCache.Group,
+		UsingGroup:        usingGroup,
+		UserQuota:         userCache.Quota,
+		UserEmail:         userCache.Email,
+		UserSetting:       userCache.GetSetting(),
+		RequestId:         requestID,
+		StartTime:         time.Now(),
+		FirstResponseTime: time.Now(),
+	}, nil
+}
+
+func decodeResponsesImageClientStreamResult(base64Data string) ([]byte, error) {
+	base64Data = strings.TrimSpace(base64Data)
+	if base64Data == "" {
+		return nil, fmt.Errorf("image service returned empty Base64 data")
+	}
+	if len(base64Data) > base64.StdEncoding.EncodedLen(responsesImageClientStreamMaxImageSize) {
+		return nil, fmt.Errorf("image service result exceeds %d bytes", responsesImageClientStreamMaxImageSize)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		decoded, err = base64.RawStdEncoding.DecodeString(base64Data)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("decode image service Base64 result: %w", err)
+	}
+	if len(decoded) == 0 || len(decoded) > responsesImageClientStreamMaxImageSize {
+		return nil, fmt.Errorf("image service result has invalid size")
+	}
+	return decoded, nil
+}
+
+func responsesImageRequestOutputFormat(request *dto.ImageRequest) string {
+	if request == nil || len(request.OutputFormat) == 0 {
+		return ""
+	}
+	var outputFormat string
+	if err := common.Unmarshal(request.OutputFormat, &outputFormat); err != nil {
+		return ""
+	}
+	return outputFormat
+}
+
+func writeResponsesImageClientStreamError(c *gin.Context, newAPIError *types.NewAPIError) {
+	if c == nil || newAPIError == nil {
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(newAPIError.StatusCode, gin.H{"error": newAPIError.ToOpenAIError()})
+}
+
 func executeResponsesImageRequest(
 	parent *gin.Context,
 	parentInfo *relaycommon.RelayInfo,
@@ -1178,6 +1752,314 @@ func responsesImageOutputID(output dto.ResponsesOutput, index int) string {
 	return "ig_" + strings.TrimPrefix(base, "call_")
 }
 
+func responsesImageClientStreamTicketTTL(setting *operation_setting.ResponsesImageGenerationSetting) time.Duration {
+	if setting == nil || setting.ClientStreamTicketTTLSeconds <= 0 {
+		return 5 * time.Minute
+	}
+	return time.Duration(setting.ClientStreamTicketTTLSeconds) * time.Second
+}
+
+func responsesImageClientStreamToolCall(
+	c *gin.Context,
+	original dto.ResponsesOutput,
+	tool responsesImageClientCommandTool,
+	ticket string,
+	outputFormat string,
+) (dto.ResponsesOutput, error) {
+	baseURL := responsesImageClientStreamBaseURL(c)
+	if baseURL == "" {
+		return dto.ResponsesOutput{}, fmt.Errorf("cannot determine responses image execution URL")
+	}
+	logger.LogInfo(c, fmt.Sprintf("responses image client_stream callback prepared: origin=%q", baseURL))
+	executionURL := strings.TrimRight(baseURL, "/") + responsesImageClientStreamPath
+	filename := responsesImageClientStreamFilename(ticket, outputFormat)
+	powerShell := tool.PowerShell || responsesImageRequestUsesPowerShell(c)
+	command := responsesImageClientStreamCommand(executionURL, ticket, filename, powerShell)
+
+	callID := strings.TrimSpace(original.CallId)
+	if callID == "" {
+		callID = "call_" + common.GetRandomString(16)
+	}
+	if tool.Type == "custom" {
+		input, err := responsesImageClientStreamExecInput(command, tool.NestedCommand, tool.SupportsPreview)
+		if err != nil {
+			return dto.ResponsesOutput{}, err
+		}
+		return dto.ResponsesOutput{
+			Type:             "custom_tool_call",
+			ID:               "ctc_" + callID,
+			Status:           "completed",
+			CallId:           callID,
+			Name:             tool.Name,
+			Input:            input,
+			ReasoningContent: original.ReasoningContent,
+		}, nil
+	}
+
+	arguments := map[string]any{tool.CommandArgument: command}
+	if tool.SupportsTimeout {
+		arguments["timeout_ms"] = 300000
+	}
+	argumentsJSON, err := common.Marshal(arguments)
+	if err != nil {
+		return dto.ResponsesOutput{}, fmt.Errorf("marshal client image command: %w", err)
+	}
+
+	outputID := strings.TrimSpace(original.ID)
+	if outputID == "" {
+		outputID = "fc_" + strings.TrimPrefix(callID, "call_")
+	}
+	return dto.ResponsesOutput{
+		Type:             "function_call",
+		ID:               outputID,
+		Status:           "completed",
+		CallId:           callID,
+		Name:             tool.Name,
+		Arguments:        rawString(string(argumentsJSON)),
+		ReasoningContent: original.ReasoningContent,
+	}, nil
+}
+
+// responsesImageClientStreamExecInput 为 Codex custom exec 生成原始 JavaScript 输入。
+// exec 自身没有文件系统和网络能力，因此脚本调用客户端已注册的 shell_command
+// 下载一次性图片流；保存成功后再调用 view_image，并用 generatedImage 把预览
+// 返回到当前聊天。整个过程发生在客户端工作区，网关不持久化图片字节。
+func responsesImageClientStreamExecInput(command, nestedCommand string, supportsPreview bool) (string, error) {
+	if nestedCommand != "shell_command" {
+		return "", fmt.Errorf("unsupported nested client command tool %q", nestedCommand)
+	}
+	commandJSON, err := common.Marshal(command)
+	if err != nil {
+		return "", fmt.Errorf("marshal nested client image command: %w", err)
+	}
+
+	var input strings.Builder
+	input.WriteString("// @exec: {\"yield_time_ms\": 300000, \"max_output_tokens\": 2000}\n")
+	fmt.Fprintf(
+		&input,
+		"const commandResult = await tools.shell_command({ command: %s, timeout_ms: 300000 });\n",
+		commandJSON,
+	)
+	input.WriteString("const commandOutput = typeof commandResult === \"string\" ? commandResult : JSON.stringify(commandResult);\n")
+	input.WriteString("text(commandOutput);\n")
+	input.WriteString("const imagePathMatch = commandOutput.match(/(?:^|\\r?\\n)IMAGE_SAVED=([^\\r\\n]+)/);\n")
+	input.WriteString("if (!imagePathMatch) throw new Error(\"Image download completed without IMAGE_SAVED path\");\n")
+	input.WriteString("const imagePath = imagePathMatch[1].trim();\n")
+	input.WriteString("text(\"Image generated and saved: \" + imagePath);\n")
+	if supportsPreview {
+		input.WriteString("try {\n")
+		input.WriteString("  const preview = await tools.view_image({ path: imagePath, detail: \"original\" });\n")
+		input.WriteString("  generatedImage({ image_url: preview.image_url, output_hint: imagePath });\n")
+		input.WriteString("} catch (error) {\n")
+		input.WriteString("  text(\"Image saved, but preview failed: \" + String(error));\n")
+		input.WriteString("}\n")
+	}
+	return input.String(), nil
+}
+
+func responsesImageClientStreamFilename(ticket, outputFormat string) string {
+	extension := "png"
+	switch strings.ToLower(strings.TrimSpace(outputFormat)) {
+	case "jpg", "jpeg":
+		extension = "jpg"
+	case "webp":
+		extension = "webp"
+	case "png":
+		extension = "png"
+	}
+	fingerprint := common.Sha1([]byte(ticket))
+	if len(fingerprint) > 12 {
+		fingerprint = fingerprint[:12]
+	}
+	return "generated-image-" + fingerprint + "." + extension
+}
+
+func responsesImageClientStreamCommand(executionURL, ticket, filename string, powerShell bool) string {
+	body := fmt.Sprintf(`{"ticket":"%s"}`, ticket)
+	if powerShell {
+		return fmt.Sprintf(
+			"$ErrorActionPreference='Stop';$u='%s';$o=Join-Path -Path (Get-Location) -ChildPath '%s';$b='%s';Invoke-WebRequest -UseBasicParsing -Method Post -Uri $u -ContentType 'application/json' -Body $b -OutFile $o -ErrorAction Stop;Write-Output ('IMAGE_SAVED='+$o);Write-Output ('NEXT_TOOL=view_image;IMAGE_PATH='+$o)",
+			executionURL,
+			filename,
+			body,
+		)
+	}
+	return fmt.Sprintf(
+		"u='%s'; o=\"$PWD/%s\"; curl -fSs -X POST -H 'Content-Type: application/json' --data '%s' \"$u\" -o \"$o\" && printf 'IMAGE_SAVED=%%s\\nNEXT_TOOL=view_image;IMAGE_PATH=%%s\\n' \"$o\" \"$o\"",
+		executionURL,
+		filename,
+		body,
+	)
+}
+
+func responsesImageRequestUsesPowerShell(c *gin.Context) bool {
+	if c != nil && c.Request != nil {
+		for _, value := range []string{
+			c.GetHeader("X-Codex-Turn-Metadata"),
+			c.GetHeader("User-Agent"),
+		} {
+			value = strings.ToLower(value)
+			if strings.Contains(value, "powershell") || strings.Contains(value, "windows") ||
+				strings.Contains(value, `:\\`) {
+				return true
+			}
+		}
+	}
+	// 本地部署通常由同一主机上的 Codex 调用；描述和请求头均无平台信息时，
+	// 使用网关运行平台作为最后兜底。远程客户端应在工具描述中声明 shell 类型。
+	return runtime.GOOS == "windows"
+}
+
+// responsesImageClientStreamBaseURL 返回客户端执行票据时应访问的网关入口。
+//
+// client_stream 与浏览器重定向不同：命令由发起当前 API 请求的同一个 Codex
+// 客户端执行，而该客户端实际使用的入口可能是 localhost、局域网 IP 或临时隧道
+// 域名，通常不会出现在全局重定向白名单中。因此这里优先采用当前请求的 Host
+// 构造 origin；只有请求缺少有效 Host 时，才回退到经过白名单校验的公开地址。
+// 这也避免 ServerAddress 仍指向已过期临时域名时，票据命令在到达网关前就 404。
+func responsesImageClientStreamBaseURL(c *gin.Context) string {
+	for _, candidate := range common.GetRequestBaseURLCandidates(c) {
+		candidate = strings.TrimRight(strings.TrimSpace(candidate), "/")
+		parsed, err := url.Parse(candidate)
+		if err != nil || parsed == nil || parsed.Host == "" || parsed.User != nil {
+			continue
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			continue
+		}
+		if parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+			continue
+		}
+		return candidate
+	}
+	return responsesImageArtifactBaseURL(c)
+}
+
+func responsesImageArtifactTTL(setting *operation_setting.ResponsesImageGenerationSetting) time.Duration {
+	if setting == nil || setting.ArtifactTTLMinutes <= 0 {
+		return 24 * time.Hour
+	}
+	return time.Duration(setting.ArtifactTTLMinutes) * time.Minute
+}
+
+func responsesImageArtifactMode(setting *operation_setting.ResponsesImageGenerationSetting) string {
+	if setting == nil || !setting.ArtifactDelivery {
+		return "base64"
+	}
+	switch strings.ToLower(strings.TrimSpace(setting.ArtifactDeliveryMode)) {
+	case "auto", "":
+		return "auto"
+	case "artifact", "artifact_url", "url":
+		return "artifact"
+	case "base64":
+		return "base64"
+	case "hybrid":
+		return "hybrid"
+	default:
+		// 未知配置按兼容性最高的 hybrid 处理，避免拼写错误后悄悄丢图。
+		return "hybrid"
+	}
+}
+
+// responsesImageArtifactModeForRequest 在服务端选择最终交付形态。
+// Codex 当前会记录远端 image_generation_call，却不会把其中的 Base64 自动保存为
+// 工作区文件；对这类请求使用 artifact，可以避免大图片进入 JSONL，同时依靠后续
+// 普通 assistant message 向用户展示预览和下载链接。其他客户端继续使用 hybrid，
+// 保留标准 result Base64，兼容已经实现原生图片调用渲染的 SDK。
+func responsesImageArtifactModeForRequest(c *gin.Context, setting *operation_setting.ResponsesImageGenerationSetting) string {
+	mode := responsesImageArtifactMode(setting)
+	if mode != "auto" {
+		return mode
+	}
+	if isCodexResponsesClient(c) {
+		return "artifact"
+	}
+	return "hybrid"
+}
+
+// isCodexResponsesClient 只检查 Codex 自身会发送的标识头，不依赖模型名或请求正文。
+// 已知桌面端、VS Code 插件和 CLI 的 originator 分别可能包含 codex_vscode、
+// codex_cli_rs、codex_cli 或 codex_exec；保留 X-Codex-* 头作为兼容兜底。
+func isCodexResponsesClient(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	for _, value := range []string{c.GetHeader("Originator"), c.GetHeader("User-Agent")} {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), "codex") {
+			return true
+		}
+	}
+	return strings.TrimSpace(c.GetHeader("X-Codex-Beta-Features")) != "" ||
+		strings.TrimSpace(c.GetHeader("X-Codex-Turn-Metadata")) != ""
+}
+
+// responsesImageArtifactBaseURL 优先使用当前请求的 origin，使反向代理下的链接
+// 与 API 调用地址保持一致；缺少请求 Host 时再使用管理员配置的 ServerAddress。
+func responsesImageArtifactBaseURL(c *gin.Context) string {
+	providerDomain := strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyProviderDomain))
+	if providerDomain != "" {
+		return strings.TrimRight(
+			common.GetTrustedRequestBaseURLWithDomains(c, system_setting.ServerAddress, []string{providerDomain}),
+			"/",
+		)
+	}
+	return strings.TrimRight(common.GetTrustedRequestBaseURL(c, system_setting.ServerAddress), "/")
+}
+
+// responsesImageArtifactDownloadURL 为同一个签名能力 URL 增加下载提示。
+// download 不参与签名授权，只影响 Content-Disposition；ID、过期时间、格式和签名
+// 仍由下载接口完整校验。使用 net/url 保证已有查询参数被正确保留和编码。
+func responsesImageArtifactDownloadURL(artifactURL string) string {
+	parsed, err := url.Parse(artifactURL)
+	if err != nil {
+		return artifactURL
+	}
+	query := parsed.Query()
+	query.Set("download", "1")
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
+}
+
+// appendResponsesImageArtifactMessage 将图片交付物表示为标准 Responses message。
+// 这样不支持 image_generation_call 的客户端也能在普通助手消息中渲染预览或点击下载。
+func appendResponsesImageArtifactMessage(response *dto.OpenAIResponsesResponse, artifactURLs []string) {
+	if response == nil || len(artifactURLs) == 0 {
+		return
+	}
+	var text strings.Builder
+	for index, artifactURL := range artifactURLs {
+		if index > 0 {
+			text.WriteString("\n\n")
+		}
+		imageNumber := index + 1
+		fmt.Fprintf(
+			&text,
+			"![Generated image %d](%s)\n\n[Download image %d](%s)",
+			imageNumber,
+			artifactURL,
+			imageNumber,
+			responsesImageArtifactDownloadURL(artifactURL),
+		)
+	}
+	messageID := "msg_" + strings.TrimPrefix(strings.TrimSpace(response.ID), "resp_") + "_images"
+	if messageID == "msg__images" {
+		messageID = "msg_images_" + common.GetRandomString(12)
+	}
+	response.Output = append(response.Output, dto.ResponsesOutput{
+		Type:   "message",
+		ID:     messageID,
+		Status: "completed",
+		Role:   "assistant",
+		Content: []dto.ResponsesOutputContent{
+			{
+				Type:        "output_text",
+				Text:        text.String(),
+				Annotations: []interface{}{},
+			},
+		},
+	})
+}
+
 func writeResponsesBridgeResult(c *gin.Context, stream bool, response *dto.OpenAIResponsesResponse, raw []byte) {
 	if stream {
 		writeSyntheticResponsesStream(c, response)
@@ -1195,8 +2077,29 @@ func writeSyntheticResponsesStream(c *gin.Context, response *dto.OpenAIResponses
 		return
 	}
 	helper.SetEventStreamHeaders(c)
-	sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{
+	sequenceNumber := 0
+	emit := func(event dto.ResponsesStreamResponse) {
+		sequenceNumber++
+		event.SequenceNumber = common.GetPointer(sequenceNumber)
+		sendResponsesBridgeEvent(c, event)
+	}
+
+	// Responses SSE 生命周期先声明响应已创建，再声明响应进入处理中。
+	// 规划和图片请求在桥接内部已经完成，这两个事件仍需保留，
+	// 以便严格按 Responses 事件顺序消费的客户端正常建立状态机。
+	emit(dto.ResponsesStreamResponse{
 		Type: "response.created",
+		Response: &dto.OpenAIResponsesResponse{
+			ID:        response.ID,
+			Object:    response.Object,
+			CreatedAt: response.CreatedAt,
+			Status:    rawString("in_progress"),
+			Model:     response.Model,
+			Output:    []dto.ResponsesOutput{},
+		},
+	})
+	emit(dto.ResponsesStreamResponse{
+		Type: "response.in_progress",
 		Response: &dto.OpenAIResponsesResponse{
 			ID:        response.ID,
 			Object:    response.Object,
@@ -1215,45 +2118,55 @@ func writeSyntheticResponsesStream(c *gin.Context, response *dto.OpenAIResponses
 			inProgress := output
 			inProgress.Status = "in_progress"
 			inProgress.Content = []dto.ResponsesOutputContent{}
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemAdded, OutputIndex: &index, Item: &inProgress})
+			emit(dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemAdded, OutputIndex: &index, Item: &inProgress})
 			for contentIndex := range output.Content {
 				content := output.Content[contentIndex]
 				ci := contentIndex
 				part := &dto.ResponsesReasoningSummaryPart{Type: content.Type, Text: ""}
-				sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: "response.content_part.added", ItemID: output.ID, OutputIndex: &index, ContentIndex: &ci, Part: part})
+				emit(dto.ResponsesStreamResponse{Type: "response.content_part.added", ItemID: output.ID, OutputIndex: &index, ContentIndex: &ci, Part: part})
 				if content.Text != "" {
-					sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: "response.output_text.delta", ItemID: output.ID, OutputIndex: &index, ContentIndex: &ci, Delta: content.Text})
-					sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: "response.output_text.done", ItemID: output.ID, OutputIndex: &index, ContentIndex: &ci, Delta: content.Text})
+					emit(dto.ResponsesStreamResponse{Type: "response.output_text.delta", ItemID: output.ID, OutputIndex: &index, ContentIndex: &ci, Delta: content.Text})
+					emit(dto.ResponsesStreamResponse{Type: "response.output_text.done", ItemID: output.ID, OutputIndex: &index, ContentIndex: &ci, Delta: content.Text})
 				}
-				sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: "response.content_part.done", ItemID: output.ID, OutputIndex: &index, ContentIndex: &ci, Part: &dto.ResponsesReasoningSummaryPart{Type: content.Type, Text: content.Text}})
+				emit(dto.ResponsesStreamResponse{Type: "response.content_part.done", ItemID: output.ID, OutputIndex: &index, ContentIndex: &ci, Part: &dto.ResponsesReasoningSummaryPart{Type: content.Type, Text: content.Text}})
 			}
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemDone, OutputIndex: &index, Item: &output})
+			emit(dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemDone, OutputIndex: &index, Item: &output})
 		case "function_call":
 			inProgress := output
 			inProgress.Status = "in_progress"
 			inProgress.Arguments = rawString("")
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemAdded, OutputIndex: &index, Item: &inProgress})
+			emit(dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemAdded, OutputIndex: &index, Item: &inProgress})
 			arguments := output.ArgumentsString()
 			if arguments != "" {
-				sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: "response.function_call_arguments.delta", ItemID: output.ID, OutputIndex: &index, Delta: arguments})
+				emit(dto.ResponsesStreamResponse{Type: "response.function_call_arguments.delta", ItemID: output.ID, OutputIndex: &index, Delta: arguments})
 			}
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: "response.function_call_arguments.done", ItemID: output.ID, OutputIndex: &index, Delta: arguments})
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemDone, OutputIndex: &index, Item: &output})
+			emit(dto.ResponsesStreamResponse{Type: "response.function_call_arguments.done", ItemID: output.ID, OutputIndex: &index, Arguments: arguments})
+			emit(dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemDone, OutputIndex: &index, Item: &output})
+		case "custom_tool_call":
+			inProgress := output
+			inProgress.Status = "in_progress"
+			inProgress.Input = ""
+			emit(dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemAdded, OutputIndex: &index, Item: &inProgress})
+			if output.Input != "" {
+				emit(dto.ResponsesStreamResponse{Type: "response.custom_tool_call_input.delta", ItemID: output.ID, OutputIndex: &index, Delta: output.Input})
+			}
+			emit(dto.ResponsesStreamResponse{Type: "response.custom_tool_call_input.done", ItemID: output.ID, OutputIndex: &index, Input: output.Input})
+			emit(dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemDone, OutputIndex: &index, Item: &output})
 		case dto.ResponsesOutputTypeImageGenerationCall:
 			inProgress := output
 			inProgress.Status = "in_progress"
 			inProgress.Result = ""
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemAdded, OutputIndex: &index, Item: &inProgress})
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: "response.image_generation_call.in_progress", OutputIndex: &index, ItemID: output.ID})
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: "response.image_generation_call.generating", OutputIndex: &index, ItemID: output.ID})
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: "response.image_generation_call.completed", OutputIndex: &index, ItemID: output.ID})
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemDone, OutputIndex: &index, Item: &output})
+			emit(dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemAdded, OutputIndex: &index, Item: &inProgress})
+			emit(dto.ResponsesStreamResponse{Type: "response.image_generation_call.in_progress", OutputIndex: &index, ItemID: output.ID})
+			emit(dto.ResponsesStreamResponse{Type: "response.image_generation_call.generating", OutputIndex: &index, ItemID: output.ID})
+			emit(dto.ResponsesStreamResponse{Type: "response.image_generation_call.completed", OutputIndex: &index, ItemID: output.ID})
+			emit(dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemDone, OutputIndex: &index, Item: &output})
 		default:
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemAdded, OutputIndex: &index, Item: &output})
-			sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemDone, OutputIndex: &index, Item: &output})
+			emit(dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemAdded, OutputIndex: &index, Item: &output})
+			emit(dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemDone, OutputIndex: &index, Item: &output})
 		}
 	}
-	sendResponsesBridgeEvent(c, dto.ResponsesStreamResponse{Type: "response.completed", Response: response})
+	emit(dto.ResponsesStreamResponse{Type: "response.completed", Response: response})
 	helper.Done(c)
 }
 

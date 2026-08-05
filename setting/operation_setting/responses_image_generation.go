@@ -19,16 +19,42 @@ type ResponsesImageGenerationSetting struct {
 	MaxCalls                 int      `json:"max_calls"`
 	AutoInjectTool           bool     `json:"auto_inject_tool"`
 	AutoInjectPromptPatterns []string `json:"auto_inject_prompt_patterns"`
+	// ImplicitExecutionMode 控制未显式声明 image_generation 时的执行路径：
+	// auto 在客户端暴露命令工具时使用零持久化 client_stream，否则走网关图片渠道；
+	// gateway 始终走网关图片渠道；client 始终交回普通 Responses 工具流程；
+	// client_stream 让客户端通过一次性执行票据下载并保存图片，无命令工具时回退 gateway。
+	ImplicitExecutionMode string `json:"implicit_execution_mode"`
+	// ClientStreamTicketTTLSeconds 是零持久化执行票据的有效期。票据只允许消费一次，
+	// 非正值使用默认值，过大的值会被服务层限制在安全上限内。
+	ClientStreamTicketTTLSeconds int `json:"client_stream_ticket_ttl_seconds"`
+	// ArtifactDelivery 是否启用网关工件交付。启用后会在普通 Responses message
+	// 中追加 Markdown 图片和下载链接。
+	ArtifactDelivery bool `json:"artifact_delivery"`
+	// ArtifactDeliveryMode 控制结果形态：auto 对 Codex 使用 artifact、对其他
+	// 客户端使用 hybrid；hybrid 保留 Base64 并附链接；artifact 只返回工件链接；
+	// base64 保留旧行为。auto 让客户端无需修改源码，同时避免 Codex 会话膨胀。
+	ArtifactDeliveryMode string `json:"artifact_delivery_mode"`
+	// ArtifactDirectory 是网关本地图片工件目录。目录只由签名下载接口读取，
+	// 不挂到公开 static 路径，避免生成图片被无鉴权枚举。
+	ArtifactDirectory string `json:"artifact_directory"`
+	// ArtifactTTLMinutes 控制签名链接及本地工件的有效期；非正值使用默认值。
+	ArtifactTTLMinutes int `json:"artifact_ttl_minutes"`
 }
 
 var responsesImageGenerationSetting = ResponsesImageGenerationSetting{
-	Enabled:              true,
-	PlannerModelPatterns: []string{`^gpt-.*`},
-	ImageModel:           "gpt-image-2",
-	DefaultSize:          "1024x1024",
-	DefaultQuality:       "high",
-	MaxCalls:             1,
-	AutoInjectTool:       true,
+	Enabled:                      true,
+	PlannerModelPatterns:         []string{`^gpt-.*`},
+	ImageModel:                   "gpt-image-2",
+	DefaultSize:                  "1024x1024",
+	DefaultQuality:               "high",
+	MaxCalls:                     1,
+	AutoInjectTool:               true,
+	ImplicitExecutionMode:        "auto",
+	ClientStreamTicketTTLSeconds: 300,
+	ArtifactDelivery:             false,
+	ArtifactDeliveryMode:         "auto",
+	ArtifactDirectory:            "data/responses-images",
+	ArtifactTTLMinutes:           1440,
 	AutoInjectPromptPatterns: []string{
 		`(?i)^\s*(please\s+)?(generate|create|draw|render|illustrate|design|make|paint|sketch)\b[\s\S]{0,160}\b(image|picture|photo|illustration|artwork|poster|logo|icon|graphic)\b`,
 		`(?i)^\s*(can|could|would|will)\s+you\b[\s\S]{0,40}\b(generate|create|draw|render|illustrate|design|make|paint|sketch)\b[\s\S]{0,160}\b(image|picture|photo|illustration|artwork|poster|logo|icon|graphic)\b`,
