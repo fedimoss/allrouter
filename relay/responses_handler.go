@@ -224,6 +224,20 @@ func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo) *t
 	// 	helper.DumpResponsesCompatSection(c, helper.ResponsesCompatDumpRequestBefore, rawReqBytes)
 	// }
 
+	// 远程压缩 v2 检测：codex 客户端（provider 名为 "OpenAI"）在输入末尾追加
+	// {"type":"compaction_trigger"}，期望响应中恰好一个 {"type":"compaction"} output item。
+	// chat 上游不理解该协议，此处标记状态并驱动后续摘要指令注入与响应合成。
+	// 普通请求无 trigger，ResponsesCompaction 保持 nil，路径零影响。
+	if triggerIndex, additionalToolsCount := relaycommon.DetectResponsesCompactionTrigger(responsesReq.Input); triggerIndex >= 0 {
+		info.ResponsesCompaction = &relaycommon.ResponsesCompactionState{
+			Triggered:             true,
+			TriggerIndex:          triggerIndex,
+			NeedSyntheticResponse: true,
+		}
+		logger.LogInfo(c, "responses compaction trigger detected")
+		logger.LogDebug(c, "responses compaction trigger: trigger_index=%d additional_tools=%d model=%q", triggerIndex, additionalToolsCount, responsesReq.Model)
+	}
+
 	// 将 Responses 请求转换为 Chat Completions 兼容请求，同时取出请求阶段构造的工具上下文。
 	// 该上下文记录了 function/custom/tool_search/namespace 工具与 chat function 名的映射，
 	// 响应阶段（relay/channel/openai）据此把上游返回的 chat function_call 恢复成原始 Codex 工具类型。
@@ -238,6 +252,21 @@ func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo) *t
 	}
 	// 把工具上下文挂到 RelayInfo，供响应阶段读取（仅 Responses→Chat 渠道路径使用）。
 	info.ResponsesChatToolCtx = toolCtx
+
+	// 压缩请求的 chat 上游必须产出纯文本摘要：剥离全部工具相关字段与输出格式控制，
+	// 防止模型返回 tool_call 或 schema 约束的 JSON 摘要（对齐 vekil normalizeCompactionRequestFields）。
+	// 同时追加一条 user 摘要指令（而非覆盖 system/instructions，保留 codex base instructions）。
+	if info.ResponsesCompaction != nil {
+		chatReq.Tools = nil
+		chatReq.ToolChoice = nil
+		chatReq.ParallelTooCalls = nil
+		chatReq.ResponseFormat = nil
+		// 追加摘要指令：明确声明这不是用户请求，防止模型继续执行原任务。
+		chatReq.Messages = append(chatReq.Messages, dto.Message{
+			Role:    "user",
+			Content: relaycommon.CompactionSummarizePrompt,
+		})
+	}
 
 	// 保存原始的请求信息，以便在 defer 中恢复，避免影响后续处理
 	savedRequest := info.Request                                       // 原始请求对象

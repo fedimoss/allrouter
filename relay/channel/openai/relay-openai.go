@@ -110,6 +110,11 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	}
 	// 如果请求格式为 Responses API，将上游返回的流式 Chat Completions 响应转换为 Responses 流式响应
 	if info != nil && info.RelayFormat == types.RelayFormatOpenAIResponses {
+		// 压缩请求（检测到 compaction_trigger）：走压缩专用合成路径，
+		// 提取纯文本摘要并合成恰好一个 compaction item；普通请求不受影响。
+		if info.ResponsesCompaction != nil && info.ResponsesCompaction.Triggered {
+			return OaiChatToResponsesCompactionStreamHandler(c, info, resp)
+		}
 		return OaiChatToResponsesStreamHandler(c, info, resp)
 	}
 
@@ -241,6 +246,11 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		logger.LogInfo(c, fmt.Sprintf("responses compatibility upstream chat response body: %s", string(responseBody)))
 		// [3] chat→response 前响应体：上游 Chat Completions 响应（非流式）
 		// helper.DumpResponsesCompatSection(c, helper.ResponsesCompatDumpResponseBefore, responseBody)
+		// 压缩请求（检测到 compaction_trigger）：走压缩专用合成路径；
+		// 普通请求不受影响。
+		if info.ResponsesCompaction != nil && info.ResponsesCompaction.Triggered {
+			return OaiChatToResponsesCompactionHandler(c, info, &simpleResponse)
+		}
 		return OaiChatToResponsesHandler(c, info, &simpleResponse)
 	}
 

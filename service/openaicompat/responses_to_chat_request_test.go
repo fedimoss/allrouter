@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -454,4 +455,96 @@ func TestResponsesChatCompatCustomAndRawToolCallOutput(t *testing.T) {
 	require.Equal(t, "call_c1", customOut.ToolCallId)
 	require.Contains(t, customOut.StringContent(), `"call_id":"call_c1"`)
 	require.Contains(t, customOut.StringContent(), `"output":"done"`)
+}
+
+// TestResponsesChatCompatCompactionReplayInOrder 验证压缩摘要重放保序转换：
+// compaction item 在 input 中的位置就地转换为 summary user 消息，不最后统一追加；
+// compaction_trigger / additional_tools 被显式过滤，不进入 chat messages。
+func TestResponsesChatCompatCompactionReplayInOrder(t *testing.T) {
+	summary := "fixed the login bug by updating the auth middleware"
+	encoded := relaycommon.EncodeCompactionSummary(summary)
+	raw := []byte(`{
+		"model":"gpt-test",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"first user message"}]},
+			{"type":"compaction","encrypted_content":"` + encoded + `"},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"latest question"}]},
+			{"type":"compaction_trigger"},
+			{"type":"additional_tools","tools":[]}
+		]
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+
+	// compaction_trigger 与 additional_tools 被过滤，剩余 3 条 user 消息且顺序保持。
+	require.Len(t, chatReq.Messages, 3)
+	require.Equal(t, "user", chatReq.Messages[0].Role)
+	require.Equal(t, "first user message", chatReq.Messages[0].StringContent())
+	require.Equal(t, "user", chatReq.Messages[1].Role)
+	require.Contains(t, chatReq.Messages[1].StringContent(), "fixed the login bug")
+	require.Contains(t, chatReq.Messages[1].StringContent(), "Another language model started to solve this problem")
+	require.Equal(t, "user", chatReq.Messages[2].Role)
+	require.Equal(t, "latest question", chatReq.Messages[2].StringContent())
+}
+
+// TestResponsesChatCompatOpaqueCompactionReplay 验证无前缀加密 blob（真正 OpenAI 压缩内容）
+// 降级为不可读占位提示，不产生空消息。
+func TestResponsesChatCompatOpaqueCompactionReplay(t *testing.T) {
+	raw := []byte(`{
+		"model":"gpt-test",
+		"input":[
+			{"type":"compaction","encrypted_content":"9x9base64opaque"},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"after"}]}
+		]
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+
+	require.Len(t, chatReq.Messages, 2)
+	require.Contains(t, chatReq.Messages[0].StringContent(), "cannot read")
+	require.Equal(t, "after", chatReq.Messages[1].StringContent())
+}
+
+// TestResponsesChatCompatContextCompactionNoContent 验证 context_compaction 无 encrypted_content
+// 时（纯本地压缩标记）被跳过，不产生空消息。
+func TestResponsesChatCompatContextCompactionNoContent(t *testing.T) {
+	raw := []byte(`{
+		"model":"gpt-test",
+		"input":[
+			{"type":"context_compaction"},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}
+		]
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+
+	require.Len(t, chatReq.Messages, 1)
+	require.Equal(t, "hi", chatReq.Messages[0].StringContent())
+}
+
+// TestCompactionEnvelopeRoundTrip 验证 ocx1 信封编解码往返。
+func TestCompactionEnvelopeRoundTrip(t *testing.T) {
+	summary := "完成登录重构，修复了 session 失效问题"
+	encoded := relaycommon.EncodeCompactionSummary(summary)
+	require.True(t, strings.HasPrefix(encoded, relaycommon.OcxCompactionPrefix))
+
+	decoded, ok := relaycommon.DecodeCompactionSummary(encoded)
+	require.True(t, ok)
+	require.Equal(t, summary, decoded)
+
+	// 无前缀内容不可解码
+	_, ok = relaycommon.DecodeCompactionSummary("raw-blob")
+	require.False(t, ok)
 }
