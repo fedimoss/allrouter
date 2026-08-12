@@ -19,7 +19,9 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 type TaskSubmitResult struct {
@@ -183,13 +185,44 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
 	}
 	info.PriceData = priceData
+	if info.PriceData.BillingMode == billing_setting.BillingModePerSecond {
+		estimator, ok := adaptor.(channel.PerSecondBillingEstimator)
+		if !ok {
+			return nil, service.TaskErrorWrapperLocal(fmt.Errorf("task adaptor %s does not support per-second billing", adaptor.GetChannelName()), "per_second_billing_unsupported", http.StatusBadRequest)
+		}
+		resolution, seconds, outputCount, estimateErr := estimator.EstimatePerSecondBilling(c, info)
+		if estimateErr != nil {
+			return nil, service.TaskErrorWrapperLocal(estimateErr, "invalid_per_second_billing_parameters", http.StatusBadRequest)
+		}
+		if seconds <= 0 || outputCount <= 0 {
+			return nil, service.TaskErrorWrapperLocal(fmt.Errorf("duration and output count must be positive"), "invalid_per_second_billing_parameters", http.StatusBadRequest)
+		}
+		resolution, unitPrice, resolveErr := billing_setting.ResolvePerSecondPrice(modelName, resolution)
+		if resolveErr != nil {
+			return nil, service.TaskErrorWrapperLocal(resolveErr, "resolution_price_not_configured", http.StatusBadRequest)
+		}
+		unitCount := decimal.NewFromFloat(seconds).Mul(decimal.NewFromInt(int64(outputCount)))
+		quota, quotaErr := helper.CalculatePerSecondQuota(unitPrice, seconds, outputCount, info.PriceData.GroupRatioInfo.GroupRatio)
+		if quotaErr != nil {
+			return nil, service.TaskErrorWrapperLocal(quotaErr, "per_second_quota_overflow", http.StatusBadRequest)
+		}
+		info.PriceData.Resolution = resolution
+		info.PriceData.UnitPrice = unitPrice
+		info.PriceData.ModelPrice = unitPrice
+		info.PriceData.UnitCount = unitCount.InexactFloat64()
+		info.PriceData.OutputCount = outputCount
+		info.PriceData.Quota = quota
+		info.PriceData.BaseQuota = quota
+	}
 
 	// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
 	//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。
 	//    ResolveOriginTask 可能已在 remix 路径中预设了 OtherRatios，此处合并。
-	if estimatedRatios := adaptor.EstimateBilling(c, info); len(estimatedRatios) > 0 {
-		for k, v := range estimatedRatios {
-			info.PriceData.AddOtherRatio(k, v)
+	if info.PriceData.BillingMode != billing_setting.BillingModePerSecond {
+		if estimatedRatios := adaptor.EstimateBilling(c, info); len(estimatedRatios) > 0 {
+			for k, v := range estimatedRatios {
+				info.PriceData.AddOtherRatio(k, v)
+			}
 		}
 	}
 
@@ -198,6 +231,34 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		for _, ra := range info.PriceData.OtherRatios {
 			if ra != 1.0 {
 				info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
+			}
+		}
+	}
+	if info.PriceData.BaseQuota == 0 {
+		info.PriceData.BaseQuota = info.PriceData.Quota
+	}
+	providerUnitCount := decimal.NewFromInt(int64(info.GetEstimatePromptTokens()))
+	if info.PriceData.BillingMode == billing_setting.BillingModePerSecond {
+		providerUnitCount = decimal.NewFromFloat(info.PriceData.UnitCount)
+	}
+	providerQuota, importCostQuota, applied := 0, 0, false
+	if info.PriceData.BillingMode == billing_setting.BillingModePerSecond {
+		providerQuota, importCostQuota, applied = service.ApplyProviderPerUnitPricingQuota(c, info.PriceData.Quota, info.PriceData.GroupRatioInfo.GroupRatio, providerUnitCount)
+	} else {
+		providerQuota, importCostQuota, applied = service.ApplyProviderPricingQuota(c, info.PriceData.Quota, info.PriceData.UsePrice, info.PriceData.GroupRatioInfo.GroupRatio, int(providerUnitCount.IntPart()))
+	}
+	if applied {
+		info.PriceData.ProviderBaseQuota = importCostQuota
+		info.PriceData.Quota = providerQuota
+		common.SetContextKey(c, constant.ContextKeyProviderBaseQuota, importCostQuota)
+		common.SetContextKey(c, constant.ContextKeyProviderUserQuota, providerQuota)
+		if ownerUserID := common.GetContextKeyInt(c, constant.ContextKeyProviderOwnerUserId); ownerUserID > 0 {
+			ownerQuota, ownerErr := model.GetUserQuota(ownerUserID, false)
+			if ownerErr != nil {
+				return nil, service.TaskErrorWrapperLocal(ownerErr, "provider_quota_query_failed", http.StatusInternalServerError)
+			}
+			if ownerQuota < importCostQuota {
+				return nil, service.TaskErrorWrapperLocal(fmt.Errorf("provider quota is not enough"), "provider_quota_not_enough", http.StatusForbidden)
 			}
 		}
 	}
@@ -245,7 +306,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	finalQuota := info.PriceData.Quota
 	if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
 		// 基于调整后的 ratios 重新计算 quota
-		finalQuota = recalcQuotaFromRatios(info, adjustedRatios)
+		finalQuota = recalcQuotaFromRatios(c, info, adjustedRatios)
 		info.PriceData.OtherRatios = adjustedRatios
 		info.PriceData.Quota = finalQuota
 	}
@@ -260,9 +321,12 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 // recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。
 // 公式: baseQuota × ∏(ratio) — 其中 baseQuota 是不含 OtherRatios 的基础额度。
-func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float64) int {
+func recalcQuotaFromRatios(c *gin.Context, info *relaycommon.RelayInfo, ratios map[string]float64) int {
 	// 从 PriceData 获取不含 OtherRatios 的基础价格
-	baseQuota := info.PriceData.Quota
+	baseQuota := info.PriceData.BaseQuota
+	if baseQuota == 0 {
+		baseQuota = info.PriceData.Quota
+	}
 	// 先除掉原有的 OtherRatios 恢复基础额度
 	for _, ra := range info.PriceData.OtherRatios {
 		if ra != 1.0 && ra > 0 {
@@ -276,7 +340,15 @@ func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float6
 			result *= ra
 		}
 	}
-	return int(result)
+	mainSiteQuota := int(result)
+	info.PriceData.BaseQuota = mainSiteQuota
+	if providerQuota, importCostQuota, applied := service.ApplyProviderPricingQuota(c, mainSiteQuota, info.PriceData.UsePrice, info.PriceData.GroupRatioInfo.GroupRatio, info.GetEstimatePromptTokens()); applied {
+		info.PriceData.ProviderBaseQuota = importCostQuota
+		common.SetContextKey(c, constant.ContextKeyProviderBaseQuota, importCostQuota)
+		common.SetContextKey(c, constant.ContextKeyProviderUserQuota, providerQuota)
+		return providerQuota
+	}
+	return mainSiteQuota
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){

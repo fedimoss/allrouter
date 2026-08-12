@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -38,6 +39,11 @@ type ImageURL struct {
 	URL string `json:"url"`
 }
 
+type perSecondTarget struct {
+	ShortEdge       *int     `json:"short_edge,omitempty"`
+	DurationSeconds *float64 `json:"duration_seconds,omitempty"`
+}
+
 type responseTask struct {
 	ID                 string `json:"id"`
 	TaskID             string `json:"task_id,omitempty"` //兼容旧接口
@@ -50,6 +56,7 @@ type responseTask struct {
 	ExpiresAt          int64  `json:"expires_at,omitempty"`
 	Seconds            string `json:"seconds,omitempty"`
 	Size               string `json:"size,omitempty"`
+	NumOutputs         int    `json:"num_outputs,omitempty"`
 	RemixedFromVideoID string `json:"remixed_from_video_id,omitempty"`
 	Error              *struct {
 		Message string `json:"message"`
@@ -127,6 +134,212 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		ratios["size"] = 1.666667
 	}
 	return ratios
+}
+
+func parsePerSecondTarget(raw []byte) (*perSecondTarget, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var target perSecondTarget
+	if err := common.Unmarshal(raw, &target); err != nil {
+		return nil, fmt.Errorf("target must contain valid per-second billing parameters: %w", err)
+	}
+	return &target, nil
+}
+
+func parsePerSecondDuration(req relaycommon.TaskSubmitReq, target *perSecondTarget, allowSoraDefault bool) (float64, error) {
+	if target != nil && target.DurationSeconds != nil {
+		seconds := *target.DurationSeconds
+		if math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds <= 0 {
+			return 0, fmt.Errorf("target.duration_seconds must be a positive number")
+		}
+		return seconds, nil
+	}
+	if strings.TrimSpace(req.Seconds) != "" {
+		seconds, err := strconv.ParseFloat(strings.TrimSpace(req.Seconds), 64)
+		if err != nil || math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds <= 0 {
+			return 0, fmt.Errorf("seconds must be a positive number")
+		}
+		return seconds, nil
+	}
+	if req.Duration != 0 {
+		if req.Duration > 0 {
+			return float64(req.Duration), nil
+		}
+		return 0, fmt.Errorf("duration must be positive")
+	}
+	if allowSoraDefault {
+		return 4, nil
+	}
+	return 0, fmt.Errorf("seconds is required for per-second billing")
+}
+
+func parsePerSecondOutputCount(req relaycommon.TaskSubmitReq) (int, error) {
+	if req.NumOutputsPerPrompt != nil {
+		if *req.NumOutputsPerPrompt <= 0 {
+			return 0, fmt.Errorf("num_outputs_per_prompt must be positive")
+		}
+		return *req.NumOutputsPerPrompt, nil
+	}
+	if req.NumOutputs != nil {
+		if *req.NumOutputs <= 0 {
+			return 0, fmt.Errorf("num_outputs must be positive")
+		}
+		return *req.NumOutputs, nil
+	}
+	if req.N != nil {
+		if *req.N <= 0 {
+			return 0, fmt.Errorf("n must be positive")
+		}
+		return *req.N, nil
+	}
+	return 1, nil
+}
+
+func sizeToBillingResolution(size string) (string, error) {
+	size = strings.ToUpper(strings.TrimSpace(size))
+	if size == "" {
+		return "", nil
+	}
+	if strings.HasSuffix(size, "P") || strings.HasSuffix(size, "K") {
+		return size, nil
+	}
+	parts := strings.FieldsFunc(size, func(r rune) bool {
+		return r == 'X' || r == '*' || r == '×'
+	})
+	if len(parts) != 2 {
+		return "", fmt.Errorf("unsupported video size %s", size)
+	}
+	width, widthErr := strconv.Atoi(strings.TrimSpace(parts[0]))
+	height, heightErr := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
+		return "", fmt.Errorf("unsupported video size %s", size)
+	}
+	shortEdge, longEdge := width, height
+	if shortEdge > longEdge {
+		shortEdge, longEdge = longEdge, shortEdge
+	}
+	switch {
+	case longEdge >= 3840 || shortEdge >= 2160:
+		return "4K", nil
+	case longEdge >= 2048 || shortEdge >= 1440:
+		return "2K", nil
+	default:
+		return fmt.Sprintf("%dP", shortEdge), nil
+	}
+}
+
+func targetToBillingResolution(target *perSecondTarget) (string, error) {
+	if target == nil || target.ShortEdge == nil {
+		return "", nil
+	}
+	shortEdge := *target.ShortEdge
+	if shortEdge <= 0 {
+		return "", fmt.Errorf("target.short_edge must be positive")
+	}
+	switch {
+	case shortEdge >= 2160:
+		return "4K", nil
+	case shortEdge >= 1440:
+		return "2K", nil
+	default:
+		return fmt.Sprintf("%dP", shortEdge), nil
+	}
+}
+
+func resolveRemixSourceBilling(originTask *model.Task) (string, float64, error) {
+	if originTask == nil {
+		return "", 0, fmt.Errorf("origin task is required for remix billing")
+	}
+	if billingContext := originTask.PrivateData.BillingContext; billingContext != nil &&
+		strings.TrimSpace(billingContext.Resolution) != "" && billingContext.UnitCount > 0 {
+		originalOutputCount := billingContext.OutputCount
+		if originalOutputCount <= 0 {
+			originalOutputCount = 1
+		}
+		seconds := billingContext.UnitCount / float64(originalOutputCount)
+		if !math.IsNaN(seconds) && !math.IsInf(seconds, 0) && seconds > 0 {
+			return strings.ToUpper(strings.TrimSpace(billingContext.Resolution)), seconds, nil
+		}
+	}
+
+	var source responseTask
+	if err := common.Unmarshal(originTask.Data, &source); err != nil {
+		return "", 0, fmt.Errorf("parse origin task billing parameters: %w", err)
+	}
+	seconds, err := strconv.ParseFloat(strings.TrimSpace(source.Seconds), 64)
+	if err != nil || math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds <= 0 {
+		return "", 0, fmt.Errorf("origin task has no valid seconds for remix billing")
+	}
+	resolution, err := sizeToBillingResolution(source.Size)
+	if err != nil || resolution == "" {
+		return "", 0, fmt.Errorf("origin task has no valid size for remix billing")
+	}
+	return resolution, seconds, nil
+}
+
+// EstimatePerSecondBilling exposes the effective Sora/OpenAI Video request
+// parameters used for pre-consumption. Generic Sora-compatible services use
+// seconds, size (WxH), and num_outputs/n rather than Hailuo's request fields.
+func (a *TaskAdaptor) EstimatePerSecondBilling(c *gin.Context, info *relaycommon.RelayInfo) (string, float64, int, error) {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	if info != nil && info.TaskRelayInfo != nil && info.Action == constant.TaskActionRemix {
+		originTask, exists, queryErr := model.GetByTaskId(info.UserId, info.OriginTaskID)
+		if queryErr != nil {
+			return "", 0, 0, fmt.Errorf("query origin task for remix billing: %w", queryErr)
+		}
+		if !exists {
+			return "", 0, 0, fmt.Errorf("origin task not found for remix billing")
+		}
+		resolution, seconds, resolveErr := resolveRemixSourceBilling(originTask)
+		if resolveErr != nil {
+			return "", 0, 0, resolveErr
+		}
+		outputCount, outputErr := parsePerSecondOutputCount(req)
+		if outputErr != nil {
+			return "", 0, 0, outputErr
+		}
+		return resolution, seconds, outputCount, nil
+	}
+	target, err := parsePerSecondTarget(req.Target)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	modelName := req.Model
+	if info != nil {
+		if info.ChannelMeta != nil && info.UpstreamModelName != "" {
+			modelName = info.UpstreamModelName
+		} else if info.OriginModelName != "" {
+			modelName = info.OriginModelName
+		}
+	}
+	allowSoraDefaults := strings.HasPrefix(strings.ToLower(strings.TrimSpace(modelName)), "sora-2")
+	seconds, err := parsePerSecondDuration(req, target, allowSoraDefaults)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	resolution, err := targetToBillingResolution(target)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	if resolution == "" {
+		size := req.Size
+		if strings.TrimSpace(size) == "" && allowSoraDefaults {
+			size = "720x1280"
+		}
+		resolution, err = sizeToBillingResolution(size)
+		if err != nil {
+			return "", 0, 0, err
+		}
+	}
+	outputCount, err := parsePerSecondOutputCount(req)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	return resolution, seconds, outputCount, nil
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {

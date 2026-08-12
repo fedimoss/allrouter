@@ -44,6 +44,7 @@ const (
 	Resolution720P  = "720P"
 	Resolution768P  = "768P"
 	Resolution1080P = "1080P"
+	Resolution2K    = "2K"
 )
 
 const (

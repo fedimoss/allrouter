@@ -33,6 +33,7 @@ import {
   renderModelTag,
   renderModelPriceSimple,
   renderTieredModelPriceSimple,
+  renderPerSecondModelPriceSimple,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import { CircleAlert, Sparkles } from 'lucide-react';
@@ -434,6 +435,16 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
       segments: renderTieredModelPriceSimple({
         ...other,
         displayMode: billingDisplayMode,
+        outputMode: 'segments',
+      }),
+    };
+  }
+
+  if (other?.billing_mode === 'per_second') {
+    return {
+      segments: renderPerSecondModelPriceSimple({
+        ...other,
+        actualQuota: record?.quota,
         outputMode: 'segments',
       }),
     };

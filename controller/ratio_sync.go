@@ -72,6 +72,7 @@ var pricingSyncFields = []string{
 	"model_price",
 	billing_setting.BillingModeField,
 	billing_setting.BillingExprField,
+	billing_setting.VideoResolutionPricesField,
 }
 
 var numericPricingSyncFields = map[string]bool{
@@ -99,6 +100,8 @@ func valueMap(value any) map[string]any {
 		return lo.MapValues(typed, func(value float64, _ string) any { return value })
 	case map[string]string:
 		return lo.MapValues(typed, func(value string, _ string) any { return value })
+	case map[string]billing_setting.VideoResolutionPricing:
+		return lo.MapValues(typed, func(value billing_setting.VideoResolutionPricing, _ string) any { return value })
 	default:
 		return nil
 	}
@@ -123,6 +126,11 @@ func asFloat64(value any) (float64, bool) {
 }
 
 func normalizeSyncValue(field string, value any) any {
+	if field == billing_setting.VideoResolutionPricesField {
+		if encoded, err := common.Marshal(value); err == nil {
+			return string(encoded)
+		}
+	}
 	if numericPricingSyncFields[field] {
 		if parsed, ok := asFloat64(value); ok {
 			return parsed
@@ -379,18 +387,20 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 			// 如果不是 type1，则尝试按 type2 (/api/pricing) 解析
 			var pricingItems []struct {
-				ModelName            string   `json:"model_name"`
-				QuotaType            int      `json:"quota_type"`
-				ModelRatio           float64  `json:"model_ratio"`
-				ModelPrice           float64  `json:"model_price"`
-				CompletionRatio      float64  `json:"completion_ratio"`
-				CacheRatio           *float64 `json:"cache_ratio"`
-				CreateCacheRatio     *float64 `json:"create_cache_ratio"`
-				ImageRatio           *float64 `json:"image_ratio"`
-				AudioRatio           *float64 `json:"audio_ratio"`
-				AudioCompletionRatio *float64 `json:"audio_completion_ratio"`
-				BillingMode          string   `json:"billing_mode"`
-				BillingExpr          string   `json:"billing_expr"`
+				ModelName            string             `json:"model_name"`
+				QuotaType            int                `json:"quota_type"`
+				ModelRatio           float64            `json:"model_ratio"`
+				ModelPrice           float64            `json:"model_price"`
+				CompletionRatio      float64            `json:"completion_ratio"`
+				CacheRatio           *float64           `json:"cache_ratio"`
+				CreateCacheRatio     *float64           `json:"create_cache_ratio"`
+				ImageRatio           *float64           `json:"image_ratio"`
+				AudioRatio           *float64           `json:"audio_ratio"`
+				AudioCompletionRatio *float64           `json:"audio_completion_ratio"`
+				BillingMode          string             `json:"billing_mode"`
+				BillingExpr          string             `json:"billing_expr"`
+				DefaultResolution    string             `json:"default_resolution"`
+				ResolutionPrices     map[string]float64 `json:"resolution_prices"`
 			}
 			if err := common.Unmarshal(body.Data, &pricingItems); err != nil {
 				logger.LogWarn(c.Request.Context(), "unrecognized data format from "+chItem.Name+": "+err.Error())
@@ -408,6 +418,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			modelPriceMap := make(map[string]float64)
 			billingModeMap := make(map[string]string)
 			billingExprMap := make(map[string]string)
+			videoResolutionPricesMap := make(map[string]billing_setting.VideoResolutionPricing)
 
 			for _, item := range pricingItems {
 				if item.ModelName == "" {
@@ -416,6 +427,13 @@ func FetchUpstreamRatios(c *gin.Context) {
 				if item.BillingMode == billing_setting.BillingModeTieredExpr && strings.TrimSpace(item.BillingExpr) != "" {
 					billingModeMap[item.ModelName] = billing_setting.BillingModeTieredExpr
 					billingExprMap[item.ModelName] = item.BillingExpr
+				}
+				if item.BillingMode == billing_setting.BillingModePerSecond && len(item.ResolutionPrices) > 0 {
+					billingModeMap[item.ModelName] = billing_setting.BillingModePerSecond
+					videoResolutionPricesMap[item.ModelName] = billing_setting.VideoResolutionPricing{
+						DefaultResolution: item.DefaultResolution,
+						Prices:            item.ResolutionPrices,
+					}
 				}
 				if item.QuotaType == 1 {
 					modelPriceMap[item.ModelName] = item.ModelPrice
@@ -486,6 +504,13 @@ func FetchUpstreamRatios(c *gin.Context) {
 			}
 			if len(billingExprMap) > 0 {
 				converted[billing_setting.BillingExprField] = valueMap(billingExprMap)
+			}
+			if len(videoResolutionPricesMap) > 0 {
+				pricesAny := make(map[string]any, len(videoResolutionPricesMap))
+				for modelName, pricing := range videoResolutionPricesMap {
+					pricesAny[modelName] = pricing
+				}
+				converted[billing_setting.VideoResolutionPricesField] = pricesAny
 			}
 
 			ch <- upstreamResult{Name: uniqueName, Data: converted}

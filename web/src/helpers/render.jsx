@@ -1734,6 +1734,139 @@ export function renderTaskBillingProcess(other, content) {
   ]);
 }
 
+function getPerSecondBillingDisplay(other = {}, actualQuota) {
+  const outputCountValue = Number(other?.output_count);
+  const outputCount =
+    Number.isFinite(outputCountValue) && outputCountValue > 0
+      ? outputCountValue
+      : 1;
+  const unitCountValue = Number(other?.unit_count);
+  const unitCount =
+    Number.isFinite(unitCountValue) && unitCountValue > 0
+      ? unitCountValue
+      : 0;
+  const seconds = unitCount > 0 ? unitCount / outputCount : 0;
+  const { ratio: groupRatio, label: ratioLabel } = getEffectiveRatio(
+    other?.group_ratio,
+    other?.user_group_ratio,
+  );
+  const effectiveGroupRatio =
+    Number.isFinite(Number(groupRatio)) && Number(groupRatio) >= 0
+      ? Number(groupRatio)
+      : 1;
+  const configuredUnitPrice = Number(other?.unit_price);
+  let unitPrice = Number.isFinite(configuredUnitPrice)
+    ? configuredUnitPrice
+    : Number(other?.model_price) || 0;
+
+  const quota = Number(actualQuota);
+  const quotaPerUnit = getQuotaPerUnit();
+  if (
+    Number.isFinite(quota) &&
+    Number.isFinite(quotaPerUnit) &&
+    quotaPerUnit > 0 &&
+    unitCount > 0 &&
+    effectiveGroupRatio > 0
+  ) {
+    const settledUnitPrice =
+      quota / quotaPerUnit / unitCount / effectiveGroupRatio;
+    if (Number.isFinite(settledUnitPrice) && settledUnitPrice >= 0) {
+      unitPrice = settledUnitPrice;
+    }
+  }
+
+  return {
+    resolution: other?.resolution || '-',
+    seconds,
+    outputCount,
+    unitCount,
+    unitPrice,
+    groupRatio: effectiveGroupRatio,
+    ratioLabel,
+  };
+}
+
+export function renderPerSecondModelPriceSimple(opts = {}) {
+  const display = getPerSecondBillingDisplay(opts, opts?.actualQuota);
+  const { symbol, rate } = getCurrencyConfig();
+  if (opts?.outputMode === 'segments') {
+    return [
+      {
+        tone: 'primary',
+        text: i18next.t('{{ratioType}} {{ratio}}x', {
+          ratioType: display.ratioLabel,
+          ratio: formatRatioValue(display.groupRatio),
+        }),
+      },
+      {
+        tone: 'secondary',
+        text: i18next.t('{{resolution}} {{symbol}}{{price}} / 秒', {
+          resolution: display.resolution,
+          symbol,
+          price: formatBillingDisplayPrice(display.unitPrice, rate),
+        }),
+      },
+      display.unitCount > 0
+        ? {
+            tone: 'secondary',
+            text: i18next.t('{{seconds}} 秒 × {{outputs}} 个输出', {
+              seconds: formatRatioValue(display.seconds),
+              outputs: formatRatioValue(display.outputCount),
+            }),
+          }
+        : null,
+    ].filter(Boolean);
+  }
+
+  return joinBillingSummary([
+    i18next.t('按秒计费'),
+    i18next.t('{{resolution}} {{symbol}}{{price}} / 秒', {
+      resolution: display.resolution,
+      symbol,
+      price: formatBillingDisplayPrice(display.unitPrice, rate),
+    }),
+    i18next.t('{{ratioType}} {{ratio}}x', {
+      ratioType: display.ratioLabel,
+      ratio: formatRatioValue(display.groupRatio),
+    }),
+  ]);
+}
+
+export function renderPerSecondModelPrice(opts = {}) {
+  const display = getPerSecondBillingDisplay(opts, opts?.actualQuota);
+  const { symbol, rate } = getCurrencyConfig();
+  const lines = [
+    buildBillingText('{{resolution}}：{{symbol}}{{price}} / 秒', {
+      resolution: display.resolution,
+      symbol,
+      price: formatBillingDisplayPrice(display.unitPrice, rate),
+    }),
+  ];
+
+  if (display.unitCount > 0) {
+    lines.push(
+      buildBillingText(
+        '{{symbol}}{{price}} / 秒 × {{seconds}} 秒 × {{outputs}} 个输出 × {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
+        {
+          symbol,
+          price: formatBillingDisplayPrice(display.unitPrice, rate),
+          seconds: formatRatioValue(display.seconds),
+          outputs: formatRatioValue(display.outputCount),
+          ratioType: display.ratioLabel,
+          ratio: formatRatioValue(display.groupRatio),
+          total: formatBillingDisplayTotalByQuota(
+            opts?.actualQuota,
+            display.unitPrice * display.unitCount * display.groupRatio,
+            rate,
+          ),
+        },
+      ),
+    );
+  }
+
+  return renderBillingArticle(lines);
+}
+
 export function renderModelPrice(
   inputTokens,
   completionTokens,

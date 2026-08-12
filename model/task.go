@@ -112,6 +112,7 @@ type TaskPrivateData struct {
 	WalletRewardUsed             int  `json:"wallet_reward_used,omitempty"`
 	WalletPaidUsed               int  `json:"wallet_paid_used,omitempty"`
 	ConsumeRebateSettled         bool `json:"consume_rebate_settled,omitempty"`
+	ProviderProfitSettled        bool `json:"provider_profit_settled,omitempty"`
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
@@ -126,6 +127,16 @@ type TaskBillingContext struct {
 	ProviderPublicModel string             `json:"provider_public_model,omitempty"`
 	ProviderBaseModel   string             `json:"provider_base_model,omitempty"`
 	PerCallBilling      bool               `json:"per_call_billing,omitempty"` // 按次计费：跳过轮询阶段的差额结算
+	BillingMode         string             `json:"billing_mode,omitempty"`
+	BillingUnit         string             `json:"billing_unit,omitempty"`
+	Resolution          string             `json:"resolution,omitempty"`
+	UnitPrice           float64            `json:"unit_price,omitempty"`
+	UnitCount           float64            `json:"unit_count,omitempty"`
+	OutputCount         int                `json:"output_count,omitempty"`
+	BaseQuota           int                `json:"base_quota,omitempty"`
+	ProviderBaseQuota   int                `json:"provider_base_quota,omitempty"`
+	ProviderUserQuota   int                `json:"provider_user_quota,omitempty"`
+	ProviderOwnerUserId int                `json:"provider_owner_user_id,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
