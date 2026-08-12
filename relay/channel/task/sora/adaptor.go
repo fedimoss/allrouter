@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -42,6 +43,28 @@ type ImageURL struct {
 type perSecondTarget struct {
 	ShortEdge       *int     `json:"short_edge,omitempty"`
 	DurationSeconds *float64 `json:"duration_seconds,omitempty"`
+}
+
+const miniMaxH3RequestBodyKey = "minimax_h3_request_body"
+
+type miniMaxH3Target struct {
+	ShortEdge       int     `json:"short_edge"`
+	AspectRatio     string  `json:"aspect_ratio"`
+	DurationSeconds float64 `json:"duration_seconds"`
+}
+
+type miniMaxH3Request struct {
+	Model               string          `json:"model"`
+	Prompt              string          `json:"prompt"`
+	Seconds             string          `json:"seconds"`
+	Task                string          `json:"task"`
+	Conditions          []any           `json:"conditions"`
+	Target              miniMaxH3Target `json:"target"`
+	NumOutputsPerPrompt int             `json:"num_outputs_per_prompt"`
+	NumInferenceSteps   int             `json:"num_inference_steps"`
+	FlowShift           float64         `json:"flow_shift"`
+	AudioFlowShift      float64         `json:"audio_flow_shift"`
+	Seed                int64           `json:"seed"`
 }
 
 type responseTask struct {
@@ -98,7 +121,89 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if info.Action == constant.TaskActionRemix {
 		return validateRemixRequest(c)
 	}
+
+	var req relaycommon.TaskSubmitReq
+	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
+	}
+	if req.Model == "MiniMax-H3" {
+		return validateMiniMaxH3Request(c, info, req)
+	}
 	return relaycommon.ValidateMultipartDirect(c, info)
+}
+
+func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq) *dto.TaskError {
+	if !strings.HasPrefix(c.GetHeader("Content-Type"), "application/json") {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("MiniMax-H3 requires application/json"), "invalid_request", http.StatusBadRequest)
+	}
+	if strings.TrimSpace(req.Prompt) == "" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("field prompt is required"), "invalid_request", http.StatusBadRequest)
+	}
+
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	body, err := storage.Bytes()
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	var fields map[string]any
+	if err := common.Unmarshal(body, &fields); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
+	}
+	unsupported := make([]string, 0)
+	for field := range fields {
+		if field != "model" && field != "prompt" {
+			unsupported = append(unsupported, field)
+		}
+	}
+	if len(unsupported) > 0 {
+		sort.Strings(unsupported)
+		return service.TaskErrorWrapperLocal(
+			fmt.Errorf("MiniMax-H3 only accepts model and prompt; unsupported fields: %s", strings.Join(unsupported, ", ")),
+			"invalid_request",
+			http.StatusBadRequest,
+		)
+	}
+
+	seed, err := model.GetOrCreateTokenMiniMaxH3Seed(info.TokenId)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "get_or_create_minimax_h3_seed_failed", http.StatusInternalServerError)
+	}
+
+	upstreamRequest := miniMaxH3Request{
+		Model:      req.Model,
+		Prompt:     req.Prompt,
+		Seconds:    "10",
+		Task:       "t2va",
+		Conditions: []any{},
+		Target: miniMaxH3Target{
+			ShortEdge:       768,
+			AspectRatio:     "16:9",
+			DurationSeconds: 10,
+		},
+		NumOutputsPerPrompt: 1,
+		NumInferenceSteps:   20,
+		FlowShift:           12.0,
+		AudioFlowShift:      3.0,
+		Seed:                seed,
+	}
+	target, err := common.Marshal(upstreamRequest.Target)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "marshal_minimax_h3_target_failed", http.StatusInternalServerError)
+	}
+	outputCount := upstreamRequest.NumOutputsPerPrompt
+	c.Set("task_request", relaycommon.TaskSubmitReq{
+		Prompt:              req.Prompt,
+		Model:               req.Model,
+		Seconds:             upstreamRequest.Seconds,
+		NumOutputsPerPrompt: &outputCount,
+		Target:              target,
+	})
+	c.Set(miniMaxH3RequestBodyKey, upstreamRequest)
+	info.Action = constant.TaskActionTextGenerate
+	return nil
 }
 
 // EstimateBilling 根据用户请求的 seconds 和 size 计算 OtherRatios。
@@ -357,6 +462,19 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	if value, exists := c.Get(miniMaxH3RequestBodyKey); exists {
+		requestBody, ok := value.(miniMaxH3Request)
+		if !ok {
+			return nil, errors.New("invalid MiniMax-H3 request body")
+		}
+		requestBody.Model = info.UpstreamModelName
+		body, err := common.Marshal(requestBody)
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal MiniMax-H3 request body failed")
+		}
+		return bytes.NewReader(body), nil
+	}
+
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
 		return nil, errors.Wrap(err, "get_request_body_failed")

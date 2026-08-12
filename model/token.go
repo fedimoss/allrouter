@@ -1,8 +1,10 @@
 package model
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -30,8 +32,11 @@ type Token struct {
 	TotalTokenUsed     int64          `json:"total_token_used" gorm:"type:bigint;default:0"`
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
+	MiniMaxH3Seed      *int64         `json:"-" gorm:"column:minimax_h3_seed;type:bigint"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
+
+const miniMaxH3MaxSeed = int64(1<<31 - 1)
 
 func (token *Token) Clean() {
 	token.Key = ""
@@ -303,6 +308,49 @@ func GetTokenById(id int) (*Token, error) {
 		})
 	}
 	return &token, err
+}
+
+// GetOrCreateTokenMiniMaxH3Seed returns the stable MiniMax-H3 seed assigned to a token.
+func GetOrCreateTokenMiniMaxH3Seed(tokenId int) (int64, error) {
+	if tokenId <= 0 {
+		return 0, errors.New("token id is required")
+	}
+
+	var tokenSeed struct {
+		Seed *int64 `gorm:"column:minimax_h3_seed"`
+	}
+	if err := DB.Model(&Token{}).
+		Select("minimax_h3_seed").
+		Where("id = ?", tokenId).
+		Take(&tokenSeed).Error; err != nil {
+		return 0, err
+	}
+	if tokenSeed.Seed != nil {
+		return *tokenSeed.Seed, nil
+	}
+
+	randomSeed, err := rand.Int(rand.Reader, big.NewInt(miniMaxH3MaxSeed))
+	if err != nil {
+		return 0, fmt.Errorf("generate MiniMax-H3 seed: %w", err)
+	}
+	candidate := randomSeed.Int64() + 1
+	if err := DB.Model(&Token{}).
+		Where("id = ? AND minimax_h3_seed IS NULL", tokenId).
+		Update("minimax_h3_seed", candidate).Error; err != nil {
+		return 0, err
+	}
+
+	tokenSeed.Seed = nil
+	if err := DB.Model(&Token{}).
+		Select("minimax_h3_seed").
+		Where("id = ?", tokenId).
+		Take(&tokenSeed).Error; err != nil {
+		return 0, err
+	}
+	if tokenSeed.Seed == nil {
+		return 0, errors.New("MiniMax-H3 seed was not persisted")
+	}
+	return *tokenSeed.Seed, nil
 }
 
 func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
