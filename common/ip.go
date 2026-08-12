@@ -49,3 +49,13 @@ func IsIpInCIDRList(ip net.IP, cidrList []string) bool {
 	}
 	return false
 }
+
+// 判断是否是docker 网络（常见的）
+func IsDockerIp(ip string) bool {
+	if ip == "" {
+		return false
+	}
+	//常见的docker网络
+
+	return true
+}

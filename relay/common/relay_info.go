@@ -187,6 +187,11 @@ type RelayInfo struct {
 	// tool_search_call / namespace function_call。其他渠道路径保持 nil。
 	ResponsesChatToolCtx *ResponsesChatToolContext
 
+	// ResponsesCompaction 仅用于 Responses→Chat 渠道：请求输入中检测到远程压缩 v2
+	// （compaction_trigger）时非 nil，驱动请求侧摘要指令注入与响应侧 compaction item 合成。
+	// 普通请求保持 nil，路径零影响。
+	ResponsesCompaction *ResponsesCompactionState
+
 	// RequestConversionChain records request format conversions in order, e.g.
 	// ["openai", "openai_responses"] or ["openai", "claude"].
 	RequestConversionChain []types.RelayFormat

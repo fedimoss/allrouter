@@ -203,6 +203,16 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 		}
 		_ = common.Unmarshal(itemRaw, &peek)
 
+		// 远程压缩协议条目显式过滤（不依赖 default 分支的惰性忽略）：
+		// - compaction_trigger：codex 压缩 v2 的请求侧触发器，仅在中继层消费，不进入 chat messages
+		// - additional_tools：codex desktop responses-lite 的运行时工具载体，chat 上游无此概念
+		// 压缩摘要重放（{"type":"compaction"/"compaction_summary"/"context_compaction",
+		// "encrypted_content":"ocx1:..."}）保序转换为 summary user 消息，见下方 case。
+		switch peek.Type {
+		case "compaction_trigger", "additional_tools":
+			continue
+		}
+
 		switch peek.Type {
 		case "message":
 			// 处理普通消息条目
@@ -280,6 +290,29 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 				}
 				pendingReasoning.WriteString(r)
 			}
+
+		case "compaction", "compaction_summary", "context_compaction":
+			// 压缩摘要重放：codex 客户端把之前压缩返回的 compaction item 原样带回。
+			// 保序就地转换为 summary user 消息（不最后统一追加，保持 input 顺序）：
+			// - ocx1: 信封 → 解码还原明文摘要（SUMMARY_PREFIX + 摘要）
+			// - 无前缀的加密 blob（真正 OpenAI 压缩内容）→ 不可读占位提示
+			// context_compaction 无 encrypted_content 时（纯本地压缩标记，摘要紧随其后的
+			// user 消息）跳过，避免产生空消息。
+			var compactItem struct {
+				EncryptedContent string `json:"encrypted_content"`
+			}
+			if err := common.Unmarshal(itemRaw, &compactItem); err != nil {
+				continue
+			}
+			if peek.Type == "context_compaction" && compactItem.EncryptedContent == "" {
+				continue
+			}
+			// compaction item 是历史边界：其后的 reasoning 不应再回溯附挂到摘要之前的内容。
+			pendingReasoning.Reset()
+			messages = append(messages, dto.Message{
+				Role:    "user",
+				Content: relaycommon.CompactionItemToMessageText(compactItem.EncryptedContent),
+			})
 
 		default:
 			// 尝试解析为带有 role 字段的简单消息

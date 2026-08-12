@@ -205,41 +205,68 @@ func ValidateUserTokenInProvider(key string, providerId int) (token *Token, err 
 	}
 	token, err = GetTokenByKey(key, false)
 	if err == nil {
-		if token.ProviderId != providerId {
-			return token, ErrTokenInvalid
-		}
-		if token.Status == common.TokenStatusExhausted ||
-			token.Status == common.TokenStatusExpired ||
-			token.Status != common.TokenStatusEnabled {
-			return token, ErrTokenInvalid
-		}
-		if token.ExpiredTime != -1 && token.ExpiredTime < common.GetTimestamp() {
-			if !common.RedisEnabled {
-				token.Status = common.TokenStatusExpired
-				err := token.SelectUpdate()
-				if err != nil {
-					common.SysLog("failed to update token status" + err.Error())
-				}
-			}
-			return token, ErrTokenInvalid
-		}
-		if !token.UnlimitedQuota && token.RemainQuota <= 0 {
-			if !common.RedisEnabled {
-				token.Status = common.TokenStatusExhausted
-				err := token.SelectUpdate()
-				if err != nil {
-					common.SysLog("failed to update token status" + err.Error())
-				}
-			}
-			return token, ErrTokenInvalid
-		}
-		return token, nil
+		return validateUserTokenRecord(token, providerId)
 	}
 	common.SysLog("ValidateUserToken: failed to get token: " + err.Error())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrTokenInvalid
 	}
 	return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
+}
+
+// ValidateUserTokenByIds 用于已由短期能力票据绑定身份、但请求本身不携带 API key
+// 的内部执行路径。它按主键和用户 ID 读取令牌，再复用 TokenAuth 的完整状态校验。
+func ValidateUserTokenByIds(id int, userId int) (*Token, error) {
+	token, err := GetTokenByIds(id, userId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrTokenInvalid
+		}
+		return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
+	}
+	// Redis 模式下令牌剩余额度和状态可能比数据库记录更新。先用主键绑定身份，
+	// 再回到现有 key 缓存校验链，并确认缓存结果仍属于同一个令牌和用户。
+	if common.RedisEnabled {
+		validated, err := ValidateUserTokenInProvider(token.Key, token.ProviderId)
+		if err != nil {
+			return validated, err
+		}
+		if validated == nil || validated.Id != id || validated.UserId != userId {
+			return validated, ErrTokenInvalid
+		}
+		return validated, nil
+	}
+	return validateUserTokenRecord(token, token.ProviderId)
+}
+
+func validateUserTokenRecord(token *Token, providerId int) (*Token, error) {
+	if token == nil || token.ProviderId != providerId {
+		return token, ErrTokenInvalid
+	}
+	if token.Status == common.TokenStatusExhausted ||
+		token.Status == common.TokenStatusExpired ||
+		token.Status != common.TokenStatusEnabled {
+		return token, ErrTokenInvalid
+	}
+	if token.ExpiredTime != -1 && token.ExpiredTime < common.GetTimestamp() {
+		if !common.RedisEnabled {
+			token.Status = common.TokenStatusExpired
+			if err := token.SelectUpdate(); err != nil {
+				common.SysLog("failed to update token status" + err.Error())
+			}
+		}
+		return token, ErrTokenInvalid
+	}
+	if !token.UnlimitedQuota && token.RemainQuota <= 0 {
+		if !common.RedisEnabled {
+			token.Status = common.TokenStatusExhausted
+			if err := token.SelectUpdate(); err != nil {
+				common.SysLog("failed to update token status" + err.Error())
+			}
+		}
+		return token, ErrTokenInvalid
+	}
+	return token, nil
 }
 
 func GetTokenByIds(id int, userId int) (*Token, error) {

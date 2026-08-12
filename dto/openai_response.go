@@ -338,16 +338,21 @@ type IncompleteDetails struct {
 }
 
 type ResponsesOutput struct {
-	Type      string                   `json:"type"`
-	ID        string                   `json:"id,omitempty"`
-	Status    string                   `json:"status"`
-	Role      string                   `json:"role"`
-	Content   []ResponsesOutputContent `json:"content"`
-	Quality   string                   `json:"quality"`
-	Size      string                   `json:"size"`
-	CallId    string                   `json:"call_id,omitempty"`
-	Name      string                   `json:"name,omitempty"`
-	Arguments json.RawMessage          `json:"arguments,omitempty"`
+	Type    string                   `json:"type"`
+	ID      string                   `json:"id,omitempty"`
+	Status  string                   `json:"status"`
+	Role    string                   `json:"role,omitempty"`
+	Content []ResponsesOutputContent `json:"content,omitempty"`
+	Quality string                   `json:"quality,omitempty"`
+	Size    string                   `json:"size,omitempty"`
+	Result  string                   `json:"result,omitempty"`
+	// ResultURL 是网关图片工件交付扩展字段。artifact 模式下 Result 可以为空，
+	// 客户端可直接读取该短期签名 URL；标准客户端仍可使用 Result Base64。
+	ResultURL     string          `json:"result_url,omitempty"`
+	RevisedPrompt string          `json:"revised_prompt,omitempty"`
+	CallId        string          `json:"call_id,omitempty"`
+	Name          string          `json:"name,omitempty"`
+	Arguments     json.RawMessage `json:"arguments,omitempty"`
 	// Summary 用于 reasoning 输出条目（type="reasoning"），承载 summary_text 部件数组。
 	Summary []ResponsesReasoningSummaryPart `json:"summary,omitempty"`
 	// 以下字段用于 Responses→Chat 渠道恢复 Codex 专用工具调用条目
@@ -360,6 +365,27 @@ type ResponsesOutput struct {
 	Input string `json:"input,omitempty"`
 	// ReasoningContent 携带附挂到工具调用条目的推理内容（部分思考型模型会产出）。
 	ReasoningContent string `json:"reasoning_content,omitempty"`
+	// EncryptedContent 仅 compaction 条目使用：codex 远程压缩 v2 期望的输出载荷。
+	// 中继侧用 ocx1: 透明信封承载摘要文本（codex 客户端不解析、原样保存并重放）。
+	EncryptedContent string `json:"encrypted_content,omitempty"`
+}
+
+// MarshalJSON keeps result present for artifact-mode image calls. Codex and other strict
+// Responses clients model image_generation_call.result as a required string; omitting it
+// would make the result_url extension unparsable even though the image is available.
+func (r ResponsesOutput) MarshalJSON() ([]byte, error) {
+	type responsesOutputAlias ResponsesOutput
+	if r.Type == ResponsesOutputTypeImageGenerationCall && r.ResultURL != "" && r.Result == "" {
+		type artifactOutput struct {
+			responsesOutputAlias
+			Result string `json:"result"`
+		}
+		return common.Marshal(artifactOutput{
+			responsesOutputAlias: responsesOutputAlias(r),
+			Result:               "",
+		})
+	}
+	return common.Marshal(responsesOutputAlias(r))
 }
 
 // ArgumentsString returns function call arguments in the string form expected by Chat Completions.
@@ -406,6 +432,9 @@ type ResponsesStreamResponse struct {
 	Response *OpenAIResponsesResponse `json:"response,omitempty"`
 	Delta    string                   `json:"delta,omitempty"`
 	Item     *ResponsesOutput         `json:"item,omitempty"`
+	// SequenceNumber 标识同一条 Responses SSE 流中的事件顺序。
+	// 合成流会从 1 开始递增；非合成转换路径未设置时保持省略，兼容已有调用方。
+	SequenceNumber *int `json:"sequence_number,omitempty"`
 	// Arguments 用于 response.function_call_arguments.done 的完整参数（区别于 delta 的增量片段）。
 	Arguments string `json:"arguments,omitempty"`
 	// Input 用于 response.custom_tool_call_input.done 的完整输入（custom 工具专属）。

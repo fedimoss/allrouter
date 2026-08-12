@@ -15,6 +15,15 @@ func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.DecompressRequestMiddleware())
 	router.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	router.Use(middleware.StatsMiddleware())
+	// Responses 图片交付端点使用短期能力凭据，不能使用 TokenAuth：客户端生成的
+	// shell 调用不会接触用户 API key。POST /execute 只在请求期间转发图片字节，
+	// GET /:id 则仅服务管理员显式启用的可选磁盘工件模式。
+	responsesImageArtifactRouter := router.Group("/v1/responses/images")
+	responsesImageArtifactRouter.Use(middleware.RouteTag("relay"))
+	{
+		responsesImageArtifactRouter.POST("/execute", relay.ExecuteResponsesImageClientStream)
+		responsesImageArtifactRouter.GET("/:id", controller.GetResponsesImageArtifact)
+	}
 	// https://platform.openai.com/docs/api-reference/introduction
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.RouteTag("relay"))
