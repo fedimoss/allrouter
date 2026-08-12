@@ -470,7 +470,11 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
 				return
 			}
-			respBody = openAIVideoData
+			respBody, err = rewriteVideoFileResponse(c, openAIVideoData)
+			if err != nil {
+				taskResp = service.TaskErrorWrapper(err, "rewrite_video_file_response_failed", http.StatusInternalServerError)
+				return
+			}
 			return
 		}
 		taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
@@ -486,6 +490,42 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
 	}
 	return
+}
+
+// rewriteVideoFileResponse exposes an upstream file path through the public SGLang route.
+func rewriteVideoFileResponse(c *gin.Context, data []byte) ([]byte, error) {
+	var response map[string]any
+	if err := common.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+
+	filePath, ok := response["file_path"].(string)
+	filePath = normalizeSGLangFilePath(filePath)
+	if !ok || filePath == "" {
+		return data, nil
+	}
+
+	baseURLCandidates := common.GetRequestBaseURLCandidates(c)
+	if len(baseURLCandidates) == 0 {
+		return data, nil
+	}
+
+	// The forwarded host is the last candidate when present and represents the
+	// public reverse-proxy origin rather than an internal upstream host.
+	baseURL := baseURLCandidates[len(baseURLCandidates)-1]
+	delete(response, "file_path")
+	delete(response, "file_paths")
+	response["content"] = map[string]any{
+		"url": strings.TrimRight(baseURL, "/") + "/sglang/" + strings.TrimLeft(filePath, "/"),
+	}
+
+	return common.Marshal(response)
+}
+
+func normalizeSGLangFilePath(filePath string) string {
+	filePath = strings.TrimLeft(strings.TrimSpace(filePath), "/")
+	filePath = strings.TrimPrefix(filePath, "sgl-workspace/sglang/")
+	return strings.TrimPrefix(filePath, "sglang/")
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。
