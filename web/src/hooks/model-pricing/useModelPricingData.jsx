@@ -107,7 +107,11 @@ export const useModelPricingData = () => {
 
     // 计费类型筛选
     if (filterQuotaType !== 'all') {
-      result = result.filter((model) => model.quota_type === filterQuotaType);
+      result = result.filter((model) =>
+        filterQuotaType === 'per_second'
+          ? model.billing_mode === 'per_second'
+          : model.quota_type === filterQuotaType && model.billing_mode !== 'per_second',
+      );
     }
 
     // 端点类型筛选

@@ -12,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
@@ -20,7 +21,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	tokenName := c.GetString("token_name")
 	logContent := fmt.Sprintf("操作 %s", info.Action)
 	// 支持任务仅按次计费
-	if common.StringsContains(constant.TaskPricePatches, info.OriginModelName) {
+	if info.PriceData.BillingMode == "per_second" {
+		logContent = fmt.Sprintf("%s, %s %.4f/s × %.2f", logContent, info.PriceData.Resolution, info.PriceData.UnitPrice, info.PriceData.UnitCount)
+	} else if common.StringsContains(constant.TaskPricePatches, info.OriginModelName) {
 		logContent = fmt.Sprintf("%s，按次计费", logContent)
 	} else {
 		if len(info.PriceData.OtherRatios) > 0 {
@@ -39,6 +42,14 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	other["is_task"] = true
 	other["request_path"] = c.Request.URL.Path
 	other["model_price"] = info.PriceData.ModelPrice
+	if info.PriceData.BillingMode != "" {
+		other["billing_mode"] = info.PriceData.BillingMode
+		other["billing_unit"] = info.PriceData.BillingUnit
+		other["resolution"] = info.PriceData.Resolution
+		other["unit_price"] = info.PriceData.UnitPrice
+		other["unit_count"] = info.PriceData.UnitCount
+		other["output_count"] = info.PriceData.OutputCount
+	}
 	if info.PriceData.ModelRatio > 0 {
 		other["model_ratio"] = info.PriceData.ModelRatio
 	}
@@ -246,6 +257,73 @@ func FinalizeTaskConsumeRebate(ctx context.Context, task *model.Task) {
 	}
 }
 
+// FinalizeTaskProviderProfit applies provider cost/profit only after an async
+// task succeeds. ProviderProfit.RequestId is unique, so retries and concurrent
+// pollers remain idempotent.
+func FinalizeTaskProviderProfit(ctx context.Context, task *model.Task) {
+	if task == nil || task.PrivateData.ProviderProfitSettled {
+		return
+	}
+	bc := task.PrivateData.BillingContext
+	if bc == nil || bc.ProviderId <= 0 || bc.ProviderOwnerUserId <= 0 || bc.ProviderBaseQuota <= 0 {
+		return
+	}
+	providerCharge := bc.ProviderUserQuota
+	if providerCharge < 0 {
+		providerCharge = 0
+	}
+	paidQuota := task.PrivateData.WalletPaidUsed
+	if paidQuota < 0 {
+		paidQuota = 0
+	}
+	if providerCharge > 0 && paidQuota > providerCharge {
+		paidQuota = providerCharge
+	}
+	coveredCost := 0
+	profitQuota := 0
+	if providerCharge > 0 && paidQuota > 0 {
+		paidRatio := decimal.NewFromInt(int64(paidQuota)).Div(decimal.NewFromInt(int64(providerCharge)))
+		coverableCost := bc.ProviderBaseQuota
+		if providerCharge < coverableCost {
+			coverableCost = providerCharge
+		}
+		coveredCost = int(decimal.NewFromInt(int64(coverableCost)).Mul(paidRatio).IntPart())
+		if grossProfit := providerCharge - bc.ProviderBaseQuota; grossProfit > 0 {
+			profitQuota = int(decimal.NewFromInt(int64(grossProfit)).Mul(paidRatio).IntPart())
+		}
+	}
+	ownerCost := bc.ProviderBaseQuota - coveredCost
+	if ownerCost < 0 {
+		ownerCost = 0
+	}
+	record := &model.ProviderProfit{
+		ProviderId:        bc.ProviderId,
+		OwnerUserId:       bc.ProviderOwnerUserId,
+		ProviderUserId:    task.UserId,
+		RequestId:         stableConsumeRebateRequestId("task-provider-profit", task.TaskID),
+		PublicModelName:   bc.ProviderPublicModel,
+		BaseModelName:     bc.ProviderBaseModel,
+		ProviderUserQuota: providerCharge,
+		BaseCostQuota:     bc.ProviderBaseQuota,
+		PaidQuota:         paidQuota,
+		CoveredCostQuota:  coveredCost,
+		OwnerCostQuota:    ownerCost,
+		ProfitQuota:       profitQuota,
+	}
+	result, err := model.ApplyProviderProfit(record)
+	if err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("failed to finalize task provider profit (task=%s): %s", task.TaskID, err.Error()))
+		return
+	}
+	if result != nil && result.Applied {
+		model.LogProviderProfit(record)
+	}
+	task.PrivateData.ProviderProfitSettled = true
+	if err := persistTaskBillingState(task); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("failed to persist task provider profit state (task=%s): %s", task.TaskID, err.Error()))
+	}
+}
+
 func persistMidjourneyBillingState(task *model.Midjourney) error {
 	if task == nil || task.Id <= 0 {
 		return nil
@@ -354,6 +432,14 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 			other["model_ratio"] = bc.ModelRatio
 		}
 		other["group_ratio"] = bc.GroupRatio
+		if bc.BillingMode != "" {
+			other["billing_mode"] = bc.BillingMode
+			other["billing_unit"] = bc.BillingUnit
+			other["resolution"] = bc.Resolution
+			other["unit_price"] = bc.UnitPrice
+			other["unit_count"] = bc.UnitCount
+			other["output_count"] = bc.OutputCount
+		}
 		if len(bc.OtherRatios) > 0 {
 			for k, v := range bc.OtherRatios {
 				other[k] = v

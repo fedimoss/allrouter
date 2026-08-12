@@ -38,6 +38,8 @@ import {
   renderModelPrice,
   renderTieredModelPrice,
   renderTaskBillingProcess,
+  renderPerSecondModelPrice,
+  renderPerSecondModelPriceSimple,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -544,6 +546,11 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
           key: t('日志详情'),
           value: other?.billing_mode === 'tiered_expr'
             ? t('动态计费')
+            : other?.billing_mode === 'per_second'
+            ? renderPerSecondModelPriceSimple({
+                ...other,
+                actualQuota: logs[i].quota,
+              })
             : other?.claude
             ? renderClaudeLogContent(
                 other?.model_ratio,
@@ -603,6 +610,11 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
           const isTaskLog = other?.is_task === true || other?.task_id != null;
           if (providerCostLog) {
             content = renderProviderCostBillingProcess(logs[i], other, t);
+          } else if (other?.billing_mode === 'per_second') {
+            content = renderPerSecondModelPrice({
+              ...other,
+              actualQuota: logs[i].quota,
+            });
           } else if (isTaskLog && other?.model_price === -1) {
             content = renderTaskBillingProcess(other, logs[i].content);
           } else if (other?.billing_mode === 'tiered_expr') {
@@ -810,7 +822,11 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
           value: requestConversionDisplayValue(other?.request_conversion),
         });
       }
-      if (isAdminUser && logs[i].type !== 6) {
+      if (
+        isAdminUser &&
+        logs[i].type !== 6 &&
+        other?.billing_mode !== 'per_second'
+      ) {
         let localCountMode = '';
         if (other?.admin_info?.local_count_tokens) {
           localCountMode = t('本地计费');

@@ -145,7 +145,12 @@ const PricingSidebar = ({
       {
         value: 1,
         label: t('按次计费'),
-        count: quotaTypeModels.filter((model) => model.quota_type === 1).length,
+        count: quotaTypeModels.filter((model) => model.quota_type === 1 && model.billing_mode !== 'per_second').length,
+      },
+      {
+        value: 'per_second',
+        label: t('按秒计费'),
+        count: quotaTypeModels.filter((model) => model.billing_mode === 'per_second').length,
       },
     ],
     [quotaTypeModels, t],

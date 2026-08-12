@@ -1611,6 +1611,8 @@ const ProviderPage = () => {
       render: (billingMode) =>
         billingMode === 'tiered_expr' ? (
           <Tag color='amber'>{t('动态计费')}</Tag>
+        ) : billingMode === 'per_second' ? (
+          <Tag color='cyan'>{t('按秒计费')}</Tag>
         ) : (
           '-'
         ),
@@ -1636,7 +1638,7 @@ const ProviderPage = () => {
         record.pricing_type === 'delta' ? value : '-',
     },
     {
-      title: t('按次模型加价金额'),
+      title: t('固定价格模型加价金额'),
       dataIndex: 'delta_model_price',
       render: (value, record) =>
         record.pricing_type === 'delta' ? value : '-',
@@ -1737,6 +1739,8 @@ const ProviderPage = () => {
       render: (quotaType, record) =>
         record.billing_mode === 'tiered_expr'
           ? t('动态计费')
+          : record.billing_mode === 'per_second'
+            ? t('按秒计费')
           : quotaType === 1
             ? t('按次价格')
             : t('Token 倍率'),
@@ -1749,6 +1753,14 @@ const ProviderPage = () => {
           <Text type='tertiary' size='small'>
             {t('见上方动态计费详情')}
           </Text>
+        ) : record.billing_mode === 'per_second' ? (
+          <Space vertical align='start' spacing={2}>
+            {Object.entries(record.resolution_prices || {}).map(([resolution, price]) => (
+              <Text key={resolution}>
+                {resolution}: {t('原价')} {formatPriceNumber(price)}/s · {t('服务商成本价')} {formatPriceNumber(record.cost_resolution_prices?.[resolution])}/s
+              </Text>
+            ))}
+          </Space>
         ) : (
           <Space vertical align='start' spacing={1}>
             <Text>
@@ -2679,12 +2691,12 @@ const ProviderPage = () => {
               />
               <Form.InputNumber
                 field='delta_model_price'
-                label={t('按次模型加价金额')}
+                label={t('固定价格模型加价金额')}
                 step={0.000001}
               />
               <Text type='tertiary' size='small'>
                 {t(
-                  '按 token 计费的模型看“Token 模型加价倍率”；按次、按张、按任务计费的模型看“按次模型加价金额”。填 0 表示不额外加价。',
+                  '按 token 计费的模型使用“Token 模型加价倍率”；按次、按张、按任务计费的模型按次加价；按秒计费的模型按每秒加价。填 0 表示不额外加价。',
                 )}
               </Text>
             </>

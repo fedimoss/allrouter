@@ -81,6 +81,16 @@ const buildPrimaryPriceItems = (priceData, t, quotaDisplayType) => {
     ];
   }
 
+  if (priceData?.isPerSecond) {
+    const first = priceData.resolutionPrices?.[0];
+    return [{
+      key: 'per-second',
+      label: t('最低价格'),
+      value: first?.price ?? '-',
+      suffix: ` / ${t('秒')}`,
+    }];
+  }
+
   if (priceData?.isPerToken) {
     if (quotaDisplayType === 'TOKENS' || priceData.isTokensDisplay) {
       return [
@@ -167,6 +177,8 @@ const PricingCardView = ({
     let billingTag = <Tag key='billing' shape='circle' color='white' size='small'>-</Tag>;
     if (record.billing_mode === 'tiered_expr') {
       billingTag = <Tag key='billing' shape='circle' color='amber' size='small'>{t('动态计费')}</Tag>;
+    } else if (record.billing_mode === 'per_second') {
+      billingTag = <Tag key='billing' shape='circle' color='cyan' size='small'>{t('按秒计费')}</Tag>;
     } else if (record.quota_type === 1) {
       billingTag = <Tag key='billing' shape='circle' color='teal' size='small'>{t('按次计费')}</Tag>;
     } else if (record.quota_type === 0) {

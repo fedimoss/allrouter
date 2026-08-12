@@ -66,10 +66,20 @@ func applyProviderPricingRule(item model.Pricing, rule model.ProviderModelPricin
 	item.ModelName = rule.PublicModelName
 	item.ModelRatio *= importPriceRatio
 	item.ModelPrice *= importPriceRatio
+	if len(item.ResolutionPrices) > 0 {
+		prices := make(map[string]float64, len(item.ResolutionPrices))
+		for resolution, price := range item.ResolutionPrices {
+			prices[resolution] = price * importPriceRatio
+		}
+		item.ResolutionPrices = prices
+	}
 
 	if rule.PricingType == model.ProviderPricingTypeDelta {
 		item.ModelRatio += rule.DeltaModelRatio
 		item.ModelPrice += rule.DeltaModelPrice
+		for resolution, price := range item.ResolutionPrices {
+			item.ResolutionPrices[resolution] = price + rule.DeltaModelPrice
+		}
 		if item.BillingMode == "tiered_expr" && strings.TrimSpace(item.BillingExpr) != "" {
 			item.BillingExpr = scaleBillingExprForDisplay(item.BillingExpr, importPriceRatio)
 			item.ProviderPricingType = model.ProviderPricingTypeDelta
@@ -79,6 +89,9 @@ func applyProviderPricingRule(item model.Pricing, rule model.ProviderModelPricin
 		ratio := providerPricingRatio(rule)
 		item.ModelRatio *= ratio
 		item.ModelPrice *= ratio
+		for resolution, price := range item.ResolutionPrices {
+			item.ResolutionPrices[resolution] = price * ratio
+		}
 		if item.BillingMode == "tiered_expr" && strings.TrimSpace(item.BillingExpr) != "" {
 			item.BillingExpr = scaleBillingExprForDisplay(item.BillingExpr, importPriceRatio*ratio)
 			item.ProviderPricingType = model.ProviderPricingTypeRatio
@@ -204,7 +217,7 @@ func GetPricing(c *gin.Context) {
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
 		"auto_groups":        autoGroups,
-		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
+		"pricing_version":    "b2c5fbb11278d477f8141196fd56208a",
 	})
 }
 

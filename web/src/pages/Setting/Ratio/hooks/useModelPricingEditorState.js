@@ -42,6 +42,8 @@ const EMPTY_MODEL = {
   audioOutputPrice: '',
   billingExpr: '',
   requestRuleExpr: '',
+  defaultResolution: '768P',
+  resolutionPrices: [{ resolution: '768P', price: '' }],
   rawRatios: {
     modelRatio: '',
     completionRatio: '',
@@ -123,6 +125,22 @@ const normalizeCompletionRatioMeta = (rawMeta) => {
 
 const buildModelState = (name, sourceMaps) => {
   const billingMode = sourceMaps.ModelBillingMode?.[name];
+  if (billingMode === 'per_second') {
+    const config = sourceMaps.VideoResolutionPrices?.[name] || {};
+    const rows = Object.entries(config.prices || {}).map(([resolution, price]) => ({
+      resolution,
+      price: toNumericString(price),
+    }));
+    return {
+      ...EMPTY_MODEL,
+      name,
+      billingMode: 'per-second',
+      defaultResolution: config.default_resolution || rows[0]?.resolution || '768P',
+      resolutionPrices: rows.length > 0 ? rows : [{ resolution: '768P', price: '' }],
+      rawRatios: { ...EMPTY_MODEL.rawRatios },
+      hasConflict: false,
+    };
+  }
   if (billingMode === 'tiered_expr') {
     const fullBillingExpr = sourceMaps.ModelBillingExpr?.[name] || '';
     const { billingExpr, requestRuleExpr } =
@@ -224,7 +242,7 @@ const buildModelState = (name, sourceMaps) => {
 };
 
 export const isBasePricingUnset = (model) =>
-  model.billingMode !== 'tiered_expr' &&
+  model.billingMode !== 'tiered_expr' && model.billingMode !== 'per-second' &&
   !hasValue(model.fixedPrice) && !hasValue(model.inputPrice);
 
 export const getModelWarnings = (model, t) => {
@@ -301,6 +319,13 @@ export const buildSummaryText = (model, t) => {
       return `${t('表达式计费')}${requestRuleSuffix}`;
     }
     return `${t('阶梯计费')} (${tierCount} ${t('档')})${requestRuleSuffix}`;
+  }
+
+  if (model.billingMode === 'per-second') {
+    const configured = model.resolutionPrices.filter((item) => hasValue(item.price));
+    if (configured.length === 0) return t('按秒计费（未配置价格）');
+    const minimum = Math.min(...configured.map((item) => Number(item.price)));
+    return `${t('按秒计费')} ${t('最低')} $${formatNumber(minimum)}/s (${configured.length} ${t('档')})`;
   }
 
   if (model.billingMode === 'per-request' && hasValue(model.fixedPrice)) {
@@ -487,6 +512,18 @@ export const buildPreviewRows = (model, t) => {
     return rows;
   }
 
+  if (model.billingMode === 'per-second') {
+    return [
+      { key: 'BillingMode', label: 'ModelBillingMode', value: 'per_second' },
+      { key: 'DefaultResolution', label: t('默认分辨率'), value: model.defaultResolution || t('空') },
+      ...model.resolutionPrices.map((item, index) => ({
+        key: `ResolutionPrice-${index}`,
+        label: item.resolution || t('分辨率'),
+        value: hasValue(item.price) ? `$${item.price}/s` : t('空'),
+      })),
+    ];
+  }
+
   if (model.billingMode === 'per-request') {
     const rows = [
       {
@@ -648,6 +685,7 @@ export function useModelPricingEditorState({
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
       ModelBillingMode: parseOptionJSON(options['billing_setting.billing_mode']),
       ModelBillingExpr: parseOptionJSON(options['billing_setting.billing_expr']),
+      VideoResolutionPrices: parseOptionJSON(options['billing_setting.video_resolution_prices']),
     };
 
     const names = new Set([
@@ -663,6 +701,7 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.AudioCompletionRatio),
       ...Object.keys(sourceMaps.ModelBillingMode),
       ...Object.keys(sourceMaps.ModelBillingExpr),
+      ...Object.keys(sourceMaps.VideoResolutionPrices),
     ]);
 
     const nextModels = Array.from(names)
@@ -891,6 +930,37 @@ export function useModelPricingEditorState({
     }));
   };
 
+  const handleDefaultResolutionChange = (value) => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => ({ ...model, defaultResolution: value }));
+  };
+
+  const handleResolutionPriceChange = (index, field, value) => {
+    if (!selectedModel || (field === 'price' && !NUMERIC_INPUT_REGEX.test(value))) return;
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      resolutionPrices: model.resolutionPrices.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    }));
+  };
+
+  const addResolutionPrice = () => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      resolutionPrices: [...model.resolutionPrices, { resolution: '', price: '' }],
+    }));
+  };
+
+  const removeResolutionPrice = (index) => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      resolutionPrices: model.resolutionPrices.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
   const handleRequestRuleExprChange = (newExpr) => {
     if (!selectedModel) return;
     upsertModel(selectedModel.name, (model) => ({
@@ -973,6 +1043,8 @@ export function useModelPricingEditorState({
           audioOutputPrice: selectedModel.audioOutputPrice,
           billingExpr: selectedModel.billingExpr || '',
           requestRuleExpr: selectedModel.requestRuleExpr || '',
+          defaultResolution: selectedModel.defaultResolution,
+          resolutionPrices: selectedModel.resolutionPrices.map((item) => ({ ...item })),
         };
 
         if (
@@ -1037,6 +1109,7 @@ export function useModelPricingEditorState({
       const tieredOutput = {
         'billing_setting.billing_mode': {},
         'billing_setting.billing_expr': {},
+        'billing_setting.video_resolution_prices': {},
       };
 
       for (const model of models) {
@@ -1049,6 +1122,29 @@ export function useModelPricingEditorState({
             tieredOutput['billing_setting.billing_mode'][model.name] = 'tiered_expr';
             tieredOutput['billing_setting.billing_expr'][model.name] = finalBillingExpr;
           }
+        }
+        if (model.billingMode === 'per-second') {
+          const prices = {};
+          for (const row of model.resolutionPrices) {
+            const resolution = row.resolution.trim().toUpperCase();
+            const price = toNumberOrNull(row.price);
+            if (!resolution || price === null || price < 0) {
+              throw new Error(t('按秒计费的分辨率和价格必须填写完整'));
+            }
+            if (Object.prototype.hasOwnProperty.call(prices, resolution)) {
+              throw new Error(t('分辨率档位不能重复'));
+            }
+            prices[resolution] = price;
+          }
+          const defaultResolution = model.defaultResolution.trim().toUpperCase();
+          if (!defaultResolution || !Object.prototype.hasOwnProperty.call(prices, defaultResolution)) {
+            throw new Error(t('默认分辨率必须是已配置的档位'));
+          }
+          tieredOutput['billing_setting.billing_mode'][model.name] = 'per_second';
+          tieredOutput['billing_setting.video_resolution_prices'][model.name] = {
+            default_resolution: defaultResolution,
+            prices,
+          };
         }
 
         // Always serialize ratio/price values for all models (including
@@ -1063,7 +1159,7 @@ export function useModelPricingEditorState({
             }
           });
         } catch (e) {
-          if (model.billingMode !== 'tiered_expr') {
+          if (model.billingMode !== 'tiered_expr' && model.billingMode !== 'per-second') {
             throw e;
           }
         }
@@ -1076,12 +1172,14 @@ export function useModelPricingEditorState({
             value: JSON.stringify(value, null, 2),
           }),
         ),
-        ...Object.entries(tieredOutput).map(([key, value]) =>
-          API.put('/api/option/', {
-            key,
-            value: JSON.stringify(value, null, 2),
-          }),
-        ),
+        API.put('/api/option/billing', {
+          values: Object.fromEntries(
+            Object.entries(tieredOutput).map(([key, value]) => [
+              key,
+              JSON.stringify(value, null, 2),
+            ]),
+          ),
+        }),
       ];
 
       const results = await Promise.all(requestQueue);
@@ -1124,6 +1222,10 @@ export function useModelPricingEditorState({
     handleNumericFieldChange,
     handleBillingModeChange,
     handleBillingExprChange,
+    handleDefaultResolutionChange,
+    handleResolutionPriceChange,
+    addResolutionPrice,
+    removeResolutionPrice,
     handleRequestRuleExprChange,
     handleSubmit,
     addModel,

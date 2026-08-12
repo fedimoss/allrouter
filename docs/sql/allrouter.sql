@@ -7256,3 +7256,14 @@ CREATE INDEX IF NOT EXISTS idx_subscription_orders_reserved_stock_expiry
     WHERE status = 'pending' AND stock_status = 'reserved';
 
 COMMIT;
+
+
+BEGIN;
+
+ALTER TABLE tokens
+    ADD COLUMN IF NOT EXISTS minimax_h3_seed bigint NULL;
+
+COMMENT ON COLUMN tokens.minimax_h3_seed IS
+    'Stable MiniMax-H3 生成种子在API令牌首次使用时分配';
+
+COMMIT;

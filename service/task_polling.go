@@ -573,6 +573,7 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 	// 使用 defer 确保 FinalizeTaskConsumeRebate 在所有差额调整完成后执行，
 	// 此时 task.PrivateData.WalletPaidUsed 已经是最终的充值消耗值。
 	defer FinalizeTaskConsumeRebate(ctx, task)
+	defer FinalizeTaskProviderProfit(ctx, task)
 	RecordTaskTotalTokenUsage(ctx, task, taskResult.TotalTokens)
 
 	// 0. 按次计费的任务不做差额结算

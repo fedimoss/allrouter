@@ -103,7 +103,9 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 				logger.LogError(ctx, "error applying consume rebate: "+err.Error())
 			}
 		}
-		applyProviderProfitForRelay(ctx, relayInfo, paidQuota)
+		if !relayInfo.ForcePreConsume {
+			applyProviderProfitForRelay(ctx, relayInfo, paidQuota)
+		}
 
 		// 发送额度通知（订阅计费使用订阅剩余额度）
 		if actualQuota != 0 {
