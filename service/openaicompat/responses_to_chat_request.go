@@ -1016,6 +1016,20 @@ func convertResponsesToolChoice(toolChoiceRaw json.RawMessage, ctx *relaycommon.
 
 // convertResponsesTextToResponseFormat 将 Responses API 的 "text" 字段
 // （包含格式信息）转换为 Chat Completions 的 response_format。
+//
+// OpenAI Chat Completions 严格要求 response_format.json_schema 为包装结构：
+//
+//	{name: <必填>, schema: <实际 schema 定义>, strict: <bool>}
+//
+// 缺少 name 会被严格上游（sglang/vLLM 等）以 "Field required: json_schema.name" 400 拒绝。
+// 而 Responses API 客户端传入的 text.format 有多种变体，此处统一归一化：
+//
+//  1. 平级结构（OpenAI Responses 官方）：format = {type, name, schema, strict}
+//  2. json_schema 包装（客户端已按 Chat 风格写）：format = {type, json_schema: {name, schema, strict}}
+//  3. json_schema 纯 schema（部分客户端，如报错中的 $schema/properties/required 直接平铺）：
+//     format = {type, json_schema: {$schema, properties, required, type, ...}}，缺 name
+//
+// 纯 schema 无 name 时，name 取 schema.title 兜底，再退到 "response"，避免上游 400。
 func convertResponsesTextToResponseFormat(textRaw json.RawMessage) *dto.ResponseFormat {
 	var text struct {
 		Format map[string]any `json:"format"` // 格式定义
@@ -1034,25 +1048,128 @@ func convertResponsesTextToResponseFormat(textRaw json.RawMessage) *dto.Response
 		Type: formatType,
 	}
 
-	// 处理 json_schema 格式：从 format.json_schema 字段提取 schema
-	if formatType == "json_schema" {
-		if schema, ok := text.Format["json_schema"]; ok {
-			schemaBytes, err := common.Marshal(schema)
-			if err == nil {
-				rf.JsonSchema = schemaBytes
-			}
-		}
+	// 仅 json_schema 需要包装归一化；其它类型（如 json_object）直接透传，无 json_schema 字段。
+	if formatType != "json_schema" {
+		return rf
 	}
 
-	// 处理顶层 schema 字段（部分供应商的嵌套方式不同）
-	if schema, ok := text.Format["schema"]; ok && rf.JsonSchema == nil {
-		schemaBytes, err := common.Marshal(schema)
-		if err == nil {
-			rf.JsonSchema = schemaBytes
+	// 解析 text.format.json_schema，未提供则按平级结构处理（官方 Responses：name/schema/strict 与 type 平级）。
+	wrapper := buildChatJsonSchemaWrapper(text.Format)
+	if wrapper != nil {
+		if b, err := common.Marshal(wrapper); err == nil {
+			rf.JsonSchema = b
 		}
 	}
-
 	return rf
+}
+
+// buildChatJsonSchemaWrapper 把 Responses text.format 解析为 OpenAI Chat Completions 要求的
+// json_schema 包装结构 {name, schema, strict}。输入支持平级（name/schema/strict 与 type 同层）
+// 与嵌套（json_schema 子对象，可能是已包装也可能是纯 schema）两种变体。
+func buildChatJsonSchemaWrapper(format map[string]any) map[string]any {
+	const defaultName = "response"
+
+	// 候选来源 1：嵌套的 format.json_schema（可能是 {name,schema,strict} 包装，也可能是纯 schema）。
+	nested, hasNested := format["json_schema"].(map[string]any)
+	if hasNested {
+		// 已是 Chat 风格包装：含 schema 子对象且（有 name 或 schema 同时存在）。
+		if _, hasSchema := nested["schema"]; hasSchema {
+			out := map[string]any{
+				"schema": nested["schema"],
+			}
+			if name, ok := nested["name"].(string); ok && strings.TrimSpace(name) != "" {
+				out["name"] = name
+			} else if derived := jsonSchemaName(nested["schema"]); derived != "" {
+				out["name"] = derived
+			} else {
+				out["name"] = defaultName
+			}
+			if strict, ok := nested["strict"]; ok {
+				out["strict"] = strict
+			}
+			if desc, ok := nested["description"].(string); ok && strings.TrimSpace(desc) != "" {
+				out["description"] = desc
+			}
+			return out
+		}
+		// 纯 schema（无 schema 子字段、无 name）：把整个 nested 当作 schema，name 取 title 兜底。
+		out := map[string]any{
+			"schema": nested,
+		}
+		if derived := jsonSchemaName(nested); derived != "" {
+			out["name"] = derived
+		} else {
+			out["name"] = defaultName
+		}
+		return out
+	}
+
+	// 候选来源 2：平级结构 format = {type, name, schema, strict}（官方 Responses 写法）。
+	if schema, hasSchema := format["schema"]; hasSchema {
+		out := map[string]any{
+			"schema": schema,
+		}
+		if name, ok := format["name"].(string); ok && strings.TrimSpace(name) != "" {
+			out["name"] = name
+		} else if derived := jsonSchemaName(schema); derived != "" {
+			out["name"] = derived
+		} else {
+			out["name"] = defaultName
+		}
+		if strict, ok := format["strict"]; ok {
+			out["strict"] = strict
+		}
+		return out
+	}
+
+	// 候选来源 3：format 整体就是纯 schema（既无 json_schema 也无 schema 字段，但含 JSON Schema 关键字）。
+	if hasSchemaKeyword(format) {
+		out := map[string]any{
+			"schema": format,
+		}
+		if derived := jsonSchemaName(format); derived != "" {
+			out["name"] = derived
+		} else {
+			out["name"] = defaultName
+		}
+		return out
+	}
+	return nil
+}
+
+// jsonSchemaName 从 JSON Schema 中提取可用作 response_format.json_schema.name 的名称：
+// 优先 schema.title，其次 schema.$id 的最后一段。均无则返回空串。
+func jsonSchemaName(schema any) string {
+	m, ok := schema.(map[string]any)
+	if !ok {
+		return ""
+	}
+	if title, ok := m["title"].(string); ok {
+		if trimmed := strings.TrimSpace(title); trimmed != "" {
+			return trimmed
+		}
+	}
+	if id, ok := m["$id"].(string); ok {
+		if trimmed := strings.TrimSpace(id); trimmed != "" {
+			// 取 $id 的最后一段作为名称（如 https://.../foo.json → foo.json）
+			if idx := strings.LastIndexAny(trimmed, "/#"); idx >= 0 && idx < len(trimmed)-1 {
+				return trimmed[idx+1:]
+			}
+			return trimmed
+		}
+	}
+	return ""
+}
+
+// hasSchemaKeyword 判断 map 是否看起来像一个 JSON Schema 定义（含 properties/type/$schema 等关键字），
+// 用于兜底识别 format 直接平铺纯 schema 的变体。
+func hasSchemaKeyword(m map[string]any) bool {
+	for _, k := range []string{"properties", "$schema", "$id", "required", "additionalProperties"} {
+		if _, ok := m[k]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // normalizeResponsesRole 将 Responses API 的角色归一化为 Chat Completions 兼容角色。
