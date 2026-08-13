@@ -146,11 +146,13 @@ func main() {
 		}
 		return a
 	}
+	service.SubmitMiniMaxH3TaskFunc = relay.SubmitQueuedMiniMaxH3Task
 
 	// Channel upstream model update check task
 	controller.StartChannelUpstreamModelUpdateTask()
 
 	if common.IsMasterNode && constant.UpdateTask {
+		service.StartMiniMaxH3Dispatcher()
 		gopool.Go(func() {
 			controller.UpdateMidjourneyTaskBulk()
 		})

@@ -2,12 +2,14 @@ package relay
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -19,15 +21,80 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 type TaskSubmitResult struct {
 	UpstreamTaskID string
 	TaskData       []byte
+	PendingRequest []byte
 	Platform       constant.TaskPlatform
 	Quota          int
+	Queued         bool
 	//PerCallPrice   types.PriceData
+}
+
+func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.MiniMaxH3SubmitResult, error) {
+	if task == nil {
+		return nil, errors.New("task is required")
+	}
+	if len(task.PrivateData.PendingRequest) == 0 {
+		return nil, errors.New("MiniMax-H3 pending request is empty")
+	}
+
+	ch, err := model.GetChannelById(task.ChannelId, true)
+	if err != nil {
+		return nil, fmt.Errorf("get MiniMax-H3 channel: %w", err)
+	}
+	baseURL := constant.ChannelBaseURLs[ch.Type]
+	if ch.GetBaseURL() != "" {
+		baseURL = ch.GetBaseURL()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(baseURL, "/")+"/v1/videos", bytes.NewReader(task.PrivateData.PendingRequest))
+	if err != nil {
+		return nil, fmt.Errorf("build MiniMax-H3 request: %w", err)
+	}
+	key := task.PrivateData.Key
+	if key == "" {
+		key = ch.Key
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Content-Type", "application/json")
+
+	client, err := service.GetHttpClientWithProxy(ch.GetSetting().Proxy)
+	if err != nil {
+		return nil, fmt.Errorf("build MiniMax-H3 HTTP client: %w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("submit MiniMax-H3 request: %w", err)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	if err != nil {
+		return nil, fmt.Errorf("read MiniMax-H3 submit response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("MiniMax-H3 submit status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var response map[string]any
+	if err := common.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("parse MiniMax-H3 submit response: %w", err)
+	}
+	upstreamTaskID, _ := response["id"].(string)
+	if upstreamTaskID == "" {
+		upstreamTaskID, _ = response["task_id"].(string)
+	}
+	if upstreamTaskID == "" {
+		return nil, errors.New("MiniMax-H3 submit response has no task id")
+	}
+	return &service.MiniMaxH3SubmitResult{
+		UpstreamTaskID: upstreamTaskID,
+		TaskData:       body,
+	}, nil
 }
 
 // ResolveOriginTask 处理基于已有任务的提交（remix / continuation）：
@@ -183,13 +250,44 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
 	}
 	info.PriceData = priceData
+	if info.PriceData.BillingMode == billing_setting.BillingModePerSecond {
+		estimator, ok := adaptor.(channel.PerSecondBillingEstimator)
+		if !ok {
+			return nil, service.TaskErrorWrapperLocal(fmt.Errorf("task adaptor %s does not support per-second billing", adaptor.GetChannelName()), "per_second_billing_unsupported", http.StatusBadRequest)
+		}
+		resolution, seconds, outputCount, estimateErr := estimator.EstimatePerSecondBilling(c, info)
+		if estimateErr != nil {
+			return nil, service.TaskErrorWrapperLocal(estimateErr, "invalid_per_second_billing_parameters", http.StatusBadRequest)
+		}
+		if seconds <= 0 || outputCount <= 0 {
+			return nil, service.TaskErrorWrapperLocal(fmt.Errorf("duration and output count must be positive"), "invalid_per_second_billing_parameters", http.StatusBadRequest)
+		}
+		resolution, unitPrice, resolveErr := billing_setting.ResolvePerSecondPrice(modelName, resolution)
+		if resolveErr != nil {
+			return nil, service.TaskErrorWrapperLocal(resolveErr, "resolution_price_not_configured", http.StatusBadRequest)
+		}
+		unitCount := decimal.NewFromFloat(seconds).Mul(decimal.NewFromInt(int64(outputCount)))
+		quota, quotaErr := helper.CalculatePerSecondQuota(unitPrice, seconds, outputCount, info.PriceData.GroupRatioInfo.GroupRatio)
+		if quotaErr != nil {
+			return nil, service.TaskErrorWrapperLocal(quotaErr, "per_second_quota_overflow", http.StatusBadRequest)
+		}
+		info.PriceData.Resolution = resolution
+		info.PriceData.UnitPrice = unitPrice
+		info.PriceData.ModelPrice = unitPrice
+		info.PriceData.UnitCount = unitCount.InexactFloat64()
+		info.PriceData.OutputCount = outputCount
+		info.PriceData.Quota = quota
+		info.PriceData.BaseQuota = quota
+	}
 
 	// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
 	//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。
 	//    ResolveOriginTask 可能已在 remix 路径中预设了 OtherRatios，此处合并。
-	if estimatedRatios := adaptor.EstimateBilling(c, info); len(estimatedRatios) > 0 {
-		for k, v := range estimatedRatios {
-			info.PriceData.AddOtherRatio(k, v)
+	if info.PriceData.BillingMode != billing_setting.BillingModePerSecond {
+		if estimatedRatios := adaptor.EstimateBilling(c, info); len(estimatedRatios) > 0 {
+			for k, v := range estimatedRatios {
+				info.PriceData.AddOtherRatio(k, v)
+			}
 		}
 	}
 
@@ -198,6 +296,34 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		for _, ra := range info.PriceData.OtherRatios {
 			if ra != 1.0 {
 				info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
+			}
+		}
+	}
+	if info.PriceData.BaseQuota == 0 {
+		info.PriceData.BaseQuota = info.PriceData.Quota
+	}
+	providerUnitCount := decimal.NewFromInt(int64(info.GetEstimatePromptTokens()))
+	if info.PriceData.BillingMode == billing_setting.BillingModePerSecond {
+		providerUnitCount = decimal.NewFromFloat(info.PriceData.UnitCount)
+	}
+	providerQuota, importCostQuota, applied := 0, 0, false
+	if info.PriceData.BillingMode == billing_setting.BillingModePerSecond {
+		providerQuota, importCostQuota, applied = service.ApplyProviderPerUnitPricingQuota(c, info.PriceData.Quota, info.PriceData.GroupRatioInfo.GroupRatio, providerUnitCount)
+	} else {
+		providerQuota, importCostQuota, applied = service.ApplyProviderPricingQuota(c, info.PriceData.Quota, info.PriceData.UsePrice, info.PriceData.GroupRatioInfo.GroupRatio, int(providerUnitCount.IntPart()))
+	}
+	if applied {
+		info.PriceData.ProviderBaseQuota = importCostQuota
+		info.PriceData.Quota = providerQuota
+		common.SetContextKey(c, constant.ContextKeyProviderBaseQuota, importCostQuota)
+		common.SetContextKey(c, constant.ContextKeyProviderUserQuota, providerQuota)
+		if ownerUserID := common.GetContextKeyInt(c, constant.ContextKeyProviderOwnerUserId); ownerUserID > 0 {
+			ownerQuota, ownerErr := model.GetUserQuota(ownerUserID, false)
+			if ownerErr != nil {
+				return nil, service.TaskErrorWrapperLocal(ownerErr, "provider_quota_query_failed", http.StatusInternalServerError)
+			}
+			if ownerQuota < importCostQuota {
+				return nil, service.TaskErrorWrapperLocal(fmt.Errorf("provider quota is not enough"), "provider_quota_not_enough", http.StatusForbidden)
 			}
 		}
 	}
@@ -217,6 +343,33 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 9. 发送请求
+	if info.OriginModelName == "MiniMax-H3" && info.Action == constant.TaskActionMiniMaxH3Generate {
+		pendingRequest, err := io.ReadAll(requestBody)
+		if err != nil {
+			return nil, service.TaskErrorWrapper(err, "read_minimax_h3_request_failed", http.StatusInternalServerError)
+		}
+		queuedData, err := common.Marshal(map[string]any{
+			"id":         info.PublicTaskID,
+			"object":     "video",
+			"model":      info.OriginModelName,
+			"status":     dto.VideoStatusQueued,
+			"progress":   0,
+			"created_at": time.Now().Unix(),
+			"seconds":    "10",
+			"size":       "1344x768",
+		})
+		if err != nil {
+			return nil, service.TaskErrorWrapper(err, "marshal_minimax_h3_queued_response_failed", http.StatusInternalServerError)
+		}
+		return &TaskSubmitResult{
+			TaskData:       queuedData,
+			PendingRequest: pendingRequest,
+			Platform:       platform,
+			Quota:          info.PriceData.Quota,
+			Queued:         true,
+		}, nil
+	}
+
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
@@ -245,7 +398,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	finalQuota := info.PriceData.Quota
 	if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
 		// 基于调整后的 ratios 重新计算 quota
-		finalQuota = recalcQuotaFromRatios(info, adjustedRatios)
+		finalQuota = recalcQuotaFromRatios(c, info, adjustedRatios)
 		info.PriceData.OtherRatios = adjustedRatios
 		info.PriceData.Quota = finalQuota
 	}
@@ -260,9 +413,12 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 // recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。
 // 公式: baseQuota × ∏(ratio) — 其中 baseQuota 是不含 OtherRatios 的基础额度。
-func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float64) int {
+func recalcQuotaFromRatios(c *gin.Context, info *relaycommon.RelayInfo, ratios map[string]float64) int {
 	// 从 PriceData 获取不含 OtherRatios 的基础价格
-	baseQuota := info.PriceData.Quota
+	baseQuota := info.PriceData.BaseQuota
+	if baseQuota == 0 {
+		baseQuota = info.PriceData.Quota
+	}
 	// 先除掉原有的 OtherRatios 恢复基础额度
 	for _, ra := range info.PriceData.OtherRatios {
 		if ra != 1.0 && ra > 0 {
@@ -276,7 +432,15 @@ func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float6
 			result *= ra
 		}
 	}
-	return int(result)
+	mainSiteQuota := int(result)
+	info.PriceData.BaseQuota = mainSiteQuota
+	if providerQuota, importCostQuota, applied := service.ApplyProviderPricingQuota(c, mainSiteQuota, info.PriceData.UsePrice, info.PriceData.GroupRatioInfo.GroupRatio, info.GetEstimatePromptTokens()); applied {
+		info.PriceData.ProviderBaseQuota = importCostQuota
+		common.SetContextKey(c, constant.ContextKeyProviderBaseQuota, importCostQuota)
+		common.SetContextKey(c, constant.ContextKeyProviderUserQuota, providerQuota)
+		return providerQuota
+	}
+	return mainSiteQuota
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){
@@ -398,7 +562,11 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
 				return
 			}
-			respBody = openAIVideoData
+			respBody, err = rewriteVideoFileResponse(c, openAIVideoData)
+			if err != nil {
+				taskResp = service.TaskErrorWrapper(err, "rewrite_video_file_response_failed", http.StatusInternalServerError)
+				return
+			}
 			return
 		}
 		taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
@@ -414,6 +582,42 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
 	}
 	return
+}
+
+// rewriteVideoFileResponse exposes an upstream file path through the public SGLang route.
+func rewriteVideoFileResponse(c *gin.Context, data []byte) ([]byte, error) {
+	var response map[string]any
+	if err := common.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+
+	filePath, ok := response["file_path"].(string)
+	filePath = normalizeSGLangFilePath(filePath)
+	if !ok || filePath == "" {
+		return data, nil
+	}
+
+	baseURLCandidates := common.GetRequestBaseURLCandidates(c)
+	if len(baseURLCandidates) == 0 {
+		return data, nil
+	}
+
+	// The forwarded host is the last candidate when present and represents the
+	// public reverse-proxy origin rather than an internal upstream host.
+	baseURL := baseURLCandidates[len(baseURLCandidates)-1]
+	delete(response, "file_path")
+	delete(response, "file_paths")
+	response["content"] = map[string]any{
+		"url": strings.TrimRight(baseURL, "/") + "/sglang/" + strings.TrimLeft(filePath, "/"),
+	}
+
+	return common.Marshal(response)
+}
+
+func normalizeSGLangFilePath(filePath string) string {
+	filePath = strings.TrimLeft(strings.TrimSpace(filePath), "/")
+	filePath = strings.TrimPrefix(filePath, "sgl-workspace/sglang/")
+	return strings.TrimPrefix(filePath, "sglang/")
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。

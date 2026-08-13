@@ -4,12 +4,18 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type TaskStatus string
@@ -17,7 +23,7 @@ type TaskStatus string
 func (t TaskStatus) ToVideoStatus() string {
 	var status string
 	switch t {
-	case TaskStatusQueued, TaskStatusSubmitted:
+	case TaskStatusNotStart, TaskStatusDispatching, TaskStatusQueued, TaskStatusSubmitted:
 		status = dto.VideoStatusQueued
 	case TaskStatusInProgress:
 		status = dto.VideoStatusInProgress
@@ -32,13 +38,14 @@ func (t TaskStatus) ToVideoStatus() string {
 }
 
 const (
-	TaskStatusNotStart   TaskStatus = "NOT_START"
-	TaskStatusSubmitted             = "SUBMITTED"
-	TaskStatusQueued                = "QUEUED"
-	TaskStatusInProgress            = "IN_PROGRESS"
-	TaskStatusFailure               = "FAILURE"
-	TaskStatusSuccess               = "SUCCESS"
-	TaskStatusUnknown               = "UNKNOWN"
+	TaskStatusNotStart    TaskStatus = "NOT_START"
+	TaskStatusDispatching TaskStatus = "DISPATCHING"
+	TaskStatusSubmitted              = "SUBMITTED"
+	TaskStatusQueued                 = "QUEUED"
+	TaskStatusInProgress             = "IN_PROGRESS"
+	TaskStatusFailure                = "FAILURE"
+	TaskStatusSuccess                = "SUCCESS"
+	TaskStatusUnknown                = "UNKNOWN"
 )
 
 type Task struct {
@@ -97,9 +104,10 @@ func (m Properties) Value() (driver.Value, error) {
 }
 
 type TaskPrivateData struct {
-	Key            string `json:"key,omitempty"`
-	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
-	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	Key            string          `json:"key,omitempty"`
+	UpstreamTaskID string          `json:"upstream_task_id,omitempty"` // 上游真实 task ID
+	ResultURL      string          `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	PendingRequest json.RawMessage `json:"pending_request,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource     string              `json:"billing_source,omitempty"` // "wallet" 或 "subscription"
 	TokenUsageSettled bool                `json:"token_usage_settled,omitempty"`
@@ -112,7 +120,13 @@ type TaskPrivateData struct {
 	WalletRewardUsed             int  `json:"wallet_reward_used,omitempty"`
 	WalletPaidUsed               int  `json:"wallet_paid_used,omitempty"`
 	ConsumeRebateSettled         bool `json:"consume_rebate_settled,omitempty"`
+	ProviderProfitSettled        bool `json:"provider_profit_settled,omitempty"`
 }
+
+const miniMaxH3QueueLockKey int64 = 0x4d4d4833
+const miniMaxH3MySQLLockName = "allrouter:minimax_h3_queue"
+
+var miniMaxH3QueueMutex sync.Mutex
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
 type TaskBillingContext struct {
@@ -126,6 +140,16 @@ type TaskBillingContext struct {
 	ProviderPublicModel string             `json:"provider_public_model,omitempty"`
 	ProviderBaseModel   string             `json:"provider_base_model,omitempty"`
 	PerCallBilling      bool               `json:"per_call_billing,omitempty"` // 按次计费：跳过轮询阶段的差额结算
+	BillingMode         string             `json:"billing_mode,omitempty"`
+	BillingUnit         string             `json:"billing_unit,omitempty"`
+	Resolution          string             `json:"resolution,omitempty"`
+	UnitPrice           float64            `json:"unit_price,omitempty"`
+	UnitCount           float64            `json:"unit_count,omitempty"`
+	OutputCount         int                `json:"output_count,omitempty"`
+	BaseQuota           int                `json:"base_quota,omitempty"`
+	ProviderBaseQuota   int                `json:"provider_base_quota,omitempty"`
+	ProviderUserQuota   int                `json:"provider_user_quota,omitempty"`
+	ProviderOwnerUserId int                `json:"provider_owner_user_id,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
@@ -161,7 +185,7 @@ func (p *TaskPrivateData) Scan(val interface{}) error {
 }
 
 func (p TaskPrivateData) Value() (driver.Value, error) {
-	if (p == TaskPrivateData{}) {
+	if reflect.DeepEqual(p, TaskPrivateData{}) {
 		return nil, nil
 	}
 	return common.Marshal(p)
@@ -304,6 +328,9 @@ func GetTimedOutUnfinishedTasks(cutoffUnix int64, limit int) []*Task {
 	var tasks []*Task
 	err := DB.Where("progress != ?", "100%").
 		Where("status NOT IN ?", []string{TaskStatusFailure, TaskStatusSuccess}).
+		Where("(action IS NULL OR action != ? OR status NOT IN ?)",
+			constant.TaskActionMiniMaxH3Generate,
+			[]TaskStatus{TaskStatusNotStart, TaskStatusDispatching}).
 		Where("submit_time < ?", cutoffUnix).
 		Order("submit_time").
 		Limit(limit).
@@ -318,11 +345,126 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 	var tasks []*Task
 	var err error
 	// get all tasks progress is not 100%
-	err = DB.Where("progress != ?", "100%").Where("status != ?", TaskStatusFailure).Where("status != ?", TaskStatusSuccess).Limit(limit).Order("id").Find(&tasks).Error
+	err = DB.Where("progress != ?", "100%").
+		Where("status NOT IN ?", []TaskStatus{TaskStatusFailure, TaskStatusSuccess}).
+		Where("(action IS NULL OR action != ? OR status NOT IN ?)",
+			constant.TaskActionMiniMaxH3Generate,
+			[]TaskStatus{TaskStatusNotStart, TaskStatusDispatching}).
+		Limit(limit).
+		Order("id").
+		Find(&tasks).Error
 	if err != nil {
 		return nil
 	}
 	return tasks
+}
+
+// ClaimMiniMaxH3Tasks atomically reserves available MiniMax-H3 execution slots.
+func ClaimMiniMaxH3Tasks(maxConcurrency int) ([]*Task, error) {
+	if maxConcurrency <= 0 {
+		return nil, nil
+	}
+
+	miniMaxH3QueueMutex.Lock()
+	defer miniMaxH3QueueMutex.Unlock()
+
+	if common.UsingMySQL {
+		var claimed []*Task
+		err := DB.Connection(func(conn *gorm.DB) error {
+			var acquired int
+			if err := conn.Raw("SELECT GET_LOCK(?, 10)", miniMaxH3MySQLLockName).Scan(&acquired).Error; err != nil {
+				return fmt.Errorf("lock MiniMax-H3 queue: %w", err)
+			}
+			if acquired != 1 {
+				return errors.New("timed out locking MiniMax-H3 queue")
+			}
+			defer func() {
+				_ = conn.Exec("SELECT RELEASE_LOCK(?)", miniMaxH3MySQLLockName).Error
+			}()
+
+			return conn.Transaction(func(tx *gorm.DB) error {
+				var err error
+				claimed, err = claimMiniMaxH3TasksInTransaction(tx, maxConcurrency)
+				return err
+			})
+		})
+		return claimed, err
+	}
+
+	claimed := make([]*Task, 0)
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if common.UsingPostgreSQL {
+			if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", miniMaxH3QueueLockKey).Error; err != nil {
+				return fmt.Errorf("lock MiniMax-H3 queue: %w", err)
+			}
+		}
+		var claimErr error
+		claimed, claimErr = claimMiniMaxH3TasksInTransaction(tx, maxConcurrency)
+		return claimErr
+	})
+	return claimed, err
+}
+
+func claimMiniMaxH3TasksInTransaction(tx *gorm.DB, maxConcurrency int) ([]*Task, error) {
+	activeStatuses := []TaskStatus{
+		TaskStatusDispatching,
+		TaskStatusSubmitted,
+		TaskStatusQueued,
+		TaskStatusInProgress,
+	}
+	var active int64
+	if err := tx.Model(&Task{}).
+		Where("action = ? AND status IN ?", constant.TaskActionMiniMaxH3Generate, activeStatuses).
+		Count(&active).Error; err != nil {
+		return nil, err
+	}
+	available := maxConcurrency - int(active)
+	if available <= 0 {
+		return nil, nil
+	}
+
+	claimed := make([]*Task, 0, available)
+	query := tx.Where("action = ? AND status = ?", constant.TaskActionMiniMaxH3Generate, TaskStatusNotStart).
+		Order("submit_time, id").
+		Limit(available)
+	if common.UsingPostgreSQL {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
+	}
+	if err := query.Find(&claimed).Error; err != nil {
+		return nil, err
+	}
+
+	now := time.Now().Unix()
+	reserved := claimed[:0]
+	for _, task := range claimed {
+		result := tx.Model(&Task{}).
+			Where("id = ? AND status = ?", task.ID, TaskStatusNotStart).
+			Updates(map[string]any{
+				"status":     TaskStatusDispatching,
+				"progress":   "5%",
+				"start_time": now,
+			})
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		if result.RowsAffected == 1 {
+			task.Status = TaskStatusDispatching
+			task.Progress = "5%"
+			task.StartTime = now
+			reserved = append(reserved, task)
+		}
+	}
+	return reserved, nil
+}
+
+func GetStaleMiniMaxH3DispatchingTasks(cutoffUnix int64, limit int) ([]*Task, error) {
+	var tasks []*Task
+	err := DB.Where("action = ? AND status = ? AND start_time > 0 AND start_time < ?",
+		constant.TaskActionMiniMaxH3Generate, TaskStatusDispatching, cutoffUnix).
+		Order("start_time, id").
+		Limit(limit).
+		Find(&tasks).Error
+	return tasks, err
 }
 
 func GetByOnlyTaskId(taskId string) (*Task, bool, error) {

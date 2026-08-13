@@ -812,6 +812,26 @@ export const calculateModelPrice = ({
     };
   }
 
+  if (record.billing_mode === 'per_second' && record.resolution_prices) {
+    const resolutionPrices = Object.entries(record.resolution_prices)
+      .map(([resolution, price]) => ({
+        resolution,
+        price: displayPrice(Number(price) * usedGroupRatio),
+        rawPrice: Number(price) * usedGroupRatio,
+      }))
+      .sort((a, b) => a.rawPrice - b.rawPrice);
+    return {
+      isPerSecond: true,
+      resolutionPrices,
+      defaultResolution: record.default_resolution,
+      price: resolutionPrices[0]?.price || '-',
+      isPerToken: false,
+      isTokensDisplay: false,
+      usedGroup,
+      usedGroupRatio,
+    };
+  }
+
   // 3. 根据计费类型计算价格
   if (record.quota_type === 0) {
     // 按量计费
@@ -941,6 +961,15 @@ export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
         isDynamic: true,
       },
     ];
+  }
+
+  if (priceData.isPerSecond) {
+    return priceData.resolutionPrices.map((item) => ({
+      key: `resolution-${item.resolution}`,
+      label: item.resolution,
+      value: item.price,
+      suffix: ` / ${t('秒')}`,
+    }));
   }
 
   if (priceData.isPerToken) {

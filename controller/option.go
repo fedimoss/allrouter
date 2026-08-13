@@ -159,6 +159,56 @@ type OptionUpdateRequest struct {
 	Value any    `json:"value"`
 }
 
+type BillingOptionsBulkUpdateRequest struct {
+	Values map[string]string `json:"values"`
+}
+
+func UpdateBillingOptionsBulk(c *gin.Context) {
+	var req BillingOptionsBulkUpdateRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "invalid billing options request")
+		return
+	}
+	allowed := map[string]bool{
+		"billing_setting.billing_mode":            true,
+		"billing_setting.billing_expr":            true,
+		"billing_setting.video_resolution_prices": true,
+	}
+	for key, value := range req.Values {
+		if !allowed[key] {
+			common.ApiErrorMsg(c, "unsupported billing option: "+key)
+			return
+		}
+		if err := validateBillingSettingOption(key, value); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
+	}
+	var modes map[string]string
+	var prices map[string]billing_setting.VideoResolutionPricing
+	if err := common.UnmarshalJsonStr(req.Values["billing_setting.billing_mode"], &modes); err != nil {
+		common.ApiErrorMsg(c, "billing mode is required")
+		return
+	}
+	if err := common.UnmarshalJsonStr(req.Values["billing_setting.video_resolution_prices"], &prices); err != nil {
+		common.ApiErrorMsg(c, "video resolution prices are required")
+		return
+	}
+	for modelName, mode := range modes {
+		if mode == billing_setting.BillingModePerSecond {
+			if _, ok := prices[modelName]; !ok {
+				common.ApiErrorMsg(c, fmt.Sprintf("model %s has no video resolution prices", modelName))
+				return
+			}
+		}
+	}
+	if err := model.UpdateOptionsBulk(req.Values); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
 func validateBillingSettingOption(key string, value string) error {
 	switch key {
 	case "billing_setting.billing_mode":
@@ -168,7 +218,7 @@ func validateBillingSettingOption(key string, value string) error {
 		}
 		for modelName, mode := range modeMap {
 			switch mode {
-			case billing_setting.BillingModeRatio, billing_setting.BillingModeTieredExpr:
+			case billing_setting.BillingModeRatio, billing_setting.BillingModeTieredExpr, billing_setting.BillingModePerSecond:
 			default:
 				return fmt.Errorf("模型 %s 的计费模式 %s 不支持", modelName, mode)
 			}
@@ -185,6 +235,19 @@ func validateBillingSettingOption(key string, value string) error {
 			}
 			if err := billing_setting.SmokeTestExpr(expr); err != nil {
 				return fmt.Errorf("模型 %s 的计费表达式校验失败: %w", modelName, err)
+			}
+		}
+	case "billing_setting.video_resolution_prices":
+		priceMap := make(map[string]billing_setting.VideoResolutionPricing)
+		if err := common.UnmarshalJsonStr(value, &priceMap); err != nil {
+			return fmt.Errorf("video resolution prices JSON is invalid: %w", err)
+		}
+		for modelName, pricing := range priceMap {
+			if strings.TrimSpace(modelName) == "" {
+				return fmt.Errorf("model name is required")
+			}
+			if _, err := billing_setting.NormalizeVideoResolutionPricing(pricing); err != nil {
+				return fmt.Errorf("model %s video resolution prices are invalid: %w", modelName, err)
 			}
 		}
 	}
@@ -349,7 +412,7 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
-	case "billing_setting.billing_mode", "billing_setting.billing_expr":
+	case "billing_setting.billing_mode", "billing_setting.billing_expr", "billing_setting.video_resolution_prices":
 		err = validateBillingSettingOption(option.Key, option.Value.(string))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{

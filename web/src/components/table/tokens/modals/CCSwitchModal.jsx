@@ -55,10 +55,12 @@ const APP_CONFIGS = {
 function getServerAddress() {
   try {
     const raw = localStorage.getItem('status');
-    if (raw) {
-      const status = JSON.parse(raw);
-      if (status.server_address) return status.server_address;
-    }
+    const domain = window.location.origin;
+    // if (raw) {
+    //   const status = JSON.parse(raw);
+    //   if (status.server_address) return status.server_address;
+    // }
+    if (domain) return domain;
   } catch (_) {}
   return window.location.origin;
 }

@@ -586,10 +586,12 @@ function TokensPage() {
 
     let status = localStorage.getItem('status');
     let serverAddress = '';
+    const domain = window.location.origin;
+
     if (status) {
       try {
         status = JSON.parse(status);
-        serverAddress = status.server_address || '';
+        serverAddress = domain || '' //status.server_address || '';
       } catch (_) {}
     }
     if (!serverAddress) {

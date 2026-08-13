@@ -2,6 +2,7 @@ package helper
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -13,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/shopspring/decimal"
 
 	"github.com/gin-gonic/gin"
 )
@@ -166,6 +168,28 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModePerSecond {
+		resolution, unitPrice, err := billing_setting.ResolvePerSecondPrice(info.OriginModelName, "")
+		if err != nil {
+			return types.PriceData{}, err
+		}
+		freeModel := false
+		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume && (unitPrice == 0 || groupRatioInfo.GroupRatio == 0) {
+			freeModel = true
+		}
+		priceData := types.PriceData{
+			FreeModel:      freeModel,
+			BillingMode:    billing_setting.BillingModePerSecond,
+			BillingUnit:    "second",
+			Resolution:     resolution,
+			UnitPrice:      unitPrice,
+			ModelPrice:     unitPrice,
+			UsePrice:       true,
+			OutputCount:    1,
+			GroupRatioInfo: groupRatioInfo,
+		}
+		return priceData, nil
+	}
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success
@@ -224,6 +248,23 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 	return priceData, nil
 }
 
+func CalculatePerSecondQuota(unitPrice, seconds float64, outputCount int, groupRatio float64) (int, error) {
+	if math.IsNaN(unitPrice) || math.IsInf(unitPrice, 0) || unitPrice < 0 ||
+		math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds <= 0 || outputCount <= 0 ||
+		math.IsNaN(groupRatio) || math.IsInf(groupRatio, 0) || groupRatio < 0 {
+		return 0, fmt.Errorf("invalid per-second billing parameters")
+	}
+	quota, clamp := common.QuotaFromDecimalChecked(decimal.NewFromFloat(unitPrice).
+		Mul(decimal.NewFromFloat(seconds)).
+		Mul(decimal.NewFromInt(int64(outputCount))).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+		Mul(decimal.NewFromFloat(groupRatio)))
+	if clamp != nil {
+		return 0, fmt.Errorf("per-second quota is outside the supported range")
+	}
+	return quota, nil
+}
+
 func HasModelBillingConfig(modelName string) bool {
 	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 		return true
@@ -231,7 +272,12 @@ func HasModelBillingConfig(modelName string) bool {
 	if _, ok, _ := ratio_setting.GetModelRatio(modelName); ok {
 		return true
 	}
-	if billing_setting.GetBillingMode(modelName) != billing_setting.BillingModeTieredExpr {
+	mode := billing_setting.GetBillingMode(modelName)
+	if mode == billing_setting.BillingModePerSecond {
+		_, ok := billing_setting.GetVideoResolutionPricing(modelName)
+		return ok
+	}
+	if mode != billing_setting.BillingModeTieredExpr {
 		return false
 	}
 	expr, ok := billing_setting.GetBillingExpr(modelName)

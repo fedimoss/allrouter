@@ -691,20 +691,20 @@ func RelayTask(c *gin.Context) {
 
 	// ── 成功：结算 + 日志 + 插入任务 ──
 	if taskErr == nil {
-		baseQuota := result.Quota
-		if providerQuota, importCostQuota, applied := service.ApplyProviderPricingQuota(c, baseQuota, relayInfo.PriceData.UsePrice, relayInfo.PriceData.GroupRatioInfo.GroupRatio, relayInfo.GetEstimatePromptTokens()); applied {
-			result.Quota = providerQuota
-			relayInfo.PriceData.Quota = providerQuota
-			common.SetContextKey(c, constant.ContextKeyProviderBaseQuota, importCostQuota)
-			common.SetContextKey(c, constant.ContextKeyProviderUserQuota, providerQuota)
-		}
 		if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
-			common.SysError("settle task billing error: " + settleErr.Error())
+			taskErr = service.TaskErrorWrapperLocal(settleErr, "settle_task_billing_failed", http.StatusInternalServerError)
+			respondTaskError(c, taskErr)
+			return
 		}
-		service.LogTaskConsumption(c, relayInfo)
 
 		task := model.InitTask(result.Platform, relayInfo)
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
+		if result.Queued {
+			task.Status = model.TaskStatusNotStart
+			task.Progress = "0%"
+			task.PrivateData.Key = relayInfo.ApiKey
+			task.PrivateData.PendingRequest = result.PendingRequest
+		}
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
@@ -726,12 +726,30 @@ func RelayTask(c *gin.Context) {
 			ProviderPublicModel: relayInfo.ProviderPublicModel,
 			ProviderBaseModel:   relayInfo.ProviderBaseModel,
 			PerCallBilling:      common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			BillingMode:         relayInfo.PriceData.BillingMode,
+			BillingUnit:         relayInfo.PriceData.BillingUnit,
+			Resolution:          relayInfo.PriceData.Resolution,
+			UnitPrice:           relayInfo.PriceData.UnitPrice,
+			UnitCount:           relayInfo.PriceData.UnitCount,
+			OutputCount:         relayInfo.PriceData.OutputCount,
+			BaseQuota:           relayInfo.PriceData.BaseQuota,
+			ProviderBaseQuota:   common.GetContextKeyInt(c, constant.ContextKeyProviderBaseQuota),
+			ProviderUserQuota:   common.GetContextKeyInt(c, constant.ContextKeyProviderUserQuota),
+			ProviderOwnerUserId: common.GetContextKeyInt(c, constant.ContextKeyProviderOwnerUserId),
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
 		if insertErr := task.Insert(); insertErr != nil {
-			common.SysError("insert task error: " + insertErr.Error())
+			service.RefundTaskQuota(c, task, "task persistence failed")
+			taskErr = service.TaskErrorWrapperLocal(insertErr, "insert_task_failed", http.StatusInternalServerError)
+			respondTaskError(c, taskErr)
+			return
+		}
+		service.LogTaskConsumption(c, relayInfo)
+		if result.Queued {
+			c.Data(http.StatusOK, "application/json", result.TaskData)
+			service.TriggerMiniMaxH3Dispatch()
 		}
 	}
 

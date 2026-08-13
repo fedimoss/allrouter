@@ -35,6 +35,9 @@ function renderQuotaType(type, t, record = {}) {
   if (record.billing_mode === 'tiered_expr') {
     return <Tag color='amber' shape='circle'>{t('动态计费')}</Tag>;
   }
+  if (record.billing_mode === 'per_second') {
+    return <Tag color='cyan' shape='circle'>{t('按秒计费')}</Tag>;
+  }
 
   switch (type) {
     case 1:
