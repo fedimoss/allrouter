@@ -202,7 +202,7 @@ func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req r
 		Target:              target,
 	})
 	c.Set(miniMaxH3RequestBodyKey, upstreamRequest)
-	info.Action = constant.TaskActionTextGenerate
+	info.Action = constant.TaskActionMiniMaxH3Generate
 	return nil
 }
 
@@ -653,10 +653,57 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
-	data := task.Data
-	var err error
-	if data, err = sjson.SetBytes(data, "id", task.TaskID); err != nil {
-		return nil, errors.Wrap(err, "set id failed")
+	if task.Properties.OriginModelName != "MiniMax-H3" {
+		data, err := sjson.SetBytes(task.Data, "id", task.TaskID)
+		if err != nil {
+			return nil, errors.Wrap(err, "set id failed")
+		}
+		return data, nil
 	}
-	return data, nil
+
+	response := make(map[string]any)
+	if len(task.Data) > 0 {
+		if err := common.Unmarshal(task.Data, &response); err != nil {
+			return nil, errors.Wrap(err, "unmarshal Sora task data failed")
+		}
+	}
+
+	response["id"] = task.TaskID
+	response["object"] = "video"
+	response["model"] = task.Properties.OriginModelName
+	response["status"] = task.Status.ToVideoStatus()
+	progress := dto.NewOpenAIVideo()
+	progress.SetProgressStr(task.Progress)
+	response["progress"] = progress.Progress
+	if task.CreatedAt > 0 {
+		response["created_at"] = task.CreatedAt
+	} else if task.SubmitTime > 0 {
+		response["created_at"] = task.SubmitTime
+	}
+
+	delete(response, "detail")
+	if task.Status != model.TaskStatusSuccess {
+		delete(response, "file_path")
+		delete(response, "file_paths")
+		delete(response, "content")
+	}
+
+	if task.Status == model.TaskStatusFailure {
+		message := strings.TrimSpace(task.FailReason)
+		if message == "" {
+			message = "video generation failed"
+		}
+		response["completed_at"] = task.FinishTime
+		response["error"] = map[string]any{
+			"code":    "video_generation_failed",
+			"message": message,
+		}
+	} else {
+		response["error"] = nil
+		if task.Status != model.TaskStatusSuccess {
+			response["completed_at"] = nil
+		}
+	}
+
+	return common.Marshal(response)
 }

@@ -2,12 +2,14 @@ package relay
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -27,9 +29,72 @@ import (
 type TaskSubmitResult struct {
 	UpstreamTaskID string
 	TaskData       []byte
+	PendingRequest []byte
 	Platform       constant.TaskPlatform
 	Quota          int
+	Queued         bool
 	//PerCallPrice   types.PriceData
+}
+
+func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.MiniMaxH3SubmitResult, error) {
+	if task == nil {
+		return nil, errors.New("task is required")
+	}
+	if len(task.PrivateData.PendingRequest) == 0 {
+		return nil, errors.New("MiniMax-H3 pending request is empty")
+	}
+
+	ch, err := model.GetChannelById(task.ChannelId, true)
+	if err != nil {
+		return nil, fmt.Errorf("get MiniMax-H3 channel: %w", err)
+	}
+	baseURL := constant.ChannelBaseURLs[ch.Type]
+	if ch.GetBaseURL() != "" {
+		baseURL = ch.GetBaseURL()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(baseURL, "/")+"/v1/videos", bytes.NewReader(task.PrivateData.PendingRequest))
+	if err != nil {
+		return nil, fmt.Errorf("build MiniMax-H3 request: %w", err)
+	}
+	key := task.PrivateData.Key
+	if key == "" {
+		key = ch.Key
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Content-Type", "application/json")
+
+	client, err := service.GetHttpClientWithProxy(ch.GetSetting().Proxy)
+	if err != nil {
+		return nil, fmt.Errorf("build MiniMax-H3 HTTP client: %w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("submit MiniMax-H3 request: %w", err)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	if err != nil {
+		return nil, fmt.Errorf("read MiniMax-H3 submit response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("MiniMax-H3 submit status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var response map[string]any
+	if err := common.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("parse MiniMax-H3 submit response: %w", err)
+	}
+	upstreamTaskID, _ := response["id"].(string)
+	if upstreamTaskID == "" {
+		upstreamTaskID, _ = response["task_id"].(string)
+	}
+	if upstreamTaskID == "" {
+		return nil, errors.New("MiniMax-H3 submit response has no task id")
+	}
+	return &service.MiniMaxH3SubmitResult{
+		UpstreamTaskID: upstreamTaskID,
+		TaskData:       body,
+	}, nil
 }
 
 // ResolveOriginTask 处理基于已有任务的提交（remix / continuation）：
@@ -278,6 +343,33 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 9. 发送请求
+	if info.OriginModelName == "MiniMax-H3" && info.Action == constant.TaskActionMiniMaxH3Generate {
+		pendingRequest, err := io.ReadAll(requestBody)
+		if err != nil {
+			return nil, service.TaskErrorWrapper(err, "read_minimax_h3_request_failed", http.StatusInternalServerError)
+		}
+		queuedData, err := common.Marshal(map[string]any{
+			"id":         info.PublicTaskID,
+			"object":     "video",
+			"model":      info.OriginModelName,
+			"status":     dto.VideoStatusQueued,
+			"progress":   0,
+			"created_at": time.Now().Unix(),
+			"seconds":    "10",
+			"size":       "1344x768",
+		})
+		if err != nil {
+			return nil, service.TaskErrorWrapper(err, "marshal_minimax_h3_queued_response_failed", http.StatusInternalServerError)
+		}
+		return &TaskSubmitResult{
+			TaskData:       queuedData,
+			PendingRequest: pendingRequest,
+			Platform:       platform,
+			Quota:          info.PriceData.Quota,
+			Queued:         true,
+		}, nil
+	}
+
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)

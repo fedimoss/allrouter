@@ -55,6 +55,9 @@ func sweepTimedOutTasks(ctx context.Context) {
 	timedOutCount := 0
 
 	for _, task := range tasks {
+		if isLocalMiniMaxH3Task(task) {
+			continue
+		}
 		isLegacy := task.SubmitTime > 0 && task.SubmitTime < legacyTaskCutoff
 
 		oldStatus := task.Status
@@ -107,7 +110,11 @@ func TaskPollingLoop() {
 			taskM := make(map[string]*model.Task)
 			nullTaskIds := make([]int64, 0)
 			for _, task := range tasks {
-				upstreamID := task.GetUpstreamTaskID()
+				upstreamID, shouldPoll := upstreamTaskIDForPolling(task)
+				if !shouldPoll {
+					logger.LogDebug(ctx, fmt.Sprintf("skip polling local MiniMax-H3 task %s without upstream task id", task.TaskID))
+					continue
+				}
 				if upstreamID == "" {
 					// 统计失败的未完成任务
 					nullTaskIds = append(nullTaskIds, task.ID)
@@ -133,8 +140,31 @@ func TaskPollingLoop() {
 
 			DispatchPlatformUpdate(platform, taskChannelM, taskM)
 		}
+		TriggerMiniMaxH3Dispatch()
 		common.SysLog("任务进度轮询完成")
 	}
+}
+
+func upstreamTaskIDForPolling(task *model.Task) (string, bool) {
+	if task == nil {
+		return "", false
+	}
+	if task.Properties.OriginModelName == "MiniMax-H3" {
+		upstreamID := strings.TrimSpace(task.PrivateData.UpstreamTaskID)
+		return upstreamID, upstreamID != ""
+	}
+	upstreamID := task.GetUpstreamTaskID()
+	return upstreamID, upstreamID != ""
+}
+
+func isLocalMiniMaxH3Task(task *model.Task) bool {
+	if task == nil || task.Properties.OriginModelName != "MiniMax-H3" {
+		return false
+	}
+	if strings.TrimSpace(task.PrivateData.UpstreamTaskID) != "" {
+		return false
+	}
+	return task.Status == model.TaskStatusNotStart || task.Status == model.TaskStatusDispatching
 }
 
 // DispatchPlatformUpdate 按平台分发轮询更新
@@ -339,8 +369,9 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 				failedIDs = append(failedIDs, t.ID)
 			}
 		}
+		failureReason := fmt.Sprintf("Failed to get channel info, channel ID: %d", channelId)
 		errUpdate := model.TaskBulkUpdateByID(failedIDs, map[string]any{
-			"fail_reason": fmt.Sprintf("Failed to get channel info, channel ID: %d", channelId),
+			"fail_reason": failureReason,
 			"status":      "FAILURE",
 			"progress":    "100%",
 		})
@@ -387,8 +418,13 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
+	upstreamID, shouldPoll := upstreamTaskIDForPolling(task)
+	if !shouldPoll {
+		logger.LogWarn(ctx, fmt.Sprintf("refuse to poll MiniMax-H3 task %s without a real upstream task id", task.TaskID))
+		return nil
+	}
 	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
+		"task_id": upstreamID,
 		"action":  task.Action,
 	}, proxy)
 	if err != nil {
@@ -439,6 +475,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 				// 其他错误认为是任务失败，记录错误信息并更新任务状态
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
+			} else if task.Properties.OriginModelName == "MiniMax-H3" && errorResult.ToMessage() != "" {
+				taskResult = relaycommon.FailTaskInfo(errorResult.ToMessage())
 			} else {
 				// unknown error format, log original response
 				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
@@ -524,6 +562,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 	if shouldRefund {
 		RefundTaskQuota(ctx, task, task.FailReason)
+	}
+	if isDone && task.Action == constant.TaskActionMiniMaxH3Generate {
+		TriggerMiniMaxH3Dispatch()
 	}
 
 	return nil

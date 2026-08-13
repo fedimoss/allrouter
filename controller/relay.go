@@ -699,6 +699,12 @@ func RelayTask(c *gin.Context) {
 
 		task := model.InitTask(result.Platform, relayInfo)
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
+		if result.Queued {
+			task.Status = model.TaskStatusNotStart
+			task.Progress = "0%"
+			task.PrivateData.Key = relayInfo.ApiKey
+			task.PrivateData.PendingRequest = result.PendingRequest
+		}
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
@@ -741,6 +747,10 @@ func RelayTask(c *gin.Context) {
 			return
 		}
 		service.LogTaskConsumption(c, relayInfo)
+		if result.Queued {
+			c.Data(http.StatusOK, "application/json", result.TaskData)
+			service.TriggerMiniMaxH3Dispatch()
+		}
 	}
 
 	if taskErr != nil {
