@@ -5237,6 +5237,7 @@
     "SMTP 访问凭证": "SMTP Access Credential",
     "SMTP 服务器地址": "SMTP Server Address",
     "SMTP 密码 / 授权码": "SMTP password / app password",
+    "SMTP 密码 / 授权码提交后将不再显示；留空会保留当前值。修改 SMTP 主机、端口、账号、加密方式或认证方式时，必须输入新的 SMTP 密码 / 授权码。": "The SMTP password / app password will no longer be shown after submission. Leave it blank to keep the current value. If you change the SMTP host, port, account, encryption, or authentication method, you must enter a new SMTP password / app password.",
     "SMTP 密码不能为空": "SMTP password cannot be empty",
     "SMTP 账号": "SMTP account",
     "SMTP 账号不能为空": "SMTP account cannot be empty",

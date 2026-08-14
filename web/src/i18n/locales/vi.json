@@ -5693,6 +5693,7 @@
     "SMTP 访问凭证": "Thông tin xác thực truy cập SMTP",
     "SMTP 服务器地址": "Địa chỉ máy chủ SMTP",
     "SMTP 密码 / 授权码": "Mật khẩu SMTP / mật khẩu ứng dụng",
+    "SMTP 密码 / 授权码提交后将不再显示；留空会保留当前值。修改 SMTP 主机、端口、账号、加密方式或认证方式时，必须输入新的 SMTP 密码 / 授权码。": "Mật khẩu SMTP / mật khẩu ứng dụng sẽ không còn hiển thị sau khi gửi. Để trống để giữ nguyên giá trị hiện tại. Nếu thay đổi máy chủ, cổng, tài khoản, phương thức mã hóa hoặc xác thực SMTP, bạn phải nhập mật khẩu SMTP / mật khẩu ứng dụng mới.",
     "SMTP 密码不能为空": "Mật khẩu SMTP không được để trống",
     "SMTP 账号": "Tài khoản SMTP",
     "SMTP 账号不能为空": "Tài khoản SMTP không được để trống",

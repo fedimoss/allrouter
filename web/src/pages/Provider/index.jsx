@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Form,
@@ -48,6 +48,7 @@ import {
   API,
   DEFAULT_THEME_PRIMARY_COLOR,
   DEFAULT_THEME_SECONDARY_COLOR,
+  getUserIdFromLocalStorage,
   isAdmin,
   isProviderAgentPartnerEnabled,
   isProviderOwner,
@@ -208,6 +209,7 @@ const emptySmtpConfig = {
   port: 587,
   username: '',
   password: '',
+  password_configured: false,
   from_email: '',
   from_name: '',
   reply_to: '',
@@ -224,12 +226,13 @@ const numberOrDefault = (value, fallback) => {
   return Number.isFinite(number) ? number : fallback;
 };
 
-const parseProviderSmtpConfig = (value) => {
+const parseProviderSmtpConfig = (value, exposePassword = false) => {
   if (!value) {
     return { ...emptySmtpConfig };
   }
   try {
     const parsed = JSON.parse(value);
+    const storedPassword = parsed.password ?? parsed.smtp_token ?? '';
     return {
       ...emptySmtpConfig,
       enabled: !!parsed.enabled,
@@ -239,7 +242,13 @@ const parseProviderSmtpConfig = (value) => {
         emptySmtpConfig.port,
       ),
       username: parsed.username ?? parsed.smtp_account ?? '',
-      password: parsed.password ?? parsed.smtp_token ?? '',
+      // The provider-owner response treats the SMTP credential as write-only.
+      // Keep the UI defensive as well: only the dedicated administrator flow
+      // may put a returned credential into form state.
+      password: exposePassword ? storedPassword : '',
+      password_configured: !!(
+        parsed.password_configured || storedPassword
+      ),
       from_email: parsed.from_email ?? parsed.smtp_from ?? '',
       from_name: parsed.from_name ?? '',
       reply_to: parsed.reply_to ?? '',
@@ -275,6 +284,16 @@ const normalizeProviderSmtpPayload = (values) => ({
     emptySmtpConfig.timeout_seconds,
   ),
 });
+
+const providerSmtpConnectionChanged = (current, next) =>
+  String(current?.host || '').trim() !== String(next?.host || '').trim() ||
+  numberOrDefault(current?.port, emptySmtpConfig.port) !==
+    numberOrDefault(next?.port, emptySmtpConfig.port) ||
+  String(current?.username || '').trim() !==
+    String(next?.username || '').trim() ||
+  (current?.encryption || emptySmtpConfig.encryption) !==
+    (next?.encryption || emptySmtpConfig.encryption) ||
+  !!current?.force_auth_login !== !!next?.force_auth_login;
 
 const ratioToMarkupPercent = (ratio) => {
   const value = Number(ratio || 1);
@@ -385,6 +404,14 @@ const ProviderPage = () => {
   const providerOwner = isProviderOwner();
   const ownerMode = !adminMode && providerOwner;
   const smtpAdminMode = adminMode && !providerOwner;
+  const currentUserId = getUserIdFromLocalStorage();
+  const canManageProviderSmtp = useCallback(
+    (provider) =>
+      !!provider?.id &&
+      (smtpAdminMode ||
+        (providerOwner && Number(provider.owner_user_id) === Number(currentUserId))),
+    [currentUserId, providerOwner, smtpAdminMode],
+  );
   const pageTitle = adminMode ? t('服务商管理') : t('服务商设置');
 
   const [providers, setProviders] = useState([]);
@@ -406,6 +433,7 @@ const ProviderPage = () => {
   const [pricingLoading, setPricingLoading] = useState(false);
   const [smtpConfig, setSmtpConfig] = useState(emptySmtpConfig);
   const [smtpLoading, setSmtpLoading] = useState(false);
+  const [smtpConfigLoaded, setSmtpConfigLoaded] = useState(false);
   const [smtpSaving, setSmtpSaving] = useState(false);
   const [smtpFormKey, setSmtpFormKey] = useState(0);
   const [logoUploading, setLogoUploading] = useState(false);
@@ -453,6 +481,7 @@ const ProviderPage = () => {
   const configFormRef = useRef(null);
   const pricingFormRef = useRef(null);
   const smtpFormRef = useRef(null);
+  const smtpRequestIdRef = useRef(0);
 
   const refreshSelfProvider = async () => {
     const res = await API.get('/api/provider/self');
@@ -753,33 +782,64 @@ const ProviderPage = () => {
   };
 
   const fetchProviderSmtpConfig = async (provider) => {
-    if (!smtpAdminMode || !provider?.id) return;
+    if (!canManageProviderSmtp(provider)) return;
+    const requestId = ++smtpRequestIdRef.current;
     setSmtpLoading(true);
+    setSmtpConfigLoaded(false);
     try {
-      const res = await API.get(`/api/provider/admin/${provider.id}/options`);
+      const url = smtpAdminMode
+        ? `/api/provider/admin/${provider.id}/options`
+        : `/api/provider/options/${provider.id}`;
+      const res = await API.get(url);
+      if (requestId !== smtpRequestIdRef.current) return;
       if (res.data.success) {
         const option = (res.data.data || []).find(
           (item) => item.key === PROVIDER_SMTP_OPTION_KEY,
         );
-        setSmtpConfig(parseProviderSmtpConfig(option?.value));
+        setSmtpConfig(
+          parseProviderSmtpConfig(option?.value, smtpAdminMode),
+        );
+        setSmtpConfigLoaded(true);
         setSmtpFormKey((key) => key + 1);
       } else {
         showError(res.data.message || t('获取邮箱配置失败'));
       }
     } catch (error) {
-      showError(t('获取邮箱配置失败'));
+      if (requestId === smtpRequestIdRef.current) {
+        showError(t('获取邮箱配置失败'));
+      }
     } finally {
-      setSmtpLoading(false);
+      if (requestId === smtpRequestIdRef.current) {
+        setSmtpLoading(false);
+      }
     }
   };
 
   const openSmtpModal = (provider) => {
-    if (!smtpAdminMode) return;
+    if (smtpSaving || !canManageProviderSmtp(provider)) return;
     setCurrentProvider(provider);
     setSmtpConfig({ ...emptySmtpConfig });
+    setSmtpConfigLoaded(false);
     setSmtpFormKey((key) => key + 1);
     setSmtpModalVisible(true);
     fetchProviderSmtpConfig(provider);
+  };
+
+  const resetSmtpModal = () => {
+    // Invalidate a pending read and scrub any typed/returned credential from
+    // both Semi Form's internal state and React state before hiding the modal.
+    smtpRequestIdRef.current += 1;
+    smtpFormRef.current?.setValue?.('password', '');
+    setSmtpModalVisible(false);
+    setSmtpConfig({ ...emptySmtpConfig });
+    setSmtpConfigLoaded(false);
+    setSmtpLoading(false);
+    setSmtpFormKey((key) => key + 1);
+  };
+
+  const closeSmtpModal = () => {
+    if (smtpSaving) return;
+    resetSmtpModal();
   };
 
   const openPricingList = (provider) => {
@@ -1228,7 +1288,10 @@ const ProviderPage = () => {
   };
 
   const submitSmtpConfig = async () => {
-    if (!smtpAdminMode) return;
+    if (!canManageProviderSmtp(currentProvider)) return;
+    // Do not overwrite an existing configuration from the temporary empty
+    // form shown while its write-only password status is still loading.
+    if (smtpLoading || !smtpConfigLoaded) return;
     if (!currentProvider?.id) {
       showError(t('服务商ID缺失'));
       return;
@@ -1244,7 +1307,7 @@ const ProviderPage = () => {
         showError(t('SMTP 账号不能为空'));
         return;
       }
-      if (!payload.password) {
+      if (!payload.password && !smtpConfig.password_configured) {
         showError(t('SMTP 密码不能为空'));
         return;
       }
@@ -1257,24 +1320,49 @@ const ProviderPage = () => {
       showError(t('端口范围应为 1-65535'));
       return;
     }
+    if (
+      !payload.password &&
+      smtpConfig.password_configured &&
+      providerSmtpConnectionChanged(smtpConfig, payload)
+    ) {
+      showError(
+        t(
+          'SMTP 密码 / 授权码提交后将不再显示；留空会保留当前值。修改 SMTP 主机、端口、账号、加密方式或认证方式时，必须输入新的 SMTP 密码 / 授权码。',
+        ),
+      );
+      return;
+    }
     setSmtpSaving(true);
     try {
+      const url = smtpAdminMode
+        ? `/api/provider/admin/${currentProvider.id}/options`
+        : `/api/provider/options/${currentProvider.id}`;
       const res = await API.put(
-        `/api/provider/admin/${currentProvider.id}/options`,
+        url,
         {
           key: PROVIDER_SMTP_OPTION_KEY,
           value: JSON.stringify(payload),
         },
+        // The global Axios error handler logs the complete request config,
+        // including this JSON body. Handle failures locally so a newly entered
+        // SMTP password / app password is not copied into the browser console.
+        { skipErrorHandler: true },
       );
       if (res.data.success) {
         showSuccess(t('保存邮箱配置成功'));
-        setSmtpConfig(payload);
-        setSmtpModalVisible(false);
+        resetSmtpModal();
       } else {
         showError(res.data.message);
       }
     } catch (error) {
-      showError(error);
+      if (error?.response?.status === 401) {
+        localStorage.removeItem('user');
+        window.location.href = '/login?expired=true';
+        return;
+      }
+      // Use a credential-free message so a failed SMTP save does not copy the
+      // newly entered password/app-password into the console.
+      showError(t('保存失败'));
     } finally {
       setSmtpSaving(false);
     }
@@ -1544,7 +1632,7 @@ const ProviderPage = () => {
               <Button size='small' onClick={() => openConfigModal(record)}>
                 {t('页面配置')}
               </Button>
-              {smtpAdminMode ? (
+              {canManageProviderSmtp(record) ? (
                 <Button size='small' onClick={() => openSmtpModal(record)}>
                   {t('邮箱配置')}
                 </Button>
@@ -1607,7 +1695,7 @@ const ProviderPage = () => {
           ),
         },
       ].filter(Boolean),
-    [adminMode, smtpAdminMode, agentPartnerSwitchingIds, t],
+    [adminMode, canManageProviderSmtp, agentPartnerSwitchingIds, t],
   );
 
   const pricingColumns = [
@@ -2314,10 +2402,14 @@ const ProviderPage = () => {
 
       <Modal
         title={`${currentProvider?.name || ''} - ${t('邮箱配置')}`}
-        visible={smtpAdminMode && smtpModalVisible}
-        onCancel={() => setSmtpModalVisible(false)}
+        visible={canManageProviderSmtp(currentProvider) && smtpModalVisible}
+        onCancel={closeSmtpModal}
         onOk={submitSmtpConfig}
-        okButtonProps={{ loading: smtpSaving }}
+        okButtonProps={{
+          loading: smtpSaving,
+          disabled: smtpLoading || !smtpConfigLoaded,
+        }}
+        cancelButtonProps={{ disabled: smtpSaving }}
         width={760}
       >
         <Spin spinning={smtpLoading}>
@@ -2384,7 +2476,15 @@ const ProviderPage = () => {
               field='password'
               label={t('SMTP 密码 / 授权码')}
               mode='password'
+              autoComplete='new-password'
             />
+            {!smtpAdminMode ? (
+              <Text type='warning' size='small'>
+                {t(
+                  'SMTP 密码 / 授权码提交后将不再显示；留空会保留当前值。修改 SMTP 主机、端口、账号、加密方式或认证方式时，必须输入新的 SMTP 密码 / 授权码。',
+                )}
+              </Text>
+            ) : null}
 
             <div style={{ display: 'flex', gap: 12 }}>
               <div style={{ flex: 1 }}>

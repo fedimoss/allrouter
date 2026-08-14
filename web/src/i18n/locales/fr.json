@@ -5203,6 +5203,7 @@
     "SMTP 访问凭证": "Informations d'identification d'accès SMTP",
     "SMTP 服务器地址": "Adresse du serveur SMTP",
     "SMTP 密码 / 授权码": "Mot de passe SMTP / mot de passe applicatif",
+    "SMTP 密码 / 授权码提交后将不再显示；留空会保留当前值。修改 SMTP 主机、端口、账号、加密方式或认证方式时，必须输入新的 SMTP 密码 / 授权码。": "Le mot de passe SMTP / mot de passe d’application ne sera plus affiché après l’envoi. Laissez ce champ vide pour conserver la valeur actuelle. Si vous modifiez l’hôte, le port, le compte, le chiffrement ou la méthode d’authentification SMTP, vous devez saisir un nouveau mot de passe SMTP / mot de passe d’application.",
     "SMTP 密码不能为空": "Le mot de passe SMTP ne peut pas être vide",
     "SMTP 账号": "Compte SMTP",
     "SMTP 账号不能为空": "Le compte SMTP ne peut pas être vide",
