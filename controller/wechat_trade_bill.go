@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +16,25 @@ import (
 type WechatTradeBillRunRequest struct {
 	BillDate      string `json:"bill_date"`
 	PaymentMethod string `json:"payment_method"`
+}
+
+// beijingLocation 微信账单日期以北京时间为准。
+var beijingLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
+
+// validateWechatBillDate 微信交易账单 T+1 生成，当天与未来日期不可能有账单。
+// 提前拦截并给出友好提示，避免把微信误导性的 PARAM_ERROR（"账单日期格式不正确"）原样透出。
+func validateWechatBillDate(billDate string) error {
+	if _, err := time.ParseInLocation("2006-01-02", billDate, beijingLocation); err != nil {
+		return errors.New("bill_date 格式应为 YYYY-MM-DD")
+	}
+	now := time.Now().In(beijingLocation)
+	if billDate >= now.Format("2006-01-02") {
+		return fmt.Errorf(
+			"微信交易账单 T+1 生成，最早可同步 %s（昨天）的账单，请重新选择日期",
+			now.AddDate(0, 0, -1).Format("2006-01-02"),
+		)
+	}
+	return nil
 }
 
 // RunWechatTradeBill 手动触发指定日期的账单下载、入库与对账流程。
@@ -69,6 +90,10 @@ func RunWechatTradeBill(c *gin.Context) {
 		result, err = service.RunAlipayBillWorkflow(billDate)
 	// wxpay 分支
 	default:
+		if err := validateWechatBillDate(billDate); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
 		result, err = service.RunWechatTradeBillWorkflowWithDBConfig(billDate)
 	}
 	if err != nil {
