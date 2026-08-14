@@ -425,7 +425,11 @@ func SendEmailVerification(c *gin.Context) {
 		if cleanupErr := common.InvalidateVerificationCodeWithKey(ctx, providerId, email, code, common.EmailVerificationPurpose); cleanupErr != nil {
 			logger.LogError(ctx, fmt.Sprintf("failed to invalidate unsent email verification code: %s", cleanupErr.Error()))
 		}
-		common.ApiError(c, err)
+		// SMTP errors may contain the configured host, port, IP address, or
+		// authentication details. Keep the diagnostic server-side so provider
+		// users and anonymous registration clients cannot infer mail settings.
+		logger.LogError(ctx, fmt.Sprintf("failed to send email verification: %s", err.Error()))
+		common.ApiErrorI18n(c, i18n.MsgRetryLater)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{

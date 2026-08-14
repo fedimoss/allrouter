@@ -25,7 +25,7 @@ type ProviderMail struct {
 func SendProviderMail(providerId int, subject string, receiver string, content string) error {
 	//获取服务商配置
 	if providerId != 0 {
-		mailConfig, err := model.GetProviderOptionValue(providerId, "mail.smtp")
+		mailConfig, err := model.GetProviderOptionValue(providerId, model.ProviderMailOptionKey)
 		if err != nil {
 			return err
 		}

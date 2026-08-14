@@ -382,7 +382,9 @@ const ProviderPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const adminMode = isAdmin();
-  const ownerMode = !adminMode && isProviderOwner();
+  const providerOwner = isProviderOwner();
+  const ownerMode = !adminMode && providerOwner;
+  const smtpAdminMode = adminMode && !providerOwner;
   const pageTitle = adminMode ? t('服务商管理') : t('服务商设置');
 
   const [providers, setProviders] = useState([]);
@@ -751,10 +753,10 @@ const ProviderPage = () => {
   };
 
   const fetchProviderSmtpConfig = async (provider) => {
-    if (!provider?.id) return;
+    if (!smtpAdminMode || !provider?.id) return;
     setSmtpLoading(true);
     try {
-      const res = await API.get(`/api/provider/options/${provider.id}`);
+      const res = await API.get(`/api/provider/admin/${provider.id}/options`);
       if (res.data.success) {
         const option = (res.data.data || []).find(
           (item) => item.key === PROVIDER_SMTP_OPTION_KEY,
@@ -772,6 +774,7 @@ const ProviderPage = () => {
   };
 
   const openSmtpModal = (provider) => {
+    if (!smtpAdminMode) return;
     setCurrentProvider(provider);
     setSmtpConfig({ ...emptySmtpConfig });
     setSmtpFormKey((key) => key + 1);
@@ -1225,6 +1228,7 @@ const ProviderPage = () => {
   };
 
   const submitSmtpConfig = async () => {
+    if (!smtpAdminMode) return;
     if (!currentProvider?.id) {
       showError(t('服务商ID缺失'));
       return;
@@ -1255,10 +1259,13 @@ const ProviderPage = () => {
     }
     setSmtpSaving(true);
     try {
-      const res = await API.put(`/api/provider/options/${currentProvider.id}`, {
-        key: PROVIDER_SMTP_OPTION_KEY,
-        value: JSON.stringify(payload),
-      });
+      const res = await API.put(
+        `/api/provider/admin/${currentProvider.id}/options`,
+        {
+          key: PROVIDER_SMTP_OPTION_KEY,
+          value: JSON.stringify(payload),
+        },
+      );
       if (res.data.success) {
         showSuccess(t('保存邮箱配置成功'));
         setSmtpConfig(payload);
@@ -1537,9 +1544,11 @@ const ProviderPage = () => {
               <Button size='small' onClick={() => openConfigModal(record)}>
                 {t('页面配置')}
               </Button>
-              <Button size='small' onClick={() => openSmtpModal(record)}>
-                {t('邮箱配置')}
-              </Button>
+              {smtpAdminMode ? (
+                <Button size='small' onClick={() => openSmtpModal(record)}>
+                  {t('邮箱配置')}
+                </Button>
+              ) : null}
               <Button size='small' onClick={() => openPricingList(record)}>
                 {t('模型定价')}
               </Button>
@@ -1598,7 +1607,7 @@ const ProviderPage = () => {
           ),
         },
       ].filter(Boolean),
-    [adminMode, agentPartnerSwitchingIds, t],
+    [adminMode, smtpAdminMode, agentPartnerSwitchingIds, t],
   );
 
   const pricingColumns = [
@@ -2293,7 +2302,7 @@ const ProviderPage = () => {
 
       <Modal
         title={`${currentProvider?.name || ''} - ${t('邮箱配置')}`}
-        visible={smtpModalVisible}
+        visible={smtpAdminMode && smtpModalVisible}
         onCancel={() => setSmtpModalVisible(false)}
         onOk={submitSmtpConfig}
         okButtonProps={{ loading: smtpSaving }}

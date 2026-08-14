@@ -2,6 +2,8 @@ package model
 
 import "github.com/QuantumNous/new-api/common"
 
+const ProviderMailOptionKey = "mail.smtp"
+
 type ProviderOption struct {
 	Id         int    `json:"id" gorm:"primaryKey;autoIncrement"`
 	ProviderId int    `json:"provider_id" gorm:"index"`

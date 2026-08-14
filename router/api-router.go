@@ -444,6 +444,8 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.PUT("/:id/enable", controller.AdminEnableProvider)
 			providerAdminRoute.POST("/logo", controller.AdminUploadProviderLogo)
 			providerAdminRoute.PUT("/:id/config", controller.AdminUpsertProviderConfig)
+			providerAdminRoute.GET("/:id/options", controller.AdminGetProviderOptions)
+			providerAdminRoute.PUT("/:id/options", controller.AdminUpdateProviderOption)
 			providerAdminRoute.PUT("/:id/nav_modules", controller.AdminUpdateProviderNavModules)
 			providerAdminRoute.GET("/:id/reward/config", controller.AdminGetProviderRewardConfig)
 			providerAdminRoute.PUT("/:id/reward/config", controller.AdminUpsertProviderRewardConfig)
