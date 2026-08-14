@@ -287,6 +287,7 @@ export default function RegisterPage() {
     ).trim();
 
     if (!username) return showInfo(t('请输入用户名'));
+    if(username.length > 20) return showInfo(t('用户名不能超过 20 个字符'));
     if (!email) return showInfo(t('请输入邮箱地址'));
     if (!isValidEmail(email)) {
       flashEmailError();
@@ -441,6 +442,7 @@ export default function RegisterPage() {
                   size='large'
                   prefix={<IconUser />}
                   placeholder={t('请输入用户名')}
+                  maxLength={20}
                   value={registerInputs.username}
                   onChange={(value) =>
                     setRegisterInputs((s) => ({ ...s, username: value }))
@@ -456,6 +458,7 @@ export default function RegisterPage() {
                   size='large'
                   prefix={<IconMail />}
                   placeholder={t('name@company.com')}
+                  maxLength={50}
                   value={registerInputs.email}
                   onChange={(value) =>
                     setRegisterInputs((s) => ({ ...s, email: value }))
@@ -509,6 +512,7 @@ export default function RegisterPage() {
                   mode='password'
                   prefix={<IconLock />}
                   placeholder={t('至少 8 位，包含字母和数字')}
+                  maxLength={20}
                   value={registerInputs.password}
                   onChange={(value) =>
                     setRegisterInputs((s) => ({ ...s, password: value }))
@@ -542,6 +546,7 @@ export default function RegisterPage() {
                   mode='password'
                   prefix={<IconLock />}
                   placeholder={t('请再次输入密码')}
+                  maxLength={20}
                   value={registerInputs.password2}
                   onChange={(value) =>
                     setRegisterInputs((s) => ({ ...s, password2: value }))

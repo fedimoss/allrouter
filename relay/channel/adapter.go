@@ -78,6 +78,13 @@ type TaskAdaptor interface {
 	ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error)
 }
 
+// PerSecondBillingEstimator is implemented by task adaptors that can expose
+// the effective duration and resolution sent upstream. Models configured with
+// per_second billing fail closed when their adaptor does not implement it.
+type PerSecondBillingEstimator interface {
+	EstimatePerSecondBilling(c *gin.Context, info *relaycommon.RelayInfo) (resolution string, seconds float64, outputCount int, err error)
+}
+
 type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }

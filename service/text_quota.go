@@ -67,6 +67,14 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 }
 
 func ApplyProviderPricingQuota(ctx *gin.Context, baseQuota int, usePrice bool, groupRatio float64, unitCount int) (providerQuota int, importCostQuota int, applied bool) {
+	return applyProviderPricingQuota(ctx, baseQuota, usePrice, groupRatio, decimal.NewFromInt(int64(unitCount)), false)
+}
+
+func ApplyProviderPerUnitPricingQuota(ctx *gin.Context, baseQuota int, groupRatio float64, unitCount decimal.Decimal) (providerQuota int, importCostQuota int, applied bool) {
+	return applyProviderPricingQuota(ctx, baseQuota, true, groupRatio, unitCount, true)
+}
+
+func applyProviderPricingQuota(ctx *gin.Context, baseQuota int, usePrice bool, groupRatio float64, unitCount decimal.Decimal, multiplyFixedPriceByUnits bool) (providerQuota int, importCostQuota int, applied bool) {
 	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
 	providerPublicModel := common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel)
 	if providerId <= 0 || providerPublicModel == "" {
@@ -84,12 +92,16 @@ func ApplyProviderPricingQuota(ctx *gin.Context, baseQuota int, usePrice bool, g
 	pricingType := common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
 	if pricingType == model.ProviderPricingTypeDelta {
 		if usePrice {
-			providerQuota += common.QuotaFromDecimal(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaPrice)).
+			delta := decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaPrice)).
 				Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
-				Mul(decimal.NewFromFloat(groupRatio)))
+				Mul(decimal.NewFromFloat(groupRatio))
+			if multiplyFixedPriceByUnits {
+				delta = delta.Mul(unitCount)
+			}
+			providerQuota += common.QuotaFromDecimal(delta)
 		} else {
 			providerQuota += common.QuotaFromDecimal(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaRatio)).
-				Mul(decimal.NewFromInt(int64(unitCount))).
+				Mul(unitCount).
 				Mul(decimal.NewFromFloat(groupRatio)))
 		}
 	} else {

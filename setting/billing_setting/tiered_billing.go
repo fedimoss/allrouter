@@ -2,6 +2,9 @@ package billing_setting
 
 import (
 	"fmt"
+	"math"
+	"sort"
+	"strings"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -9,22 +12,31 @@ import (
 )
 
 const (
-	BillingModeRatio      = "ratio"
-	BillingModeTieredExpr = "tiered_expr"
-	BillingModeField      = "billing_mode"
-	BillingExprField      = "billing_expr"
+	BillingModeRatio           = "ratio"
+	BillingModeTieredExpr      = "tiered_expr"
+	BillingModePerSecond       = "per_second"
+	BillingModeField           = "billing_mode"
+	BillingExprField           = "billing_expr"
+	VideoResolutionPricesField = "video_resolution_prices"
 )
+
+type VideoResolutionPricing struct {
+	DefaultResolution string             `json:"default_resolution"`
+	Prices            map[string]float64 `json:"prices"`
+}
 
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr
 type BillingSetting struct {
-	BillingMode map[string]string `json:"billing_mode"`
-	BillingExpr map[string]string `json:"billing_expr"`
+	BillingMode           map[string]string                 `json:"billing_mode"`
+	BillingExpr           map[string]string                 `json:"billing_expr"`
+	VideoResolutionPrices map[string]VideoResolutionPricing `json:"video_resolution_prices"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode: make(map[string]string),
-	BillingExpr: make(map[string]string),
+	BillingMode:           make(map[string]string),
+	BillingExpr:           make(map[string]string),
+	VideoResolutionPrices: make(map[string]VideoResolutionPricing),
 }
 
 func init() {
@@ -55,13 +67,106 @@ func GetBillingExprCopy() map[string]string {
 	return lo.Assign(billingSetting.BillingExpr)
 }
 
+func NormalizeResolution(resolution string) string {
+	return strings.ToUpper(strings.TrimSpace(resolution))
+}
+
+func NormalizeVideoResolutionPricing(pricing VideoResolutionPricing) (VideoResolutionPricing, error) {
+	pricing.DefaultResolution = NormalizeResolution(pricing.DefaultResolution)
+	if pricing.DefaultResolution == "" {
+		return VideoResolutionPricing{}, fmt.Errorf("default_resolution is required")
+	}
+	if len(pricing.Prices) == 0 {
+		return VideoResolutionPricing{}, fmt.Errorf("at least one resolution price is required")
+	}
+	normalized := make(map[string]float64, len(pricing.Prices))
+	for resolution, price := range pricing.Prices {
+		resolution = NormalizeResolution(resolution)
+		if resolution == "" {
+			return VideoResolutionPricing{}, fmt.Errorf("resolution is required")
+		}
+		if _, exists := normalized[resolution]; exists {
+			return VideoResolutionPricing{}, fmt.Errorf("duplicate resolution %s", resolution)
+		}
+		if math.IsNaN(price) || math.IsInf(price, 0) || price < 0 {
+			return VideoResolutionPricing{}, fmt.Errorf("resolution %s price must be a finite non-negative number", resolution)
+		}
+		normalized[resolution] = price
+	}
+	if _, ok := normalized[pricing.DefaultResolution]; !ok {
+		return VideoResolutionPricing{}, fmt.Errorf("default resolution %s has no price", pricing.DefaultResolution)
+	}
+	pricing.Prices = normalized
+	return pricing, nil
+}
+
+func GetVideoResolutionPricing(model string) (VideoResolutionPricing, bool) {
+	pricing, ok := billingSetting.VideoResolutionPrices[model]
+	if !ok {
+		return VideoResolutionPricing{}, false
+	}
+	normalized, err := NormalizeVideoResolutionPricing(pricing)
+	if err != nil {
+		return VideoResolutionPricing{}, false
+	}
+	return normalized, true
+}
+
+func GetVideoResolutionPricesCopy() map[string]VideoResolutionPricing {
+	result := make(map[string]VideoResolutionPricing, len(billingSetting.VideoResolutionPrices))
+	for model, pricing := range billingSetting.VideoResolutionPrices {
+		if normalized, err := NormalizeVideoResolutionPricing(pricing); err == nil {
+			result[model] = normalized
+		}
+	}
+	return result
+}
+
+func ResolvePerSecondPrice(model, resolution string) (string, float64, error) {
+	pricing, ok := GetVideoResolutionPricing(model)
+	if !ok {
+		return "", 0, fmt.Errorf("model %s is configured as per_second but has no valid resolution prices", model)
+	}
+	resolution = NormalizeResolution(resolution)
+	if resolution == "" {
+		resolution = pricing.DefaultResolution
+	}
+	price, ok := pricing.Prices[resolution]
+	if !ok && strings.EqualFold(strings.TrimSpace(model), "MiniMax-H3") && resolution == "720P" {
+		// MiniMax-H3's Sora-compatible request uses the 720 tier name, while
+		// completed videos report a 768-pixel short edge (for example 1344x768).
+		// Keep an explicitly configured 720P tier authoritative; otherwise use
+		// the actual-output 768P tier when it is available.
+		if compatibilityPrice, exists := pricing.Prices["768P"]; exists {
+			return "768P", compatibilityPrice, nil
+		}
+	}
+	if !ok {
+		configuredResolutions := make([]string, 0, len(pricing.Prices))
+		for configuredResolution := range pricing.Prices {
+			configuredResolutions = append(configuredResolutions, configuredResolution)
+		}
+		sort.Strings(configuredResolutions)
+		return "", 0, fmt.Errorf(
+			"model %s has no per-second price for resolution %s; configured resolutions: %s",
+			model,
+			resolution,
+			strings.Join(configuredResolutions, ", "),
+		)
+	}
+	return resolution, price, nil
+}
+
 func GetPricingSyncData(base map[string]any) map[string]any {
-	extra := make(map[string]any, 2)
+	extra := make(map[string]any, 3)
 	if modes := GetBillingModeCopy(); len(modes) > 0 {
 		extra[BillingModeField] = modes
 	}
 	if exprs := GetBillingExprCopy(); len(exprs) > 0 {
 		extra[BillingExprField] = exprs
+	}
+	if prices := GetVideoResolutionPricesCopy(); len(prices) > 0 {
+		extra[VideoResolutionPricesField] = prices
 	}
 	return lo.Assign(base, extra)
 }

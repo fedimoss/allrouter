@@ -30,6 +30,8 @@ type TaskAdaptor struct {
 	baseURL     string
 }
 
+const effectiveVideoRequestContextKey = "hailuo_effective_video_request"
+
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 	a.baseURL = info.ChannelBaseUrl
@@ -52,6 +54,15 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	if effective, ok := c.Get(effectiveVideoRequestContextKey); ok {
+		if body, ok := effective.(*VideoRequest); ok && body != nil {
+			data, err := common.Marshal(body)
+			if err != nil {
+				return nil, err
+			}
+			return bytes.NewReader(data), nil
+		}
+	}
 	v, exists := c.Get("task_request")
 	if !exists {
 		return nil, fmt.Errorf("request not found in context")
@@ -150,7 +161,11 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 	}
 	resolution := modelConfig.DefaultResolution
 	if req.Size != "" {
-		resolution = a.parseResolutionFromSize(req.Size, modelConfig)
+		var err error
+		resolution, err = a.parseResolutionFromSize(req.Size)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	videoRequest := &VideoRequest{
@@ -162,23 +177,56 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 	if err := req.UnmarshalMetadata(&videoRequest); err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata to video request failed")
 	}
+	if videoRequest.Duration == nil || *videoRequest.Duration <= 0 {
+		return nil, fmt.Errorf("duration must be positive")
+	}
+	videoRequest.Resolution = strings.ToUpper(strings.TrimSpace(videoRequest.Resolution))
+	if videoRequest.Resolution == "" {
+		videoRequest.Resolution = modelConfig.DefaultResolution
+	}
+	if !contains(modelConfig.SupportedResolutions, videoRequest.Resolution) {
+		return nil, fmt.Errorf("model %s does not support resolution %s", info.UpstreamModelName, videoRequest.Resolution)
+	}
+	if !containsInt(modelConfig.SupportedDurations, *videoRequest.Duration) {
+		return nil, fmt.Errorf("model %s does not support duration %d", info.UpstreamModelName, *videoRequest.Duration)
+	}
 
 	return videoRequest, nil
 }
 
-func (a *TaskAdaptor) parseResolutionFromSize(size string, modelConfig ModelConfig) string {
+func (a *TaskAdaptor) parseResolutionFromSize(size string) (string, error) {
+	size = strings.ToUpper(strings.TrimSpace(size))
 	switch {
+	case strings.Contains(size, "2K"), strings.Contains(size, "2560"), strings.Contains(size, "2048"), strings.Contains(size, "1440"):
+		return Resolution2K, nil
 	case strings.Contains(size, "1080"):
-		return Resolution1080P
+		return Resolution1080P, nil
 	case strings.Contains(size, "768"):
-		return Resolution768P
+		return Resolution768P, nil
 	case strings.Contains(size, "720"):
-		return Resolution720P
+		return Resolution720P, nil
 	case strings.Contains(size, "512"):
-		return Resolution512P
+		return Resolution512P, nil
 	default:
-		return modelConfig.DefaultResolution
+		return "", fmt.Errorf("unsupported resolution %s", size)
 	}
+}
+
+func (a *TaskAdaptor) EstimatePerSecondBilling(c *gin.Context, info *relaycommon.RelayInfo) (string, float64, int, error) {
+	v, exists := c.Get("task_request")
+	if !exists {
+		return "", 0, 0, fmt.Errorf("request not found in context")
+	}
+	req, ok := v.(relaycommon.TaskSubmitReq)
+	if !ok {
+		return "", 0, 0, fmt.Errorf("invalid request type in context")
+	}
+	effective, err := a.convertToRequestPayload(&req, info)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	c.Set(effectiveVideoRequestContextKey, effective)
+	return effective.Resolution, float64(*effective.Duration), 1, nil
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {

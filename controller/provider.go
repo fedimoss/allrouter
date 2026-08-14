@@ -113,25 +113,28 @@ type providerOwnerCandidatePage struct {
 }
 
 type providerBaseModelChannelPrice struct {
-	ModelName        string   `json:"model_name"`
-	ChannelId        int      `json:"channel_id"`
-	ChannelName      string   `json:"channel_name"`
-	ChannelType      int      `json:"channel_type"`
-	Group            string   `json:"group"`
-	QuotaType        int      `json:"quota_type"`
-	ModelRatio       float64  `json:"model_ratio"`
-	ModelPrice       float64  `json:"model_price"`
-	CompletionRatio  float64  `json:"completion_ratio"`
-	GroupRatio       float64  `json:"group_ratio"`
-	ImportPriceRatio float64  `json:"import_price_ratio"`
-	OriginalPrice    float64  `json:"original_price"`
-	CompletionPrice  float64  `json:"completion_price"`
-	CachePrice       *float64 `json:"cache_price,omitempty"`
-	CostPrice        float64  `json:"cost_price"`
-	CostCompletion   float64  `json:"cost_completion_price"`
-	CostCache        *float64 `json:"cost_cache_price,omitempty"`
-	BillingMode      string   `json:"billing_mode,omitempty"`
-	BillingExpr      string   `json:"billing_expr,omitempty"`
+	ModelName            string             `json:"model_name"`
+	ChannelId            int                `json:"channel_id"`
+	ChannelName          string             `json:"channel_name"`
+	ChannelType          int                `json:"channel_type"`
+	Group                string             `json:"group"`
+	QuotaType            int                `json:"quota_type"`
+	ModelRatio           float64            `json:"model_ratio"`
+	ModelPrice           float64            `json:"model_price"`
+	CompletionRatio      float64            `json:"completion_ratio"`
+	GroupRatio           float64            `json:"group_ratio"`
+	ImportPriceRatio     float64            `json:"import_price_ratio"`
+	OriginalPrice        float64            `json:"original_price"`
+	CompletionPrice      float64            `json:"completion_price"`
+	CachePrice           *float64           `json:"cache_price,omitempty"`
+	CostPrice            float64            `json:"cost_price"`
+	CostCompletion       float64            `json:"cost_completion_price"`
+	CostCache            *float64           `json:"cost_cache_price,omitempty"`
+	BillingMode          string             `json:"billing_mode,omitempty"`
+	BillingExpr          string             `json:"billing_expr,omitempty"`
+	DefaultResolution    string             `json:"default_resolution,omitempty"`
+	ResolutionPrices     map[string]float64 `json:"resolution_prices,omitempty"`
+	CostResolutionPrices map[string]float64 `json:"cost_resolution_prices,omitempty"`
 }
 
 type providerBaseModelPriceAbility struct {
@@ -1250,6 +1253,8 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 		completionRatio := 0.0
 		billingMode := ""
 		billingExpr := ""
+		defaultResolution := ""
+		var resolutionPrices map[string]float64
 		if pricing, ok := pricingMap[modelName]; ok {
 			quotaType = pricing.QuotaType
 			modelRatio = pricing.ModelRatio
@@ -1257,6 +1262,13 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 			completionRatio = pricing.CompletionRatio
 			billingMode = pricing.BillingMode
 			billingExpr = pricing.BillingExpr
+			defaultResolution = pricing.DefaultResolution
+			if len(pricing.ResolutionPrices) > 0 {
+				resolutionPrices = make(map[string]float64, len(pricing.ResolutionPrices))
+				for resolution, price := range pricing.ResolutionPrices {
+					resolutionPrices[resolution] = price * groupRatio
+				}
+			}
 		} else if price, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 			quotaType = 1
 			modelPrice = price
@@ -1278,26 +1290,36 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 				costCache = &cost
 			}
 		}
+		var costResolutionPrices map[string]float64
+		if len(resolutionPrices) > 0 {
+			costResolutionPrices = make(map[string]float64, len(resolutionPrices))
+			for resolution, price := range resolutionPrices {
+				costResolutionPrices[resolution] = price * importPriceRatio
+			}
+		}
 		result = append(result, providerBaseModelChannelPrice{
-			ModelName:        modelName,
-			ChannelId:        ability.ChannelId,
-			ChannelName:      ability.ChannelName,
-			ChannelType:      ability.ChannelType,
-			Group:            ability.Group,
-			QuotaType:        quotaType,
-			ModelRatio:       modelRatio,
-			ModelPrice:       modelPrice,
-			CompletionRatio:  completionRatio,
-			GroupRatio:       groupRatio,
-			ImportPriceRatio: importPriceRatio,
-			OriginalPrice:    originalPrice,
-			CompletionPrice:  completionPrice,
-			CachePrice:       cachePrice,
-			CostPrice:        originalPrice * importPriceRatio,
-			CostCompletion:   completionPrice * importPriceRatio,
-			CostCache:        costCache,
-			BillingMode:      billingMode,
-			BillingExpr:      billingExpr,
+			ModelName:            modelName,
+			ChannelId:            ability.ChannelId,
+			ChannelName:          ability.ChannelName,
+			ChannelType:          ability.ChannelType,
+			Group:                ability.Group,
+			QuotaType:            quotaType,
+			ModelRatio:           modelRatio,
+			ModelPrice:           modelPrice,
+			CompletionRatio:      completionRatio,
+			GroupRatio:           groupRatio,
+			ImportPriceRatio:     importPriceRatio,
+			OriginalPrice:        originalPrice,
+			CompletionPrice:      completionPrice,
+			CachePrice:           cachePrice,
+			CostPrice:            originalPrice * importPriceRatio,
+			CostCompletion:       completionPrice * importPriceRatio,
+			CostCache:            costCache,
+			BillingMode:          billingMode,
+			BillingExpr:          billingExpr,
+			DefaultResolution:    defaultResolution,
+			ResolutionPrices:     resolutionPrices,
+			CostResolutionPrices: costResolutionPrices,
 		})
 	}
 	return result, nil

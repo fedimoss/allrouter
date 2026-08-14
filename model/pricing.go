@@ -36,6 +36,8 @@ type Pricing struct {
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
+	DefaultResolution      string                  `json:"default_resolution,omitempty"`
+	ResolutionPrices       map[string]float64      `json:"resolution_prices,omitempty"`
 	// Provider pricing metadata is returned only on provider sites. For ratio
 	// pricing BillingExpr is already scaled to the provider user's final price.
 	// Delta pricing keeps the scaled dynamic base expression and exposes the
@@ -340,10 +342,18 @@ func updatePricing() {
 			audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(model)
 			pricing.AudioCompletionRatio = &audioCompletionRatio
 		}
-		if billingMode := billing_setting.GetBillingMode(model); billingMode == "tiered_expr" {
+		if billingMode := billing_setting.GetBillingMode(model); billingMode == billing_setting.BillingModeTieredExpr {
 			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
 				pricing.BillingMode = billingMode
 				pricing.BillingExpr = expr
+			}
+		} else if billingMode == billing_setting.BillingModePerSecond {
+			if videoPricing, ok := billing_setting.GetVideoResolutionPricing(model); ok {
+				pricing.BillingMode = billingMode
+				pricing.DefaultResolution = videoPricing.DefaultResolution
+				pricing.ResolutionPrices = videoPricing.Prices
+				pricing.ModelPrice = videoPricing.Prices[videoPricing.DefaultResolution]
+				pricing.QuotaType = 1
 			}
 		}
 		pricingMap = append(pricingMap, pricing)
@@ -351,7 +361,7 @@ func updatePricing() {
 
 	// 防止大更新后数据不通用
 	if len(pricingMap) > 0 {
-		pricingMap[0].PricingVersion = "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+		pricingMap[0].PricingVersion = "b2c5fbb11278d477f8141196fd56208a31cb25dfdb04e0dc866e3fc4b8f0ae21"
 	}
 
 	// 刷新缓存映射，供高并发快速查询

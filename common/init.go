@@ -157,6 +157,11 @@ func initConstantEnv() {
 	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
 	// 异步任务超时时间（分钟），超过此时间未完成的任务将被标记为失败并退款。0 表示禁用。
 	constant.TaskTimeoutMinutes = GetEnvOrDefault("TASK_TIMEOUT_MINUTES", 1440)
+	constant.MiniMaxH3MaxConcurrency = GetEnvOrDefault("MINIMAX_H3_MAX_CONCURRENCY", 5)
+	if constant.MiniMaxH3MaxConcurrency <= 0 {
+		SysError("MINIMAX_H3_MAX_CONCURRENCY must be greater than 0, using default value: 5")
+		constant.MiniMaxH3MaxConcurrency = 5
+	}
 
 	soraPatchStr := GetEnvOrDefaultString("TASK_PRICE_PATCH", "")
 	if soraPatchStr != "" {

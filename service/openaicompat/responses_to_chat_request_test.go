@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -250,6 +251,157 @@ func TestResponsesChatCompatAttachesReasoningToAssistant(t *testing.T) {
 	require.Contains(t, string(body), `"reasoning_content":"thinking..."`)
 }
 
+// TestResponsesChatCompatJsonSchemaVariants 验证 text.format.json_schema 的多种客户端变体
+// 都能转换成 OpenAI Chat Completions 标准包装结构 {name, schema, strict}。
+// 回归场景：sglang 等严格上游以 "Field required: json_schema.name" 400 拒绝缺少 name 的请求。
+func TestResponsesChatCompatJsonSchemaVariants(t *testing.T) {
+	t.Run("nested_plain_schema_derives_name_from_title", func(t *testing.T) {
+		// 报错对应的变体：format.json_schema 直接是纯 schema（无 name/schema 包装）。
+		raw := []byte(`{
+			"model":"gpt-test",
+			"text":{"format":{"type":"json_schema","json_schema":{
+				"$schema":"https://json-schema.org/draft/2020-12/schema",
+				"additionalProperties":false,
+				"properties":{"title":{"type":"string","minLength":1,"maxLength":36},"description":{"type":"string","minLength":1}},
+				"required":["title","description"],
+				"type":"object"
+			}}}
+		}`)
+		var req dto.OpenAIResponsesRequest
+		require.NoError(t, common.Unmarshal(raw, &req))
+
+		chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+		require.NoError(t, err)
+		require.NotNil(t, chatReq.ResponseFormat)
+		require.Equal(t, "json_schema", chatReq.ResponseFormat.Type)
+
+		var js map[string]any
+		require.NoError(t, common.Unmarshal(chatReq.ResponseFormat.JsonSchema, &js))
+		// 必须有 name 字段（纯 schema 无 title，退到默认 "response"）
+		require.Equal(t, "response", js["name"])
+		// schema 必须保留原始 schema 定义
+		schema, ok := js["schema"].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "object", schema["type"])
+		require.Contains(t, schema, "properties")
+	})
+
+	t.Run("nested_wrapped_passthrough", func(t *testing.T) {
+		// 已是 Chat 风格包装：format.json_schema = {name, schema, strict}
+		raw := []byte(`{
+			"model":"gpt-test",
+			"text":{"format":{"type":"json_schema","json_schema":{
+				"name":"todo","strict":true,
+				"schema":{"type":"object","properties":{"task":{"type":"string"}},"required":["task"]}
+			}}}
+		}`)
+		var req dto.OpenAIResponsesRequest
+		require.NoError(t, common.Unmarshal(raw, &req))
+
+		chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+		require.NoError(t, err)
+		var js map[string]any
+		require.NoError(t, common.Unmarshal(chatReq.ResponseFormat.JsonSchema, &js))
+		require.Equal(t, "todo", js["name"])
+		require.Equal(t, true, js["strict"])
+		schema, ok := js["schema"].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "object", schema["type"])
+	})
+
+	t.Run("flat_official_responses_layout", func(t *testing.T) {
+		// 官方 Responses 平级写法：format = {type, name, schema, strict}
+		raw := []byte(`{
+			"model":"gpt-test",
+			"text":{"format":{"type":"json_schema","name":"event","strict":false,
+				"schema":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}}}
+		}`)
+		var req dto.OpenAIResponsesRequest
+		require.NoError(t, common.Unmarshal(raw, &req))
+
+		chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+		require.NoError(t, err)
+		var js map[string]any
+		require.NoError(t, common.Unmarshal(chatReq.ResponseFormat.JsonSchema, &js))
+		require.Equal(t, "event", js["name"])
+		require.Equal(t, false, js["strict"])
+		schema, ok := js["schema"].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "object", schema["type"])
+	})
+
+	t.Run("json_object_type_no_json_schema_field", func(t *testing.T) {
+		// type=json_object 不应产生 json_schema 字段。
+		raw := []byte(`{
+			"model":"gpt-test",
+			"text":{"format":{"type":"json_object"}}
+		}`)
+		var req dto.OpenAIResponsesRequest
+		require.NoError(t, common.Unmarshal(raw, &req))
+
+		chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+		require.NoError(t, err)
+		require.NotNil(t, chatReq.ResponseFormat)
+		require.Equal(t, "json_object", chatReq.ResponseFormat.Type)
+		require.Nil(t, chatReq.ResponseFormat.JsonSchema)
+	})
+
+	t.Run("nested_plain_schema_uses_title_as_name", func(t *testing.T) {
+		// 纯 schema 含 title 时，name 取 title。
+		raw := []byte(`{
+			"model":"gpt-test",
+			"text":{"format":{"type":"json_schema","json_schema":{
+				"title":"MyTitle","type":"object","properties":{"a":{"type":"string"}},"required":["a"]
+			}}}
+		}`)
+		var req dto.OpenAIResponsesRequest
+		require.NoError(t, common.Unmarshal(raw, &req))
+
+		chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+		require.NoError(t, err)
+		var js map[string]any
+		require.NoError(t, common.Unmarshal(chatReq.ResponseFormat.JsonSchema, &js))
+		require.Equal(t, "MyTitle", js["name"])
+	})
+}
+
+// TestResponsesChatCompatJsonSchemaDumpBeforeAndAfter 对照展示：修复前会缺 name，修复后补上。
+// 可临时打开 fmt.Println 查看实际发往上游的 response_format 结构。
+func TestResponsesChatCompatJsonSchemaDumpBeforeAndAfter(t *testing.T) {
+	// 报错原始场景：text.format.json_schema 是纯 schema（无 name/schema 包装）
+	raw := []byte(`{
+		"model":"gpt-test",
+		"text":{"format":{"type":"json_schema","json_schema":{
+			"$schema":"https://json-schema.org/draft/2020-12/schema",
+			"additionalProperties":false,
+			"properties":{
+				"title":{"type":"string","minLength":1,"maxLength":36},
+				"description":{"type":"string","minLength":1}
+			},
+			"required":["title","description"],
+			"type":"object"
+		}}}
+	}`)
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+	require.NoError(t, err)
+	require.NotNil(t, chatReq.ResponseFormat)
+
+	// 只取 response_format，模拟真实发往上游 /v1/chat/completions 的片段
+	payload, err := common.Marshal(map[string]any{
+		"response_format": chatReq.ResponseFormat,
+	})
+	require.NoError(t, err)
+	out := string(payload)
+	t.Logf("发往上游的 response_format 片段:\n%s", out)
+
+	// 关键断言：name 必须存在（修复前这里会缺失 → sglang 400）
+	require.Contains(t, out, `"name":"response"`)
+	require.Contains(t, out, `"schema"`)
+}
+
 func mustJSONString(t *testing.T, value string) string {
 	t.Helper()
 
@@ -454,4 +606,96 @@ func TestResponsesChatCompatCustomAndRawToolCallOutput(t *testing.T) {
 	require.Equal(t, "call_c1", customOut.ToolCallId)
 	require.Contains(t, customOut.StringContent(), `"call_id":"call_c1"`)
 	require.Contains(t, customOut.StringContent(), `"output":"done"`)
+}
+
+// TestResponsesChatCompatCompactionReplayInOrder 验证压缩摘要重放保序转换：
+// compaction item 在 input 中的位置就地转换为 summary user 消息，不最后统一追加；
+// compaction_trigger / additional_tools 被显式过滤，不进入 chat messages。
+func TestResponsesChatCompatCompactionReplayInOrder(t *testing.T) {
+	summary := "fixed the login bug by updating the auth middleware"
+	encoded := relaycommon.EncodeCompactionSummary(summary)
+	raw := []byte(`{
+		"model":"gpt-test",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"first user message"}]},
+			{"type":"compaction","encrypted_content":"` + encoded + `"},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"latest question"}]},
+			{"type":"compaction_trigger"},
+			{"type":"additional_tools","tools":[]}
+		]
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+
+	// compaction_trigger 与 additional_tools 被过滤，剩余 3 条 user 消息且顺序保持。
+	require.Len(t, chatReq.Messages, 3)
+	require.Equal(t, "user", chatReq.Messages[0].Role)
+	require.Equal(t, "first user message", chatReq.Messages[0].StringContent())
+	require.Equal(t, "user", chatReq.Messages[1].Role)
+	require.Contains(t, chatReq.Messages[1].StringContent(), "fixed the login bug")
+	require.Contains(t, chatReq.Messages[1].StringContent(), "Another language model started to solve this problem")
+	require.Equal(t, "user", chatReq.Messages[2].Role)
+	require.Equal(t, "latest question", chatReq.Messages[2].StringContent())
+}
+
+// TestResponsesChatCompatOpaqueCompactionReplay 验证无前缀加密 blob（真正 OpenAI 压缩内容）
+// 降级为不可读占位提示，不产生空消息。
+func TestResponsesChatCompatOpaqueCompactionReplay(t *testing.T) {
+	raw := []byte(`{
+		"model":"gpt-test",
+		"input":[
+			{"type":"compaction","encrypted_content":"9x9base64opaque"},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"after"}]}
+		]
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+
+	require.Len(t, chatReq.Messages, 2)
+	require.Contains(t, chatReq.Messages[0].StringContent(), "cannot read")
+	require.Equal(t, "after", chatReq.Messages[1].StringContent())
+}
+
+// TestResponsesChatCompatContextCompactionNoContent 验证 context_compaction 无 encrypted_content
+// 时（纯本地压缩标记）被跳过，不产生空消息。
+func TestResponsesChatCompatContextCompactionNoContent(t *testing.T) {
+	raw := []byte(`{
+		"model":"gpt-test",
+		"input":[
+			{"type":"context_compaction"},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}
+		]
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+
+	require.Len(t, chatReq.Messages, 1)
+	require.Equal(t, "hi", chatReq.Messages[0].StringContent())
+}
+
+// TestCompactionEnvelopeRoundTrip 验证 ocx1 信封编解码往返。
+func TestCompactionEnvelopeRoundTrip(t *testing.T) {
+	summary := "完成登录重构，修复了 session 失效问题"
+	encoded := relaycommon.EncodeCompactionSummary(summary)
+	require.True(t, strings.HasPrefix(encoded, relaycommon.OcxCompactionPrefix))
+
+	decoded, ok := relaycommon.DecodeCompactionSummary(encoded)
+	require.True(t, ok)
+	require.Equal(t, summary, decoded)
+
+	// 无前缀内容不可解码
+	_, ok = relaycommon.DecodeCompactionSummary("raw-blob")
+	require.False(t, ok)
 }

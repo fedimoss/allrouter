@@ -229,9 +229,10 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     }
     let status = localStorage.getItem('status');
     let serverAddress = '';
+    const domain = window.location.origin;
     if (status) {
       status = JSON.parse(status);
-      serverAddress = status.server_address;
+      serverAddress = domain || '' //status.server_address || '';
     }
     if (serverAddress === '') {
       serverAddress = window.location.origin;

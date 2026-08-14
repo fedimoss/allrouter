@@ -365,6 +365,9 @@ type ResponsesOutput struct {
 	Input string `json:"input,omitempty"`
 	// ReasoningContent 携带附挂到工具调用条目的推理内容（部分思考型模型会产出）。
 	ReasoningContent string `json:"reasoning_content,omitempty"`
+	// EncryptedContent 仅 compaction 条目使用：codex 远程压缩 v2 期望的输出载荷。
+	// 中继侧用 ocx1: 透明信封承载摘要文本（codex 客户端不解析、原样保存并重放）。
+	EncryptedContent string `json:"encrypted_content,omitempty"`
 }
 
 // MarshalJSON keeps result present for artifact-mode image calls. Codex and other strict

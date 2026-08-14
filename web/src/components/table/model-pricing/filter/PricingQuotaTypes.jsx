@@ -27,12 +27,19 @@ const PricingQuotaTypes = ({
   loading = false,
   t,
 }) => {
-  const qtyCount = (type) => models.filter((model) => (type === 'all' ? true : model.quota_type === type)).length;
+  const qtyCount = (type) => models.filter((model) =>
+    type === 'all'
+      ? true
+      : type === 'per_second'
+        ? model.billing_mode === 'per_second'
+        : model.quota_type === type && model.billing_mode !== 'per_second',
+  ).length;
 
   const items = [
     { value: 'all', label: t('全部类型'), tagCount: qtyCount('all') },
     { value: 0, label: t('按量计费'), tagCount: qtyCount(0) },
     { value: 1, label: t('按次计费'), tagCount: qtyCount(1) },
+    { value: 'per_second', label: t('按秒计费'), tagCount: qtyCount('per_second') },
   ];
 
   return (

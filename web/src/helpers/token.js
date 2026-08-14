@@ -78,11 +78,12 @@ export async function fetchTokenKeys() {
 export function getServerAddress() {
   let status = localStorage.getItem('status');
   let serverAddress = '';
+  const domain = window.location.origin;
 
   if (status) {
     try {
       status = JSON.parse(status);
-      serverAddress = status.server_address || '';
+      serverAddress = domain || '' //status.server_address || '';
     } catch (error) {
       console.error('Failed to parse status from localStorage:', error);
     }

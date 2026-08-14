@@ -7256,3 +7256,46 @@ CREATE INDEX IF NOT EXISTS idx_subscription_orders_reserved_stock_expiry
     WHERE status = 'pending' AND stock_status = 'reserved';
 
 COMMIT;
+
+
+BEGIN;
+
+ALTER TABLE tokens
+    ADD COLUMN IF NOT EXISTS minimax_h3_seed bigint NULL;
+
+COMMENT ON COLUMN tokens.minimax_h3_seed IS
+    'Stable MiniMax-H3 生成种子在API令牌首次使用时分配';
+
+COMMIT;
+
+
+BEGIN;
+
+-- Include MiniMax-H3 jobs that were already accepted upstream before this
+-- scheduler was deployed. Legacy jobs can still be NOT_START locally, so an
+-- upstream_task_id is used to distinguish them from new database-only jobs.
+UPDATE tasks
+SET action = 'minimaxH3Generate',
+    status = CASE
+                 WHEN status = 'NOT_START' THEN 'SUBMITTED'
+                 ELSE status
+        END
+WHERE properties->>'origin_model_name' = 'MiniMax-H3'
+  AND (
+    status IN ('DISPATCHING', 'SUBMITTED', 'QUEUED', 'IN_PROGRESS')
+   OR (
+    status = 'NOT_START'
+  AND COALESCE(private_data->>'upstream_task_id', '') <> ''
+    )
+    );
+
+CREATE INDEX IF NOT EXISTS idx_tasks_minimax_h3_waiting
+    ON tasks (submit_time, id)
+    WHERE action = 'minimaxH3Generate' AND status = 'NOT_START';
+
+CREATE INDEX IF NOT EXISTS idx_tasks_minimax_h3_active
+    ON tasks (status, id)
+    WHERE action = 'minimaxH3Generate'
+    AND status IN ('DISPATCHING', 'SUBMITTED', 'QUEUED', 'IN_PROGRESS');
+
+COMMIT;

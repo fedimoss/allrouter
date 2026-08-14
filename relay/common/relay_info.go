@@ -187,6 +187,11 @@ type RelayInfo struct {
 	// tool_search_call / namespace function_call。其他渠道路径保持 nil。
 	ResponsesChatToolCtx *ResponsesChatToolContext
 
+	// ResponsesCompaction 仅用于 Responses→Chat 渠道：请求输入中检测到远程压缩 v2
+	// （compaction_trigger）时非 nil，驱动请求侧摘要指令注入与响应侧 compaction item 合成。
+	// 普通请求保持 nil，路径零影响。
+	ResponsesCompaction *ResponsesCompactionState
+
 	// RequestConversionChain records request format conversions in order, e.g.
 	// ["openai", "openai_responses"] or ["openai", "claude"].
 	RequestConversionChain []types.RelayFormat
@@ -709,16 +714,20 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt         string                 `json:"prompt"`
-	Model          string                 `json:"model,omitempty"`
-	Mode           string                 `json:"mode,omitempty"`
-	Image          string                 `json:"image,omitempty"`
-	Images         []string               `json:"images,omitempty"`
-	Size           string                 `json:"size,omitempty"`
-	Duration       int                    `json:"duration,omitempty"`
-	Seconds        string                 `json:"seconds,omitempty"`
-	InputReference string                 `json:"input_reference,omitempty"`
-	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	Prompt              string                 `json:"prompt"`
+	Model               string                 `json:"model,omitempty"`
+	Mode                string                 `json:"mode,omitempty"`
+	Image               string                 `json:"image,omitempty"`
+	Images              []string               `json:"images,omitempty"`
+	Size                string                 `json:"size,omitempty"`
+	Duration            int                    `json:"duration,omitempty"`
+	Seconds             string                 `json:"seconds,omitempty"`
+	NumOutputs          *int                   `json:"num_outputs,omitempty"`
+	NumOutputsPerPrompt *int                   `json:"num_outputs_per_prompt,omitempty"`
+	N                   *int                   `json:"n,omitempty"`
+	Target              json.RawMessage        `json:"target,omitempty"`
+	InputReference      string                 `json:"input_reference,omitempty"`
+	Metadata            map[string]interface{} `json:"metadata,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
@@ -732,8 +741,12 @@ func (t *TaskSubmitReq) HasImage() bool {
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	type Alias TaskSubmitReq
 	aux := &struct {
-		Metadata json.RawMessage `json:"metadata,omitempty"`
-		Duration json.RawMessage `json:"duration,omitempty"`
+		Metadata            json.RawMessage `json:"metadata,omitempty"`
+		Duration            json.RawMessage `json:"duration,omitempty"`
+		Seconds             json.RawMessage `json:"seconds,omitempty"`
+		NumOutputs          json.RawMessage `json:"num_outputs,omitempty"`
+		NumOutputsPerPrompt json.RawMessage `json:"num_outputs_per_prompt,omitempty"`
+		N                   json.RawMessage `json:"n,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -755,6 +768,46 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 				}
 			}
 		}
+	}
+
+	if len(aux.Seconds) > 0 {
+		var secondsStr string
+		if err := common.Unmarshal(aux.Seconds, &secondsStr); err == nil {
+			t.Seconds = secondsStr
+		} else {
+			var secondsNumber float64
+			if err := common.Unmarshal(aux.Seconds, &secondsNumber); err == nil {
+				t.Seconds = strconv.FormatFloat(secondsNumber, 'f', -1, 64)
+			}
+		}
+	}
+
+	parseOptionalInt := func(field string, raw json.RawMessage) (*int, error) {
+		if len(raw) == 0 || string(raw) == "null" {
+			return nil, nil
+		}
+		var value int
+		if err := common.Unmarshal(raw, &value); err == nil {
+			return &value, nil
+		}
+		var valueStr string
+		if err := common.Unmarshal(raw, &valueStr); err == nil {
+			parsed, err := strconv.Atoi(valueStr)
+			if err == nil {
+				return &parsed, nil
+			}
+		}
+		return nil, fmt.Errorf("%s must be an integer", field)
+	}
+	var err error
+	if t.NumOutputs, err = parseOptionalInt("num_outputs", aux.NumOutputs); err != nil {
+		return err
+	}
+	if t.NumOutputsPerPrompt, err = parseOptionalInt("num_outputs_per_prompt", aux.NumOutputsPerPrompt); err != nil {
+		return err
+	}
+	if t.N, err = parseOptionalInt("n", aux.N); err != nil {
+		return err
 	}
 
 	if len(aux.Metadata) > 0 {
