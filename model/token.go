@@ -38,6 +38,14 @@ type Token struct {
 
 const miniMaxH3MaxSeed = int64(1<<31 - 1)
 
+func generateMiniMaxH3Seed() (int64, error) {
+	randomSeed, err := rand.Int(rand.Reader, big.NewInt(miniMaxH3MaxSeed))
+	if err != nil {
+		return 0, fmt.Errorf("generate MiniMax-H3 seed: %w", err)
+	}
+	return randomSeed.Int64() + 1, nil
+}
+
 func (token *Token) Clean() {
 	token.Key = ""
 }
@@ -329,11 +337,10 @@ func GetOrCreateTokenMiniMaxH3Seed(tokenId int) (int64, error) {
 		return *tokenSeed.Seed, nil
 	}
 
-	randomSeed, err := rand.Int(rand.Reader, big.NewInt(miniMaxH3MaxSeed))
+	candidate, err := generateMiniMaxH3Seed()
 	if err != nil {
-		return 0, fmt.Errorf("generate MiniMax-H3 seed: %w", err)
+		return 0, err
 	}
-	candidate := randomSeed.Int64() + 1
 	if err := DB.Model(&Token{}).
 		Where("id = ? AND minimax_h3_seed IS NULL", tokenId).
 		Update("minimax_h3_seed", candidate).Error; err != nil {
@@ -351,6 +358,48 @@ func GetOrCreateTokenMiniMaxH3Seed(tokenId int) (int64, error) {
 		return 0, errors.New("MiniMax-H3 seed was not persisted")
 	}
 	return *tokenSeed.Seed, nil
+}
+
+// GetOrCreateUserMiniMaxH3Seed returns the stable MiniMax-H3 seed assigned to a user.
+func GetOrCreateUserMiniMaxH3Seed(userId int) (int64, error) {
+	if userId <= 0 {
+		return 0, errors.New("user id is required")
+	}
+
+	var userSeed struct {
+		Seed *int64 `gorm:"column:minimax_h3_seed"`
+	}
+	if err := DB.Model(&User{}).
+		Select("minimax_h3_seed").
+		Where("id = ?", userId).
+		Take(&userSeed).Error; err != nil {
+		return 0, err
+	}
+	if userSeed.Seed != nil {
+		return *userSeed.Seed, nil
+	}
+
+	candidate, err := generateMiniMaxH3Seed()
+	if err != nil {
+		return 0, err
+	}
+	if err := DB.Model(&User{}).
+		Where("id = ? AND minimax_h3_seed IS NULL", userId).
+		Update("minimax_h3_seed", candidate).Error; err != nil {
+		return 0, err
+	}
+
+	userSeed.Seed = nil
+	if err := DB.Model(&User{}).
+		Select("minimax_h3_seed").
+		Where("id = ?", userId).
+		Take(&userSeed).Error; err != nil {
+		return 0, err
+	}
+	if userSeed.Seed == nil {
+		return 0, errors.New("MiniMax-H3 user seed was not persisted")
+	}
+	return *userSeed.Seed, nil
 }
 
 func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {

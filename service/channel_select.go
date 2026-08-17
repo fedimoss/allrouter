@@ -19,6 +19,23 @@ type RetryParam struct {
 	resetNextTry bool
 }
 
+func IsChannelTypeCompatibleWithModel(modelName string, channelType int) bool {
+	if modelName != "MiniMax-H3" {
+		return true
+	}
+	return channelType == constant.ChannelTypeSora || channelType == constant.ChannelTypeOpenAI
+}
+
+func getRandomSatisfiedChannel(group string, modelName string, retry int) (*model.Channel, error) {
+	if modelName == "MiniMax-H3" {
+		return model.GetChannelByTypes(group, modelName, retry, []int{
+			constant.ChannelTypeSora,
+			constant.ChannelTypeOpenAI,
+		})
+	}
+	return model.GetRandomSatisfiedChannel(group, modelName, retry)
+}
+
 func (p *RetryParam) GetRetry() int {
 	if p.Retry == nil {
 		return 0
@@ -115,7 +132,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = getRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -153,7 +170,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = getRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}

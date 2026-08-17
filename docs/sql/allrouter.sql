@@ -7299,3 +7299,14 @@ CREATE INDEX IF NOT EXISTS idx_tasks_minimax_h3_active
     AND status IN ('DISPATCHING', 'SUBMITTED', 'QUEUED', 'IN_PROGRESS');
 
 COMMIT;
+
+
+BEGIN;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS minimax_h3_seed bigint NULL;
+
+COMMENT ON COLUMN users.minimax_h3_seed IS
+    'Stable MiniMax-H3 seed assigned when a user first generates from Playground';
+
+COMMIT;

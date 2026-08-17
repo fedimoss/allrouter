@@ -32,7 +32,11 @@ import { useApiRequest } from '../../hooks/playground/useApiRequest';
 import { useSyncMessageAndCustomBody } from '../../hooks/playground/useSyncMessageAndCustomBody';
 import { useMessageEdit } from '../../hooks/playground/useMessageEdit';
 import { useDataLoader } from '../../hooks/playground/useDataLoader';
-import { MESSAGE_ROLES, ERROR_MESSAGES } from '../../constants/playground.constants';
+import {
+  MESSAGE_ROLES,
+  ERROR_MESSAGES,
+  MINIMAX_H3_MODEL,
+} from '../../constants/playground.constants';
 import {
   getLogo,
   stringToColor,
@@ -51,6 +55,9 @@ import {
   OptimizedMessageActions,
 } from '../../components/playground/OptimizedComponents';
 import ChatArea from '../../components/playground/ChatArea';
+import VideoGenerationArea, {
+  useMiniMaxH3VideoGeneration,
+} from '../../components/playground/VideoGenerationArea';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 
 // 生成头像
@@ -125,6 +132,12 @@ const Playground = () => {
     setCustomRequestMode,
     setCustomRequestBody,
   } = state;
+  const isMiniMaxH3 = inputs.model === MINIMAX_H3_MODEL;
+  const miniMaxH3VideoController = useMiniMaxH3VideoGeneration({
+    enabled: isMiniMaxH3,
+    group: inputs.group,
+    userId: userState?.user?.id,
+  });
 
   // API 请求相关
   const { sendRequest, onStopGenerator } = useApiRequest(
@@ -199,7 +212,11 @@ const Playground = () => {
 
     const outgoingContent =
       role === MESSAGE_ROLES.USER
-        ? buildMessageContent(trimmedContent, validImageUrls, inputs.imageEnabled)
+        ? buildMessageContent(
+            trimmedContent,
+            validImageUrls,
+            inputs.imageEnabled,
+          )
         : trimmedContent;
 
     const outgoingMessage = createMessage(role, outgoingContent);
@@ -292,7 +309,8 @@ const Playground = () => {
                 (url) => url.trim() !== '',
               );
               if (validImageUrls.length > 0) {
-                const textContent = getTextContent(previewMessages[index]) || '示例消息';
+                const textContent =
+                  getTextContent(previewMessages[index]) || '示例消息';
                 const contentWithImages = buildMessageContent(
                   textContent,
                   validImageUrls,
@@ -491,25 +509,36 @@ const Playground = () => {
                   onCustomRequestBodyChange={setCustomRequestBody}
                   previewPayload={previewPayload}
                   messages={message}
+                  miniMaxH3VideoController={
+                    isMiniMaxH3 ? miniMaxH3VideoController : null
+                  }
                 />
               </div>
             )}
 
             <div className='min-h-0'>
-              <ChatArea
-                chatRef={chatRef}
-                message={message}
-                inputs={inputs}
-                styleState={styleState}
-                roleInfo={roleInfo}
-                onMessageSend={onMessageSend}
-                onStopGenerator={onStopGenerator}
-                onClearMessages={handleClearMessages}
-                onToggleDebugPanel={() => setShowDebugPanel((prev) => !prev)}
-                onToggleSettings={() => setShowSettings(true)}
-                renderCustomChatContent={renderCustomChatContent}
-                renderChatBoxAction={renderChatBoxAction}
-              />
+              {isMiniMaxH3 ? (
+                <VideoGenerationArea
+                  controller={miniMaxH3VideoController}
+                  styleState={styleState}
+                  onToggleSettings={() => setShowSettings(true)}
+                />
+              ) : (
+                <ChatArea
+                  chatRef={chatRef}
+                  message={message}
+                  inputs={inputs}
+                  styleState={styleState}
+                  roleInfo={roleInfo}
+                  onMessageSend={onMessageSend}
+                  onStopGenerator={onStopGenerator}
+                  onClearMessages={handleClearMessages}
+                  onToggleDebugPanel={() => setShowDebugPanel((prev) => !prev)}
+                  onToggleSettings={() => setShowSettings(true)}
+                  renderCustomChatContent={renderCustomChatContent}
+                  renderChatBoxAction={renderChatBoxAction}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -540,12 +569,15 @@ const Playground = () => {
                 onCustomRequestBodyChange={setCustomRequestBody}
                 previewPayload={previewPayload}
                 messages={message}
+                miniMaxH3VideoController={
+                  isMiniMaxH3 ? miniMaxH3VideoController : null
+                }
               />
             </div>
           </>
         )}
 
-        {showDebugPanel && (
+        {showDebugPanel && !isMiniMaxH3 && (
           <>
             <div
               className='playground-v2-overlay'

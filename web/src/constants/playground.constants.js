@@ -76,9 +76,13 @@ export const DEBUG_TABS = {
 // ========== API 相关常量 ==========
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  VIDEO_GENERATIONS: '/pg/videos',
+  VIDEO_FRAME_UPLOADS: '/pg/videos/frames',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 };
+
+export const MINIMAX_H3_MODEL = 'MiniMax-H3';
 
 // ========== 配置默认值 ==========
 export const DEFAULT_CONFIG = {

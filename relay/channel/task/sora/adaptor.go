@@ -54,17 +54,29 @@ type miniMaxH3Target struct {
 }
 
 type miniMaxH3Request struct {
-	Model               string          `json:"model"`
-	Prompt              string          `json:"prompt"`
-	Seconds             string          `json:"seconds"`
-	Task                string          `json:"task"`
-	Conditions          []any           `json:"conditions"`
-	Target              miniMaxH3Target `json:"target"`
-	NumOutputsPerPrompt int             `json:"num_outputs_per_prompt"`
-	NumInferenceSteps   int             `json:"num_inference_steps"`
-	FlowShift           float64         `json:"flow_shift"`
-	AudioFlowShift      float64         `json:"audio_flow_shift"`
-	Seed                int64           `json:"seed"`
+	Model               string               `json:"model"`
+	Prompt              string               `json:"prompt"`
+	Seconds             string               `json:"seconds"`
+	Task                string               `json:"task"`
+	Conditions          []miniMaxH3Condition `json:"conditions"`
+	Target              miniMaxH3Target      `json:"target"`
+	NumOutputsPerPrompt int                  `json:"num_outputs_per_prompt"`
+	NumInferenceSteps   int                  `json:"num_inference_steps"`
+	FlowShift           float64              `json:"flow_shift"`
+	AudioFlowShift      float64              `json:"audio_flow_shift"`
+	Seed                int64                `json:"seed"`
+}
+
+type miniMaxH3Condition struct {
+	Type       string `json:"type"`
+	URI        string `json:"uri"`
+	Role       string `json:"role"`
+	FrameIndex int    `json:"frame_index"`
+}
+
+type miniMaxH3PlaygroundRequest struct {
+	FirstFrameID string `json:"first_frame_id"`
+	LastFrameID  string `json:"last_frame_id"`
 }
 
 type responseTask struct {
@@ -153,21 +165,65 @@ func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req r
 		return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
 	}
 	unsupported := make([]string, 0)
+	allowedFields := map[string]bool{
+		"model":  true,
+		"prompt": true,
+	}
+	if info.IsPlayground {
+		allowedFields["group"] = true
+		allowedFields["first_frame_id"] = true
+		allowedFields["last_frame_id"] = true
+	}
 	for field := range fields {
-		if field != "model" && field != "prompt" {
+		if !allowedFields[field] {
 			unsupported = append(unsupported, field)
 		}
 	}
 	if len(unsupported) > 0 {
 		sort.Strings(unsupported)
 		return service.TaskErrorWrapperLocal(
-			fmt.Errorf("MiniMax-H3 only accepts model and prompt; unsupported fields: %s", strings.Join(unsupported, ", ")),
+			fmt.Errorf("MiniMax-H3 request contains unsupported fields: %s", strings.Join(unsupported, ", ")),
 			"invalid_request",
 			http.StatusBadRequest,
 		)
 	}
 
-	seed, err := model.GetOrCreateTokenMiniMaxH3Seed(info.TokenId)
+	conditions := make([]miniMaxH3Condition, 0, 2)
+	taskType := "t2va"
+	if info.IsPlayground {
+		var playgroundRequest miniMaxH3PlaygroundRequest
+		if err := common.Unmarshal(body, &playgroundRequest); err != nil {
+			return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
+		}
+		firstFrameURI, err := service.ResolveMiniMaxH3FrameURI(info.UserId, playgroundRequest.FirstFrameID)
+		if err != nil {
+			return service.TaskErrorWrapperLocal(fmt.Errorf("invalid first frame: %w", err), "invalid_request", http.StatusBadRequest)
+		}
+		lastFrameURI, err := service.ResolveMiniMaxH3FrameURI(info.UserId, playgroundRequest.LastFrameID)
+		if err != nil {
+			return service.TaskErrorWrapperLocal(fmt.Errorf("invalid last frame: %w", err), "invalid_request", http.StatusBadRequest)
+		}
+		if firstFrameURI != "" {
+			conditions = append(conditions, miniMaxH3Condition{
+				Type: "image", URI: firstFrameURI, Role: "keyframe", FrameIndex: 0,
+			})
+		}
+		if lastFrameURI != "" {
+			conditions = append(conditions, miniMaxH3Condition{
+				Type: "image", URI: lastFrameURI, Role: "keyframe", FrameIndex: -1,
+			})
+		}
+		if len(conditions) > 0 {
+			taskType = "fl2va"
+		}
+	}
+
+	var seed int64
+	if info.IsPlayground {
+		seed, err = model.GetOrCreateUserMiniMaxH3Seed(info.UserId)
+	} else {
+		seed, err = model.GetOrCreateTokenMiniMaxH3Seed(info.TokenId)
+	}
 	if err != nil {
 		return service.TaskErrorWrapper(err, "get_or_create_minimax_h3_seed_failed", http.StatusInternalServerError)
 	}
@@ -176,8 +232,8 @@ func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req r
 		Model:      req.Model,
 		Prompt:     req.Prompt,
 		Seconds:    "10",
-		Task:       "t2va",
-		Conditions: []any{},
+		Task:       taskType,
+		Conditions: conditions,
 		Target: miniMaxH3Target{
 			ShortEdge:       768,
 			AspectRatio:     "16:9",

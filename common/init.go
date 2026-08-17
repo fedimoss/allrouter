@@ -162,6 +162,7 @@ func initConstantEnv() {
 		SysError("MINIMAX_H3_MAX_CONCURRENCY must be greater than 0, using default value: 5")
 		constant.MiniMaxH3MaxConcurrency = 5
 	}
+	constant.MiniMaxH3FrameUploadDir = GetEnvOrDefaultString("MINIMAX_H3_FRAME_UPLOAD_DIR", "data/minimax-h3-frames")
 
 	soraPatchStr := GetEnvOrDefaultString("TASK_PRICE_PATCH", "")
 	if soraPatchStr != "" {

@@ -23,25 +23,28 @@ func Playground(c *gin.Context) {
 		}
 	}()
 
-	useAccessToken := c.GetBool("use_access_token")
-	if useAccessToken {
-		newAPIError = types.NewError(errors.New("暂不支持使用 access token"), types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())
+	newAPIError = setupPlaygroundRelayContext(c, types.RelayFormatOpenAI)
+	if newAPIError != nil {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAI, nil, nil)
+	Relay(c, types.RelayFormatOpenAI)
+}
+
+func setupPlaygroundRelayContext(c *gin.Context, relayFormat types.RelayFormat) *types.NewAPIError {
+	if c.GetBool("use_access_token") {
+		return types.NewError(errors.New("暂不支持使用 access token"), types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())
+	}
+
+	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, nil, nil)
 	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
-		return
+		return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
 	userId := c.GetInt("id")
-
-	// Write user context to ensure acceptUnsetRatio is available
 	userCache, err := model.GetUserCache(userId)
 	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
-		return
+		return types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 	}
 	userCache.WriteContext(c)
 
@@ -50,7 +53,16 @@ func Playground(c *gin.Context) {
 		Name:   fmt.Sprintf("playground-%s", relayInfo.UsingGroup),
 		Group:  relayInfo.UsingGroup,
 	}
-	_ = middleware.SetupContextForToken(c, tempToken)
+	if err := middleware.SetupContextForToken(c, tempToken); err != nil {
+		return types.NewError(err, types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())
+	}
+	return nil
+}
 
-	Relay(c, types.RelayFormatOpenAI)
+func PlaygroundVideo(c *gin.Context) {
+	if newAPIError := setupPlaygroundRelayContext(c, types.RelayFormatTask); newAPIError != nil {
+		c.JSON(newAPIError.StatusCode, gin.H{"error": newAPIError.ToOpenAIError()})
+		return
+	}
+	RelayTask(c)
 }

@@ -83,6 +83,9 @@ func VideoProxy(c *gin.Context) {
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to create proxy request")
 		return
 	}
+	if rangeHeader := strings.TrimSpace(c.GetHeader("Range")); rangeHeader != "" {
+		req.Header.Set("Range", rangeHeader)
+	}
 
 	switch channel.Type {
 	case constant.ChannelTypeGemini:
@@ -122,6 +125,7 @@ func VideoProxy(c *gin.Context) {
 	}
 
 	if strings.HasPrefix(videoURL, "data:") {
+		setVideoDownloadHeader(c, taskID)
 		if err := writeVideoDataURL(c, videoURL); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to decode video data URL for task %s: %s", taskID, err.Error()))
 			videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to fetch video content")
@@ -151,7 +155,7 @@ func VideoProxy(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Upstream returned status %d for %s", resp.StatusCode, videoURL))
 		videoProxyError(c, http.StatusBadGateway, "server_error",
 			fmt.Sprintf("Upstream service returned status %d", resp.StatusCode))
@@ -163,12 +167,32 @@ func VideoProxy(c *gin.Context) {
 			c.Writer.Header().Add(key, value)
 		}
 	}
+	setVideoDownloadHeader(c, taskID)
 
 	c.Writer.Header().Set("Cache-Control", "public, max-age=86400")
 	c.Writer.WriteHeader(resp.StatusCode)
 	if _, err = io.Copy(c.Writer, resp.Body); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream video content: %s", err.Error()))
 	}
+}
+
+func setVideoDownloadHeader(c *gin.Context, taskID string) {
+	if c.Query("download") != "1" {
+		return
+	}
+	var filename strings.Builder
+	for _, character := range taskID {
+		if character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' ||
+			character == '-' || character == '_' {
+			filename.WriteRune(character)
+		}
+	}
+	if filename.Len() == 0 {
+		filename.WriteString("video")
+	}
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.mp4"`, filename.String()))
 }
 
 func writeVideoDataURL(c *gin.Context, dataURL string) error {

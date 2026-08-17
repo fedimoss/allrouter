@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -184,6 +185,78 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err
+}
+
+// GetChannelByTypes selects a channel for a model while restricting the
+// channel protocol. It is used by models such as MiniMax-H3 whose public name
+// may also be mistakenly attached to an incompatible provider channel.
+func GetChannelByTypes(group string, modelName string, retry int, channelTypes []int) (*Channel, error) {
+	if len(channelTypes) == 0 {
+		return GetChannel(group, modelName, retry)
+	}
+
+	var abilities []AbilityWithChannel
+	groupColumn := "abilities." + commonGroupCol
+	err := DB.Table("abilities").
+		Select("abilities.*, channels.type AS channel_type").
+		Joins("JOIN channels ON channels.id = abilities.channel_id").
+		Where(groupColumn+" = ? AND abilities.model = ? AND abilities.enabled = ? AND channels.type IN ?", group, modelName, true, channelTypes).
+		Find(&abilities).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(abilities) == 0 {
+		return nil, nil
+	}
+
+	prioritySet := make(map[int64]struct{})
+	for _, ability := range abilities {
+		priority := int64(0)
+		if ability.Priority != nil {
+			priority = *ability.Priority
+		}
+		prioritySet[priority] = struct{}{}
+	}
+	priorities := make([]int64, 0, len(prioritySet))
+	for priority := range prioritySet {
+		priorities = append(priorities, priority)
+	}
+	sort.Slice(priorities, func(i, j int) bool { return priorities[i] > priorities[j] })
+	if retry >= len(priorities) {
+		retry = len(priorities) - 1
+	}
+	targetPriority := priorities[retry]
+
+	targets := make([]AbilityWithChannel, 0, len(abilities))
+	weightSum := 0
+	for _, ability := range abilities {
+		priority := int64(0)
+		if ability.Priority != nil {
+			priority = *ability.Priority
+		}
+		if priority == targetPriority {
+			targets = append(targets, ability)
+			weightSum += int(ability.Weight) + 10
+		}
+	}
+	if len(targets) == 0 {
+		return nil, nil
+	}
+
+	randomWeight := common.GetRandomInt(weightSum)
+	selectedChannelID := targets[len(targets)-1].ChannelId
+	for _, ability := range targets {
+		randomWeight -= int(ability.Weight) + 10
+		if randomWeight <= 0 {
+			selectedChannelID = ability.ChannelId
+			break
+		}
+	}
+	var channel Channel
+	if err := DB.First(&channel, "id = ?", selectedChannelID).Error; err != nil {
+		return nil, err
+	}
+	return &channel, nil
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {

@@ -19,6 +19,7 @@ var ErrorLogEnabled bool
 var TaskQueryLimit int
 var TaskTimeoutMinutes int
 var MiniMaxH3MaxConcurrency int
+var MiniMaxH3FrameUploadDir string
 
 // temporary variable for sora patch, will be removed in future
 var TaskPricePatches []string

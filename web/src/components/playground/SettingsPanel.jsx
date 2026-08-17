@@ -26,6 +26,8 @@ import ParameterControl from './ParameterControl';
 import ImageUrlInput from './ImageUrlInput';
 import ConfigManager from './ConfigManager';
 import CustomRequestEditor from './CustomRequestEditor';
+import { MiniMaxH3VideoForm } from './VideoGenerationArea';
+import { MINIMAX_H3_MODEL } from '../../constants/playground.constants';
 
 const ToggleSwitch = ({ checked, disabled, onChange }) => {
   return (
@@ -59,9 +61,11 @@ const SettingsPanel = ({
   onCustomRequestBodyChange,
   previewPayload,
   messages,
+  miniMaxH3VideoController,
 }) => {
   const { t } = useTranslation();
   console.log('groups==', groups);
+  const isMiniMaxH3 = inputs.model === MINIMAX_H3_MODEL;
 
   const currentConfig = {
     inputs,
@@ -97,11 +101,12 @@ const SettingsPanel = ({
         <div className='playground-v2-settings-stack'>
           <div className='playground-v2-settings-section'>
             <div className='playground-v2-section-kicker'>Model Config</div>
-            <div className='playground-v2-settings-stack' style={{ gap: '16px' }}>
+            <div
+              className='playground-v2-settings-stack'
+              style={{ gap: '16px' }}
+            >
               <div className='playground-v2-field'>
-                <label className='playground-v2-field-label'>
-                  {t('模型')}
-                </label>
+                <label className='playground-v2-field-label'>{t('模型')}</label>
                 <Select
                   placeholder={t('请选择模型')}
                   selection
@@ -119,9 +124,7 @@ const SettingsPanel = ({
               </div>
 
               <div className='playground-v2-field'>
-                <label className='playground-v2-field-label'>
-                  {t('分组')}
-                </label>
+                <label className='playground-v2-field-label'>{t('分组')}</label>
                 <Select
                   placeholder={t('请选择分组')}
                   selection
@@ -141,62 +144,74 @@ const SettingsPanel = ({
             </div>
           </div>
 
-          <ImageUrlInput
-            imageUrls={inputs.imageUrls}
-            imageEnabled={inputs.imageEnabled}
-            disabled={customRequestMode}
-            onImageUrlsChange={(urls) => onInputChange('imageUrls', urls)}
-            onImageEnabledChange={(enabled) =>
-              onInputChange('imageEnabled', enabled)
-            }
-          />
+          {isMiniMaxH3 && !styleState.isMobile && miniMaxH3VideoController && (
+            <MiniMaxH3VideoForm controller={miniMaxH3VideoController} compact />
+          )}
 
-          <ParameterControl
-            inputs={inputs}
-            parameterEnabled={parameterEnabled}
-            onInputChange={onInputChange}
-            onParameterToggle={onParameterToggle}
-            disabled={customRequestMode}
-          />
-
-          <CustomRequestEditor
-            customRequestMode={customRequestMode}
-            customRequestBody={customRequestBody}
-            onCustomRequestModeChange={onCustomRequestModeChange}
-            onCustomRequestBodyChange={onCustomRequestBodyChange}
-            defaultPayload={previewPayload}
-          />
-
-          <div className='playground-v2-settings-section'>
-            <div className='playground-v2-section-kicker'>Configuration</div>
-            <ConfigManager
-              currentConfig={currentConfig}
-              onConfigImport={onConfigImport}
-              onConfigReset={onConfigReset}
-              styleState={styleState}
-              messages={messages}
-            />
-          </div>
-
-          <div className='playground-v2-settings-section'>
-            <div className='playground-v2-toggle-row'>
-              <div>
-                <div className='playground-v2-field-label'>
-                  <PanelsTopLeft size={16} />
-                  {t('流式输出')}
-                </div>
-                <div className='playground-v2-field-hint'>
-                  {t('开启后将实时接收响应，并在调试面板中查看 SSE 数据流。')}
-                </div>
-              </div>
-
-              <ToggleSwitch
-                checked={inputs.stream}
+          {!isMiniMaxH3 && (
+            <>
+              <ImageUrlInput
+                imageUrls={inputs.imageUrls}
+                imageEnabled={inputs.imageEnabled}
                 disabled={customRequestMode}
-                onChange={(checked) => onInputChange('stream', checked)}
+                onImageUrlsChange={(urls) => onInputChange('imageUrls', urls)}
+                onImageEnabledChange={(enabled) =>
+                  onInputChange('imageEnabled', enabled)
+                }
+              />
+
+              <ParameterControl
+                inputs={inputs}
+                parameterEnabled={parameterEnabled}
+                onInputChange={onInputChange}
+                onParameterToggle={onParameterToggle}
+                disabled={customRequestMode}
+              />
+
+              <CustomRequestEditor
+                customRequestMode={customRequestMode}
+                customRequestBody={customRequestBody}
+                onCustomRequestModeChange={onCustomRequestModeChange}
+                onCustomRequestBodyChange={onCustomRequestBodyChange}
+                defaultPayload={previewPayload}
+              />
+            </>
+          )}
+
+          {!isMiniMaxH3 && (
+            <div className='playground-v2-settings-section'>
+              <div className='playground-v2-section-kicker'>Configuration</div>
+              <ConfigManager
+                currentConfig={currentConfig}
+                onConfigImport={onConfigImport}
+                onConfigReset={onConfigReset}
+                styleState={styleState}
+                messages={messages}
               />
             </div>
-          </div>
+          )}
+
+          {!isMiniMaxH3 && (
+            <div className='playground-v2-settings-section'>
+              <div className='playground-v2-toggle-row'>
+                <div>
+                  <div className='playground-v2-field-label'>
+                    <PanelsTopLeft size={16} />
+                    {t('流式输出')}
+                  </div>
+                  <div className='playground-v2-field-hint'>
+                    {t('开启后将实时接收响应，并在调试面板中查看 SSE 数据流。')}
+                  </div>
+                </div>
+
+                <ToggleSwitch
+                  checked={inputs.stream}
+                  disabled={customRequestMode}
+                  onChange={(checked) => onInputChange('stream', checked)}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -36,6 +37,67 @@ type TaskSubmitResult struct {
 	//PerCallPrice   types.PriceData
 }
 
+type miniMaxH3QueuedRequest struct {
+	Model               string           `json:"model"`
+	Prompt              string           `json:"prompt"`
+	Seconds             string           `json:"seconds"`
+	Task                string           `json:"task"`
+	Conditions          []map[string]any `json:"conditions"`
+	Target              map[string]any   `json:"target"`
+	NumOutputsPerPrompt int              `json:"num_outputs_per_prompt"`
+	NumInferenceSteps   int              `json:"num_inference_steps"`
+	FlowShift           float64          `json:"flow_shift"`
+	AudioFlowShift      float64          `json:"audio_flow_shift"`
+	Seed                int64            `json:"seed"`
+}
+
+func encodeMiniMaxH3MultipartRequest(pendingRequest []byte) ([]byte, string, error) {
+	var pending miniMaxH3QueuedRequest
+	if err := common.Unmarshal(pendingRequest, &pending); err != nil {
+		return nil, "", fmt.Errorf("parse MiniMax-H3 pending request: %w", err)
+	}
+	for i := range pending.Conditions {
+		uri, _ := pending.Conditions[i]["uri"].(string)
+		embeddedURI, err := service.EmbedMiniMaxH3FrameURI(uri)
+		if err != nil {
+			return nil, "", fmt.Errorf("embed MiniMax-H3 condition %d: %w", i, err)
+		}
+		pending.Conditions[i]["uri"] = embeddedURI
+	}
+
+	extraBody, err := common.Marshal(map[string]any{
+		"task":             pending.Task,
+		"conditions":       pending.Conditions,
+		"target":           pending.Target,
+		"audio_flow_shift": pending.AudioFlowShift,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("marshal MiniMax-H3 extra body: %w", err)
+	}
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	fields := map[string]string{
+		"model":                  pending.Model,
+		"prompt":                 pending.Prompt,
+		"seconds":                pending.Seconds,
+		"num_outputs_per_prompt": strconv.Itoa(pending.NumOutputsPerPrompt),
+		"num_inference_steps":    strconv.Itoa(pending.NumInferenceSteps),
+		"flow_shift":             strconv.FormatFloat(pending.FlowShift, 'f', -1, 64),
+		"seed":                   strconv.FormatInt(pending.Seed, 10),
+		"extra_body":             string(extraBody),
+	}
+	for name, value := range fields {
+		if err := writer.WriteField(name, value); err != nil {
+			return nil, "", fmt.Errorf("write MiniMax-H3 multipart field %s: %w", name, err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return nil, "", fmt.Errorf("close MiniMax-H3 multipart request: %w", err)
+	}
+	return body.Bytes(), writer.FormDataContentType(), nil
+}
+
 func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.MiniMaxH3SubmitResult, error) {
 	if task == nil {
 		return nil, errors.New("task is required")
@@ -52,7 +114,11 @@ func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.
 	if ch.GetBaseURL() != "" {
 		baseURL = ch.GetBaseURL()
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(baseURL, "/")+"/v1/videos", bytes.NewReader(task.PrivateData.PendingRequest))
+	requestBody, contentType, err := encodeMiniMaxH3MultipartRequest(task.PrivateData.PendingRequest)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(baseURL, "/")+"/v1/videos", bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, fmt.Errorf("build MiniMax-H3 request: %w", err)
 	}
@@ -61,7 +127,7 @@ func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.
 		key = ch.Key
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 
 	client, err := service.GetHttpClientWithProxy(ch.GetSetting().Proxy)
 	if err != nil {
@@ -208,14 +274,33 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 // 估算计费(EstimateBilling) → 计算价格 → 预扣费（仅首次）→
 // 构建/发送/解析上游请求 → 提交后计费调整(AdjustBillingOnSubmit)。
 // 控制器负责 defer Refund 和成功后 Settle。
-func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitResult, *dto.TaskError) {
-	info.InitChannelMeta(c)
+func resolveTaskSubmissionPlatform(c *gin.Context, info *relaycommon.RelayInfo) constant.TaskPlatform {
+	// MiniMax-H3 uses the OpenAI video protocol and the local database queue,
+	// not MiniMax's Hailuo video protocol. Select its adaptor by model so a
+	// MiniMax-type channel works the same as a Sora/OpenAI-type channel.
+	if info != nil && info.OriginModelName == "MiniMax-H3" {
+		return constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeSora))
+	}
 
-	// 1. 确定 platform → 创建适配器 → 验证请求
 	platform := constant.TaskPlatform(c.GetString("platform"))
 	if platform == "" {
 		platform = GetTaskPlatform(c)
 	}
+	return platform
+}
+
+func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitResult, *dto.TaskError) {
+	info.InitChannelMeta(c)
+	if !service.IsChannelTypeCompatibleWithModel(info.OriginModelName, info.ChannelType) {
+		return nil, service.TaskErrorWrapperLocal(
+			fmt.Errorf("channel type %d does not support model %s", info.ChannelType, info.OriginModelName),
+			"incompatible_channel_type",
+			http.StatusBadRequest,
+		)
+	}
+
+	// 1. 确定 platform → 创建适配器 → 验证请求
+	platform := resolveTaskSubmissionPlatform(c, info)
 	adaptor := GetTaskAdaptor(platform)
 	if adaptor == nil {
 		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("invalid api platform: %s", platform), "invalid_api_platform", http.StatusBadRequest)
@@ -343,7 +428,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 9. 发送请求
-	if info.OriginModelName == "MiniMax-H3" && info.Action == constant.TaskActionMiniMaxH3Generate {
+	if info.Action == constant.TaskActionMiniMaxH3Generate {
 		pendingRequest, err := io.ReadAll(requestBody)
 		if err != nil {
 			return nil, service.TaskErrorWrapper(err, "read_minimax_h3_request_failed", http.StatusInternalServerError)
@@ -450,9 +535,10 @@ var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp 
 }
 
 func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
+	relayMode = resolveTaskFetchRelayMode(c, relayMode)
 	respBuilder, ok := fetchRespBuilders[relayMode]
 	if !ok {
-		taskResp = service.TaskErrorWrapperLocal(errors.New("invalid_relay_mode"), "invalid_relay_mode", http.StatusBadRequest)
+		return service.TaskErrorWrapperLocal(errors.New("invalid_relay_mode"), "invalid_relay_mode", http.StatusBadRequest)
 	}
 
 	respBody, taskErr := respBuilder(c)
@@ -470,6 +556,16 @@ func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
 		return
 	}
 	return
+}
+
+func resolveTaskFetchRelayMode(c *gin.Context, relayMode int) int {
+	if relayMode != relayconstant.RelayModeUnknown || c == nil || c.Request == nil {
+		return relayMode
+	}
+	if c.Request.Method == http.MethodGet && strings.HasPrefix(c.Request.URL.Path, "/v1/videos/") {
+		return relayconstant.RelayModeVideoFetchByID
+	}
+	return relayMode
 }
 
 func sunoFetchRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
