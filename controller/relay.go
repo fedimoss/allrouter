@@ -595,6 +595,16 @@ func RelayTaskFetch(c *gin.Context) {
 }
 
 func RelayTask(c *gin.Context) {
+	retainMiniMaxH3Frames := false
+	defer func() {
+		if retainMiniMaxH3Frames {
+			return
+		}
+		for _, frameID := range c.GetStringSlice(service.MiniMaxH3FrameIDsContextKey) {
+			_ = service.DeleteMiniMaxH3Frame(c.GetInt("id"), frameID)
+		}
+	}()
+
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &dto.TaskError{
@@ -745,6 +755,9 @@ func RelayTask(c *gin.Context) {
 			taskErr = service.TaskErrorWrapperLocal(insertErr, "insert_task_failed", http.StatusInternalServerError)
 			respondTaskError(c, taskErr)
 			return
+		}
+		if task.Action == constant.TaskActionMiniMaxH3Generate && len(c.GetStringSlice(service.MiniMaxH3FrameIDsContextKey)) > 0 {
+			retainMiniMaxH3Frames = true
 		}
 		service.LogTaskConsumption(c, relayInfo)
 		if result.Queued {

@@ -191,19 +191,14 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
     };
   }, [enabled, pollTask, t, task?.id, task?.status]);
 
-  const uploadFrames = async () => {
-    if (!firstFrame && !lastFrame) return {};
+  const buildSubmissionForm = () => {
     const formData = new FormData();
+    formData.append('model', MINIMAX_H3_MODEL);
+    formData.append('prompt', prompt.trim());
+    if (group) formData.append('group', group);
     if (firstFrame) formData.append('first_frame', firstFrame);
     if (lastFrame) formData.append('last_frame', lastFrame);
-    const response = await API.post(
-      API_ENDPOINTS.VIDEO_FRAME_UPLOADS,
-      formData,
-      {
-        skipErrorHandler: true,
-      },
-    );
-    return response.data?.data || {};
+    return formData;
   };
 
   const handleSubmit = async () => {
@@ -211,15 +206,9 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
     setSubmitting(true);
     setPollError('');
     try {
-      const frames = await uploadFrames();
       const response = await API.post(
         API_ENDPOINTS.VIDEO_GENERATIONS,
-        {
-          model: MINIMAX_H3_MODEL,
-          group,
-          prompt: prompt.trim(),
-          ...frames,
-        },
+        buildSubmissionForm(),
         { skipErrorHandler: true },
       );
       const createdTask = response.data;

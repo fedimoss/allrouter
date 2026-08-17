@@ -98,6 +98,17 @@ func encodeMiniMaxH3MultipartRequest(pendingRequest []byte) ([]byte, string, err
 	return body.Bytes(), writer.FormDataContentType(), nil
 }
 
+func cleanupMiniMaxH3PendingFrames(pendingRequest []byte) {
+	var pending miniMaxH3QueuedRequest
+	if err := common.Unmarshal(pendingRequest, &pending); err != nil {
+		return
+	}
+	for _, condition := range pending.Conditions {
+		frameURI, _ := condition["uri"].(string)
+		_ = service.DeleteMiniMaxH3FrameURI(frameURI)
+	}
+}
+
 func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.MiniMaxH3SubmitResult, error) {
 	if task == nil {
 		return nil, errors.New("task is required")
@@ -105,6 +116,7 @@ func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.
 	if len(task.PrivateData.PendingRequest) == 0 {
 		return nil, errors.New("MiniMax-H3 pending request is empty")
 	}
+	defer cleanupMiniMaxH3PendingFrames(task.PrivateData.PendingRequest)
 
 	ch, err := model.GetChannelById(task.ChannelId, true)
 	if err != nil {

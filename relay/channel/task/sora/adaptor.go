@@ -74,11 +74,6 @@ type miniMaxH3Condition struct {
 	FrameIndex int    `json:"frame_index"`
 }
 
-type miniMaxH3PlaygroundRequest struct {
-	FirstFrameID string `json:"first_frame_id"`
-	LastFrameID  string `json:"last_frame_id"`
-}
-
 type responseTask struct {
 	ID                 string `json:"id"`
 	TaskID             string `json:"task_id,omitempty"` //兼容旧接口
@@ -145,25 +140,16 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq) *dto.TaskError {
-	if !strings.HasPrefix(c.GetHeader("Content-Type"), "application/json") {
-		return service.TaskErrorWrapperLocal(fmt.Errorf("MiniMax-H3 requires application/json"), "invalid_request", http.StatusBadRequest)
+	contentType := c.GetHeader("Content-Type")
+	isJSON := strings.HasPrefix(contentType, "application/json")
+	isMultipart := strings.Contains(contentType, "multipart/form-data")
+	if !isJSON && !isMultipart {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("MiniMax-H3 requires application/json or multipart/form-data"), "invalid_request", http.StatusBadRequest)
 	}
 	if strings.TrimSpace(req.Prompt) == "" {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("field prompt is required"), "invalid_request", http.StatusBadRequest)
 	}
 
-	storage, err := common.GetBodyStorage(c)
-	if err != nil {
-		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
-	}
-	body, err := storage.Bytes()
-	if err != nil {
-		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
-	}
-	var fields map[string]any
-	if err := common.Unmarshal(body, &fields); err != nil {
-		return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
-	}
 	unsupported := make([]string, 0)
 	allowedFields := map[string]bool{
 		"model":  true,
@@ -171,12 +157,82 @@ func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req r
 	}
 	if info.IsPlayground {
 		allowedFields["group"] = true
-		allowedFields["first_frame_id"] = true
-		allowedFields["last_frame_id"] = true
 	}
-	for field := range fields {
-		if !allowedFields[field] {
-			unsupported = append(unsupported, field)
+
+	conditions := make([]miniMaxH3Condition, 0, 2)
+	frameIDs := make([]string, 0, 2)
+	cleanupFrames := true
+	defer func() {
+		if cleanupFrames {
+			for _, frameID := range frameIDs {
+				_ = service.DeleteMiniMaxH3Frame(info.UserId, frameID)
+			}
+		}
+	}()
+
+	if isJSON {
+		storage, err := common.GetBodyStorage(c)
+		if err != nil {
+			return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+		}
+		body, err := storage.Bytes()
+		if err != nil {
+			return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+		}
+		var fields map[string]any
+		if err := common.Unmarshal(body, &fields); err != nil {
+			return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
+		}
+		for field := range fields {
+			if !allowedFields[field] {
+				unsupported = append(unsupported, field)
+			}
+		}
+	} else {
+		form, err := common.ParseMultipartFormReusable(c)
+		if err != nil {
+			return service.TaskErrorWrapperLocal(err, "invalid_multipart_form", http.StatusBadRequest)
+		}
+		defer form.RemoveAll()
+		for field := range form.Value {
+			if !allowedFields[field] {
+				unsupported = append(unsupported, field)
+			}
+		}
+		for field := range form.File {
+			if field != "first_frame" && field != "last_frame" {
+				unsupported = append(unsupported, field)
+			}
+		}
+		if len(unsupported) == 0 {
+			appendFrame := func(field string, frameIndex int) *dto.TaskError {
+				files := form.File[field]
+				if len(files) == 0 {
+					return nil
+				}
+				if len(files) != 1 {
+					return service.TaskErrorWrapperLocal(fmt.Errorf("field %s accepts exactly one image", field), "invalid_request", http.StatusBadRequest)
+				}
+				frameID, err := service.SaveMiniMaxH3Frame(info.UserId, files[0])
+				if err != nil {
+					return service.TaskErrorWrapperLocal(fmt.Errorf("invalid %s: %w", field, err), "invalid_request", http.StatusBadRequest)
+				}
+				frameIDs = append(frameIDs, frameID)
+				frameURI, err := service.ResolveMiniMaxH3FrameURI(info.UserId, frameID)
+				if err != nil {
+					return service.TaskErrorWrapperLocal(fmt.Errorf("resolve %s: %w", field, err), "invalid_request", http.StatusBadRequest)
+				}
+				conditions = append(conditions, miniMaxH3Condition{
+					Type: "image", URI: frameURI, Role: "keyframe", FrameIndex: frameIndex,
+				})
+				return nil
+			}
+			if taskErr := appendFrame("first_frame", 0); taskErr != nil {
+				return taskErr
+			}
+			if taskErr := appendFrame("last_frame", -1); taskErr != nil {
+				return taskErr
+			}
 		}
 	}
 	if len(unsupported) > 0 {
@@ -188,37 +244,15 @@ func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req r
 		)
 	}
 
-	conditions := make([]miniMaxH3Condition, 0, 2)
 	taskType := "t2va"
-	if info.IsPlayground {
-		var playgroundRequest miniMaxH3PlaygroundRequest
-		if err := common.Unmarshal(body, &playgroundRequest); err != nil {
-			return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
-		}
-		firstFrameURI, err := service.ResolveMiniMaxH3FrameURI(info.UserId, playgroundRequest.FirstFrameID)
-		if err != nil {
-			return service.TaskErrorWrapperLocal(fmt.Errorf("invalid first frame: %w", err), "invalid_request", http.StatusBadRequest)
-		}
-		lastFrameURI, err := service.ResolveMiniMaxH3FrameURI(info.UserId, playgroundRequest.LastFrameID)
-		if err != nil {
-			return service.TaskErrorWrapperLocal(fmt.Errorf("invalid last frame: %w", err), "invalid_request", http.StatusBadRequest)
-		}
-		if firstFrameURI != "" {
-			conditions = append(conditions, miniMaxH3Condition{
-				Type: "image", URI: firstFrameURI, Role: "keyframe", FrameIndex: 0,
-			})
-		}
-		if lastFrameURI != "" {
-			conditions = append(conditions, miniMaxH3Condition{
-				Type: "image", URI: lastFrameURI, Role: "keyframe", FrameIndex: -1,
-			})
-		}
-		if len(conditions) > 0 {
-			taskType = "fl2va"
-		}
+	if len(conditions) > 0 {
+		taskType = "fl2va"
 	}
 
-	var seed int64
+	var (
+		seed int64
+		err  error
+	)
 	if info.IsPlayground {
 		seed, err = model.GetOrCreateUserMiniMaxH3Seed(info.UserId)
 	} else {
@@ -258,6 +292,10 @@ func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req r
 		Target:              target,
 	})
 	c.Set(miniMaxH3RequestBodyKey, upstreamRequest)
+	if len(frameIDs) > 0 {
+		c.Set(service.MiniMaxH3FrameIDsContextKey, frameIDs)
+	}
+	cleanupFrames = false
 	info.Action = constant.TaskActionMiniMaxH3Generate
 	return nil
 }

@@ -84,8 +84,7 @@ func SetRelayRouter(router *gin.Engine) {
 	playgroundRouter.Use(middleware.UserAuth())
 	{
 		playgroundRouter.POST("/chat/completions", middleware.Distribute(), controller.Playground)
-		playgroundRouter.POST("/videos/frames", middleware.CriticalRateLimit(), controller.UploadPlaygroundVideoFrames)
-		playgroundRouter.POST("/videos", middleware.Distribute(), controller.PlaygroundVideo)
+		playgroundRouter.POST("/videos", middleware.CriticalRateLimit(), middleware.Distribute(), controller.PlaygroundVideo)
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))

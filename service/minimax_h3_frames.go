@@ -22,6 +22,8 @@ import (
 
 const MiniMaxH3FrameMaxBytes int64 = 10 << 20
 
+const MiniMaxH3FrameIDsContextKey = "minimax_h3_frame_ids"
+
 var miniMaxH3FrameExtensions = map[string]string{
 	"image/jpeg": ".jpg",
 	"image/png":  ".png",
@@ -122,10 +124,10 @@ func SaveMiniMaxH3Frame(userId int, fileHeader *multipart.FileHeader) (string, e
 }
 
 // ResolveMiniMaxH3FrameURI resolves a user-owned opaque frame id to a local file URI.
-func ResolveMiniMaxH3FrameURI(userId int, frameID string) (string, error) {
+func miniMaxH3FramePath(userId int, frameID string) (string, error) {
 	frameID = strings.TrimSpace(frameID)
 	if frameID == "" {
-		return "", nil
+		return "", errors.New("frame id is required")
 	}
 	if filepath.Base(frameID) != frameID || strings.ContainsAny(frameID, `/\\`) {
 		return "", errors.New("invalid frame id")
@@ -139,7 +141,18 @@ func ResolveMiniMaxH3FrameURI(userId int, frameID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	framePath := filepath.Join(userDir, frameID)
+	return filepath.Join(userDir, frameID), nil
+}
+
+func ResolveMiniMaxH3FrameURI(userId int, frameID string) (string, error) {
+	frameID = strings.TrimSpace(frameID)
+	if frameID == "" {
+		return "", nil
+	}
+	framePath, err := miniMaxH3FramePath(userId, frameID)
+	if err != nil {
+		return "", err
+	}
 	info, err := os.Stat(framePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -158,13 +171,24 @@ func ResolveMiniMaxH3FrameURI(userId int, frameID string) (string, error) {
 	return (&url.URL{Scheme: "file", Path: uriPath}).String(), nil
 }
 
+// DeleteMiniMaxH3Frame removes a user-owned temporary frame by its opaque id.
+func DeleteMiniMaxH3Frame(userId int, frameID string) error {
+	framePath, err := miniMaxH3FramePath(userId, frameID)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(framePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("delete MiniMax-H3 frame: %w", err)
+	}
+	return nil
+}
+
 func miniMaxH3FrameURIPath(configuredRoot string, localFramePath string, userId int, frameID string) (string, error) {
 	configuredRoot = strings.TrimSpace(configuredRoot)
 	uriPath := ""
 	if filepath.VolumeName(configuredRoot) == "" && strings.HasPrefix(filepath.ToSlash(configuredRoot), "/") {
 		// Preserve an explicitly configured POSIX path even when new-api runs on
-		// Windows. The local path may be backed by a shared mount that the Linux
-		// model service sees at the configured path.
+		// Windows. This supports a shared persistent volume across gateway nodes.
 		uriPath = path.Join(filepath.ToSlash(configuredRoot), strconv.Itoa(userId), frameID)
 	} else {
 		absPath, err := filepath.Abs(localFramePath)
@@ -179,16 +203,13 @@ func miniMaxH3FrameURIPath(configuredRoot string, localFramePath string, userId 
 	return uriPath, nil
 }
 
-// EmbedMiniMaxH3FrameURI converts a locally stored Playground frame into a
-// data URI before dispatching it to a remote model server. This avoids
-// requiring the new-api host and the model container to share a filesystem.
-func EmbedMiniMaxH3FrameURI(frameURI string) (string, error) {
+func miniMaxH3LocalPathFromURI(frameURI string) (string, bool, error) {
 	parsed, err := url.Parse(strings.TrimSpace(frameURI))
 	if err != nil {
-		return "", fmt.Errorf("parse MiniMax-H3 frame URI: %w", err)
+		return "", false, fmt.Errorf("parse MiniMax-H3 frame URI: %w", err)
 	}
 	if parsed.Scheme != "file" {
-		return frameURI, nil
+		return "", false, nil
 	}
 
 	configuredRoot := strings.TrimSpace(constant.MiniMaxH3FrameUploadDir)
@@ -196,7 +217,7 @@ func EmbedMiniMaxH3FrameURI(frameURI string) (string, error) {
 	if filepath.VolumeName(configuredRoot) != "" || !strings.HasPrefix(configuredURIPath, "/") {
 		absRoot, err := filepath.Abs(configuredRoot)
 		if err != nil {
-			return "", fmt.Errorf("resolve MiniMax-H3 frame root: %w", err)
+			return "", false, fmt.Errorf("resolve MiniMax-H3 frame root: %w", err)
 		}
 		configuredURIPath = filepath.ToSlash(absRoot)
 		if filepath.VolumeName(absRoot) != "" && !strings.HasPrefix(configuredURIPath, "/") {
@@ -207,17 +228,44 @@ func EmbedMiniMaxH3FrameURI(frameURI string) (string, error) {
 	cleanRootPath := strings.TrimRight(path.Clean(configuredURIPath), "/")
 	cleanFramePath := path.Clean(parsed.Path)
 	if cleanFramePath != cleanRootPath && !strings.HasPrefix(cleanFramePath, cleanRootPath+"/") {
-		return "", errors.New("MiniMax-H3 frame URI is outside the upload directory")
+		return "", false, errors.New("MiniMax-H3 frame URI is outside the upload directory")
 	}
 	relativePath := strings.TrimPrefix(strings.TrimPrefix(cleanFramePath, cleanRootPath), "/")
 	absRoot, err := filepath.Abs(configuredRoot)
 	if err != nil {
-		return "", fmt.Errorf("resolve MiniMax-H3 local frame root: %w", err)
+		return "", false, fmt.Errorf("resolve MiniMax-H3 local frame root: %w", err)
 	}
 	localPath := filepath.Join(absRoot, filepath.FromSlash(relativePath))
 	localRelativePath, err := filepath.Rel(absRoot, localPath)
 	if err != nil || localRelativePath == ".." || strings.HasPrefix(localRelativePath, ".."+string(filepath.Separator)) {
-		return "", errors.New("MiniMax-H3 local frame path is outside the upload directory")
+		return "", false, errors.New("MiniMax-H3 local frame path is outside the upload directory")
+	}
+	return localPath, true, nil
+}
+
+// DeleteMiniMaxH3FrameURI removes a temporary local frame after it is no
+// longer needed by the persistent task queue. Non-file URIs are ignored.
+func DeleteMiniMaxH3FrameURI(frameURI string) error {
+	localPath, local, err := miniMaxH3LocalPathFromURI(frameURI)
+	if err != nil || !local {
+		return err
+	}
+	if err := os.Remove(localPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("delete MiniMax-H3 frame: %w", err)
+	}
+	return nil
+}
+
+// EmbedMiniMaxH3FrameURI converts a locally stored Playground frame into a
+// data URI before dispatching it to a remote model server. This avoids
+// requiring the new-api host and the model container to share a filesystem.
+func EmbedMiniMaxH3FrameURI(frameURI string) (string, error) {
+	localPath, local, err := miniMaxH3LocalPathFromURI(frameURI)
+	if err != nil {
+		return "", err
+	}
+	if !local {
+		return frameURI, nil
 	}
 
 	file, err := os.Open(localPath)
