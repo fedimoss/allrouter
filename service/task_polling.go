@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -120,8 +121,9 @@ func TaskPollingLoop() {
 					nullTaskIds = append(nullTaskIds, task.ID)
 					continue
 				}
-				taskM[upstreamID] = task
-				taskChannelM[task.ChannelId] = append(taskChannelM[task.ChannelId], upstreamID)
+				taskMapKey := taskMapKeyForPolling(task, upstreamID)
+				taskM[taskMapKey] = task
+				taskChannelM[task.ChannelId] = append(taskChannelM[task.ChannelId], taskMapKey)
 			}
 			if len(nullTaskIds) > 0 {
 				err := model.TaskBulkUpdateByID(nullTaskIds, map[string]any{
@@ -165,6 +167,36 @@ func isLocalMiniMaxH3Task(task *model.Task) bool {
 		return false
 	}
 	return task.Status == model.TaskStatusNotStart || task.Status == model.TaskStatusDispatching
+}
+
+const miniMaxH3TaskMapKeyPrefix = "\x00minimax-h3\x00"
+
+// taskMapKeyForPolling keeps the legacy lookup key for every other task type.
+// MiniMax-H3 upstream task IDs are only unique within their source channel, so
+// its in-memory polling key must include both channel ID and upstream task ID.
+func taskMapKeyForPolling(task *model.Task, upstreamID string) string {
+	if task == nil || task.Properties.OriginModelName != "MiniMax-H3" {
+		return upstreamID
+	}
+	return miniMaxH3TaskMapKeyPrefix + strconv.Itoa(task.ChannelId) + "\x00" + upstreamID
+}
+
+// authorizationKeyForPolling pins MiniMax-H3 status requests to the channel
+// and key saved when the task was created. Other task types keep their prior behavior.
+func authorizationKeyForPolling(task *model.Task, ch *model.Channel) (string, error) {
+	if task == nil {
+		return "", errors.New("task is required")
+	}
+	if ch == nil {
+		return "", errors.New("channel is required")
+	}
+	if task.Properties.OriginModelName == "MiniMax-H3" && task.ChannelId != ch.Id {
+		return "", fmt.Errorf("refuse to poll MiniMax-H3 task %s through channel #%d: source channel is #%d", task.TaskID, ch.Id, task.ChannelId)
+	}
+	if task.PrivateData.Key != "" {
+		return task.PrivateData.Key, nil
+	}
+	return ch.Key, nil
 }
 
 // DispatchPlatformUpdate 按平台分发轮询更新
@@ -355,17 +387,17 @@ func UpdateVideoTasks(ctx context.Context, platform constant.TaskPlatform, taskC
 	return nil
 }
 
-func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, channelId int, taskIds []string, taskM map[string]*model.Task) error {
-	logger.LogInfo(ctx, fmt.Sprintf("Channel #%d pending video tasks: %d", channelId, len(taskIds)))
-	if len(taskIds) == 0 {
+func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, channelId int, taskMapKeys []string, taskM map[string]*model.Task) error {
+	logger.LogInfo(ctx, fmt.Sprintf("Channel #%d pending video tasks: %d", channelId, len(taskMapKeys)))
+	if len(taskMapKeys) == 0 {
 		return nil
 	}
 	cacheGetChannel, err := model.CacheGetChannel(channelId)
 	if err != nil {
-		// Collect DB primary key IDs for bulk update (taskIds are upstream IDs, not task_id column values)
+		// Collect DB primary key IDs for bulk update (map keys are internal lookup keys, not task_id column values)
 		var failedIDs []int64
-		for _, upstreamID := range taskIds {
-			if t, ok := taskM[upstreamID]; ok {
+		for _, taskMapKey := range taskMapKeys {
+			if t, ok := taskM[taskMapKey]; ok {
 				failedIDs = append(failedIDs, t.ID)
 			}
 		}
@@ -390,9 +422,13 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	}
 	info.ApiKey = cacheGetChannel.Key
 	adaptor.Init(info)
-	for _, taskId := range taskIds {
-		if err := updateVideoSingleTask(ctx, adaptor, cacheGetChannel, taskId, taskM); err != nil {
-			logger.LogError(ctx, fmt.Sprintf("Failed to update video task %s: %s", taskId, err.Error()))
+	for _, taskMapKey := range taskMapKeys {
+		if err := updateVideoSingleTask(ctx, adaptor, cacheGetChannel, taskMapKey, taskM); err != nil {
+			taskID := taskMapKey
+			if task := taskM[taskMapKey]; task != nil {
+				taskID = task.TaskID
+			}
+			logger.LogError(ctx, fmt.Sprintf("Failed to update video task %s: %s", taskID, err.Error()))
 		}
 		// sleep 1 second between each task to avoid hitting rate limits of upstream platforms
 		time.Sleep(1 * time.Second)
@@ -400,23 +436,21 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	return nil
 }
 
-func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *model.Channel, taskId string, taskM map[string]*model.Task) error {
+func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *model.Channel, taskMapKey string, taskM map[string]*model.Task) error {
 	baseURL := constant.ChannelBaseURLs[ch.Type]
 	if ch.GetBaseURL() != "" {
 		baseURL = ch.GetBaseURL()
 	}
 	proxy := ch.GetSetting().Proxy
 
-	task := taskM[taskId]
+	task := taskM[taskMapKey]
 	if task == nil {
-		logger.LogError(ctx, fmt.Sprintf("Task %s not found in taskM", taskId))
-		return fmt.Errorf("task %s not found", taskId)
+		logger.LogError(ctx, "Task not found in taskM")
+		return errors.New("task not found in taskM")
 	}
-	key := ch.Key
-
-	privateData := task.PrivateData
-	if privateData.Key != "" {
-		key = privateData.Key
+	key, err := authorizationKeyForPolling(task, ch)
+	if err != nil {
+		return err
 	}
 	upstreamID, shouldPoll := upstreamTaskIDForPolling(task)
 	if !shouldPoll {
@@ -428,12 +462,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		"action":  task.Action,
 	}, proxy)
 	if err != nil {
-		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
+		return fmt.Errorf("fetchTask failed for task %s: %w", task.TaskID, err)
 	}
 	defer resp.Body.Close()
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("readAll failed for task %s: %w", taskId, err)
+		return fmt.Errorf("readAll failed for task %s: %w", task.TaskID, err)
 	}
 
 	logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask response: %s", string(responseBody)))
@@ -453,7 +487,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		taskResult.Reason = t.FailReason
 		task.Data = t.Data
 	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
-		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
+		return fmt.Errorf("parseTaskResult failed for task %s: %w", task.TaskID, err)
 	}
 
 	task.Data = redactVideoResponseBody(responseBody)
@@ -479,7 +513,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				taskResult = relaycommon.FailTaskInfo(errorResult.ToMessage())
 			} else {
 				// unknown error format, log original response
-				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
+				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", task.TaskID, string(responseBody)))
 				taskResult = relaycommon.FailTaskInfo("upstream returned unrecognized message")
 			}
 		}
@@ -517,7 +551,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		}
 		shouldSettle = true
 	case model.TaskStatusFailure:
-		logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
+		logger.LogJson(ctx, fmt.Sprintf("Task %s failed", task.TaskID), task)
 		task.Status = model.TaskStatusFailure
 		task.Progress = taskcommon.ProgressComplete
 		if task.FinishTime == 0 {
