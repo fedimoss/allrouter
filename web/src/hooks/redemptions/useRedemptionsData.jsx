@@ -306,7 +306,9 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
   };
 
   // Batch mark selected redemptions as sent / unsent
-  // 批量标记勾选项：sent=true 标记为已发放，false 取消标记；成功后刷新列表并清空勾选
+  // 批量标记勾选项：sent=true 标记为已发放，false 取消标记
+  // 注意：操作成功后保留勾选状态（表格行勾选为非受控，视觉勾选不会因刷新而清除），
+  // 以便对同一批连续执行「标记 → 取消标记」等操作
   const batchMarkSent = async (sent) => {
     if (selectedKeys.length === 0) {
       showError(t('请至少选择一个兑换码！'));
@@ -319,9 +321,8 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('操作成功完成！'));
-        // 刷新以反映最新发放状态（列表重载会自然清空行勾选）
+        // 刷新以反映最新发放状态；只用到勾选行的 id，旧对象引用无影响
         await refresh();
-        setSelectedKeys([]);
       } else {
         showError(message);
       }
