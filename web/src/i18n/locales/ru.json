@@ -1,5 +1,9 @@
 {
   "translation": {
+    "发放": "Выдача",
+    "未发放": "Не выдано",
+    "标记为已发放": "Отметить как выдано",
+    "取消发放标记": "Снять отметку о выдаче",
     "{{resolution}} {{symbol}}{{price}} / 秒": "{{resolution}} {{symbol}}{{price}} / с",
     "{{seconds}} 秒 × {{outputs}} 个输出": "{{seconds}} с × {{outputs}} результатов",
     "{{resolution}}：{{symbol}}{{price}} / 秒": "{{resolution}}: {{symbol}}{{price}} / с",

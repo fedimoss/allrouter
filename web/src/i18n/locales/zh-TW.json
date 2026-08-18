@@ -1,5 +1,9 @@
 {
   "translation": {
+    "发放": "發放",
+    "未发放": "未發放",
+    "标记为已发放": "標記為已發放",
+    "取消发放标记": "取消發放標記",
     "{{resolution}} {{symbol}}{{price}} / 秒": "{{resolution}} {{symbol}}{{price}} / 秒",
     "{{seconds}} 秒 × {{outputs}} 个输出": "{{seconds}} 秒 × {{outputs}} 個輸出",
     "{{resolution}}：{{symbol}}{{price}} / 秒": "{{resolution}}：{{symbol}}{{price}} / 秒",

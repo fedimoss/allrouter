@@ -1,5 +1,9 @@
 {
   "translation": {
+    "发放": "発行",
+    "未发放": "未発行",
+    "标记为已发放": "発行済みとしてマーク",
+    "取消发放标记": "発行マークを解除",
     "{{resolution}} {{symbol}}{{price}} / 秒": "{{resolution}} {{symbol}}{{price}} / 秒",
     "{{seconds}} 秒 × {{outputs}} 个输出": "{{seconds}} 秒 × {{outputs}} 出力",
     "{{resolution}}：{{symbol}}{{price}} / 秒": "{{resolution}}：{{symbol}}{{price}} / 秒",

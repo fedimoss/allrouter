@@ -1,5 +1,9 @@
 {
   "translation": {
+    "发放": "Issued",
+    "未发放": "Not Issued",
+    "标记为已发放": "Mark as Issued",
+    "取消发放标记": "Clear Issued Mark",
     "{{resolution}} {{symbol}}{{price}} / 秒": "{{resolution}} {{symbol}}{{price}} / second",
     "{{seconds}} 秒 × {{outputs}} 个输出": "{{seconds}} seconds × {{outputs}} outputs",
     "{{resolution}}：{{symbol}}{{price}} / 秒": "{{resolution}}: {{symbol}}{{price}} / second",

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { API, showError, showSuccess, copy } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import {
@@ -40,6 +40,9 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
   const [tokenCount, setTokenCount] = useState(0);
   const [selectedKeys, setSelectedKeys] = useState([]);
   const [displaySymbol, setDisplaySymbol] = useState('');
+  // 发放状态筛选：'all' 不过滤 | 'sent' 已发放 | 'unsent' 未发放
+  // 由表格「发放」列表头筛选驱动，切换后走服务端查询（避免只过滤当前分页）
+  const [sentFilter, setSentFilter] = useState('all');
 
   // Edit state
   const [editingRedemption, setEditingRedemption] = useState({
@@ -72,10 +75,19 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
   };
 
   // Load redemption list
-  const loadRedemptions = async (page = 1, pageSize) => {
+  // sent 为发放状态筛选值，不传时默认取当前 sentFilter
+  const loadRedemptions = async (page = 1, pageSize, sent = sentFilter) => {
     setLoading(true);
     try {
-      const res = await API.get(`${apiPrefix}?p=${page}&page_size=${pageSize}`);
+      const params = new URLSearchParams({
+        p: page,
+        page_size: pageSize,
+      });
+      // 非全部时携带 sent 参数，由服务端过滤（sent=已发放 / unsent=未发放）
+      if (sent !== 'all') {
+        params.set('sent', sent);
+      }
+      const res = await API.get(`${apiPrefix}?${params.toString()}`);
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -102,9 +114,16 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
 
     setSearching(true);
     try {
-      const res = await API.get(
-        `${apiPrefix}/search?keyword=${searchKeyword}&p=1&page_size=${pageSize}`,
-      );
+      const params = new URLSearchParams({
+        keyword: searchKeyword,
+        p: 1,
+        page_size: pageSize,
+      });
+      // 发放状态筛选与关键字搜索叠加，由服务端过滤
+      if (sentFilter !== 'all') {
+        params.set('sent', sentFilter);
+      }
+      const res = await API.get(`${apiPrefix}/search?${params.toString()}`);
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -264,6 +283,67 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
     });
   };
 
+  // Toggle single redemption sent mark
+  // 行内「发放」开关：切换单个兑换码的发放标记，成功后本地就地更新（不整页刷新）
+  const toggleSent = async (record) => {
+    const sent = !(record.sent_time > 0);
+    try {
+      const res = await API.put(`${apiPrefix}/sent`, {
+        ids: [record.id],
+        sent,
+      });
+      const { success, message } = res.data;
+      if (success) {
+        // 直接改写 record 的 sent_time 并触发列表重渲染
+        record.sent_time = sent ? Math.floor(Date.now() / 1000) : 0;
+        setRedemptions([...redemptions]);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(error.message);
+    }
+  };
+
+  // Batch mark selected redemptions as sent / unsent
+  // 批量标记勾选项：sent=true 标记为已发放，false 取消标记；成功后刷新列表并清空勾选
+  const batchMarkSent = async (sent) => {
+    if (selectedKeys.length === 0) {
+      showError(t('请至少选择一个兑换码！'));
+      return;
+    }
+    const ids = selectedKeys.map((item) => item.id);
+    setLoading(true);
+    try {
+      const res = await API.put(`${apiPrefix}/sent`, { ids, sent });
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('操作成功完成！'));
+        // 刷新以反映最新发放状态（列表重载会自然清空行勾选）
+        await refresh();
+        setSelectedKeys([]);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(error.message);
+    }
+    setLoading(false);
+  };
+
+  // Reload list when sent filter changes (skip initial mount to avoid duplicate load)
+  // 发放筛选变化时回到第 1 页重新加载；首帧跳过，避免与初始化加载重复请求
+  const sentFilterInitialized = useRef(false);
+  useEffect(() => {
+    if (!sentFilterInitialized.current) {
+      sentFilterInitialized.current = true;
+      return;
+    }
+    setActivePage(1);
+    loadRedemptions(1, pageSize, sentFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sentFilter]);
+
   // Close edit modal
   const closeEdit = () => {
     setShowEdit(false);
@@ -307,6 +387,10 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
     displaySymbol,
     apiPrefix,
 
+    // Sent mark state（发放标记状态与操作）
+    sentFilter,
+    setSentFilter,
+
     // Edit state
     editingRedemption,
     showEdit,
@@ -342,9 +426,13 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
     closeEdit,
     getFormValues,
 
-    // Batch operations
+    // Batch operations（批量操作）
     batchCopyRedemptions,
     batchDeleteRedemptions,
+    batchMarkSent,
+
+    // Sent mark operations（单行发放开关）
+    toggleSent,
 
     // Translation function
     t,

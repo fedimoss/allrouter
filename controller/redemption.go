@@ -13,7 +13,9 @@ import (
 
 func GetAllRedemptions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	// 解析发放状态筛选参数（sent=已发放 / unsent=未发放 / 其他值不过滤）
+	sentFilter := model.GetSentQueryFilter(c.Query("sent"))
+	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), sentFilter)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -48,7 +50,9 @@ func GetAllRedemptions(c *gin.Context) {
 func SearchRedemptions(c *gin.Context) {
 	keyword := c.Query("keyword")
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.SearchRedemptions(keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	// 发放状态筛选（sent=已发放 / unsent=未发放 / 其他值不过滤），与关键字搜索叠加
+	sentFilter := model.GetSentQueryFilter(c.Query("sent"))
+	redemptions, total, err := model.SearchRedemptions(keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), sentFilter)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -235,13 +239,63 @@ func DeleteInvalidRedemption(c *gin.Context) {
 	return
 }
 
+// RedemptionSentBatch 批量发放标记请求体：ids 为兑换码 ID 列表，sent 为 true 标记已发放、false 取消标记
+type RedemptionSentBatch struct {
+	Ids  []int `json:"ids"`
+	Sent bool  `json:"sent"`
+}
+
+// UpdateRedemptionSent 管理端：批量标记/取消兑换码的发放状态
+func UpdateRedemptionSent(c *gin.Context) {
+	sentBatch := RedemptionSentBatch{}
+	if err := c.ShouldBindJSON(&sentBatch); err != nil || len(sentBatch.Ids) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	rows, err := model.BatchUpdateRedemptionSent(0, sentBatch.Ids, sentBatch.Sent)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    rows,
+	})
+}
+
+// UpdateProviderRedemptionSent 服务商端：批量标记/取消本服务商名下兑换码的发放状态
+func UpdateProviderRedemptionSent(c *gin.Context) {
+	provider, ok := getOwnedProvider(c)
+	if !ok {
+		return
+	}
+	sentBatch := RedemptionSentBatch{}
+	if err := c.ShouldBindJSON(&sentBatch); err != nil || len(sentBatch.Ids) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	rows, err := model.BatchUpdateRedemptionSent(provider.Id, sentBatch.Ids, sentBatch.Sent)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    rows,
+	})
+}
+
 func GetProviderRedemptions(c *gin.Context) {
 	provider, ok := getOwnedProvider(c)
 	if !ok {
 		return
 	}
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.GetRedemptionsByProvider(provider.Id, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	// 发放状态筛选（sent=已发放 / unsent=未发放 / 其他值不过滤）
+	sentFilter := model.GetSentQueryFilter(c.Query("sent"))
+	redemptions, total, err := model.GetRedemptionsByProvider(provider.Id, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), sentFilter)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -277,7 +331,9 @@ func SearchProviderRedemptions(c *gin.Context) {
 	}
 	keyword := c.Query("keyword")
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.SearchRedemptionsByProvider(provider.Id, keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	// 发放状态筛选（sent=已发放 / unsent=未发放 / 其他值不过滤），与关键字搜索叠加
+	sentFilter := model.GetSentQueryFilter(c.Query("sent"))
+	redemptions, total, err := model.SearchRedemptionsByProvider(provider.Id, keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), sentFilter)
 	if err != nil {
 		common.ApiError(c, err)
 		return

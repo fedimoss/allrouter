@@ -25,7 +25,34 @@ type Redemption struct {
 	Count        int            `json:"count" gorm:"-:all"` // only for api request
 	UsedUserId   int            `json:"used_user_id"`
 	DeletedAt    gorm.DeletedAt `gorm:"index"`
-	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // expired time, 0 means never expires
+	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"`              // expired time, 0 means never expires
+	SentTime     int64          `json:"sent_time" gorm:"bigint;default:0;index"` // 发放标记时间，0 表示未发放
+}
+
+// applySentFilter 在列表查询上追加发放状态筛选条件（nil 表示不过滤）。
+func applySentFilter(query *gorm.DB, sentFilter *bool) *gorm.DB {
+	if sentFilter == nil {
+		return query
+	}
+	if *sentFilter {
+		return query.Where("sent_time > 0")
+	}
+	return query.Where("sent_time = 0")
+}
+
+// GetSentQueryFilter 将请求中的 sent 参数解析为发放状态筛选条件。
+// "sent" → true（已发放）、"unsent" → false（未发放）、其他值 → nil（不过滤）。
+func GetSentQueryFilter(sent string) *bool {
+	switch sent {
+	case "sent":
+		v := true
+		return &v
+	case "unsent":
+		v := false
+		return &v
+	default:
+		return nil
+	}
 }
 
 // redemptionAmountScale 统一约束兑换码金额的计算精度，避免不同入口产生不同的小数结果。
@@ -57,16 +84,20 @@ func redemptionUSDValue(quota int) float64 {
 		InexactFloat64()
 }
 
-func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
-	return getRedemptionsByProvider(DB, 0, startIdx, num)
+// GetAllRedemptions 分页获取全部兑换码（管理端），sentFilter 为发放状态筛选条件（nil 不过滤）。
+func GetAllRedemptions(startIdx int, num int, sentFilter *bool) (redemptions []*Redemption, total int64, err error) {
+	return getRedemptionsByProvider(DB, 0, startIdx, num, sentFilter)
 }
 
-func GetRedemptionsByProvider(providerId int, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
-	return getRedemptionsByProvider(DB, providerId, startIdx, num)
+// GetRedemptionsByProvider 分页获取指定服务商的兑换码（服务商端），sentFilter 为发放状态筛选条件（nil 不过滤）。
+func GetRedemptionsByProvider(providerId int, startIdx int, num int, sentFilter *bool) (redemptions []*Redemption, total int64, err error) {
+	return getRedemptionsByProvider(DB, providerId, startIdx, num, sentFilter)
 }
 
-func getRedemptionsByProvider(db *gorm.DB, providerId int, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+func getRedemptionsByProvider(db *gorm.DB, providerId int, startIdx int, num int, sentFilter *bool) (redemptions []*Redemption, total int64, err error) {
 	query := db.Model(&Redemption{}).Where("provider_id = ?", providerId)
+	// 追加发放状态筛选（已发放 sent_time > 0 / 未发放 sent_time = 0）
+	query = applySentFilter(query, sentFilter)
 	if err = query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -74,17 +105,21 @@ func getRedemptionsByProvider(db *gorm.DB, providerId int, startIdx int, num int
 	return redemptions, total, err
 }
 
-func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
-	return SearchRedemptionsByProvider(0, keyword, startIdx, num)
+// SearchRedemptions 按关键字搜索全部兑换码（管理端），sentFilter 为发放状态筛选条件（nil 不过滤）。
+func SearchRedemptions(keyword string, startIdx int, num int, sentFilter *bool) (redemptions []*Redemption, total int64, err error) {
+	return SearchRedemptionsByProvider(0, keyword, startIdx, num, sentFilter)
 }
 
-func SearchRedemptionsByProvider(providerId int, keyword string, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+// SearchRedemptionsByProvider 按关键字搜索指定服务商的兑换码（服务商端），sentFilter 为发放状态筛选条件（nil 不过滤）。
+func SearchRedemptionsByProvider(providerId int, keyword string, startIdx int, num int, sentFilter *bool) (redemptions []*Redemption, total int64, err error) {
 	query := DB.Model(&Redemption{}).Where("provider_id = ?", providerId)
 	if id, err := strconv.Atoi(keyword); err == nil {
 		query = query.Where("id = ? OR name LIKE ?", id, keyword+"%")
 	} else {
 		query = query.Where("name LIKE ?", keyword+"%")
 	}
+	// 发放状态筛选与关键字搜索条件叠加
+	query = applySentFilter(query, sentFilter)
 	if err = query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -280,6 +315,23 @@ func (redemption *Redemption) Delete() error {
 	var err error
 	err = DB.Delete(redemption).Error
 	return err
+}
+
+// BatchUpdateRedemptionSent 批量更新兑换码的发放标记，sent 为 true 时记录当前时间，false 时清零。
+// providerId 大于 0 时限定服务商范围，0 表示管理端全量。
+func BatchUpdateRedemptionSent(providerId int, ids []int, sent bool) (int64, error) {
+	// 标记时写入当前时间戳，取消时清零；单列 Update 可正常写入零值
+	sentTime := int64(0)
+	if sent {
+		sentTime = common.GetTimestamp()
+	}
+	query := DB.Model(&Redemption{}).Where("id IN ?", ids)
+	// 服务商端调用时限定归属范围，防止越权操作他人兑换码
+	if providerId > 0 {
+		query = query.Where("provider_id = ?", providerId)
+	}
+	result := query.Update("sent_time", sentTime)
+	return result.RowsAffected, result.Error
 }
 
 func DeleteRedemptionById(id int) (err error) {

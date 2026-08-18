@@ -342,6 +342,7 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.GET("/:id", controller.GetRedemption)
 			redemptionRoute.POST("/", controller.AddRedemption)
 			redemptionRoute.PUT("/", controller.UpdateRedemption)
+			redemptionRoute.PUT("/sent", controller.UpdateRedemptionSent) // 批量标记/取消兑换码发放状态
 			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
@@ -393,6 +394,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.GET("/redemption/search", controller.SearchProviderRedemptions)
 			providerRoute.POST("/redemption", controller.AddProviderRedemption)
 			providerRoute.PUT("/redemption", controller.UpdateProviderRedemption)
+			providerRoute.PUT("/redemption/sent", controller.UpdateProviderRedemptionSent) // 批量标记/取消本服务商兑换码发放状态
 			providerRoute.DELETE("/redemption/invalid", controller.DeleteInvalidProviderRedemption)
 			providerRoute.GET("/redemption/:id", controller.GetProviderRedemption)
 			providerRoute.DELETE("/redemption/:id", controller.DeleteProviderRedemption)

@@ -44,6 +44,9 @@ const RedemptionsTable = (redemptionsData) => {
     setEditingRedemption,
     setShowEdit,
     refresh,
+    sentFilter,
+    setSentFilter,
+    toggleSent,
     t,
   } = redemptionsData;
 
@@ -55,6 +58,17 @@ const RedemptionsTable = (redemptionsData) => {
   const showDeleteRedemptionModal = (record) => {
     setDeletingRecord(record);
     setShowDeleteModal(true);
+  };
+
+  // Handle filter change from table header (sent filter)
+  // 表头筛选变化回调：从 Semi Table 的 onChange 中取出「发放」列的筛选值，
+  // 更新 sentFilter 后由 useEffect 触发服务端重新查询
+  const handleTableChange = ({ filters }) => {
+    const sentColumn = filters?.find((f) => f.dataIndex === 'sent_time');
+    const value = sentColumn?.filteredValue?.[0];
+    if (value !== undefined && value !== sentFilter) {
+      setSentFilter(value);
+    }
   };
 
   // Get all columns
@@ -70,6 +84,8 @@ const RedemptionsTable = (redemptionsData) => {
       activePage,
       displaySymbol,
       showDeleteRedemptionModal,
+      sentFilter,
+      toggleSent,
     });
   }, [
     t,
@@ -82,6 +98,8 @@ const RedemptionsTable = (redemptionsData) => {
     activePage,
     displaySymbol,
     showDeleteRedemptionModal,
+    sentFilter,
+    toggleSent,
   ]);
 
   // Handle compact mode by removing fixed positioning
@@ -113,6 +131,8 @@ const RedemptionsTable = (redemptionsData) => {
         loading={loading}
         rowSelection={rowSelection}
         onRow={handleRow}
+        // 表头筛选变化（发放状态）由此回调通知，驱动服务端查询
+        onChange={handleTableChange}
         empty={
           <Empty
             image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}

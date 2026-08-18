@@ -1,5 +1,9 @@
 {
   "translation": {
+    "发放": "Émission",
+    "未发放": "Non émis",
+    "标记为已发放": "Marquer comme émis",
+    "取消发放标记": "Effacer la marque d'émission",
     "{{resolution}} {{symbol}}{{price}} / 秒": "{{resolution}} {{symbol}}{{price}} / seconde",
     "{{seconds}} 秒 × {{outputs}} 个输出": "{{seconds}} secondes × {{outputs}} sorties",
     "{{resolution}}：{{symbol}}{{price}} / 秒": "{{resolution}} : {{symbol}}{{price}} / seconde",

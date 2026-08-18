@@ -1,5 +1,9 @@
 {
   "translation": {
+    "发放": "Cấp",
+    "未发放": "Chưa cấp",
+    "标记为已发放": "Đánh dấu đã cấp",
+    "取消发放标记": "Bỏ đánh dấu đã cấp",
     "{{resolution}} {{symbol}}{{price}} / 秒": "{{resolution}} {{symbol}}{{price}} / giây",
     "{{seconds}} 秒 × {{outputs}} 个输出": "{{seconds}} giây × {{outputs}} đầu ra",
     "{{resolution}}：{{symbol}}{{price}} / 秒": "{{resolution}}: {{symbol}}{{price}} / giây",

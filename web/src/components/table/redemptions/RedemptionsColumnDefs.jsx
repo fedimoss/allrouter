@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Button, Space, Popover, Dropdown } from '@douyinfe/semi-ui';
+import { Tag, Button, Space, Popover, Dropdown, Switch, Tooltip } from '@douyinfe/semi-ui';
 import { IconMore } from '@douyinfe/semi-icons';
 import { timestamp2string } from '../../../helpers';
 import {
@@ -87,6 +87,8 @@ export const getRedemptionsColumns = ({
   activePage,
   displaySymbol,
   showDeleteRedemptionModal,
+  sentFilter,
+  toggleSent,
 }) => {
   return [
     {
@@ -96,6 +98,46 @@ export const getRedemptionsColumns = ({
     {
       title: t('名称'),
       dataIndex: 'name',
+    },
+    {
+      // 发放标记列：开关 + 标记时间，表头带单选筛选（漏斗图标）
+      title: t('发放'),
+      dataIndex: 'sent_time',
+      width: 170,
+      // 表头筛选选项：由 Semi Table 渲染漏斗下拉，filterMultiple=false 为单选（Radio 风格）
+      filters: [
+        { text: t('全部'), value: 'all' },
+        { text: t('已发放'), value: 'sent' },
+        { text: t('未发放'), value: 'unsent' },
+      ],
+      filterMultiple: false,
+      // 受控筛选值：不传 onFilter，筛选变化经 Table onChange 走服务端查询（避免只过滤当前分页）
+      filteredValue: [sentFilter],
+      render: (text, record) => {
+        // sent_time > 0 视为已发放，同时用于显示标记时间
+        const sent = record.sent_time > 0;
+        return (
+          <div className='flex items-center gap-2'>
+            <Tooltip
+              content={
+                sent
+                  ? `${t('已发放')} · ${timestamp2string(record.sent_time)}`
+                  : t('未发放')
+              }
+              position='top'
+            >
+              <Switch
+                size='small'
+                checked={sent}
+                onChange={() => toggleSent(record)}
+              />
+            </Tooltip>
+            <span className='text-xs text-gray-500'>
+              {sent ? timestamp2string(record.sent_time) : t('未发放')}
+            </span>
+          </div>
+        );
+      },
     },
     {
       title: t('状态'),
