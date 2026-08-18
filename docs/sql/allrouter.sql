@@ -2755,7 +2755,8 @@ CREATE TABLE redemptions (
     used_user_id bigint,
     deleted_at timestamp with time zone,
     expired_time bigint,
-    provider_id bigint DEFAULT 0
+    provider_id bigint DEFAULT 0,
+    sent_time bigint DEFAULT 0 NOT NULL
 );
 
 --
@@ -2763,6 +2764,13 @@ CREATE TABLE redemptions (
 --
 
 COMMENT ON COLUMN redemptions.provider_id IS '所属服务商 ID，0 表示主站兑换码';
+
+
+--
+-- Name: COLUMN redemptions.sent_time; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN redemptions.sent_time IS '发放标记时间，0 表示未发放';
 
 
 --
