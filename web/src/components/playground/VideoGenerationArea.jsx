@@ -29,9 +29,11 @@ import {
   Copy,
   Download,
   Film,
+  ListVideo,
   ImagePlus,
   LoaderCircle,
   Play,
+  RefreshCw,
   RotateCcw,
   Send,
   Settings2,
@@ -45,6 +47,56 @@ import {
 } from '../../constants/playground.constants';
 
 const terminalStatuses = new Set(['completed', 'failed']);
+const activeStatuses = new Set(['queued', 'in_progress']);
+
+const normalizeVideoTask = (source) => {
+  if (!source) return null;
+  const taskID =
+    source.task_id || (typeof source.id === 'string' ? source.id : '');
+  if (!taskID) return null;
+
+  const rawStatus = String(source.status || '').toLowerCase();
+  const status =
+    {
+      not_start: 'queued',
+      dispatching: 'queued',
+      submitted: 'queued',
+      queued: 'queued',
+      in_progress: 'in_progress',
+      processing: 'in_progress',
+      success: 'completed',
+      completed: 'completed',
+      failure: 'failed',
+      failed: 'failed',
+    }[rawStatus] ||
+    rawStatus ||
+    'queued';
+  const progressValue = Number.parseFloat(
+    String(source.progress || '').replace('%', ''),
+  );
+
+  return {
+    ...source,
+    id: taskID,
+    task_id: taskID,
+    status,
+    progress: Number.isFinite(progressValue) ? progressValue : 0,
+    error:
+      source.error ||
+      (source.fail_reason ? { message: source.fail_reason } : undefined),
+  };
+};
+
+const formatTaskTime = (timestamp) => {
+  const value = Number(timestamp);
+  if (!Number.isFinite(value) || value <= 0) return '';
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value * 1000));
+};
 
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.error?.message ||
@@ -123,9 +175,21 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
   const [prompt, setPrompt] = useState('');
   const [firstFrame, setFirstFrame] = useState(null);
   const [lastFrame, setLastFrame] = useState(null);
-  const [task, setTask] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [selectedTaskID, setSelectedTaskID] = useState('');
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pollError, setPollError] = useState('');
+  const tasksRef = useRef([]);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  const task = useMemo(
+    () => tasks.find((item) => item.id === selectedTaskID) || null,
+    [selectedTaskID, tasks],
+  );
 
   const firstPreview = useMemo(
     () => (firstFrame ? URL.createObjectURL(firstFrame) : ''),
@@ -145,14 +209,6 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
     [lastPreview],
   );
 
-  useEffect(() => {
-    if (!enabled) return;
-    const savedTaskID = localStorage.getItem(storageKey);
-    if (savedTaskID) {
-      setTask({ id: savedTaskID, status: 'queued', progress: 0 });
-    }
-  }, [enabled, storageKey]);
-
   const pollTask = useCallback(async (taskID) => {
     const response = await API.get(`/v1/videos/${encodeURIComponent(taskID)}`, {
       skipErrorHandler: true,
@@ -160,26 +216,88 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
     return response.data;
   }, []);
 
-  useEffect(() => {
-    if (!enabled || !task?.id || terminalStatuses.has(task.status)) {
-      return undefined;
+  const mergeTask = useCallback(
+    (nextTask, { select = false } = {}) => {
+      const normalized = normalizeVideoTask(nextTask);
+      if (!normalized) return;
+      setTasks((previous) => {
+        const existingIndex = previous.findIndex(
+          (item) => item.id === normalized.id,
+        );
+        if (existingIndex < 0) return [normalized, ...previous];
+        const merged = { ...previous[existingIndex], ...normalized };
+        return previous.map((item, index) =>
+          index === existingIndex ? merged : item,
+        );
+      });
+      if (select) {
+        setSelectedTaskID(normalized.id);
+        localStorage.setItem(storageKey, normalized.id);
+      }
+    },
+    [storageKey],
+  );
+
+  const loadTaskHistory = useCallback(async () => {
+    if (!enabled || !userId) return;
+    setHistoryLoading(true);
+    try {
+      const response = await API.get(
+        `${API_ENDPOINTS.VIDEO_TASKS}?p=1&page_size=20&action=minimaxH3Generate`,
+        { skipErrorHandler: true, disableDuplicate: true },
+      );
+      const payload = response.data?.success ? response.data.data : null;
+      const history = (payload?.items || [])
+        .map(normalizeVideoTask)
+        .filter(Boolean);
+      const savedTaskID = localStorage.getItem(storageKey);
+      setTasks(history);
+      const restoredID = history.some((item) => item.id === savedTaskID)
+        ? savedTaskID
+        : history[0]?.id || '';
+      setSelectedTaskID(restoredID);
+      if (restoredID) localStorage.setItem(storageKey, restoredID);
+    } catch (error) {
+      setPollError(getErrorMessage(error, t('查询视频任务失败')));
+    } finally {
+      setHistoryLoading(false);
     }
+  }, [enabled, storageKey, t, userId]);
+
+  useEffect(() => {
+    loadTaskHistory();
+  }, [loadTaskHistory]);
+
+  useEffect(() => {
+    if (!enabled) return undefined;
 
     let cancelled = false;
     let timer = null;
     const refresh = async () => {
+      const pendingTasks = tasksRef.current.filter((item) =>
+        activeStatuses.has(item.status),
+      );
+      if (pendingTasks.length === 0) return;
       try {
-        const nextTask = await pollTask(task.id);
+        const results = await Promise.allSettled(
+          pendingTasks.map((item) => pollTask(item.id)),
+        );
         if (cancelled) return;
-        setTask(nextTask);
-        setPollError('');
-        if (!terminalStatuses.has(nextTask.status)) {
-          timer = window.setTimeout(refresh, 5000);
-        }
+        let failed = false;
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') mergeTask(result.value);
+          else failed = true;
+        });
+        setPollError(failed ? t('查询视频任务失败') : '');
       } catch (error) {
         if (cancelled) return;
         const message = getErrorMessage(error, t('查询视频任务失败'));
         setPollError(message);
+      }
+      if (
+        !cancelled &&
+        tasksRef.current.some((item) => activeStatuses.has(item.status))
+      ) {
         timer = window.setTimeout(refresh, 5000);
       }
     };
@@ -189,7 +307,7 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [enabled, pollTask, t, task?.id, task?.status]);
+  }, [enabled, historyLoading, mergeTask, pollTask, selectedTaskID, t]);
 
   const buildSubmissionForm = () => {
     const formData = new FormData();
@@ -215,8 +333,7 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
       if (!createdTask?.id) {
         throw new Error(t('服务器未返回视频任务编号'));
       }
-      localStorage.setItem(storageKey, createdTask.id);
-      setTask(createdTask);
+      mergeTask(createdTask, { select: true });
     } catch (error) {
       Toast.error(getErrorMessage(error, t('提交视频任务失败')));
     } finally {
@@ -226,7 +343,13 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
 
   const handleNewTask = () => {
     localStorage.removeItem(storageKey);
-    setTask(null);
+    setSelectedTaskID('');
+    setPollError('');
+  };
+
+  const handleSelectTask = (taskID) => {
+    setSelectedTaskID(taskID);
+    localStorage.setItem(storageKey, taskID);
     setPollError('');
   };
 
@@ -268,6 +391,11 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
     firstPreview,
     lastPreview,
     task,
+    tasks,
+    selectedTaskID,
+    historyLoading,
+    loadTaskHistory,
+    handleSelectTask,
     submitting,
     pollError,
     isActive,
@@ -352,6 +480,79 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
   );
 };
 
+const VideoTaskHistory = ({
+  tasks,
+  selectedTaskID,
+  loading,
+  onRefresh,
+  onSelect,
+}) => {
+  const { t } = useTranslation();
+  const statusLabels = {
+    queued: t('排队中'),
+    in_progress: t('生成中'),
+    completed: t('生成完成'),
+    failed: t('生成失败'),
+  };
+
+  return (
+    <section className='playground-v2-video-history'>
+      <div className='playground-v2-video-history-header'>
+        <div>
+          <ListVideo size={16} />
+          <strong>{t('任务记录')}</strong>
+          <span>{tasks.length}</span>
+        </div>
+        <button
+          type='button'
+          className='playground-v2-icon-button'
+          onClick={onRefresh}
+          disabled={loading}
+          aria-label={t('刷新列表')}
+          title={t('刷新列表')}
+        >
+          <RefreshCw
+            className={loading ? 'playground-v2-spin' : ''}
+            size={15}
+          />
+        </button>
+      </div>
+      {tasks.length > 0 ? (
+        <div className='playground-v2-video-history-list'>
+          {tasks.map((item) => (
+            <button
+              type='button'
+              key={item.id}
+              className='playground-v2-video-history-item'
+              data-selected={item.id === selectedTaskID}
+              onClick={() => onSelect(item.id)}
+            >
+              <span className='playground-v2-video-history-item-main'>
+                <span
+                  className='playground-v2-video-history-status'
+                  data-status={item.status}
+                >
+                  {statusLabels[item.status] || item.status}
+                </span>
+                <code>{item.id}</code>
+              </span>
+              <span className='playground-v2-video-history-item-meta'>
+                {activeStatuses.has(item.status)
+                  ? `${Math.round(item.progress || 0)}%`
+                  : formatTaskTime(item.submit_time || item.created_at)}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className='playground-v2-video-history-empty'>
+          {loading ? t('加载中...') : t('当前筛选条件下没有匹配的任务记录。')}
+        </div>
+      )}
+    </section>
+  );
+};
+
 const VideoGenerationArea = ({ controller, styleState, onToggleSettings }) => {
   const { t } = useTranslation();
   const {
@@ -364,6 +565,11 @@ const VideoGenerationArea = ({ controller, styleState, onToggleSettings }) => {
     videoShareURL,
     handleNewTask,
     handleCopyVideoURL,
+    tasks,
+    selectedTaskID,
+    historyLoading,
+    loadTaskHistory,
+    handleSelectTask,
   } = controller;
   const statusLabel =
     {
@@ -398,6 +604,14 @@ const VideoGenerationArea = ({ controller, styleState, onToggleSettings }) => {
 
       <div className='playground-v2-video-body model-settings-scroll'>
         {styleState.isMobile && <MiniMaxH3VideoForm controller={controller} />}
+
+        <VideoTaskHistory
+          tasks={tasks}
+          selectedTaskID={selectedTaskID}
+          loading={historyLoading}
+          onRefresh={loadTaskHistory}
+          onSelect={handleSelectTask}
+        />
 
         <div className='playground-v2-video-result'>
           <div className='playground-v2-video-result-header'>

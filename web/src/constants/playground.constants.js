@@ -77,6 +77,7 @@ export const DEBUG_TABS = {
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
   VIDEO_GENERATIONS: '/pg/videos',
+  VIDEO_TASKS: '/api/task/self',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 };

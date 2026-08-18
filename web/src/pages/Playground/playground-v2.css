@@ -1165,7 +1165,8 @@ html.dark .playground-v2-role-pill[data-active='true'] {
 }
 
 .playground-v2-video-form,
-.playground-v2-video-result {
+.playground-v2-video-result,
+.playground-v2-video-history {
   min-width: 0;
   padding: 28px;
 }
@@ -1320,6 +1321,101 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.playground-v2-video-history {
+  border-bottom: 1px solid var(--pg-border);
+  background: var(--pg-surface);
+}
+
+.playground-v2-video-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.playground-v2-video-history-header > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--pg-text-muted);
+  font-size: 13px;
+}
+
+.playground-v2-video-history-header > div > span {
+  color: var(--pg-text-soft);
+  font-size: 11px;
+}
+
+.playground-v2-video-history-list {
+  display: grid;
+  gap: 8px;
+  max-height: 224px;
+  margin-top: 14px;
+  overflow-y: auto;
+}
+
+.playground-v2-video-history-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--pg-border);
+  border-radius: 7px;
+  padding: 9px 11px;
+  background: var(--pg-surface-muted);
+  color: var(--pg-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.playground-v2-video-history-item:hover,
+.playground-v2-video-history-item[data-selected='true'] {
+  border-color: var(--theme-primary);
+}
+
+.playground-v2-video-history-item-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.playground-v2-video-history-status {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.playground-v2-video-history-status[data-status='completed'] {
+  color: #059669;
+}
+
+.playground-v2-video-history-status[data-status='failed'] {
+  color: #dc2626;
+}
+
+.playground-v2-video-history-item code {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pg-text-soft);
+  font-size: 10px;
+}
+
+.playground-v2-video-history-item-meta {
+  flex: 0 0 auto;
+  color: var(--pg-text-soft);
+  font-size: 11px;
+}
+
+.playground-v2-video-history-empty {
+  margin-top: 12px;
+  color: var(--pg-text-soft);
+  font-size: 12px;
 }
 
 .playground-v2-video-result-header,
