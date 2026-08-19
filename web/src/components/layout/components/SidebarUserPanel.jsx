@@ -30,7 +30,7 @@ import {
   API,
   showError,
   showSuccess,
-  formatDisplayMoney,
+  userRawQuotaToDisplay,
 } from '../../../helpers';
 import { UserContext } from '../../../context/User';
 import { StatusContext } from '../../../context/Status';
@@ -173,9 +173,9 @@ const SidebarUserPanel = ({ collapsed }) => {
                 </div>
                 <div className='sidebar-user-balance'>
                   {t('余额')}:{' '}
-                  {formatDisplayMoney(
-                    userState.user.quota ?? 0,
-                    userState.user.display_symbol,
+                  {userRawQuotaToDisplay(
+                    userState.user.quota,
+                    userState.user,
                   )}
                 </div>
               </div>

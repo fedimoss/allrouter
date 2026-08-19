@@ -29,7 +29,7 @@ import {
   IconTypograph,
   IconSend,
 } from '@douyinfe/semi-icons';
-import { formatDisplayMoney } from '../../helpers';
+import { userRawQuotaToDisplay } from '../../helpers';
 import { convertAndFormat, normalizeDisplayCurrency } from '../../helpers/currency';
 import { createSectionTitle } from '../../helpers/dashboard';
 
@@ -53,7 +53,7 @@ export const useDashboardStats = (
         items: [
           {
             title: t('当前余额'),
-            value: formatDisplayMoney(userState?.user?.quota, userState?.user?.display_symbol),
+            value: userRawQuotaToDisplay(userState?.user?.quota, userState?.user),
             icon: <IconMoneyExchangeStroked />,
             avatarColor: 'blue',
             trendData: [],
@@ -61,7 +61,7 @@ export const useDashboardStats = (
           },
           {
             title: t('历史消耗'),
-            value: formatDisplayMoney(userState?.user?.used_quota, userState?.user?.display_symbol),
+            value: userRawQuotaToDisplay(userState?.user?.used_quota, userState?.user),
             icon: <IconHistogram />,
             avatarColor: 'purple',
             trendData: [],
@@ -169,6 +169,8 @@ export const useDashboardStats = (
       userState?.user?.all_users_total_token_used,
       userState?.user?.request_count,
       userState?.user?.total_count,
+      userState?.user?.display_rate,
+      userState?.user?.display_symbol,
       isAdminUser,
       times,
       consumeQuota,

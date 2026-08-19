@@ -776,15 +776,17 @@ func GetSelf(c *gin.Context) {
 		"wechat_id":                 user.WeChatId,
 		"telegram_id":               user.TelegramId,
 		"group":                     user.Group,
-		"quota":                     convertQuotaToDisplay(user.Quota, displayInfo),       // 转换后的余额
+		"quota":                     user.Quota,                                           // 原始内部额度（前端按 display_rate 换算展示）
 		"reward_quota":              user.RewardQuota,                                     // 原始奖励剩余额度
 		"reward_quota_display":      convertQuotaToDisplay(user.RewardQuota, displayInfo), // 转换后的奖励剩余额度
-		"used_quota":                convertQuotaToDisplay(user.UsedQuota, displayInfo),   // 转换后的消费
+		"used_quota":                user.UsedQuota,                                       // 原始已消费额度（前端按 display_rate 换算展示）
 		"total_token_used":          user.TotalTokenUsed,
-		"display_symbol":            displayInfo.Symbol, // 展示币种符号
-		"request_count":             periodRequestCount, // 请求次数
-		"request_count_change":      yesterdayChange,    // 和昨天相比的变化
-		"total_count":               totalRequestCount,  // 统计次数
+		"display_symbol":            displayInfo.Symbol,   // 展示币种符号
+		"display_currency":          displayInfo.Currency, // 展示币种代码（USD/CNY）
+		"display_rate":              displayInfo.Rate,     // 展示币种汇率（相对 1 美元，USD 为 1）
+		"request_count":             periodRequestCount,   // 请求次数
+		"request_count_change":      yesterdayChange,      // 和昨天相比的变化
+		"total_count":               totalRequestCount,    // 统计次数
 		"aff_code":                  user.AffCode,
 		"aff_count":                 user.AffCount,
 		"aff_quota":                 user.AffQuota,                                            // 原始邀请额度，前端划转接口使用

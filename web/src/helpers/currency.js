@@ -52,3 +52,17 @@ export const formatDisplayMoney = (amount, symbol = '$', digits = 2) => {
   const prefix = rounded <= 0 ? '' : symbol;
   return `${prefix}${rounded.toFixed(digits)}`;
 };
+
+// userRawQuotaToDisplay 将 /api/user/self 返回的原始内部额度换算为展示金额字符串
+// 内部额度 ÷ quota_per_unit → 美元金额 → × display_rate → 展示币种金额，符号取自 display_symbol
+// 后端 /api/user/self 的 quota/used_quota 已还原为原始内部额度，换算统一在前端进行
+export const userRawQuotaToDisplay = (rawQuota, user, digits = 2) => {
+  const quotaPerUnit = parseFloat(
+    localStorage.getItem('quota_per_unit') || '500000',
+  );
+  const usdAmount =
+    normalizeCurrencyAmount(rawQuota) /
+    (Number.isFinite(quotaPerUnit) && quotaPerUnit > 0 ? quotaPerUnit : 1);
+  const rate = normalizeCurrencyAmount(user?.display_rate) || 1;
+  return formatDisplayMoney(usdAmount * rate, user?.display_symbol || '$', digits);
+};

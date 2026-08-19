@@ -59,7 +59,7 @@ import {
 } from 'lucide-react';
 import { IconGift, IconSearch } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { API, timestamp2string, formatDisplayMoney } from '../../helpers';
+import { API, timestamp2string, formatDisplayMoney, userRawQuotaToDisplay } from '../../helpers';
 import {
   getTopupBizTypeConfig,
   getTopupDisplayAmount,
@@ -1010,10 +1010,7 @@ const RechargeCard = ({
             className='text-[24px] text-[#475569] dark:text-cyan-400'
             style={{ fontWeight: '900' }}
           >
-            {formatDisplayMoney(
-              userState?.user?.quota,
-              displayCurrency?.symbol,
-            )}
+            {userRawQuotaToDisplay(userState?.user?.quota, userState?.user)}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2 flex items-center gap-1'>
             {t('当前账户剩余的全部金额')}
@@ -1030,10 +1027,7 @@ const RechargeCard = ({
             className='text-[24px] text-[#475569] dark:text-white'
             style={{ fontWeight: '900' }}
           >
-            {formatDisplayMoney(
-              userState?.user?.used_quota,
-              displayCurrency?.symbol,
-            )}
+            {userRawQuotaToDisplay(userState?.user?.used_quota, userState?.user)}
           </p>
           <p className='text-[12px] text-[#64748B] dark:text-slate-400 mt-2'>
             {t('历史全部的消耗金额')}

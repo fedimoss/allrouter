@@ -32,6 +32,7 @@ import {
   setUserData,
   renderQuota,
   formatDisplayMoney,
+  userRawQuotaToDisplay,
   stringToColor,
   isAdmin,
   isRoot,
@@ -309,13 +310,13 @@ const PersonalSetting = () => {
       {
         key: 'quota',
         label: t('当前余额'),
-        value: formatDisplayMoney(currentUser?.quota || 0, currentUser?.display_symbol),
+        value: userRawQuotaToDisplay(currentUser?.quota, currentUser),
         icon: Wallet,
       },
       {
         key: 'used',
         label: t('历史消耗'),
-        value: formatDisplayMoney(currentUser?.used_quota || 0, currentUser?.display_symbol),
+        value: userRawQuotaToDisplay(currentUser?.used_quota, currentUser),
         icon: BarChart3,
       },
       {
@@ -336,6 +337,8 @@ const PersonalSetting = () => {
       currentUser?.quota,
       currentUser?.request_count,
       currentUser?.used_quota,
+      currentUser?.display_rate,
+      currentUser?.display_symbol,
       t,
     ],
   );
