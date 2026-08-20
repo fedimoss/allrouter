@@ -73,6 +73,12 @@ const (
 	LogTypeRefund  = 6
 )
 
+const providerCostBillingSide = "provider_cost"
+
+func excludeProviderCostLogs(tx *gorm.DB, column string) *gorm.DB {
+	return tx.Where("COALESCE("+column+", '') <> ?", providerCostBillingSide)
+}
+
 func formatUserLogs(logs []*Log, startIdx int) {
 	for i := range logs {
 		logs[i].ChannelName = ""
@@ -328,6 +334,11 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
+	if contextUserId := c.GetInt("id"); contextUserId != userId {
+		if resolvedUsername, err := GetUsernameById(userId, false); err == nil && resolvedUsername != "" {
+			username = resolvedUsername
+		}
+	}
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	otherStr := common.MapToJsonStr(params.Other)
@@ -570,6 +581,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	} else {
 		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
 	}
+	tx = excludeProviderCostLogs(tx, "logs.billing_side")
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err
@@ -658,11 +670,18 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
-	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
+func sumUsageStats(userId *int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, includeProviderCost bool) (stat Stat, err error) {
+	tx := LOG_DB.Table("logs").Select("COALESCE(SUM(quota), 0) quota")
+	rpmTpmQuery := LOG_DB.Table("logs").Select("COUNT(*) rpm, COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(completion_tokens), 0) tpm")
 
-	// 为rpm和tpm创建单独的查询
-	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
+	if userId != nil {
+		tx = tx.Where("user_id = ?", *userId)
+		rpmTpmQuery = rpmTpmQuery.Where("user_id = ?", *userId)
+	}
+	if !includeProviderCost {
+		tx = excludeProviderCostLogs(tx, "billing_side")
+		rpmTpmQuery = excludeProviderCostLogs(rpmTpmQuery, "billing_side")
+	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
 		return stat, err
@@ -676,9 +695,11 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	}
 	if startTimestamp != 0 {
 		tx = tx.Where("created_at >= ?", startTimestamp)
+		rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", startTimestamp)
 	}
 	if endTimestamp != 0 {
 		tx = tx.Where("created_at <= ?", endTimestamp)
+		rpmTpmQuery = rpmTpmQuery.Where("created_at <= ?", endTimestamp)
 	}
 	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
 		return stat, err
@@ -712,6 +733,18 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	}
 
 	return stat, nil
+}
+
+// SumUsedQuota serves the administrator's all-log view, which intentionally
+// includes provider cost entries to match GetAllLogs.
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+	return sumUsageStats(nil, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, true)
+}
+
+// SumUserUsedQuota matches the user-visible log list: it is scoped by the
+// immutable user ID and excludes synthetic provider cost entries.
+func SumUserUsedQuota(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, channel int, group string) (stat Stat, err error) {
+	return sumUsageStats(&userId, startTimestamp, endTimestamp, modelName, "", tokenName, channel, group, false)
 }
 
 func SumAdminCallUsedQuota(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
