@@ -983,7 +983,9 @@ const PersonalSetting = () => {
                       </Avatar>
                     </Upload>
                     <div className='min-w-0'>
-                      <div className='personal-v3-profile-name'>{displayName}</div>
+                      <div className='personal-v3-profile-name'>
+                        {displayName} <Tag color='light-blue'>ID：{currentUser?.id || '-'}</Tag>
+                      </div>
                       <div className='personal-v3-profile-subtitle'>
                         {t('管理您的基础资料、账户状态与常用信息。')}
                       </div>
