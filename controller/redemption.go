@@ -1,13 +1,18 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -239,20 +244,25 @@ func DeleteInvalidRedemption(c *gin.Context) {
 	return
 }
 
-// RedemptionSentBatch 批量发放标记请求体：ids 为兑换码 ID 列表，sent 为 true 标记已发放、false 取消标记
+// RedemptionSentBatch 批量发放标记请求体：ids 为兑换码 ID 列表，sent 为 true 标记已发放、false 取消标记；
+// email 为可选邮箱，标记发放且填写了 email 时，将兑换码以邮件发送到该邮箱
 type RedemptionSentBatch struct {
-	Ids  []int `json:"ids"`
-	Sent bool  `json:"sent"`
+	Ids   []int  `json:"ids"`
+	Sent  bool   `json:"sent"`
+	Email string `json:"email"`
 }
 
-// UpdateRedemptionSent 管理端：批量标记/取消兑换码的发放状态
+// UpdateRedemptionSent 管理端：批量标记/取消兑换码的发放状态，可选发送兑换码邮件
 func UpdateRedemptionSent(c *gin.Context) {
 	sentBatch := RedemptionSentBatch{}
 	if err := c.ShouldBindJSON(&sentBatch); err != nil || len(sentBatch.Ids) == 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	rows, err := model.BatchUpdateRedemptionSent(0, sentBatch.Ids, sentBatch.Sent)
+	// 发件配置跟随当前访问域名的服务商（与登录/注册邮件一致），主站域名则用主站全局配置；
+	// 兑换码数据范围仍为管理端全量，不受发件服务商影响
+	mailProviderId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	rows, err := updateRedemptionSentAndNotify(c, 0, mailProviderId, &sentBatch)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -264,7 +274,7 @@ func UpdateRedemptionSent(c *gin.Context) {
 	})
 }
 
-// UpdateProviderRedemptionSent 服务商端：批量标记/取消本服务商名下兑换码的发放状态
+// UpdateProviderRedemptionSent 服务商端：批量标记/取消本服务商名下兑换码的发放状态，可选发送兑换码邮件
 func UpdateProviderRedemptionSent(c *gin.Context) {
 	provider, ok := getOwnedProvider(c)
 	if !ok {
@@ -275,7 +285,7 @@ func UpdateProviderRedemptionSent(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	rows, err := model.BatchUpdateRedemptionSent(provider.Id, sentBatch.Ids, sentBatch.Sent)
+	rows, err := updateRedemptionSentAndNotify(c, provider.Id, provider.Id, &sentBatch)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -285,6 +295,54 @@ func UpdateProviderRedemptionSent(c *gin.Context) {
 		"message": "",
 		"data":    rows,
 	})
+}
+
+// updateRedemptionSentAndNotify 批量更新发放标记；标记发放且请求携带邮箱时，
+// 渲染兑换码邮件模板并通过 mailProviderId 对应的邮件配置发送到目标邮箱。
+// providerId 控制兑换码数据范围（0 为管理端全量），mailProviderId 控制发件配置（0 为主站全局）。
+func updateRedemptionSentAndNotify(c *gin.Context, providerId int, mailProviderId int, sentBatch *RedemptionSentBatch) (int64, error) {
+	rows, err := model.BatchUpdateRedemptionSent(providerId, sentBatch.Ids, sentBatch.Sent)
+	if err != nil {
+		return 0, err
+	}
+	email := strings.TrimSpace(sentBatch.Email)
+	if sentBatch.Sent && email != "" {
+		if err := common.Validate.Var(email, "email"); err != nil {
+			return 0, fmt.Errorf("无效的邮箱地址")
+		}
+		redemptions, err := model.GetRedemptionsByIds(providerId, sentBatch.Ids)
+		if err != nil {
+			return rows, err
+		}
+		if len(redemptions) == 0 {
+			return rows, nil
+		}
+		systemName := getRequestSystemName(c)
+		subject := fmt.Sprintf("%s兑换码发放 / Redemption Code", systemName)
+		content, err := common.RenderEmailTemplate("redemption_sent.html", map[string]any{
+			"SystemName": systemName,
+			"Quota":      logger.FormatQuota(redemptions[0].Quota),
+			"Key":        redemptionsKey(redemptions),
+		})
+		if err != nil {
+			return rows, err
+		}
+		if err := service.SendProviderMail(mailProviderId, subject, email, content); err != nil {
+			// SMTP 错误可能包含主机、端口等配置信息，仅记录在服务端日志
+			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send redemption email to %s: %s", email, err.Error()))
+			return 0, err
+		}
+	}
+	return rows, nil
+}
+
+// redemptionsKey 兑换码内容：单个直接返回 key，多个按行拼接
+func redemptionsKey(redemptions []*model.Redemption) string {
+	keys := make([]string, 0, len(redemptions))
+	for _, r := range redemptions {
+		keys = append(keys, r.Key)
+	}
+	return strings.Join(keys, "\n")
 }
 
 func GetProviderRedemptions(c *gin.Context) {

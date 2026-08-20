@@ -5398,7 +5398,6 @@
     "本年新增注册用户": "New registered users this year",
     "本年入金金额": "Deposits this year",
     "较上一年": "vs. previous year",
-    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X can also be less than 1 to apply a discount. To increase only the output price or add a fixed fee, write the complete billing formula directly.",
     "Token/分钟（最近 60 秒）": "Tokens/min (last 60 seconds)",
     "Token/分钟（{{duration}}平均）": "Tokens/min ({{duration}} average)",
     "每用户购买上限": "Per-user Purchase Limit",
@@ -5406,7 +5405,6 @@
     "0 表示不限；购买、赠送、空投和注册赠送都会占用": "0 means unlimited; purchases, gifts, airdrops, and registration gifts all count",
     "已发放": "Issued",
     "预占": "Reserved",
-    "剩余": "Remaining",
     "份": "units",
     "该套餐已发放完毕": "This plan has been fully issued",
     "已发放完毕": "Fully Issued",
@@ -5427,10 +5425,13 @@
     "提交视频任务失败": "Failed to submit video task",
     "尾帧（可选）": "Last frame (optional)",
     "下载视频": "Download video",
-    "新建任务": "New task",
     "选择图片": "Choose image",
     "移除图片": "Remove image",
     "正在上传并提交": "Uploading and submitting",
-    "支持 JPG、PNG、WebP，最大 10 MB": "JPG, PNG, or WebP, up to 10 MB"
+    "支持 JPG、PNG、WebP，最大 10 MB": "JPG, PNG, or WebP, up to 10 MB",
+    "填写邮箱可将兑换码发送给对方，留空则仅标记发放。": "Enter an email to send the redemption code to the recipient, or leave it blank to only mark as issued.",
+    "请输入邮箱（可选）": "Enter email (optional)",
+    "请输入有效的邮箱地址": "Please enter a valid email address",
+    "兑换码已发送到邮箱！": "Redemption code has been sent to the email!"
   }
 }

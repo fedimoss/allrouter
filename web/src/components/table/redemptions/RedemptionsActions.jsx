@@ -26,7 +26,6 @@ const RedemptionsActions = ({
   setShowEdit,
   batchCopyRedemptions,
   batchDeleteRedemptions,
-  batchMarkSent,
   t,
 }) => {
   // Add new redemption code
@@ -46,26 +45,6 @@ const RedemptionsActions = ({
         size='small'
       >
         {t('添加兑换码')}
-      </Button>
-
-      {/* 批量标记勾选项为已发放 */}
-      <Button
-        type='tertiary'
-        className='flex-1 md:flex-initial'
-        onClick={() => batchMarkSent(true)}
-        size='small'
-      >
-        {t('标记为已发放')}
-      </Button>
-
-      {/* 批量取消勾选项的发放标记 */}
-      <Button
-        type='tertiary'
-        className='flex-1 md:flex-initial'
-        onClick={() => batchMarkSent(false)}
-        size='small'
-      >
-        {t('取消发放标记')}
       </Button>
 
       <Button

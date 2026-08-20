@@ -334,6 +334,17 @@ func BatchUpdateRedemptionSent(providerId int, ids []int, sent bool) (int64, err
 	return result.RowsAffected, result.Error
 }
 
+// GetRedemptionsByIds 按 ID 列表查询兑换码，providerId 大于 0 时限定服务商范围，0 表示管理端全量。
+func GetRedemptionsByIds(providerId int, ids []int) ([]*Redemption, error) {
+	var redemptions []*Redemption
+	query := DB.Where("id IN ?", ids)
+	if providerId > 0 {
+		query = query.Where("provider_id = ?", providerId)
+	}
+	err := query.Find(&redemptions).Error
+	return redemptions, err
+}
+
 func DeleteRedemptionById(id int) (err error) {
 	if id == 0 {
 		return errors.New("id is empty")

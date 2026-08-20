@@ -45,7 +45,6 @@ const RedemptionsPage = ({ apiPrefix = '/api/redemption' }) => {
     setShowEdit,
     batchCopyRedemptions,
     batchDeleteRedemptions,
-    batchMarkSent,
 
     // Filters state
     formInitValues,
@@ -89,7 +88,6 @@ const RedemptionsPage = ({ apiPrefix = '/api/redemption' }) => {
               setShowEdit={setShowEdit}
               batchCopyRedemptions={batchCopyRedemptions}
               batchDeleteRedemptions={batchDeleteRedemptions}
-              batchMarkSent={batchMarkSent}
               t={t}
             />
 
