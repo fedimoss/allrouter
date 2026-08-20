@@ -26,6 +26,7 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { getRedemptionsColumns, isExpired } from './RedemptionsColumnDefs';
 import DeleteRedemptionModal from './modals/DeleteRedemptionModal';
+import SendRedemptionModal from './modals/SendRedemptionModal';
 
 const RedemptionsTable = (redemptionsData) => {
   const {
@@ -47,6 +48,10 @@ const RedemptionsTable = (redemptionsData) => {
     sentFilter,
     setSentFilter,
     toggleSent,
+    sendingRecord,
+    setSendingRecord,
+    sendingEmail,
+    confirmSendRedemption,
     t,
   } = redemptionsData;
 
@@ -155,6 +160,14 @@ const RedemptionsTable = (redemptionsData) => {
         refresh={refresh}
         redemptions={redemptions}
         activePage={activePage}
+        t={t}
+      />
+
+      <SendRedemptionModal
+        visible={!!sendingRecord}
+        onCancel={() => setSendingRecord(null)}
+        onOk={confirmSendRedemption}
+        loading={sendingEmail}
         t={t}
       />
     </>

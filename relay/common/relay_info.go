@@ -37,9 +37,15 @@ const (
 type ClaudeConvertInfo struct {
 	LastMessagesType string
 	Index            int
-	Usage            *dto.Usage
-	FinishReason     string
-	Done             bool
+	// MessageStarted is kept separately from RelayInfo.SendResponseCount.
+	// The OpenAI relay deliberately buffers the last SSE chunk and converts it
+	// again during finalization, so SendResponseCount can still be one on that
+	// second conversion.  Using the count as the message_start sentinel would
+	// then emit a duplicate Anthropic message_start event.
+	MessageStarted bool
+	Usage          *dto.Usage
+	FinishReason   string
+	Done           bool
 
 	ToolCallBaseIndex      int
 	ToolCallMaxIndexOffset int

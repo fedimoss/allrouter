@@ -42,7 +42,12 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 	created := resp.CreatedAt
 
 	var toolCalls []dto.ToolCallResponse
-	if text == "" && len(resp.Output) > 0 {
+	// A Responses turn may contain both an assistant message and one or more
+	// function_call output items.  Do not gate tool-call extraction on text
+	// being empty: the Chat Completions representation can carry the preamble
+	// in message.content together with message.tool_calls, and dropping either
+	// part loses context for the next client/tool round.
+	if len(resp.Output) > 0 {
 		for _, out := range resp.Output {
 			if out.Type != "function_call" {
 				continue
@@ -77,7 +82,6 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 	}
 	if len(toolCalls) > 0 {
 		msg.SetToolCalls(toolCalls)
-		msg.Content = ""
 	}
 
 	out := &dto.OpenAITextResponse{

@@ -284,52 +284,60 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
   };
 
   // Toggle single redemption sent mark
-  // 行内「发放」开关：切换单个兑换码的发放标记，成功后本地就地更新（不整页刷新）
+  // 行内「发放」开关：
+  // - 打开（标记发放）：弹出邮箱输入弹窗，可选将兑换码通过邮件发送
+  // - 关闭（取消发放）：直接取消标记
+  const [sendingRecord, setSendingRecord] = useState(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+
   const toggleSent = async (record) => {
     const sent = !(record.sent_time > 0);
+    if (!sent) {
+      // 取消发放：直接调用，无需弹窗
+      await updateSent(record, false, '');
+      return;
+    }
+    // 标记发放：打开弹窗，由确认回调继续
+    setSendingRecord(record);
+  };
+
+  // 发放弹窗确认：email 为空仅标记发放，填写则同时发送兑换码邮件
+  const confirmSendRedemption = async (email) => {
+    if (!sendingRecord) return;
+    setSendingEmail(true);
+    const ok = await updateSent(sendingRecord, true, email);
+    setSendingEmail(false);
+    if (ok) {
+      setSendingRecord(null);
+    }
+  };
+
+  // 调用发放标记接口，成功后本地就地更新（不整页刷新）
+  const updateSent = async (record, sent, email) => {
     try {
       const res = await API.put(`${apiPrefix}/sent`, {
         ids: [record.id],
         sent,
+        ...(email ? { email } : {}),
       });
       const { success, message } = res.data;
       if (success) {
+        if (email) {
+          showSuccess(t('兑换码已发送到邮箱！'));
+        } else {
+          showSuccess(t('操作成功完成！'));
+        }
         // 直接改写 record 的 sent_time 并触发列表重渲染
         record.sent_time = sent ? Math.floor(Date.now() / 1000) : 0;
         setRedemptions([...redemptions]);
+        return true;
       } else {
         showError(message);
       }
     } catch (error) {
       showError(error.message);
     }
-  };
-
-  // Batch mark selected redemptions as sent / unsent
-  // 批量标记勾选项：sent=true 标记为已发放，false 取消标记
-  // 注意：操作成功后保留勾选状态（表格行勾选为非受控，视觉勾选不会因刷新而清除），
-  // 以便对同一批连续执行「标记 → 取消标记」等操作
-  const batchMarkSent = async (sent) => {
-    if (selectedKeys.length === 0) {
-      showError(t('请至少选择一个兑换码！'));
-      return;
-    }
-    const ids = selectedKeys.map((item) => item.id);
-    setLoading(true);
-    try {
-      const res = await API.put(`${apiPrefix}/sent`, { ids, sent });
-      const { success, message } = res.data;
-      if (success) {
-        showSuccess(t('操作成功完成！'));
-        // 刷新以反映最新发放状态；只用到勾选行的 id，旧对象引用无影响
-        await refresh();
-      } else {
-        showError(message);
-      }
-    } catch (error) {
-      showError(error.message);
-    }
-    setLoading(false);
+    return false;
   };
 
   // Reload list when sent filter changes (skip initial mount to avoid duplicate load)
@@ -430,10 +438,13 @@ export const useRedemptionsData = ({ apiPrefix = '/api/redemption' } = {}) => {
     // Batch operations（批量操作）
     batchCopyRedemptions,
     batchDeleteRedemptions,
-    batchMarkSent,
 
     // Sent mark operations（单行发放开关）
     toggleSent,
+    sendingRecord,
+    setSendingRecord,
+    sendingEmail,
+    confirmSendRedemption,
 
     // Translation function
     t,
