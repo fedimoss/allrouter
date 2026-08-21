@@ -5432,6 +5432,14 @@
     "填写邮箱可将兑换码发送给对方，留空则仅标记发放。": "Enter an email to send the redemption code to the recipient, or leave it blank to only mark as issued.",
     "请输入邮箱（可选）": "Enter email (optional)",
     "请输入有效的邮箱地址": "Please enter a valid email address",
-    "兑换码已发送到邮箱！": "Redemption code has been sent to the email!"
+    "兑换码已发送到邮箱！": "Redemption code has been sent to the email!",
+    "Task type": "Task type",
+    "Aspect ratio": "Aspect ratio",
+    "Target parameters": "Target parameters",
+    "Random seed": "Random seed",
+    "Reference video (MP4)": "Reference video (MP4)",
+    "Choose reference video": "Choose reference video",
+    "MP4 only, up to 512 MB": "MP4 only, up to 512 MB",
+    "Reference start time (seconds)": "Reference start time (seconds)"
   }
 }

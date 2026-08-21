@@ -37,6 +37,7 @@ import {
   RotateCcw,
   Send,
   Settings2,
+  Video,
   X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -44,6 +45,8 @@ import { API, copy } from '../../helpers';
 import {
   API_ENDPOINTS,
   MINIMAX_H3_MODEL,
+  MINIMAX_H3_REF2VA_MODEL,
+  MINIMAX_H3_MODELS,
 } from '../../constants/playground.constants';
 
 const terminalStatuses = new Set(['completed', 'failed']);
@@ -169,18 +172,35 @@ const FramePicker = ({
   );
 };
 
-export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
+export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId, model }) => {
   const { t } = useTranslation();
-  const storageKey = `minimax_h3_playground_task_${userId || 'unknown'}`;
+  const isRef2va = model === MINIMAX_H3_REF2VA_MODEL;
+  const storageKey = `minimax_h3_playground_task_${model || MINIMAX_H3_MODEL}_${userId || 'unknown'}`;
   const [prompt, setPrompt] = useState('');
+  const [taskType, setTaskType] = useState('t2va');
+  const [aspectRatio, setAspectRatio] = useState('9:16');
+  const [seed, setSeed] = useState('');
   const [firstFrame, setFirstFrame] = useState(null);
   const [lastFrame, setLastFrame] = useState(null);
+  const [referenceVideo, setReferenceVideo] = useState(null);
+  const [startTimeSeconds, setStartTimeSeconds] = useState('0');
   const [tasks, setTasks] = useState([]);
   const [selectedTaskID, setSelectedTaskID] = useState('');
   const [historyLoading, setHistoryLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pollError, setPollError] = useState('');
   const tasksRef = useRef([]);
+
+  useEffect(() => {
+    setTaskType('t2va');
+    setAspectRatio('9:16');
+    setSeed('');
+    setFirstFrame(null);
+    setLastFrame(null);
+    setReferenceVideo(null);
+    setStartTimeSeconds('0');
+    setPrompt('');
+  }, [model]);
 
   useEffect(() => {
     tasksRef.current = tasks;
@@ -249,7 +269,11 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
       const payload = response.data?.success ? response.data.data : null;
       const history = (payload?.items || [])
         .map(normalizeVideoTask)
-        .filter(Boolean);
+        .filter((item) => {
+          if (!item) return false;
+          const itemModel = item.model || item.properties?.origin_model_name;
+          return itemModel === model;
+        });
       const savedTaskID = localStorage.getItem(storageKey);
       setTasks(history);
       const restoredID = history.some((item) => item.id === savedTaskID)
@@ -262,7 +286,7 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
     } finally {
       setHistoryLoading(false);
     }
-  }, [enabled, storageKey, t, userId]);
+  }, [enabled, model, storageKey, t, userId]);
 
   useEffect(() => {
     loadTaskHistory();
@@ -311,11 +335,21 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
 
   const buildSubmissionForm = () => {
     const formData = new FormData();
-    formData.append('model', MINIMAX_H3_MODEL);
+    formData.append('model', model || MINIMAX_H3_MODEL);
     formData.append('prompt', prompt.trim());
+    const effectiveTaskType = isRef2va ? 'ref2va' : taskType;
+    formData.append('task', effectiveTaskType);
+    formData.append('aspect_ratio', aspectRatio);
+    if (seed.trim()) formData.append('seed', seed.trim());
     if (group) formData.append('group', group);
-    if (firstFrame) formData.append('first_frame', firstFrame);
-    if (lastFrame) formData.append('last_frame', lastFrame);
+    if (!isRef2va && taskType === 'fl2va') {
+      if (firstFrame) formData.append('first_frame', firstFrame);
+      if (lastFrame) formData.append('last_frame', lastFrame);
+    }
+    if (isRef2va && referenceVideo) {
+      formData.append('reference_video', referenceVideo);
+      if (startTimeSeconds.trim()) formData.append('start_time_seconds', startTimeSeconds.trim());
+    }
     return formData;
   };
 
@@ -355,7 +389,7 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
 
   const isActive = submitting || (task && !terminalStatuses.has(task.status));
   const minimaxH3VideoURL =
-    task?.model === 'MiniMax-H3' && typeof task?.content?.url === 'string'
+    MINIMAX_H3_MODELS.includes(task?.model) && typeof task?.content?.url === 'string'
       ? task.content.url.trim()
       : '';
   const videoContentURL =
@@ -382,15 +416,27 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId }) => {
   };
 
   return {
+    task,
+    model,
     prompt,
     setPrompt,
+    taskType,
+    setTaskType,
+    isRef2va,
+    aspectRatio,
+    setAspectRatio,
+    seed,
+    setSeed,
     firstFrame,
     setFirstFrame,
     lastFrame,
     setLastFrame,
+    referenceVideo,
+    setReferenceVideo,
+    startTimeSeconds,
+    setStartTimeSeconds,
     firstPreview,
     lastPreview,
-    task,
     tasks,
     selectedTaskID,
     historyLoading,
@@ -414,10 +460,21 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
   const {
     prompt,
     setPrompt,
+    taskType,
+    setTaskType,
+    isRef2va,
+    aspectRatio,
+    setAspectRatio,
+    seed,
+    setSeed,
     firstFrame,
     setFirstFrame,
     lastFrame,
     setLastFrame,
+    referenceVideo,
+    setReferenceVideo,
+    startTimeSeconds,
+    setStartTimeSeconds,
     firstPreview,
     lastPreview,
     submitting,
@@ -429,6 +486,34 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
     <div
       className={`playground-v2-video-form${compact ? ' playground-v2-video-form-compact playground-v2-settings-section' : ''}`}
     >
+      <div className='playground-v2-video-model-note'>
+        <Video size={15} />
+        <span>{isRef2va ? MINIMAX_H3_REF2VA_MODEL : MINIMAX_H3_MODEL}</span>
+      </div>
+      {!isRef2va && (
+        <div className='playground-v2-field'>
+          <label className='playground-v2-field-label'>{t('Task type')}</label>
+          <select className='playground-v2-text-input' value={taskType} disabled={isActive} onChange={(event) => setTaskType(event.target.value)}>
+            <option value='t2va'>t2va</option>
+            <option value='fl2va'>fl2va</option>
+          </select>
+        </div>
+      )}
+      <div className='playground-v2-field'>
+        <label className='playground-v2-field-label'>{t('Aspect ratio')}</label>
+        <select className='playground-v2-text-input' value={aspectRatio} disabled={isActive} onChange={(event) => setAspectRatio(event.target.value)}>
+          <option value='16:9'>16:9</option>
+          <option value='9:16'>9:16</option>
+          <option value='1:1'>1:1</option>
+          <option value='4:3'>4:3</option>
+          <option value='3:4'>3:4</option>
+          <option value='auto'>auto</option>
+        </select>
+      </div>
+      <div className='playground-v2-field'>
+        <label className='playground-v2-field-label'>{t('Random seed')}</label>
+        <input className='playground-v2-text-input' value={seed} disabled={isActive} placeholder='default' onChange={(event) => setSeed(event.target.value)} />
+      </div>
       <div className='playground-v2-field'>
         <label className='playground-v2-field-label'>{t('视频描述')}</label>
         <textarea
@@ -441,7 +526,7 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
         />
       </div>
 
-      <div className='playground-v2-frame-grid'>
+      {!isRef2va && taskType === 'fl2va' && <div className='playground-v2-frame-grid'>
         <FramePicker
           label={t('首帧（可选）')}
           file={firstFrame}
@@ -458,13 +543,31 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
           onChange={setLastFrame}
           onClear={() => setLastFrame(null)}
         />
-      </div>
+      </div>}
+      {isRef2va && (
+        <div className='playground-v2-reference-video-field'>
+          <div className='playground-v2-field-label'>{t('Reference video (MP4)')}</div>
+          <label className='playground-v2-reference-video-picker'>
+            <Video size={20} />
+            <span>{referenceVideo ? referenceVideo.name : t('Choose reference video')}</span>
+            <small>{t('MP4 only, up to 512 MB')}</small>
+            <input
+              type='file'
+              accept='video/mp4'
+              disabled={isActive}
+              onChange={(event) => setReferenceVideo(event.target.files?.[0] || null)}
+            />
+          </label>
+          <label className='playground-v2-field-label'>{t('Reference start time (seconds)')}</label>
+          <input className='playground-v2-text-input' type='number' min='0' step='0.1' value={startTimeSeconds} disabled={isActive} onChange={(event) => setStartTimeSeconds(event.target.value)} />
+        </div>
+      )}
 
       <div className='playground-v2-video-actions'>
         <button
           type='button'
           className='playground-v2-primary-command'
-          disabled={!prompt.trim() || isActive}
+          disabled={!prompt.trim() || (isRef2va && !referenceVideo) || isActive}
           onClick={handleSubmit}
         >
           {submitting ? (
@@ -557,6 +660,7 @@ const VideoGenerationArea = ({ controller, styleState, onToggleSettings }) => {
   const { t } = useTranslation();
   const {
     task,
+    model,
     pollError,
     isActive,
     minimaxH3VideoURL,
@@ -587,7 +691,7 @@ const VideoGenerationArea = ({ controller, styleState, onToggleSettings }) => {
             <Film size={16} />
           </span>
           <h2 className='playground-v2-panel-title'>{t('AI 视频')}</h2>
-          <span className='playground-v2-outline-pill'>{MINIMAX_H3_MODEL}</span>
+          <span className='playground-v2-outline-pill'>{model || MINIMAX_H3_MODEL}</span>
         </div>
         {styleState.isMobile && (
           <button

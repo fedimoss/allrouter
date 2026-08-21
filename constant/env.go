@@ -20,6 +20,10 @@ var TaskQueryLimit int
 var TaskTimeoutMinutes int
 var MiniMaxH3MaxConcurrency int
 var MiniMaxH3FrameUploadDir string
+var MiniMaxH3ReferenceUploadURL string
+var MiniMaxH3ReferenceUploadAPIKey string
+var MiniMaxH3ReferenceUploadTimeoutSeconds int
+var MiniMaxH3ReferenceVideoMaxBytes int64
 
 // temporary variable for sora patch, will be removed in future
 var TaskPricePatches []string

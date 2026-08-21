@@ -5884,6 +5884,14 @@
     "填写邮箱可将兑换码发送给对方，留空则仅标记发放。": "Nhập email để gửi mã đổi thưởng cho người nhận, để trống nếu chỉ đánh dấu là đã phát.",
     "请输入邮箱（可选）": "Nhập email (không bắt buộc)",
     "请输入有效的邮箱地址": "Vui lòng nhập địa chỉ email hợp lệ",
-    "兑换码已发送到邮箱！": "Mã đổi thưởng đã được gửi đến email!"
+    "兑换码已发送到邮箱！": "Mã đổi thưởng đã được gửi đến email!",
+    "Task type": "Loại tác vụ",
+    "Aspect ratio": "Tỷ lệ khung hình",
+    "Target parameters": "Tham số mục tiêu",
+    "Random seed": "Hạt giống ngẫu nhiên",
+    "Reference video (MP4)": "Video tham chiếu (MP4)",
+    "Choose reference video": "Chọn video tham chiếu",
+    "MP4 only, up to 512 MB": "Chỉ MP4, tối đa 512 MB",
+    "Reference start time (seconds)": "Thời điểm bắt đầu (giây)"
   }
 }

@@ -163,6 +163,16 @@ func initConstantEnv() {
 		constant.MiniMaxH3MaxConcurrency = 5
 	}
 	constant.MiniMaxH3FrameUploadDir = GetEnvOrDefaultString("MINIMAX_H3_FRAME_UPLOAD_DIR", "data/minimax-h3-frames")
+	constant.MiniMaxH3ReferenceUploadURL = GetEnvOrDefaultString("MINIMAX_H3_REFERENCE_UPLOAD_URL", "")
+	constant.MiniMaxH3ReferenceUploadAPIKey = GetEnvOrDefaultString("MINIMAX_H3_REFERENCE_UPLOAD_API_KEY", "")
+	constant.MiniMaxH3ReferenceUploadTimeoutSeconds = GetEnvOrDefault("MINIMAX_H3_REFERENCE_UPLOAD_TIMEOUT_SECONDS", 120)
+	if constant.MiniMaxH3ReferenceUploadTimeoutSeconds <= 0 {
+		constant.MiniMaxH3ReferenceUploadTimeoutSeconds = 120
+	}
+	constant.MiniMaxH3ReferenceVideoMaxBytes = int64(GetEnvOrDefault("MINIMAX_H3_REFERENCE_VIDEO_MAX_MB", 512)) << 20
+	if constant.MiniMaxH3ReferenceVideoMaxBytes <= 0 {
+		constant.MiniMaxH3ReferenceVideoMaxBytes = 512 << 20
+	}
 
 	soraPatchStr := GetEnvOrDefaultString("TASK_PRICE_PATCH", "")
 	if soraPatchStr != "" {
