@@ -54,6 +54,8 @@ import Exchange from './pages/Exchange';
 import Billing from './pages/Billing';
 import Operational from './pages/OperationalData';
 import Reconciliation from './pages/Reconciliation';
+import QuestionSurvey from './pages/QuestionSurvey';
+import UserQuestion from './pages/QuestionSurvey/userQuestion';
 import CertificationDocument from './pages/CertificationDocument';
 import ProviderRewardPage from './pages/Provider/Reward';
 import ProviderRewardReportPage from './pages/Provider/RewardReport';
@@ -154,6 +156,7 @@ function App() {
           }
         />
         <Route path='/' element={<HomeRoute />} />
+        <Route path='/userQuestion' element={<UserQuestion />} />
         <Route
           path='/setup'
           element={
@@ -315,6 +318,14 @@ function App() {
           element={
             <AdminRoute>
               <Redemption />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/questionSurvey'
+          element={
+            <AdminRoute>
+              <QuestionSurvey />
             </AdminRoute>
           }
         />

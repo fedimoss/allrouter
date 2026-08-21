@@ -70,7 +70,8 @@ const routerMap = {
   operational: '/console/operational',
   reconciliation: '/console/reconciliation',
   invitation: '/console/invitation',
-  exchange: '/console/exchange'
+  exchange: '/console/exchange',
+  questionSurvey: '/console/questionSurvey'
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -369,6 +370,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('兑换码管理'),
         itemKey: 'redemption',
         to: '/redemption',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('问卷调查'),
+        itemKey: 'questionSurvey',
+        to: '/questionSurvey',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

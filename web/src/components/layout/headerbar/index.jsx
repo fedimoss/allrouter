@@ -115,6 +115,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     '/console/user': t('用户管理'),
     '/console/setting': t('系统设置'),
     '/console/redemption': t('兑换码管理'),
+    '/console/questionSurvey': t('问卷调查'),
     '/console/oauth': t('OAuth 授权'),
     '/console/invitation': t('邀请奖励'),
     '/console/exchange': t('兑换码'),
@@ -124,7 +125,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const pathname = location.pathname;
   const currentLabel = pathname.startsWith('/console/chat')
     ? t('聊天')
-    : breadcrumbLabelMap[pathname] || t('控制台');
+      : breadcrumbLabelMap[pathname] || t('控制台');
   const breadcrumbItems = [
     { label: t('首页'), to: '/' },
     { label: t('控制台'), to: '/console' },

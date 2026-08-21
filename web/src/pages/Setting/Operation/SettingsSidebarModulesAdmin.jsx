@@ -80,6 +80,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       operational: true,
       reconciliation: true,
       redemption: true,
+      questionSurvey: true,
       user: true,
       subscription: true,
       setting: true,
@@ -157,6 +158,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         operational: true,
         reconciliation: true,
         redemption: true,
+        questionSurvey: true,
         user: true,
         subscription: true,
         setting: true,
@@ -349,6 +351,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           key: 'redemption',
           title: t('兑换码管理'),
           description: t('兑换码生成管理'),
+        },
+        {
+          key: 'questionSurvey',
+          title: t('问卷调查'),
+          description: t('问卷发放与回收管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
         {

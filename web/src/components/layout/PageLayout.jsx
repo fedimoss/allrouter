@@ -80,6 +80,7 @@ const PageLayout = () => {
     '/about',
     '/landing',
     '/payment/lakala/qrcode',
+    '/userQuestion',
   ];
   const shouldHideFooter =
     cardProPages.includes(location.pathname) ||

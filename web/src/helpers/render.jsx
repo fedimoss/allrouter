@@ -94,6 +94,7 @@ import {
   BriefcaseBusiness,
   FileCheck,
   AlignEndHorizontal,
+  ClipboardPen,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -159,6 +160,8 @@ export function getLucideIcon(key, selected = false) {
       return <Layers {...commonProps} color={iconColor} />;
     case 'redemption':
       return <Ticket {...commonProps} color={iconColor} />;
+    case 'questionSurvey':
+      return <ClipboardPen {...commonProps} color={iconColor} />;
     case 'user':
       return <UserLock {...commonProps} color={iconColor} />;
     case 'personal':

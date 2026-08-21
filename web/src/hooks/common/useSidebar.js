@@ -69,6 +69,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     operational: true,
     reconciliation: true,
     redemption: true,
+    questionSurvey: true,
     user: true,
     subscription: true,
     setting: true,
