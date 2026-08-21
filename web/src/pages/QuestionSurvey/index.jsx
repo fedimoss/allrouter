@@ -271,8 +271,8 @@ const QuestionSurvey = () => {
       <div className='survey-v2-shell'>
         <div className='survey-v2-card'>
           <div className='survey-v2-toolbar'>
-            <div className='survey-v2-toolbar-title'>{t('问卷调查')}</div>
-            <div className='survey-v2-toolbar-desc'>
+            <div>
+              <div className='survey-v2-toolbar-title'>{t('问卷调查')}</div>
               <div className='survey-v2-toolbar-desc-txt'>
                 {t('查看用户提交的问卷记录，可查看详情与删除。')}
               </div>
