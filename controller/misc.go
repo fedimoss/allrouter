@@ -262,8 +262,19 @@ func GetNotice(c *gin.Context) {
 	notice := common.OptionMap[noticeKey]
 	// 服务商站点访问时，若未开启“对服务商显示公告”，则隐藏公告内容
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
-	if providerId > 0 && common.OptionMap[model.NoticeShowToProvidersOptionKey] != "true" {
-		notice = ""
+	if providerId > 0 {
+		// 服务商站点：合并显示主站公告（受主站“对服务商显示公告”开关控制）与服务商自有公告，
+		// 按语言各自取对应版本。
+		var parts []string
+		if common.OptionMap[model.NoticeShowToProvidersOptionKey] == "true" {
+			if mainNotice := common.OptionMap[noticeKey]; mainNotice != "" {
+				parts = append(parts, mainNotice)
+			}
+		}
+		if providerNotice, err := model.GetProviderOptionValue(providerId, noticeKey); err == nil && providerNotice != "" {
+			parts = append(parts, providerNotice)
+		}
+		notice = strings.Join(parts, "\n\n---\n\n")
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -22,6 +22,8 @@ import (
 var providerOwnerOptionKeys = map[string]struct{}{
 	"console_setting.announcements":         {},
 	"console_setting.announcements_enabled": {},
+	model.NoticeOptionKey:                   {}, // 服务商自有公告（中文）
+	model.NoticeEnglishOptionKey:            {}, // 服务商自有公告（英文）
 	model.ProviderTopUpGiftEnabledOptionKey: {},
 	model.ProviderTopUpGiftRulesOptionKey:   {},
 	model.ProviderTopUpGiftTimedOptionKey:   {},

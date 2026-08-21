@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useContext, useMemo } from 'react';
+import React, { useLayoutEffect, useState, useContext, useMemo } from 'react';
 import {
   Button,
   Modal,
@@ -107,14 +107,16 @@ const NoticeModal = ({
     }
   };
 
-  // 弹窗可见时拉取公告；界面语言切换后也会重新拉取，确保展示与当前语言匹配的公告版本
-  useEffect(() => {
+  // 弹窗可见时拉取公告；界面语言切换后也会重新拉取，确保展示与当前语言匹配的公告版本。
+  // 用 useLayoutEffect 在浏览器绘制前清空旧内容，避免弹窗打开瞬间闪现上次公告导致高度跳动。
+  useLayoutEffect(() => {
     if (visible) {
+      setNoticeContent('');
       displayNotice();
     }
   }, [visible, i18n.language, i18n.resolvedLanguage]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (visible) {
       setActiveTab(defaultTab);
     }
@@ -206,6 +208,8 @@ const NoticeModal = ({
   };
 
   const renderBody = () => {
+    // 弹窗关闭时不渲染内容，避免再次打开时闪现上次公告导致高度跳动
+    if (!visible) return null;
     if (activeTab === 'inApp') {
       return renderMarkdownNotice();
     }

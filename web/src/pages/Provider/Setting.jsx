@@ -18,11 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Layout, TabPane, Tabs, Card, Spin } from '@douyinfe/semi-ui';
+import { Layout, TabPane, Tabs, Card, Spin, TextArea, Button } from '@douyinfe/semi-ui';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { LayoutDashboard } from 'lucide-react';
-import { API, showError } from '../../helpers';
+import { API, showError, showSuccess } from '../../helpers';
 import SettingsAnnouncements from '../Setting/Dashboard/SettingsAnnouncements';
 
 const ProviderSetting = () => {
@@ -33,6 +33,10 @@ const ProviderSetting = () => {
   const [providerId, setProviderId] = useState(null);
   const [options, setOptions] = useState({});
   const [loading, setLoading] = useState(false);
+  // 服务商自有公告（markdown 文本，与主站“公告（中文）/公告（英文）”同构）
+  const [noticeZh, setNoticeZh] = useState('');
+  const [noticeEn, setNoticeEn] = useState('');
+  const [noticeSaving, setNoticeSaving] = useState(false);
 
   const fetchProviderId = async () => {
     const res = await API.get('/api/provider/self');
@@ -53,6 +57,8 @@ const ProviderSetting = () => {
           optionMap[item.key] = item.value;
         });
         setOptions(optionMap);
+        setNoticeZh(optionMap['Notice'] || '');
+        setNoticeEn(optionMap['NoticeEn'] || '');
       }
     } catch (error) {
       console.error('获取服务商配置失败:', error);
@@ -115,6 +121,28 @@ const ProviderSetting = () => {
     navigate(`?tab=${key}`);
   };
 
+  // 保存服务商自有公告（中/英文）
+  const handleSaveNotice = async () => {
+    const pId = providerId;
+    if (!pId) {
+      showError(t('获取服务商信息失败'));
+      return;
+    }
+    setNoticeSaving(true);
+    try {
+      await Promise.all([
+        API.put(`/api/provider/options/${pId}`, { key: 'Notice', value: noticeZh }),
+        API.put(`/api/provider/options/${pId}`, { key: 'NoticeEn', value: noticeEn }),
+      ]);
+      showSuccess(t('设置公告'));
+    } catch (error) {
+      console.error('保存公告失败:', error);
+      showError(error?.message || t('保存失败'));
+    } finally {
+      setNoticeSaving(false);
+    }
+  };
+
   return (
     <div className='mt-[60px] px-2'>
       <Layout>
@@ -146,6 +174,37 @@ const ProviderSetting = () => {
                       onToggleEnabled={handleSave}
                       providerMode
                     />
+                  </Card>
+                  <Card style={{ marginTop: '10px' }}>
+                    {/* 服务商自有公告（markdown 文本，前台“通知”tab 展示，按用户语言择一） */}
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
+                        {t('通用设置')}
+                      </div>
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ marginBottom: 8 }}>{t('公告（中文）')}</div>
+                        <TextArea
+                          placeholder={t('在此输入新的公告内容，支持 Markdown & HTML 代码')}
+                          value={noticeZh}
+                          onChange={setNoticeZh}
+                          style={{ fontFamily: 'JetBrains Mono, Consolas' }}
+                          autosize={{ minRows: 6, maxRows: 12 }}
+                        />
+                      </div>
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ marginBottom: 8 }}>{t('公告（英文）')}</div>
+                        <TextArea
+                          placeholder={t('在此输入新的公告内容，支持 Markdown & HTML 代码')}
+                          value={noticeEn}
+                          onChange={setNoticeEn}
+                          style={{ fontFamily: 'JetBrains Mono, Consolas' }}
+                          autosize={{ minRows: 6, maxRows: 12 }}
+                        />
+                      </div>
+                      <Button onClick={handleSaveNotice} loading={noticeSaving}>
+                        {t('设置公告')}
+                      </Button>
+                    </div>
                   </Card>
                 </Spin>
               )}
