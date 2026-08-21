@@ -5411,6 +5411,14 @@
     "期望与建议": "期望与建议",
     "您希望我们如何改进？任何想法都欢迎": "您希望我们如何改进？任何想法都欢迎",
     "同意我们通过上述联系方式与您联系，跟进本次反馈的处理结果": "同意我们通过上述联系方式与您联系，跟进本次反馈的处理结果",
-    "提交反馈": "提交反馈"
+    "提交反馈": "提交反馈",
+    "Task type": "任务类型",
+    "Aspect ratio": "宽高比",
+    "Target parameters": "目标参数",
+    "Random seed": "随机种子",
+    "Reference video (MP4)": "参考视频（MP4）",
+    "Choose reference video": "选择参考视频",
+    "MP4 only, up to 512 MB": "仅支持 MP4，最大 512 MB",
+    "Reference start time (seconds)": "参考起始时间（秒）"
   }
 }

@@ -8,6 +8,8 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -57,6 +59,10 @@ func encodeMiniMaxH3MultipartRequest(pendingRequest []byte) ([]byte, string, err
 		return nil, "", fmt.Errorf("parse MiniMax-H3 pending request: %w", err)
 	}
 	for i := range pending.Conditions {
+		conditionType, _ := pending.Conditions[i]["type"].(string)
+		if conditionType == "video" || conditionType == "video_audio" {
+			continue
+		}
 		uri, _ := pending.Conditions[i]["uri"].(string)
 		embeddedURI, err := service.EmbedMiniMaxH3FrameURI(uri)
 		if err != nil {
@@ -126,7 +132,34 @@ func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.
 	if ch.GetBaseURL() != "" {
 		baseURL = ch.GetBaseURL()
 	}
-	requestBody, contentType, err := encodeMiniMaxH3MultipartRequest(task.PrivateData.PendingRequest)
+	var pending miniMaxH3QueuedRequest
+	if err := common.Unmarshal(task.PrivateData.PendingRequest, &pending); err != nil {
+		return nil, fmt.Errorf("parse MiniMax-H3 pending request: %w", err)
+	}
+	for i := range pending.Conditions {
+		conditionType, _ := pending.Conditions[i]["type"].(string)
+		if conditionType != "video" && conditionType != "video_audio" {
+			continue
+		}
+		uri, _ := pending.Conditions[i]["uri"].(string)
+		parsed, parseErr := url.Parse(uri)
+		if parseErr != nil {
+			return nil, fmt.Errorf("parse MiniMax-H3 reference video URI: %w", parseErr)
+		}
+		filename := filepath.Base(parsed.Path)
+		uploadedURI, uploadErr := service.UploadMiniMaxH3ReferenceVideo(ctx, uri, filename)
+		if uploadErr != nil {
+			return nil, uploadErr
+		}
+		fmt.Print("--------------------------------------")
+		fmt.Print(uploadedURI)
+		pending.Conditions[i]["uri"] = uploadedURI
+	}
+	encodedPending, err := common.Marshal(pending)
+	if err != nil {
+		return nil, fmt.Errorf("marshal MiniMax-H3 pending request: %w", err)
+	}
+	requestBody, contentType, err := encodeMiniMaxH3MultipartRequest(encodedPending)
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +323,7 @@ func resolveTaskSubmissionPlatform(c *gin.Context, info *relaycommon.RelayInfo) 
 	// MiniMax-H3 uses the OpenAI video protocol and the local database queue,
 	// not MiniMax's Hailuo video protocol. Select its adaptor by model so a
 	// MiniMax-type channel works the same as a Sora/OpenAI-type channel.
-	if info != nil && info.OriginModelName == "MiniMax-H3" {
+	if info != nil && constant.IsMiniMaxH3Model(info.OriginModelName) {
 		return constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeSora))
 	}
 
@@ -445,6 +478,14 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		if err != nil {
 			return nil, service.TaskErrorWrapper(err, "read_minimax_h3_request_failed", http.StatusInternalServerError)
 		}
+		var pending miniMaxH3QueuedRequest
+		if err := common.Unmarshal(pendingRequest, &pending); err != nil {
+			return nil, service.TaskErrorWrapper(err, "parse_minimax_h3_request_failed", http.StatusInternalServerError)
+		}
+		size := "768x1344"
+		if pending.Target["aspect_ratio"] == "16:9" {
+			size = "1344x768"
+		}
 		queuedData, err := common.Marshal(map[string]any{
 			"id":         info.PublicTaskID,
 			"object":     "video",
@@ -452,8 +493,8 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 			"status":     dto.VideoStatusQueued,
 			"progress":   0,
 			"created_at": time.Now().Unix(),
-			"seconds":    "10",
-			"size":       "1344x768",
+			"seconds":    pending.Seconds,
+			"size":       size,
 		})
 		if err != nil {
 			return nil, service.TaskErrorWrapper(err, "marshal_minimax_h3_queued_response_failed", http.StatusInternalServerError)

@@ -27,7 +27,7 @@ import ImageUrlInput from './ImageUrlInput';
 import ConfigManager from './ConfigManager';
 import CustomRequestEditor from './CustomRequestEditor';
 import { MiniMaxH3VideoForm } from './VideoGenerationArea';
-import { MINIMAX_H3_MODEL } from '../../constants/playground.constants';
+import { MINIMAX_H3_MODELS } from '../../constants/playground.constants';
 
 const ToggleSwitch = ({ checked, disabled, onChange }) => {
   return (
@@ -65,7 +65,7 @@ const SettingsPanel = ({
 }) => {
   const { t } = useTranslation();
   console.log('groups==', groups);
-  const isMiniMaxH3 = inputs.model === MINIMAX_H3_MODEL;
+  const isMiniMaxH3 = MINIMAX_H3_MODELS.includes(inputs.model);
 
   const currentConfig = {
     inputs,

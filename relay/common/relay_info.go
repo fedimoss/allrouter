@@ -722,6 +722,8 @@ type TaskRelayInfo struct {
 type TaskSubmitReq struct {
 	Prompt              string                 `json:"prompt"`
 	Model               string                 `json:"model,omitempty"`
+	Task                string                 `json:"task,omitempty"`
+	Seed                string                 `json:"seed,omitempty"`
 	Mode                string                 `json:"mode,omitempty"`
 	Image               string                 `json:"image,omitempty"`
 	Images              []string               `json:"images,omitempty"`
@@ -731,6 +733,7 @@ type TaskSubmitReq struct {
 	NumOutputs          *int                   `json:"num_outputs,omitempty"`
 	NumOutputsPerPrompt *int                   `json:"num_outputs_per_prompt,omitempty"`
 	N                   *int                   `json:"n,omitempty"`
+	AspectRatio         string                 `json:"aspect_ratio,omitempty"`
 	Target              json.RawMessage        `json:"target,omitempty"`
 	InputReference      string                 `json:"input_reference,omitempty"`
 	Metadata            map[string]interface{} `json:"metadata,omitempty"`
@@ -753,6 +756,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		NumOutputs          json.RawMessage `json:"num_outputs,omitempty"`
 		NumOutputsPerPrompt json.RawMessage `json:"num_outputs_per_prompt,omitempty"`
 		N                   json.RawMessage `json:"n,omitempty"`
+		Seed                json.RawMessage `json:"seed,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -772,6 +776,17 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 				if v, err := strconv.Atoi(durationStr); err == nil {
 					t.Duration = v
 				}
+			}
+		}
+	}
+	if len(aux.Seed) > 0 && string(aux.Seed) != "null" {
+		var seedString string
+		if err := common.Unmarshal(aux.Seed, &seedString); err == nil {
+			t.Seed = seedString
+		} else {
+			var seedNumber json.Number
+			if err := common.Unmarshal(aux.Seed, &seedNumber); err == nil {
+				t.Seed = seedNumber.String()
 			}
 		}
 	}

@@ -1195,6 +1195,50 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   width: 100%;
 }
 
+.playground-v2-video-model-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 18px;
+  color: var(--pg-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.playground-v2-reference-video-field {
+  display: grid;
+  gap: 9px;
+  margin-top: 22px;
+}
+
+.playground-v2-reference-video-picker {
+  display: flex;
+  min-height: 92px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px dashed var(--pg-border);
+  border-radius: 8px;
+  background: var(--pg-surface-muted);
+  color: var(--pg-text-muted);
+  cursor: pointer;
+  text-align: center;
+}
+
+.playground-v2-reference-video-picker:hover {
+  border-color: var(--theme-primary);
+}
+
+.playground-v2-reference-video-picker small {
+  color: var(--pg-text-soft);
+  font-size: 10px;
+}
+
+.playground-v2-reference-video-picker input {
+  display: none;
+}
+
 .playground-v2-video-prompt {
   width: 100%;
   min-height: 132px;

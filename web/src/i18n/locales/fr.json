@@ -5398,6 +5398,14 @@
     "填写邮箱可将兑换码发送给对方，留空则仅标记发放。": "Saisissez un e-mail pour envoyer le code de rachat au destinataire, ou laissez vide pour marquer uniquement comme délivré.",
     "请输入邮箱（可选）": "Saisir un e-mail (facultatif)",
     "请输入有效的邮箱地址": "Veuillez saisir une adresse e-mail valide",
-    "兑换码已发送到邮箱！": "Le code de rachat a été envoyé à l'e-mail !"
+    "兑换码已发送到邮箱！": "Le code de rachat a été envoyé à l'e-mail !",
+    "Task type": "Type de tâche",
+    "Aspect ratio": "Format d'image",
+    "Target parameters": "Paramètres cibles",
+    "Random seed": "Graine aléatoire",
+    "Reference video (MP4)": "Vidéo de référence (MP4)",
+    "Choose reference video": "Choisir une vidéo de référence",
+    "MP4 only, up to 512 MB": "MP4 uniquement, 512 Mo maximum",
+    "Reference start time (seconds)": "Début de référence (secondes)"
   }
 }

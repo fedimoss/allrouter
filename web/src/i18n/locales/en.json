@@ -5473,6 +5473,14 @@
     "期望与建议": "Expectations & Suggestions",
     "您希望我们如何改进？任何想法都欢迎": "How would you like us to improve? Any ideas are welcome.",
     "同意我们通过上述联系方式与您联系，跟进本次反馈的处理结果": "I agree to be contacted via the above contact info to follow up on this feedback.",
-    "提交反馈": "Submit Feedback"
+    "提交反馈": "Submit Feedback",
+    "Task type": "Task type",
+    "Aspect ratio": "Aspect ratio",
+    "Target parameters": "Target parameters",
+    "Random seed": "Random seed",
+    "Reference video (MP4)": "Reference video (MP4)",
+    "Choose reference video": "Choose reference video",
+    "MP4 only, up to 512 MB": "MP4 only, up to 512 MB",
+    "Reference start time (seconds)": "Reference start time (seconds)"
   }
 }

@@ -20,14 +20,14 @@ type RetryParam struct {
 }
 
 func IsChannelTypeCompatibleWithModel(modelName string, channelType int) bool {
-	if modelName != "MiniMax-H3" {
+	if !constant.IsMiniMaxH3Model(modelName) {
 		return true
 	}
 	return channelType == constant.ChannelTypeSora || channelType == constant.ChannelTypeOpenAI
 }
 
 func getRandomSatisfiedChannel(group string, modelName string, retry int) (*model.Channel, error) {
-	if modelName == "MiniMax-H3" {
+	if constant.IsMiniMaxH3Model(modelName) {
 		return model.GetChannelByTypes(group, modelName, retry, []int{
 			constant.ChannelTypeSora,
 			constant.ChannelTypeOpenAI,

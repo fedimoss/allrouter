@@ -35,7 +35,7 @@ import { useDataLoader } from '../../hooks/playground/useDataLoader';
 import {
   MESSAGE_ROLES,
   ERROR_MESSAGES,
-  MINIMAX_H3_MODEL,
+  MINIMAX_H3_MODELS,
 } from '../../constants/playground.constants';
 import {
   getLogo,
@@ -132,11 +132,12 @@ const Playground = () => {
     setCustomRequestMode,
     setCustomRequestBody,
   } = state;
-  const isMiniMaxH3 = inputs.model === MINIMAX_H3_MODEL;
+  const isMiniMaxH3 = MINIMAX_H3_MODELS.includes(inputs.model);
   const miniMaxH3VideoController = useMiniMaxH3VideoGeneration({
     enabled: isMiniMaxH3,
     group: inputs.group,
     userId: userState?.user?.id,
+    model: inputs.model,
   });
 
   // API 请求相关

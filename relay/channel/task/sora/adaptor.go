@@ -47,6 +47,18 @@ type perSecondTarget struct {
 
 const miniMaxH3RequestBodyKey = "minimax_h3_request_body"
 
+const miniMaxH3FixedShortEdge = 768
+const miniMaxH3FixedDurationSeconds = 10
+
+var miniMaxH3AspectRatios = map[string]struct{}{
+	"16:9": {},
+	"9:16": {},
+	"1:1":  {},
+	"4:3":  {},
+	"3:4":  {},
+	"auto": {},
+}
+
 type miniMaxH3Target struct {
 	ShortEdge       int     `json:"short_edge"`
 	AspectRatio     string  `json:"aspect_ratio"`
@@ -68,10 +80,11 @@ type miniMaxH3Request struct {
 }
 
 type miniMaxH3Condition struct {
-	Type       string `json:"type"`
-	URI        string `json:"uri"`
-	Role       string `json:"role"`
-	FrameIndex int    `json:"frame_index"`
+	Type             string   `json:"type"`
+	URI              string   `json:"uri"`
+	Role             string   `json:"role"`
+	FrameIndex       *int     `json:"frame_index,omitempty"`
+	StartTimeSeconds *float64 `json:"start_time_seconds,omitempty"`
 }
 
 type responseTask struct {
@@ -133,13 +146,105 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
 	}
-	if req.Model == "MiniMax-H3" {
+	if req.Model == constant.ModelMiniMaxH3 || req.Model == constant.ModelMiniMaxH3Ref2va {
 		return validateMiniMaxH3Request(c, info, req)
 	}
 	return relaycommon.ValidateMultipartDirect(c, info)
 }
 
 func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq) *dto.TaskError {
+	if req.Model == constant.ModelMiniMaxH3Ref2va {
+		return validateMiniMaxH3Ref2vaRequest(c, info, req)
+	}
+	return validateMiniMaxH3FramesRequest(c, info, req)
+}
+
+func validateMiniMaxH3Ref2vaRequest(c *gin.Context, info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq) *dto.TaskError {
+	contentType := c.GetHeader("Content-Type")
+	isMultipart := strings.Contains(contentType, "multipart/form-data")
+	if !isMultipart {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("MiniMax-H3-Ref2va requires multipart/form-data"), "invalid_request", http.StatusBadRequest)
+	}
+	if strings.TrimSpace(req.Prompt) == "" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("field prompt is required"), "invalid_request", http.StatusBadRequest)
+	}
+
+	unsupported := make([]string, 0)
+	allowedFields := map[string]bool{
+		"model": true, "prompt": true, "task": true, "aspect_ratio": true, "seed": true,
+		"start_time_seconds": true,
+	}
+	if info.IsPlayground {
+		allowedFields["group"] = true
+	}
+
+	form, err := common.ParseMultipartFormReusable(c)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_multipart_form", http.StatusBadRequest)
+	}
+	defer form.RemoveAll()
+
+	for field := range form.Value {
+		if !allowedFields[field] {
+			unsupported = append(unsupported, field)
+		}
+	}
+	for field := range form.File {
+		if field == "first_frame" || field == "last_frame" {
+			return service.TaskErrorWrapperLocal(fmt.Errorf("MiniMax-H3-Ref2va does not accept %s; use MiniMax-H3 instead", field), "invalid_request", http.StatusBadRequest)
+		}
+		if field != "reference_video" {
+			unsupported = append(unsupported, field)
+		}
+	}
+	if len(unsupported) > 0 {
+		sort.Strings(unsupported)
+		return service.TaskErrorWrapperLocal(
+			fmt.Errorf("MiniMax-H3-Ref2va request contains unsupported fields: %s", strings.Join(unsupported, ", ")),
+			"invalid_request",
+			http.StatusBadRequest,
+		)
+	}
+
+	taskType := strings.TrimSpace(req.Task)
+	if taskType != "" && taskType != "ref2va" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("MiniMax-H3-Ref2va requires task=ref2va"), "invalid_request", http.StatusBadRequest)
+	}
+
+	files := form.File["reference_video"]
+	if len(files) != 1 {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("MiniMax-H3-Ref2va requires exactly one reference_video"), "invalid_request", http.StatusBadRequest)
+	}
+	videoID, err := service.SaveMiniMaxH3ReferenceVideo(info.UserId, files[0])
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	videoURI, err := service.ResolveMiniMaxH3ReferenceVideoURI(info.UserId, videoID)
+	if err != nil {
+		_ = service.DeleteMiniMaxH3ReferenceVideo(info.UserId, videoID)
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+
+	var startTime *float64
+	startRaw := ""
+	if values := form.Value["start_time_seconds"]; len(values) > 0 {
+		startRaw = values[0]
+	}
+	if raw := strings.TrimSpace(startRaw); raw != "" {
+		value, parseErr := strconv.ParseFloat(raw, 64)
+		if parseErr != nil || value < 0 {
+			_ = service.DeleteMiniMaxH3ReferenceVideo(info.UserId, videoID)
+			return service.TaskErrorWrapperLocal(fmt.Errorf("start_time_seconds must be non-negative"), "invalid_request", http.StatusBadRequest)
+		}
+		startTime = &value
+	}
+	conditions := []miniMaxH3Condition{{Type: "video", URI: videoURI, Role: "reference", StartTimeSeconds: startTime}}
+	c.Set(service.MiniMaxH3ReferenceVideoIDsContextKey, []string{videoID})
+
+	return buildMiniMaxH3UpstreamRequest(c, info, req, "ref2va", conditions)
+}
+
+func validateMiniMaxH3FramesRequest(c *gin.Context, info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq) *dto.TaskError {
 	contentType := c.GetHeader("Content-Type")
 	isJSON := strings.HasPrefix(contentType, "application/json")
 	isMultipart := strings.Contains(contentType, "multipart/form-data")
@@ -152,8 +257,7 @@ func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req r
 
 	unsupported := make([]string, 0)
 	allowedFields := map[string]bool{
-		"model":  true,
-		"prompt": true,
+		"model": true, "prompt": true, "task": true, "aspect_ratio": true, "seed": true,
 	}
 	if info.IsPlayground {
 		allowedFields["group"] = true
@@ -200,6 +304,9 @@ func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req r
 			}
 		}
 		for field := range form.File {
+			if field == "reference_video" {
+				return service.TaskErrorWrapperLocal(fmt.Errorf("MiniMax-H3 does not accept reference_video; use MiniMax-H3-Ref2va instead"), "invalid_request", http.StatusBadRequest)
+			}
 			if field != "first_frame" && field != "last_frame" {
 				unsupported = append(unsupported, field)
 			}
@@ -223,7 +330,7 @@ func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req r
 					return service.TaskErrorWrapperLocal(fmt.Errorf("resolve %s: %w", field, err), "invalid_request", http.StatusBadRequest)
 				}
 				conditions = append(conditions, miniMaxH3Condition{
-					Type: "image", URI: frameURI, Role: "keyframe", FrameIndex: frameIndex,
+					Type: "image", URI: frameURI, Role: "keyframe", FrameIndex: &frameIndex,
 				})
 				return nil
 			}
@@ -232,6 +339,9 @@ func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req r
 			}
 			if taskErr := appendFrame("last_frame", -1); taskErr != nil {
 				return taskErr
+			}
+			if len(frameIDs) > 0 {
+				c.Set(service.MiniMaxH3FrameIDsContextKey, frameIDs)
 			}
 		}
 	}
@@ -244,58 +354,91 @@ func validateMiniMaxH3Request(c *gin.Context, info *relaycommon.RelayInfo, req r
 		)
 	}
 
-	taskType := "t2va"
-	if len(conditions) > 0 {
-		taskType = "fl2va"
+	taskType := strings.TrimSpace(req.Task)
+	if taskType == "" {
+		if len(conditions) > 0 {
+			taskType = "fl2va"
+		} else {
+			taskType = "t2va"
+		}
+	}
+	if taskType != "t2va" && taskType != "fl2va" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("MiniMax-H3 task must be one of t2va, fl2va"), "invalid_request", http.StatusBadRequest)
+	}
+	if taskType == "t2va" && len(conditions) > 0 {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("t2va does not accept frame conditions"), "invalid_request", http.StatusBadRequest)
+	}
+	if taskType == "fl2va" && len(conditions) == 0 {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("fl2va requires first_frame or last_frame"), "invalid_request", http.StatusBadRequest)
+	}
+
+	// prevent frames from being cleaned on successful validation
+	cleanupFrames = false
+	return buildMiniMaxH3UpstreamRequest(c, info, req, taskType, conditions)
+}
+
+func buildMiniMaxH3UpstreamRequest(c *gin.Context, info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq, taskType string, conditions []miniMaxH3Condition) *dto.TaskError {
+	aspectRatio := strings.TrimSpace(req.AspectRatio)
+	if aspectRatio == "" {
+		aspectRatio = "9:16"
+	}
+	if _, ok := miniMaxH3AspectRatios[aspectRatio]; !ok {
+		return service.TaskErrorWrapperLocal(
+			fmt.Errorf("aspect_ratio must be one of 16:9, 9:16, 1:1, 4:3, 3:4, auto"),
+			"invalid_request",
+			http.StatusBadRequest,
+		)
 	}
 
 	var (
 		seed int64
 		err  error
 	)
-	if info.IsPlayground {
+	if rawSeed := strings.TrimSpace(req.Seed); rawSeed != "" {
+		parsed, parseErr := strconv.ParseInt(rawSeed, 10, 64)
+		if parseErr != nil {
+			return service.TaskErrorWrapperLocal(fmt.Errorf("seed must be an integer"), "invalid_request", http.StatusBadRequest)
+		}
+		seed = parsed
+	}
+	if strings.TrimSpace(req.Seed) == "" && info.IsPlayground {
 		seed, err = model.GetOrCreateUserMiniMaxH3Seed(info.UserId)
-	} else {
+	} else if strings.TrimSpace(req.Seed) == "" {
 		seed, err = model.GetOrCreateTokenMiniMaxH3Seed(info.TokenId)
 	}
 	if err != nil {
 		return service.TaskErrorWrapper(err, "get_or_create_minimax_h3_seed_failed", http.StatusInternalServerError)
 	}
 
+	upstreamTarget := miniMaxH3Target{
+		ShortEdge:       miniMaxH3FixedShortEdge,
+		AspectRatio:     aspectRatio,
+		DurationSeconds: miniMaxH3FixedDurationSeconds,
+	}
+	seconds := strconv.FormatFloat(miniMaxH3FixedDurationSeconds, 'f', -1, 64)
 	upstreamRequest := miniMaxH3Request{
-		Model:      req.Model,
-		Prompt:     req.Prompt,
-		Seconds:    "10",
-		Task:       taskType,
-		Conditions: conditions,
-		Target: miniMaxH3Target{
-			ShortEdge:       768,
-			AspectRatio:     "16:9",
-			DurationSeconds: 10,
-		},
+		Model:               req.Model,
+		Prompt:              req.Prompt,
+		Seconds:             seconds,
+		Task:                taskType,
+		Conditions:          conditions,
+		Target:              upstreamTarget,
 		NumOutputsPerPrompt: 1,
 		NumInferenceSteps:   20,
 		FlowShift:           12.0,
 		AudioFlowShift:      3.0,
 		Seed:                seed,
 	}
-	target, err := common.Marshal(upstreamRequest.Target)
-	if err != nil {
-		return service.TaskErrorWrapper(err, "marshal_minimax_h3_target_failed", http.StatusInternalServerError)
-	}
 	outputCount := upstreamRequest.NumOutputsPerPrompt
 	c.Set("task_request", relaycommon.TaskSubmitReq{
 		Prompt:              req.Prompt,
 		Model:               req.Model,
+		AspectRatio:         upstreamRequest.Target.AspectRatio,
+		Size:                "768P",
 		Seconds:             upstreamRequest.Seconds,
 		NumOutputsPerPrompt: &outputCount,
-		Target:              target,
 	})
 	c.Set(miniMaxH3RequestBodyKey, upstreamRequest)
-	if len(frameIDs) > 0 {
-		c.Set(service.MiniMaxH3FrameIDsContextKey, frameIDs)
-	}
-	cleanupFrames = false
 	info.Action = constant.TaskActionMiniMaxH3Generate
 	return nil
 }
@@ -747,7 +890,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
-	if task.Properties.OriginModelName != "MiniMax-H3" {
+	if !constant.IsMiniMaxH3Model(task.Properties.OriginModelName) {
 		data, err := sjson.SetBytes(task.Data, "id", task.TaskID)
 		if err != nil {
 			return nil, errors.Wrap(err, "set id failed")

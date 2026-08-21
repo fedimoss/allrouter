@@ -1,6 +1,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -86,12 +87,18 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 
 	formData := c.Request.PostForm
 	req = TaskSubmitReq{
-		Prompt:   formData.Get("prompt"),
-		Model:    formData.Get("model"),
-		Mode:     formData.Get("mode"),
-		Image:    formData.Get("image"),
-		Size:     formData.Get("size"),
-		Metadata: make(map[string]interface{}),
+		Prompt:      formData.Get("prompt"),
+		Model:       formData.Get("model"),
+		Task:        formData.Get("task"),
+		Seed:        formData.Get("seed"),
+		Mode:        formData.Get("mode"),
+		Image:       formData.Get("image"),
+		Size:        formData.Get("size"),
+		AspectRatio: formData.Get("aspect_ratio"),
+		Metadata:    make(map[string]interface{}),
+	}
+	if target := strings.TrimSpace(formData.Get("target")); target != "" {
+		req.Target = json.RawMessage(target)
 	}
 
 	if durationStr := formData.Get("seconds"); durationStr != "" {
@@ -192,6 +199,11 @@ func isKnownTaskField(field string) bool {
 		"duration":        true,
 		"input_reference": true, // Sora 特有字段
 	}
+	knownFields["task"] = true
+	knownFields["seed"] = true
+	knownFields["aspect_ratio"] = true
+	knownFields["target"] = true
+	knownFields["start_time_seconds"] = true
 	return knownFields[field]
 }
 

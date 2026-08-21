@@ -151,7 +151,7 @@ func upstreamTaskIDForPolling(task *model.Task) (string, bool) {
 	if task == nil {
 		return "", false
 	}
-	if task.Properties.OriginModelName == "MiniMax-H3" {
+	if constant.IsMiniMaxH3Model(task.Properties.OriginModelName) {
 		upstreamID := strings.TrimSpace(task.PrivateData.UpstreamTaskID)
 		return upstreamID, upstreamID != ""
 	}
@@ -160,7 +160,7 @@ func upstreamTaskIDForPolling(task *model.Task) (string, bool) {
 }
 
 func isLocalMiniMaxH3Task(task *model.Task) bool {
-	if task == nil || task.Properties.OriginModelName != "MiniMax-H3" {
+	if task == nil || !constant.IsMiniMaxH3Model(task.Properties.OriginModelName) {
 		return false
 	}
 	if strings.TrimSpace(task.PrivateData.UpstreamTaskID) != "" {
@@ -175,7 +175,7 @@ const miniMaxH3TaskMapKeyPrefix = "\x00minimax-h3\x00"
 // MiniMax-H3 upstream task IDs are only unique within their source channel, so
 // its in-memory polling key must include both channel ID and upstream task ID.
 func taskMapKeyForPolling(task *model.Task, upstreamID string) string {
-	if task == nil || task.Properties.OriginModelName != "MiniMax-H3" {
+	if task == nil || !constant.IsMiniMaxH3Model(task.Properties.OriginModelName) {
 		return upstreamID
 	}
 	return miniMaxH3TaskMapKeyPrefix + strconv.Itoa(task.ChannelId) + "\x00" + upstreamID
@@ -190,7 +190,7 @@ func authorizationKeyForPolling(task *model.Task, ch *model.Channel) (string, er
 	if ch == nil {
 		return "", errors.New("channel is required")
 	}
-	if task.Properties.OriginModelName == "MiniMax-H3" && task.ChannelId != ch.Id {
+	if constant.IsMiniMaxH3Model(task.Properties.OriginModelName) && task.ChannelId != ch.Id {
 		return "", fmt.Errorf("refuse to poll MiniMax-H3 task %s through channel #%d: source channel is #%d", task.TaskID, ch.Id, task.ChannelId)
 	}
 	if task.PrivateData.Key != "" {
@@ -509,7 +509,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 				// 其他错误认为是任务失败，记录错误信息并更新任务状态
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
-			} else if task.Properties.OriginModelName == "MiniMax-H3" && errorResult.ToMessage() != "" {
+			} else if constant.IsMiniMaxH3Model(task.Properties.OriginModelName) && errorResult.ToMessage() != "" {
 				taskResult = relaycommon.FailTaskInfo(errorResult.ToMessage())
 			} else {
 				// unknown error format, log original response

@@ -23,6 +23,7 @@ import (
 const MiniMaxH3FrameMaxBytes int64 = 10 << 20
 
 const MiniMaxH3FrameIDsContextKey = "minimax_h3_frame_ids"
+const MiniMaxH3ReferenceVideoIDsContextKey = "minimax_h3_reference_video_ids"
 
 var miniMaxH3FrameExtensions = map[string]string{
 	"image/jpeg": ".jpg",

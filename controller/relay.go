@@ -596,12 +596,17 @@ func RelayTaskFetch(c *gin.Context) {
 
 func RelayTask(c *gin.Context) {
 	retainMiniMaxH3Frames := false
+	retainMiniMaxH3ReferenceVideos := false
 	defer func() {
-		if retainMiniMaxH3Frames {
-			return
+		if !retainMiniMaxH3Frames {
+			for _, frameID := range c.GetStringSlice(service.MiniMaxH3FrameIDsContextKey) {
+				_ = service.DeleteMiniMaxH3Frame(c.GetInt("id"), frameID)
+			}
 		}
-		for _, frameID := range c.GetStringSlice(service.MiniMaxH3FrameIDsContextKey) {
-			_ = service.DeleteMiniMaxH3Frame(c.GetInt("id"), frameID)
+		if !retainMiniMaxH3ReferenceVideos {
+			for _, videoID := range c.GetStringSlice(service.MiniMaxH3ReferenceVideoIDsContextKey) {
+				_ = service.DeleteMiniMaxH3ReferenceVideo(c.GetInt("id"), videoID)
+			}
 		}
 	}()
 
@@ -758,6 +763,9 @@ func RelayTask(c *gin.Context) {
 		}
 		if task.Action == constant.TaskActionMiniMaxH3Generate && len(c.GetStringSlice(service.MiniMaxH3FrameIDsContextKey)) > 0 {
 			retainMiniMaxH3Frames = true
+		}
+		if task.Action == constant.TaskActionMiniMaxH3Generate && len(c.GetStringSlice(service.MiniMaxH3ReferenceVideoIDsContextKey)) > 0 {
+			retainMiniMaxH3ReferenceVideos = true
 		}
 		service.LogTaskConsumption(c, relayInfo)
 		if result.Queued {
