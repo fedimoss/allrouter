@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Card, Form, Radio, Select, Toast } from '@douyinfe/semi-ui';
 import { IconSend } from '@douyinfe/semi-icons';
 import { getSystemName } from '../../helpers';
+import { API } from '../../helpers';
 import './userQuestion.css';
 
 const systemName = getSystemName();
@@ -38,9 +39,22 @@ const UserQuestion = () => {
     t('其他建议'),
   ];
 
-  const handleSubmit = (values) => {
-    console.log('question survey', values);
-    Toast.success(t('感谢您的反馈'));
+  const handleSubmit = async (values) => {
+    try {
+      const res = await API.post('/api/user/questionnaire', {
+        survey_data: values,
+        // 未登录时后端按此域名匹配服务商；已登录时以用户 provider_id 为准
+        domain: window.location.hostname,
+      });
+      if (res.data.success) {
+        Toast.success(t('感谢您的反馈'));
+        setFormKey((key) => key + 1); // 提交成功后重置表单
+      } else {
+        Toast.error(res.data.message || t('提交失败，请稍后重试'));
+      }
+    } catch (err) {
+      Toast.error(t('提交失败，请稍后重试'));
+    }
   };
 
   const handleReset = () => {
@@ -89,8 +103,8 @@ const UserQuestion = () => {
                 placeholder={t('请选择所属行业')}
                 rules={[{ required: true, message: t('请选择行业') }]}
               >
-                {industryOptions.map((item) => (
-                  <Select.Option key={item} value={item}>
+                {industryOptions.map((item, index) => (
+                  <Select.Option key={item} value={String(index + 1)}>
                     {item}
                   </Select.Option>
                 ))}
@@ -101,8 +115,8 @@ const UserQuestion = () => {
                 placeholder={t('请选择问题类型')}
                 rules={[{ required: true, message: t('请选择问题类型') }]}
               >
-                {issueOptions.map((item) => (
-                  <Select.Option key={item} value={item}>
+                {issueOptions.map((item, index) => (
+                  <Select.Option key={item} value={String(index + 1)}>
                     {item}
                   </Select.Option>
                 ))}

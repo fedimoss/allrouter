@@ -46,9 +46,21 @@ html.dark .survey-v2 {
 .survey-v2-toolbar {
   position: relative;
   z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   border-bottom: 1px solid var(--sv-border-soft);
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.82), rgba(248, 250, 252, 0.52));
   padding: 20px 0;
+}
+
+.survey-v2-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding-top: 8px;
 }
 
 html.dark .survey-v2-toolbar {
@@ -127,6 +139,13 @@ html.dark .survey-v2-toolbar {
   min-height: 0;
   overflow: hidden;
   background: var(--sv-surface);
+}
+
+.survey-v2-pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 20px;
+  border-top: 1px solid var(--sv-border-soft);
 }
 
 .survey-v2-spin {

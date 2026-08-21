@@ -162,6 +162,8 @@ export function getLucideIcon(key, selected = false) {
       return <Ticket {...commonProps} color={iconColor} />;
     case 'questionSurvey':
       return <ClipboardPen {...commonProps} color={iconColor} />;
+    case 'providerQuestionSurvey':
+      return <ClipboardPen {...commonProps} color={iconColor} />;
     case 'user':
       return <UserLock {...commonProps} color={iconColor} />;
     case 'personal':

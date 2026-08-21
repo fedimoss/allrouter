@@ -265,6 +265,14 @@ function App() {
           }
         />
         <Route
+          path='/console/provider/questionSurvey'
+          element={
+            <PrivateRoute>
+              <QuestionSurvey />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/console/provider/operational'
           element={
             <PrivateRoute>

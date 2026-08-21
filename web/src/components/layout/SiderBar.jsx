@@ -62,6 +62,7 @@ const routerMap = {
   providerWithdraw: '/console/provider/withdraw',
   providerOperational: '/console/provider/operational',
   providerSetting: '/console/provider/setting',
+  providerQuestionSurvey: '/console/provider/questionSurvey',
   playground: '/console/playground',
   personal: '/console/personal',
   oauth: '/console/oauth',
@@ -295,6 +296,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             text: t('服务商使用日志'),
             itemKey: 'providerLogs',
             to: '/provider/logs',
+          },
+          {
+            text: t('问卷调查'),
+            itemKey: 'providerQuestionSurvey',
+            to: '/provider/questionSurvey',
           },
           {
             text: t('系统设置'),

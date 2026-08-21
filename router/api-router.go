@@ -122,10 +122,16 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
 				selfRoute.POST("/checkin", middleware.TurnstileCheck(), controller.DoCheckin)
 
+				// Questionnaire routes
+				selfRoute.GET("/questionnaire", controller.GetMyUserQuestionnaires)
+
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
 			}
+
+			// 问卷提交：公开接口（登录可选），未登录用户可通过域名归属服务商提交
+			userRoute.POST("/questionnaire", middleware.TryUserAuth(), middleware.AnonymousRequestBodyLimit(), controller.SubmitUserQuestionnaire)
 
 			adminRoute := userRoute.Group("/")
 			adminRoute.Use(middleware.AdminAuth())
@@ -346,6 +352,13 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
+		questionnaireAdminRoute := apiRouter.Group("/questionnaire") // 问卷管理（主站管理员）
+		questionnaireAdminRoute.Use(middleware.AdminAuth())
+		{
+			questionnaireAdminRoute.GET("", controller.GetUserQuestionnairesAdmin)
+			questionnaireAdminRoute.GET("/", controller.GetUserQuestionnairesAdmin)
+			questionnaireAdminRoute.DELETE("/:id", controller.DeleteUserQuestionnaire)
+		}
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs) // 使用日志(管理员)
 		logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)
@@ -432,6 +445,9 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.POST("/withdraw/cancel", controller.CancelProviderWithdrawRequest)  // 取消提现申请
 			providerRoute.GET("/options/:id", controller.GetProviderOptions)                  // 获取服务商配置
 			providerRoute.PUT("/options/:id", controller.UpdateProviderOption)                // 更新服务商配置
+			// 服务商 owner 问卷管理（本站记录）
+			providerRoute.GET("/questionnaires", controller.GetProviderUserQuestionnaires)
+			providerRoute.DELETE("/questionnaires/:id", controller.DeleteProviderUserQuestionnaire)
 		}
 		providerAdminRoute := apiRouter.Group("/provider/admin") //服务商管理
 		providerAdminRoute.Use(middleware.AdminAuth())
