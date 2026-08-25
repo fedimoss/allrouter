@@ -843,9 +843,13 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		finalReasoningText = reasonText.String()
 		finalReasoningIdx = reasoningOutputIndex
 	}
+	responsesResp := chatStreamToResponsesResponse(responseID, createdAt, model, outputText.String(), usage, sentMessage, messageOutputIndex, toolCalls, finalReasoningText, finalReasoningIdx)
+	if info != nil && info.RelayFormat == types.RelayFormatOpenAIResponses {
+		service.RememberResponsesChatToolHistory(responsesResp.ID, responsesResp.Output)
+	}
 	if err := sendResponsesEvent(c, dto.ResponsesStreamResponse{
 		Type:     "response.completed",
-		Response: chatStreamToResponsesResponse(responseID, createdAt, model, outputText.String(), usage, sentMessage, messageOutputIndex, toolCalls, finalReasoningText, finalReasoningIdx),
+		Response: responsesResp,
 	}); err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
@@ -943,6 +947,9 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, chat
 		}
 	}
 	responsesResp := chatStreamToResponsesResponse(responseID, createdAt, model, text, usage, text != "", msgIdx, toolCalls, reasoningItemText, reasoningIdx)
+	if info != nil && info.RelayFormat == types.RelayFormatOpenAIResponses {
+		service.RememberResponsesChatToolHistory(responsesResp.ID, responsesResp.Output)
+	}
 
 	// 序列化并发送给客户端
 	responseBody, err := common.Marshal(responsesResp)

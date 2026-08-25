@@ -1,6 +1,7 @@
 package openaicompat
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -59,6 +60,7 @@ func TestResponsesChatCompatPreservesStandardToolResultContinuation(t *testing.T
 	toolMessage := chatReq.Messages[3]
 	require.Equal(t, "tool", toolMessage.Role)
 	require.Equal(t, "call_test", toolMessage.ToolCallId)
+	require.Nil(t, toolMessage.Name)
 	require.Contains(t, toolMessage.StringContent(), "Command status: 0")
 	require.NotContains(t, toolMessage.StringContent(), "Exit code:")
 	require.Contains(t, toolMessage.StringContent(), "Wall time:")
@@ -547,14 +549,12 @@ func TestResponsesChatCompatConvertsToolSearchAndNamespace(t *testing.T) {
 	require.Equal(t, "search", nsSpec.Name)
 
 	// 历史 tool_search_call → function name "tool_search"
-	tsMsg := chatReq.Messages[1]
-	require.Equal(t, "assistant", tsMsg.Role)
-	require.Contains(t, string(tsMsg.ToolCalls), `"name":"tool_search"`)
+	assistant := chatReq.Messages[1]
+	require.Equal(t, "assistant", assistant.Role)
+	require.Contains(t, string(assistant.ToolCalls), `"name":"tool_search"`)
+	require.Contains(t, string(assistant.ToolCalls), `"name":"mcp__search"`)
 
 	// 历史 namespace function_call → function name "mcp__search"
-	nsMsg := chatReq.Messages[2]
-	require.Equal(t, "assistant", nsMsg.Role)
-	require.Contains(t, string(nsMsg.ToolCalls), `"name":"mcp__search"`)
 }
 
 // TestResponsesChatCompatLoadsToolsFromToolSearchOutput 验证 input 中 tool_search_output
@@ -606,6 +606,155 @@ func TestResponsesChatCompatCustomAndRawToolCallOutput(t *testing.T) {
 	require.Equal(t, "call_c1", customOut.ToolCallId)
 	require.Contains(t, customOut.StringContent(), `"call_id":"call_c1"`)
 	require.Contains(t, customOut.StringContent(), `"output":"done"`)
+}
+
+func TestResponsesChatCompatRestoresParallelToolHistory(t *testing.T) {
+	responseID := "resp_regression_parallel_k3"
+	RememberResponsesChatToolHistory(responseID, []dto.ResponsesOutput{
+		{Type: "function_call", CallId: "call_k3_a", Name: "first_tool", Arguments: json.RawMessage(`{"a":1}`)},
+		{Type: "function_call", CallId: "call_k3_b", Name: "second_tool", Arguments: json.RawMessage(`{"b":2}`)},
+	})
+
+	raw := []byte(`{"model":"gpt-test","previous_response_id":"` + responseID + `","input":[
+		{"type":"function_call_output","call_id":"call_k3_a","output":"one"},
+		{"type":"function_call_output","call_id":"call_k3_b","output":"two"}
+	]}`)
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 3)
+	require.Equal(t, "assistant", chatReq.Messages[0].Role)
+	require.Contains(t, string(chatReq.Messages[0].ToolCalls), `"name":"first_tool"`)
+	require.Contains(t, string(chatReq.Messages[0].ToolCalls), `"name":"second_tool"`)
+	require.Nil(t, chatReq.Messages[1].Name)
+	require.Nil(t, chatReq.Messages[2].Name)
+}
+
+func TestResponsesChatCompatEnrichesExistingToolCallFromHistory(t *testing.T) {
+	responseID := "resp_regression_existing_k3"
+	RememberResponsesChatToolHistory(responseID, []dto.ResponsesOutput{
+		{Type: "function_call", CallId: "call_k3_existing", Name: "read_file", Arguments: json.RawMessage(`{"path":"README.md"}`)},
+	})
+
+	raw := []byte(`{"model":"gpt-test","previous_response_id":"` + responseID + `","input":[
+		{"type":"function_call","call_id":"call_k3_existing"},
+		{"type":"function_call_output","call_id":"call_k3_existing","output":"ok"}
+	]}`)
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 2)
+	require.Contains(t, string(chatReq.Messages[0].ToolCalls), `"name":"read_file"`)
+	require.Nil(t, chatReq.Messages[1].Name)
+}
+
+func TestResponsesChatCompatRestoresCustomAndToolSearchHistory(t *testing.T) {
+	responseID := "resp_regression_special_k3"
+	RememberResponsesChatToolHistory(responseID, []dto.ResponsesOutput{
+		{Type: "custom_tool_call", CallId: "call_k3_custom", Name: "apply_patch", Input: "patch"},
+		{Type: "tool_search_call", CallId: "call_k3_search", Arguments: json.RawMessage(`{"query":"find"}`)},
+	})
+
+	raw := []byte(`{"model":"gpt-test","previous_response_id":"` + responseID + `","input":[
+		{"type":"custom_tool_call_output","call_id":"call_k3_custom","output":"done"},
+		{"type":"tool_search_output","call_id":"call_k3_search","tools":[]}
+	]}`)
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 3)
+	require.Contains(t, string(chatReq.Messages[0].ToolCalls), `"name":"apply_patch"`)
+	require.Contains(t, string(chatReq.Messages[0].ToolCalls), `"name":"tool_search"`)
+	require.Nil(t, chatReq.Messages[1].Name)
+	require.Nil(t, chatReq.Messages[2].Name)
+}
+
+func TestResponsesChatCompatDoesNotRestoreAmbiguousToolHistory(t *testing.T) {
+	callID := "call_k3_ambiguous_regression"
+	RememberResponsesChatToolHistory("resp_k3_ambiguous_a", []dto.ResponsesOutput{
+		{Type: "function_call", CallId: callID, Name: "first_tool", Arguments: json.RawMessage(`{}`)},
+	})
+	RememberResponsesChatToolHistory("resp_k3_ambiguous_b", []dto.ResponsesOutput{
+		{Type: "function_call", CallId: callID, Name: "second_tool", Arguments: json.RawMessage(`{}`)},
+	})
+
+	raw := []byte(`{"model":"gpt-test","previous_response_id":"resp_k3_missing","input":[
+		{"type":"function_call_output","call_id":"` + callID + `","output":"ok"}
+	]}`)
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 1)
+	require.Equal(t, "tool", chatReq.Messages[0].Role)
+	require.Nil(t, chatReq.Messages[0].Name)
+}
+
+func TestResponsesChatCompatAddsToolNameWhenNoPrecedingCallExists(t *testing.T) {
+	raw := []byte(`{"model":"gpt-test","input":[
+		{"type":"function_call_output","call_id":"call_name_only","name":"shell","output":"ok"}
+	]}`)
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 1)
+	require.NotNil(t, chatReq.Messages[0].Name)
+	require.Equal(t, "shell", *chatReq.Messages[0].Name)
+}
+
+func TestResponsesChatCompatRestoresCallWhoseCallIDFallsBackToID(t *testing.T) {
+	responseID := "resp_regression_id_fallback"
+	RememberResponsesChatToolHistory(responseID, []dto.ResponsesOutput{
+		{Type: "function_call", ID: "call_k3_from_id", Name: "id_tool", Arguments: json.RawMessage(`{}`)},
+	})
+
+	raw := []byte(`{"model":"gpt-test","previous_response_id":"` + responseID + `","input":[
+		{"type":"function_call_output","call_id":"call_k3_from_id","output":"ok"}
+	]}`)
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 2)
+	require.Contains(t, string(chatReq.Messages[0].ToolCalls), `"name":"id_tool"`)
+	require.Nil(t, chatReq.Messages[1].Name)
+}
+
+func TestResponsesChatCompatSupportsStructuredFunctionOutput(t *testing.T) {
+	raw := []byte(`{"model":"gpt-test","input":[
+		{"type":"function_call","call_id":"call_structured","name":"read","arguments":"{}"},
+		{"type":"function_call_output","call_id":"call_structured","output":{"ok":true,"items":[1,2]}}
+	]}`)
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 2)
+	require.Equal(t, `{"items":[1,2],"ok":true}`, chatReq.Messages[1].StringContent())
+}
+
+func TestResponsesChatCompatPreservesToolCallReasoningAndBackfillsPlaceholder(t *testing.T) {
+	raw := []byte(`{"model":"gpt-test","input":[
+		{"type":"function_call","call_id":"call_reasoning","name":"read","arguments":"{}","reasoning_details":[{"text":"inspect first"}]},
+		{"type":"function_call_output","call_id":"call_reasoning","output":"ok"},
+		{"type":"function_call","call_id":"call_placeholder","name":"write","arguments":"{}"}
+	]}`)
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+	chatReq, _, err := ResponsesRequestToChatCompletionsCompatRequestWithContext(&req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 3)
+	require.Equal(t, "inspect first", chatReq.Messages[0].GetReasoningContent())
+	require.Equal(t, "tool call", chatReq.Messages[2].GetReasoningContent())
 }
 
 // TestResponsesChatCompatCompactionReplayInOrder 验证压缩摘要重放保序转换：

@@ -45,13 +45,15 @@ func responsesRequestToChatCompletions(req *dto.OpenAIResponsesRequest, ctx *rel
 	// 注意：按 cc-switch 行为，不透传 `store`（chat/completions 无此字段，
 	// 严格上游会拒），stream/temperature/top_p/user/metadata 直接透传。
 	chatReq := &dto.GeneralOpenAIRequest{
-		Model:       req.Model,       // 模型名称
-		Messages:    messages,        // 消息列表
-		Stream:      req.Stream,      // 是否流式输出
-		Temperature: req.Temperature, // 温度参数，控制随机性
-		TopP:        req.TopP,        // Top-P 采样参数
-		User:        req.User,        // 用户标识
-		Metadata:    req.Metadata,    // 元数据
+		Model:         req.Model,       // 模型名称
+		Messages:      messages,        // 消息列表
+		Stream:        req.Stream,      // 是否流式输出
+		Temperature:   req.Temperature, // 温度参数，控制随机性
+		TopP:          req.TopP,        // Top-P 采样参数
+		User:          req.User,        // 用户标识
+		Metadata:      req.Metadata,    // 元数据
+		TopLogProbs:   req.TopLogProbs,
+		StreamOptions: req.StreamOptions,
 	}
 
 	// 映射 max_output_tokens：o 系列 / gpt-5 → max_completion_tokens，其余 → max_tokens。
@@ -120,6 +122,7 @@ func ResponsesRequestToChatCompletionsCompatRequest(req *dto.OpenAIResponsesRequ
 // 返回请求阶段构造的工具上下文。Responses→Chat 渠道用该上下文在响应阶段恢复
 // function/custom/tool_search/namespace 工具类型。
 func ResponsesRequestToChatCompletionsCompatRequestWithContext(req *dto.OpenAIResponsesRequest) (*dto.GeneralOpenAIRequest, *relaycommon.ResponsesChatToolContext, error) {
+	RestoreResponsesChatToolHistory(req)
 	ctx := relaycommon.NewResponsesChatToolContext()
 	// 先执行基础转换
 	chatReq, err := responsesRequestToChatCompletions(req, ctx)
@@ -193,6 +196,7 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 	// pendingReasoning 累积顶层 reasoning 条目的文本，前向附挂到其后生成的 assistant 消息
 	// （对应 cc-switch pending_reasoning 语义：思考型模型多轮历史需要保留 reasoning_content）。
 	var pendingReasoning strings.Builder
+	callNames := make(map[string]string)
 
 	// 遍历每个 input 条目，根据 type 字段进行分发处理
 	for _, itemRaw := range inputItems {
@@ -227,29 +231,35 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 
 		case "function_call":
 			// 处理函数调用条目，转换为带 tool_calls 的 assistant 消息
+			appendPendingReasoning(&pendingReasoning, extractResponsesToolCallReasoning(itemRaw))
 			msg, err := convertResponsesFunctionCallItem(itemRaw, ctx)
 			if err != nil {
 				continue
 			}
-			messages = append(messages, *msg)
+			recordResponsesToolCallName(*msg, callNames)
+			messages = appendResponsesToolCallMessage(messages, *msg)
 			consumePendingReasoning(messages, &pendingReasoning)
 
 		case "custom_tool_call":
 			// custom 工具调用历史：chat function 名与原始名一致，arguments 包装成 {input: ...}
+			appendPendingReasoning(&pendingReasoning, extractResponsesToolCallReasoning(itemRaw))
 			msg, err := convertResponsesCustomToolCallItem(itemRaw)
 			if err != nil {
 				continue
 			}
-			messages = append(messages, *msg)
+			recordResponsesToolCallName(*msg, callNames)
+			messages = appendResponsesToolCallMessage(messages, *msg)
 			consumePendingReasoning(messages, &pendingReasoning)
 
 		case "tool_search_call":
 			// tool_search 调用历史：chat function 名固定为 tool_search
+			appendPendingReasoning(&pendingReasoning, extractResponsesToolCallReasoning(itemRaw))
 			msg, err := convertResponsesToolSearchCallItem(itemRaw)
 			if err != nil {
 				continue
 			}
-			messages = append(messages, *msg)
+			recordResponsesToolCallName(*msg, callNames)
+			messages = appendResponsesToolCallMessage(messages, *msg)
 			consumePendingReasoning(messages, &pendingReasoning)
 
 		case "function_call_output":
@@ -258,6 +268,7 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 			if err != nil {
 				continue
 			}
+			setResponsesToolMessageName(msg, callNames, messages)
 			messages = append(messages, *msg)
 
 		case "custom_tool_call_output", "tool_search_output":
@@ -266,6 +277,7 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 			if err != nil {
 				continue
 			}
+			setResponsesToolMessageName(msg, callNames, messages)
 			messages = append(messages, *msg)
 
 		case "input_text", "input_image", "input_file", "input_audio", "text", "output_text":
@@ -347,6 +359,7 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 			break
 		}
 	}
+	backfillToolCallReasoningPlaceholders(messages)
 
 	return messages, nil
 }
@@ -510,19 +523,32 @@ func convertResponsesToolSearchCallItem(itemRaw json.RawMessage) (*dto.Message, 
 // 转换为 Chat Completions 的 tool 消息。
 func convertResponsesFunctionCallOutputItem(itemRaw json.RawMessage) (*dto.Message, error) {
 	var item struct {
-		Type   string `json:"type"`    // 条目类型
-		CallID string `json:"call_id"` // 对应的函数调用 ID
-		Output string `json:"output"`  // 函数输出内容
+		Type   string          `json:"type"`    // 条目类型
+		CallID string          `json:"call_id"` // 对应的函数调用 ID
+		ID     string          `json:"id"`
+		Output json.RawMessage `json:"output"` // 函数输出内容
+		Name   string          `json:"name"`
+		Tool   string          `json:"tool"`
 	}
 	if err := common.Unmarshal(itemRaw, &item); err != nil {
 		return nil, err
 	}
+	callID := strings.TrimSpace(item.CallID)
+	if callID == "" {
+		callID = strings.TrimSpace(item.ID)
+	}
 
-	return &dto.Message{
-		Role:       "tool",      // 工具消息角色
-		Content:    item.Output, // 函数输出内容
-		ToolCallId: item.CallID, // 关联的函数调用 ID
-	}, nil
+	msg := &dto.Message{
+		Role:       "tool",                                 // 工具消息角色
+		Content:    responsesToolOutputString(item.Output), // 函数输出内容
+		ToolCallId: callID,                                 // 关联的函数调用 ID
+	}
+	if name := strings.TrimSpace(item.Name); name != "" {
+		msg.Name = &name
+	} else if tool := strings.TrimSpace(item.Tool); tool != "" {
+		msg.Name = &tool
+	}
+	return msg, nil
 }
 
 // convertResponsesRawToolCallOutputItem 将 custom_tool_call_output / tool_search_output 条目
@@ -531,16 +557,164 @@ func convertResponsesFunctionCallOutputItem(itemRaw json.RawMessage) (*dto.Messa
 func convertResponsesRawToolCallOutputItem(itemRaw json.RawMessage) (*dto.Message, error) {
 	var item struct {
 		CallID string `json:"call_id"`
+		Name   string `json:"name"`
+		Tool   string `json:"tool"`
 	}
 	if err := common.Unmarshal(itemRaw, &item); err != nil {
 		return nil, err
 	}
 	content := canonicalJSONStringFromRaw(itemRaw)
-	return &dto.Message{
+	msg := &dto.Message{
 		Role:       "tool",
 		Content:    content,
 		ToolCallId: item.CallID,
-	}, nil
+	}
+	if name := strings.TrimSpace(item.Name); name != "" {
+		msg.Name = &name
+	} else if tool := strings.TrimSpace(item.Tool); tool != "" {
+		msg.Name = &tool
+	}
+	return msg, nil
+}
+
+func recordResponsesToolCallName(message dto.Message, names map[string]string) {
+	var calls []dto.ToolCallRequest
+	if len(message.ToolCalls) == 0 || common.Unmarshal(message.ToolCalls, &calls) != nil {
+		return
+	}
+	for _, call := range calls {
+		id := strings.TrimSpace(call.ID)
+		name := strings.TrimSpace(call.Function.Name)
+		if id != "" && name != "" {
+			names[id] = name
+		}
+	}
+}
+
+func setResponsesToolMessageName(message *dto.Message, names map[string]string, messages []dto.Message) {
+	if message == nil || message.Name != nil {
+		return
+	}
+	if hasPrecedingResponsesToolCall(messages, message.ToolCallId) {
+		return
+	}
+	if name := strings.TrimSpace(names[message.ToolCallId]); name != "" {
+		message.Name = &name
+	}
+}
+
+func hasPrecedingResponsesToolCall(messages []dto.Message, callID string) bool {
+	if strings.TrimSpace(callID) == "" {
+		return false
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "tool" {
+			continue
+		}
+		if messages[i].Role != "assistant" || len(messages[i].ToolCalls) == 0 {
+			return false
+		}
+		var calls []dto.ToolCallRequest
+		if common.Unmarshal(messages[i].ToolCalls, &calls) != nil {
+			return false
+		}
+		for _, call := range calls {
+			if call.ID == callID {
+				return true
+			}
+		}
+		return false
+	}
+	return false
+}
+
+func appendPendingReasoning(pending *strings.Builder, reasoning string) {
+	reasoning = strings.TrimSpace(reasoning)
+	if reasoning == "" {
+		return
+	}
+	if pending.Len() > 0 {
+		pending.WriteString("\n\n")
+	}
+	pending.WriteString(reasoning)
+}
+
+func extractResponsesToolCallReasoning(itemRaw json.RawMessage) string {
+	var item map[string]json.RawMessage
+	if err := common.Unmarshal(itemRaw, &item); err != nil {
+		return ""
+	}
+	for _, key := range []string{"reasoning_content", "reasoning", "reasoning_details"} {
+		if raw, ok := item[key]; ok {
+			if text := extractReasoningValueText(raw); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
+func extractReasoningValueText(raw json.RawMessage) string {
+	var text string
+	if common.Unmarshal(raw, &text) == nil && strings.TrimSpace(text) != "" {
+		return strings.TrimSpace(text)
+	}
+	var value map[string]json.RawMessage
+	if common.Unmarshal(raw, &value) == nil {
+		for _, key := range []string{"content", "text", "summary", "parts"} {
+			if nested, ok := value[key]; ok {
+				if text := extractReasoningValueText(nested); text != "" {
+					return text
+				}
+			}
+		}
+		return ""
+	}
+	var values []json.RawMessage
+	if common.Unmarshal(raw, &values) == nil {
+		for _, nested := range values {
+			if text := extractReasoningValueText(nested); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
+func backfillToolCallReasoningPlaceholders(messages []dto.Message) {
+	placeholder := "tool call"
+	for i := range messages {
+		if messages[i].Role != "assistant" || len(messages[i].ToolCalls) == 0 {
+			continue
+		}
+		if strings.TrimSpace(messages[i].GetReasoningContent()) == "" {
+			messages[i].ReasoningContent = &placeholder
+		}
+	}
+}
+
+func appendResponsesToolCallMessage(messages []dto.Message, message dto.Message) []dto.Message {
+	if len(messages) == 0 || message.Role != "assistant" || len(message.ToolCalls) == 0 {
+		return append(messages, message)
+	}
+	last := &messages[len(messages)-1]
+	if last.Role != "assistant" || len(last.ToolCalls) == 0 || last.StringContent() != "" {
+		return append(messages, message)
+	}
+
+	var existing []dto.ToolCallRequest
+	var incoming []dto.ToolCallRequest
+	if common.Unmarshal(last.ToolCalls, &existing) != nil || common.Unmarshal(message.ToolCalls, &incoming) != nil {
+		return append(messages, message)
+	}
+	merged := make([]dto.ToolCallRequest, 0, len(existing)+len(incoming))
+	merged = append(merged, existing...)
+	merged = append(merged, incoming...)
+	if encoded, err := common.Marshal(merged); err == nil {
+		last.ToolCalls = encoded
+		return messages
+	}
+	return append(messages, message)
 }
 
 // canonicalToolArgumentsString 把 Responses 工具调用的 arguments 规整为 Chat Completions 要求的 JSON 字符串。
@@ -594,6 +768,35 @@ func canonicalJSONStringFromRaw(raw json.RawMessage) string {
 		}
 	}
 	return string(raw)
+}
+
+// responsesToolOutputString accepts string and structured Responses outputs.
+func responsesToolOutputString(raw json.RawMessage) string {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return ""
+	}
+	var value any
+	if err := common.Unmarshal(raw, &value); err != nil {
+		return trimmed
+	}
+	if text, ok := value.(string); ok {
+		inner := strings.TrimSpace(text)
+		if inner == "" {
+			return text
+		}
+		var parsed any
+		if common.Unmarshal([]byte(inner), &parsed) == nil {
+			if encoded, err := common.Marshal(parsed); err == nil {
+				return string(encoded)
+			}
+		}
+		return text
+	}
+	if encoded, err := common.Marshal(value); err == nil {
+		return string(encoded)
+	}
+	return trimmed
 }
 
 // parseContentToChatFormat 将 Responses API 的内容转换为 Chat Completions 的内容格式。

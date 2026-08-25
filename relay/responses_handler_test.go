@@ -164,6 +164,8 @@ func TestResponsesChatCompatViaChatCompletionsPreservesToolHistory(t *testing.T)
 	require.Contains(t, string(sent.Messages[1].ToolCalls), "shell_command")
 	require.Equal(t, "tool", sent.Messages[2].Role)
 	require.Equal(t, "call_test", sent.Messages[2].ToolCallId)
+	require.NotNil(t, sent.Messages[2].Name)
+	require.Equal(t, "shell_command", *sent.Messages[2].Name)
 	require.Equal(t, "ok", sent.Messages[2].StringContent())
 }
 

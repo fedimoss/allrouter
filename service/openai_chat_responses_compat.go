@@ -31,6 +31,18 @@ func ResponsesRequestToChatCompletionsCompatRequestWithContext(req *dto.OpenAIRe
 	return openaicompat.ResponsesRequestToChatCompletionsCompatRequestWithContext(req)
 }
 
+// RestoreResponsesChatToolHistory restores omitted assistant tool-call items
+// for a Responses continuation identified by previous_response_id.
+func RestoreResponsesChatToolHistory(req *dto.OpenAIResponsesRequest) int {
+	return openaicompat.RestoreResponsesChatToolHistory(req)
+}
+
+// RememberResponsesChatToolHistory stores tool calls emitted by a Responses→Chat
+// response for a later previous_response_id continuation.
+func RememberResponsesChatToolHistory(responseID string, output []dto.ResponsesOutput) {
+	openaicompat.RememberResponsesChatToolHistory(responseID, output)
+}
+
 func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesResponse, id string) (*dto.OpenAITextResponse, *dto.Usage, error) {
 	return openaicompat.ResponsesResponseToChatCompletionsResponse(resp, id)
 }
