@@ -18,9 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ChevronsLeft } from 'lucide-react';
+import { ChevronRight, ChevronsLeft } from 'lucide-react';
 import { Nav, Divider, Button } from '@douyinfe/semi-ui';
 import { IconRadio } from '@douyinfe/semi-icons';
 
@@ -75,9 +75,10 @@ const routerMap = {
   questionSurvey: '/console/questionSurvey'
 };
 
-const SiderBar = ({ onNavigate = () => {} }) => {
+const SiderBar = ({ onNavigate = () => {}, menuOnly = false, cascaderMode = false, showUserPanel = true }) => {
   const { t } = useTranslation();
-  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
+  const [sidebarCollapsed, toggleCollapsed] = useSidebarCollapsed();
+  const collapsed = menuOnly ? false : sidebarCollapsed;
   const {
     isModuleVisible,
     hasSectionVisibleModules,
@@ -86,6 +87,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
   const showSkeleton = useMinimumLoadingTime(sidebarLoading, 200);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -93,6 +95,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const [selectedKeys, setSelectedKeys] = useState(['home']);
   const [chatItems, setChatItems] = useState([]);
   const [openedKeys, setOpenedKeys] = useState([]);
+  const [activeCascadeKey, setActiveCascadeKey] = useState(null);
   const [routerMapState, setRouterMapState] = useState(routerMap);
 
   const dashboardItems = useMemo(() => {
@@ -475,6 +478,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     }
   }, [location.pathname, routerMapState]);
 
+  useEffect(() => {
+    if (cascaderMode) {
+      setActiveCascadeKey(null);
+    }
+  }, [cascaderMode, location.pathname]);
+
   const isProviderOwnerItemSelected = providerOwnerItems.some((item) =>
     selectedKeys.includes(item.itemKey),
   );
@@ -488,12 +497,13 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   }, [isProviderOwnerItemSelected]);
 
   useEffect(() => {
+    if (menuOnly) return undefined;
     if (collapsed) {
       document.body.classList.add('sidebar-collapsed');
     } else {
       document.body.classList.remove('sidebar-collapsed');
     }
-  }, [collapsed]);
+  }, [collapsed, menuOnly]);
 
   const SELECTED_COLOR = 'var(--semi-color-text-0)';
 
@@ -591,14 +601,92 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const hasVisible = (items) =>
     items.some((item) => item.className !== 'tableHiddle');
 
+  if (cascaderMode) {
+    const leaf = (item) => ({
+      key: item.itemKey,
+      value: item.itemKey,
+      label: item.text,
+      icon: getLucideIcon(item.itemKey, selectedKeys.includes(item.itemKey)),
+      isLeaf: true,
+      path: routerMapState[item.itemKey] || routerMap[item.itemKey] || item.to,
+    });
+    const group = (key, label, items, iconKey = key) => {
+      const visible = items.filter((item) => item.className !== 'tableHiddle');
+      return visible.length ? { key, value: key, label, icon: getLucideIcon(iconKey, false), children: visible.map(leaf) } : null;
+    };
+    const treeData = [
+      group('dashboardRoot', t('Dashboard'), dashboardItems, 'detail'),
+      group('workspaceRoot', t('Workspace'), workspaceItems, 'playground'),
+      group('logs', t('操作日志'), logItems, 'log'),
+      group('financialRoot', t('Financial'), financialItems, 'topup'),
+      group('merchant', t('商家入驻'), revenueMerchantItems, 'oauth'),
+      group('marketing', t('营销活动'), revenueMarketingItems, 'marketing'),
+      group('providerRoot', t('服务商'), providerOwnerItems, 'provider'),
+      ...(isAdmin() && hasVisible(adminItems) ? [group('admin', t('管理员'), adminItems, 'user')] : []),
+    ].filter(Boolean);
+    const selectedGroup = treeData.find((node) =>
+      node.children?.some((child) => selectedKeys.includes(child.key)),
+    );
+    const activeGroup =
+      treeData.find((node) => node.key === activeCascadeKey) ||
+      selectedGroup ||
+      treeData[0];
+    return (
+      <div className='header-user-cascade'>
+        <Nav
+          className='header-user-cascade-primary'
+          selectedKeys={activeGroup ? [activeGroup.key] : []}
+          onSelect={({ itemKey }) => setActiveCascadeKey(itemKey)}
+        >
+          {treeData.map((node) => (
+            <Nav.Item
+              key={node.key}
+              itemKey={node.key}
+              icon={<span className='header-user-cascade-icon'>{node.icon}</span>}
+              text={<span className='header-user-cascade-label'><span>{node.label}</span><ChevronRight size={14} /></span>}
+            />
+          ))}
+        </Nav>
+        <div className='header-user-cascade-secondary-panel'>
+          <div className='header-user-cascade-secondary-title'>
+            {activeGroup?.label}
+          </div>
+          <Nav
+            className='header-user-cascade-secondary'
+            selectedKeys={selectedKeys}
+            onSelect={({ itemKey }) => {
+              const item = activeGroup?.children.find(
+                (child) => child.key === itemKey,
+              );
+              if (!item?.path) return;
+              setSelectedKeys([item.key]);
+              onNavigate();
+              navigate(item.path);
+            }}
+          >
+            {(activeGroup?.children || []).map((node) => (
+              <Nav.Item
+                key={node.key}
+                itemKey={node.key}
+                icon={<span className='header-user-cascade-icon'>{node.icon}</span>}
+                text={<span>{node.label}</span>}
+                disabled={!node.path}
+              />
+            ))}
+          </Nav>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className='sidebar-container'
+      className={`sidebar-container ${menuOnly ? 'sidebar-container-menu-only' : ''}`}
       style={{
-        width: 'var(--sidebar-current-width)',
+        width: menuOnly ? '100%' : 'var(--sidebar-current-width)',
       }}
     >
-      <div
+      {!menuOnly && <div
         className={`sidebar-header ${collapsed ? 'sidebar-header-collapsed' : ''}`}
       >
         <Link
@@ -638,7 +726,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           className='sidebar-collapse-toggle'
           aria-label={t('收起侧边栏')}
         />
-      </div>
+      </div>}
 
       <SkeletonWrapper
         loading={showSkeleton}
@@ -808,7 +896,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         </Nav>
       </SkeletonWrapper>
 
-      <SidebarUserPanel collapsed={collapsed} />
+      {showUserPanel && !menuOnly && <SidebarUserPanel collapsed={collapsed} />}
     </div>
   );
 }

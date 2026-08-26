@@ -790,7 +790,6 @@ const Theme3Home = () => {
           <ellipse cx='450' cy='110' rx='390' ry='22' fill='url(#glow-color)' filter='url(#glow-blur)' />
         </svg>
 
-        <Theme3Header />
 
         <section className='hero-content' aria-labelledby='hero-title'>
           <div className='hero-copy'>

@@ -93,9 +93,13 @@ const PageLayout = () => {
 
   const isConsoleRoute = location.pathname.startsWith('/console');
   const isPlaygroundRoute = location.pathname === '/console/playground';
+  const isChatRoute = location.pathname.startsWith('/console/chat');
+  const useConstrainedConsoleContent =
+    isConsoleRoute && !isPlaygroundRoute && !isChatRoute;
   const isDocsRoute =
     location.pathname === '/docs' || location.pathname.startsWith('/docs/');
-  const showSider = isConsoleRoute && (!isMobile || drawerOpen);
+  // Console navigation is hosted in the authenticated user dropdown.
+  const showSider = false;
   const authRoutesWithoutHeader = [
     '/login',
     '/register',
@@ -103,10 +107,9 @@ const PageLayout = () => {
     '/user/reset',
   ];
   const shouldShowHeader =
-    location.pathname !== '/' &&
     !authRoutesWithoutHeader.includes(location.pathname) &&
     !selfContainedPages.includes(location.pathname);
-  const shouldSplitConsoleLayout = isConsoleRoute && !isMobile;
+  const shouldSplitConsoleLayout = false;
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -230,6 +233,9 @@ const PageLayout = () => {
             }}
           >
             <div
+              className={
+                useConstrainedConsoleContent ? 'console-content-shell' : undefined
+              }
               style={{
                 minHeight: isPlaygroundRoute ? undefined : '100%',
                 height: isPlaygroundRoute ? '100%' : undefined,
@@ -337,11 +343,27 @@ const PageLayout = () => {
               flex: '1 0 auto',
               overflowY: isMobile || isDocsRoute ? 'visible' : 'hidden',
               WebkitOverflowScrolling: 'touch',
-              padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
+              padding: useConstrainedConsoleContent
+                ? '0'
+                : shouldInnerPadding
+                  ? isMobile
+                    ? '5px'
+                    : '24px'
+                  : '0',
+              paddingTop: shouldShowHeader
+                ? isMobile
+                  ? '68px'
+                  : shouldInnerPadding
+                    ? '88px'
+                    : '68px'
+                : undefined,
               position: 'relative',
             }}
           >
             <div
+              className={
+                useConstrainedConsoleContent ? 'console-content-shell' : undefined
+              }
               style={{
                 minHeight: isPlaygroundRoute ? undefined : '100%',
                 height: isPlaygroundRoute ? '100%' : undefined,

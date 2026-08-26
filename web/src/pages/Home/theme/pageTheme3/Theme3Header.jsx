@@ -42,6 +42,7 @@ import {
   useSetTheme,
 } from '../../../../context/Theme';
 import UserArea from '../../../../components/layout/headerbar/UserArea';
+import HeaderBar from '../../../../components/layout/headerbar';
 import brandLogo from '../../../../../public/theme/theme3/allrouter-logo.svg';
 
 import './index.css';
@@ -357,7 +358,7 @@ const HeaderView = ({
   );
 };
 
-const Theme3Header = () => {
+const LegacyTheme3Header = () => {
   const { t, i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
@@ -488,5 +489,7 @@ const Theme3Header = () => {
     </div>
   );
 };
+
+const Theme3Header = () => <HeaderBar />;
 
 export default Theme3Header;

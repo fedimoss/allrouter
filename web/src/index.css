@@ -13,6 +13,101 @@
   @tailwind utilities;
 }
 
+/* Shared application navigation */
+.app-header {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 100;
+  height: 64px;
+  border-bottom: 1px solid var(--semi-color-border);
+  background: color-mix(in srgb, var(--semi-color-bg-0) 92%, transparent);
+  backdrop-filter: blur(14px);
+}
+.app-header-inner {
+  width: min(1150px, calc(100% - 32px));
+  height: 100%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.app-header-brand { display: inline-flex; align-items: center; gap: 10px; flex: 0 0 auto; color: var(--semi-color-text-0); text-decoration: none; font-size: 18px; font-weight: 700; }
+.app-header-brand-logo { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; overflow: hidden; background: var(--theme-secondary); }
+.app-header-brand-logo img { width: 100%; height: 100%; object-fit: contain; }
+.app-header-nav { display: flex; align-items: center; gap: 30px; min-width: 0; }
+.app-header-nav a { position: relative; padding: 22px 0 20px; color: var(--semi-color-text-2); font-size: 14px; text-decoration: none; white-space: nowrap; transition: color .18s ease; }
+.app-header-nav a::after { content: ''; position: absolute; left: 0; right: 0; bottom: 12px; height: 2px; background: var(--theme-primary); transform: scaleX(0); transition: transform .18s ease; }
+.app-header-nav a:hover, .app-header-nav a.app-header-link-active { color: var(--semi-color-text-0); }
+.app-header-nav a.app-header-link-active { font-weight: 600; }
+.app-header-nav a:hover::after, .app-header-nav a.app-header-link-active::after { transform: scaleX(1); }
+.app-header-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.app-header-actions .semi-button { color: var(--semi-color-text-1); }
+.app-header-login { display: inline-flex; align-items: center; justify-content: center; min-width: 96px; height: 32px; padding: 0 20px; border-radius: 4px; background: var(--theme-gradient); color: var(--theme-primary-btn-color); font-size: 14px; text-decoration: none; }
+.app-header-mobile-toggle, .app-header-mobile-menu { display: none; }
+.console-content-shell {
+  width: 100%;
+  max-width: 1198px;
+  margin: 0 auto;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+.header-user-console-menu { max-height: min(70vh, 560px); overflow-y: auto; margin: 0 -8px; padding: 0 4px; }
+.header-user-console-menu .sidebar-container { border: 0; min-height: 0; background: transparent; }
+.header-user-console-menu .sidebar-nav { padding: 4px 0; max-height: none; overflow: visible; background: transparent; }
+.header-user-console-menu .sidebar-section { margin: 0; }
+.header-user-console-menu .sidebar-group-label, .header-user-console-menu .sidebar-divider { display: none; }
+.header-user-console-menu .semi-navigation-item { margin: 2px 0 !important; }
+.header-user-console-menu .semi-navigation-item-text { font-size: 13px; }
+.header-user-console-menu .semi-navigation-sub-title { padding: 8px !important; }
+.header-user-console-menu .semi-navigation-sub-menu { padding-left: 8px; }
+.header-user-dropdown-menu { width: 520px; max-width: calc(100vw - 24px); padding: 6px !important; overflow: hidden; }
+.header-user-dropdown-header { display: flex; align-items: center; gap: 10px; padding: 10px 12px 12px; margin: 0 0 4px; border-bottom: 1px solid var(--semi-color-border); }
+.header-user-dropdown-identity { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.header-user-dropdown-identity strong { color: var(--semi-color-text-0); font-size: 13px; font-weight: 700; }
+.header-user-dropdown-identity span { color: var(--semi-color-text-2); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.header-user-cascade { display: grid; grid-template-columns: 164px minmax(0, 1fr); width: 100%; min-height: 300px; max-height: min(62vh, 460px); background: var(--semi-color-bg-0); }
+.header-user-cascade-primary, .header-user-cascade-secondary { width: 100%; min-width: 0; padding: 6px; background: transparent; }
+.header-user-cascade-primary { border-right: 1px solid var(--semi-color-border); overflow-y: auto; }
+.header-user-cascade-secondary-panel { display: flex; min-width: 0; min-height: 0; flex-direction: column; padding: 6px 6px 8px; }
+.header-user-cascade-secondary-title { flex: 0 0 auto; padding: 8px 10px 10px; color: var(--semi-color-text-2); font-size: 12px; font-weight: 600; }
+.header-user-cascade-secondary { flex: 1 1 auto; overflow-y: auto; }
+.header-user-cascade .semi-navigation-item { min-height: 38px; margin: 2px 0 !important; border-radius: 6px; }
+.header-user-cascade .semi-navigation-item-selected { background: var(--semi-color-fill-1) !important; color: var(--theme-primary) !important; font-weight: 600; }
+.header-user-cascade-primary .semi-navigation-item-selected { box-shadow: inset 3px 0 0 var(--theme-primary); }
+.header-user-cascade-label { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; font-size: 13px; }
+.header-user-cascade-secondary .semi-navigation-item { padding-left: 12px !important; }
+.header-user-cascade-icon { display: inline-flex; width: 18px; align-items: center; justify-content: center; color: var(--semi-color-text-2); }
+
+/* The home themes keep their individual hero/content layouts. Their old
+   page-local navigation is hidden because PageLayout supplies the shared one. */
+.home-header-wrapper, .landing-v2 > nav { display: none !important; }
+
+@media (max-width: 767px) {
+  .app-header { height: 60px; }
+  .app-header-inner { width: calc(100% - 24px); gap: 10px; }
+  .app-header-brand-name { font-size: 16px; }
+  .app-header-nav { display: none; }
+  .app-header-actions { gap: 4px; }
+  .app-header-actions > .app-header-login { min-width: 64px; padding: 0 12px; }
+  .app-header-mobile-toggle { display: inline-flex; }
+  .app-header-mobile-menu { display: block; position: absolute; left: 0; right: 0; top: 60px; max-height: 0; overflow: hidden; background: var(--semi-color-bg-0); border-bottom: 1px solid transparent; transition: max-height .22s ease, border-color .22s ease; }
+  .app-header-mobile-menu-open { max-height: calc(100vh - 60px); border-bottom-color: var(--semi-color-border); overflow-y: auto; }
+  .app-header-mobile-menu nav { display: flex; flex-direction: column; padding: 8px 16px 20px; }
+  .app-header-mobile-link { display: flex; align-items: center; justify-content: space-between; padding: 14px 4px; color: var(--semi-color-text-1); border-bottom: 1px solid var(--semi-color-border); text-decoration: none; }
+  .app-header-mobile-link.app-header-link-active { color: var(--theme-primary); font-weight: 600; }
+  .console-content-shell { max-width: none; padding: 0 12px; }
+  .header-user-dropdown-menu { width: calc(100vw - 24px); }
+  .header-user-cascade { grid-template-columns: minmax(112px, 38%) minmax(0, 1fr); min-height: 280px; max-height: min(60vh, 420px); }
+  .header-user-cascade-primary, .header-user-cascade-secondary { padding: 4px; }
+  .header-user-cascade-secondary-panel { padding: 4px; }
+  .header-user-cascade .semi-navigation-item { min-height: 36px; }
+  .header-user-cascade-icon { width: 16px; }
+}
+
+@media (min-width: 768px) {
+  .app-header-mobile-toggle { display: none !important; }
+}
+
 /* ==================== 全局基础样式 ==================== */
 :root {
   --sidebar-width: 260px;

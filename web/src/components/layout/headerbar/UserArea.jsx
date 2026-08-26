@@ -17,18 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, Button, Dropdown, Typography } from '@douyinfe/semi-ui';
 import { ChevronDown } from 'lucide-react';
-import {
-  IconExit,
-  IconUserSetting,
-  IconCreditCard,
-  IconKey,
-} from '@douyinfe/semi-icons';
+import { IconExit, IconUserSetting } from '@douyinfe/semi-icons';
 import { stringToColor } from '../../../helpers';
 import SkeletonWrapper from '../components/SkeletonWrapper';
+import SiderBar from '../SiderBar';
 
 const UserArea = ({
   userState,
@@ -40,6 +36,7 @@ const UserArea = ({
   t,
 }) => {
   const dropdownRef = useRef(null);
+  const [dropdownVisible, setDropdownVisible] = useState(false);
   if (isLoading) {
     return (
       <SkeletonWrapper
@@ -55,12 +52,25 @@ const UserArea = ({
     return (
       <div className='relative' ref={dropdownRef}>
         <Dropdown
+          trigger='click'
+          visible={dropdownVisible}
+          onVisibleChange={setDropdownVisible}
           position='bottomRight'
           getPopupContainer={() => dropdownRef.current}
           render={
-            <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
+            <Dropdown.Menu className='header-user-dropdown-menu !bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
+              <div className='header-user-dropdown-header'>
+                <Avatar size='small' color={stringToColor(userState.user.username)}>
+                  {userState.user.username?.[0]?.toUpperCase()}
+                </Avatar>
+                <div className='header-user-dropdown-identity'>
+                  <strong>{userState.user.username}</strong>
+                  <span>{userState.user.email || `ID: ${userState.user.id}`}</span>
+                </div>
+              </div>
               <Dropdown.Item
                 onClick={() => {
+                  setDropdownVisible(false);
                   navigate('/console/personal');
                 }}
                 className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
@@ -73,34 +83,11 @@ const UserArea = ({
                   <span>{t('个人设置')}</span>
                 </div>
               </Dropdown.Item>
-              <Dropdown.Item
-                onClick={() => {
-                  navigate('/console/token');
-                }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
-              >
-                <div className='flex items-center gap-2'>
-                  <IconKey
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('令牌管理')}</span>
-                </div>
-              </Dropdown.Item>
-              <Dropdown.Item
-                onClick={() => {
-                  navigate('/console/topup');
-                }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
-              >
-                <div className='flex items-center gap-2'>
-                  <IconCreditCard
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('钱包管理')}</span>
-                </div>
-              </Dropdown.Item>
+              <Dropdown.Divider />
+              <div className='header-user-console-menu'>
+                <SiderBar cascaderMode showUserPanel={false} onNavigate={() => setDropdownVisible(false)} />
+              </div>
+              <Dropdown.Divider />
               <Dropdown.Item
                 onClick={logout}
                 className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-red-500 dark:hover:!text-white'

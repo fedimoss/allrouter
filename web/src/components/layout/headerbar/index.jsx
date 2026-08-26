@@ -1,274 +1,65 @@
-﻿/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
-import React from 'react';
+/* Copyright (C) 2025 QuantumNous */
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Breadcrumb } from '@douyinfe/semi-ui';
-import { ChevronRight } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
+import { Button } from '@douyinfe/semi-ui';
 import { useHeaderBar } from '../../../hooks/common/useHeaderBar';
 import { useNotifications } from '../../../hooks/common/useNotifications';
 import NoticeModal from '../NoticeModal';
-import MobileMenuButton from './MobileMenuButton';
 import ActionButtons from './ActionButtons';
-import ThemeToggle from './ThemeToggle';
-import LanguageSelector from './LanguageSelector';
-import NotificationButton from './NotificationButton';
 import UserArea from './UserArea';
-import {
-  isAdmin,
-  shouldShowProviderAgentPartner,
-  withBrowserBaseUrl,
-} from '../../../helpers';
+import { shouldShowProviderAgentPartner, withBrowserBaseUrl } from '../../../helpers';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
-  const {
-    userState,
-    statusState,
-    isMobile,
-    collapsed,
-    currentLang,
-    isLoading,
-    systemName,
-    logo,
-    isNewYear,
-    isSelfUseMode,
-    docsLink,
-    isConsoleRoute,
-    theme,
-    pricingRequireAuth,
-    logout,
-    handleLanguageChange,
-    handleThemeToggle,
-    handleMobileMenuToggle,
-    navigate,
-    t,
-  } = useHeaderBar({ onMobileMenuToggle, drawerOpen });
-
-  const {
-    noticeVisible,
-    unreadCount,
-    handleNoticeOpen,
-    handleNoticeClose,
-    getUnreadKeys,
-  } = useNotifications(statusState);
-  // 获取当前路由地址
+  const { userState, statusState, isMobile, currentLang, isLoading, systemName, logo, isSelfUseMode, docsLink, theme, pricingRequireAuth, logout, handleLanguageChange, handleThemeToggle, navigate, t } = useHeaderBar({ onMobileMenuToggle, drawerOpen });
   const location = useLocation();
-  console.log(location.pathname);
-  const isPublicRoute = !isConsoleRoute;
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const { noticeVisible, unreadCount, handleNoticeOpen, handleNoticeClose, getUnreadKeys } = useNotifications(statusState);
+  const loggedIn = Boolean(userState?.user);
   const docsLangPrefix = currentLang.startsWith('zh') ? 'zh' : 'en';
   const docsHref = docsLink || withBrowserBaseUrl(`/${docsLangPrefix}/docs`);
-  const isLoggedIn = Boolean(userState?.user);
-  const consoleNavTarget = isLoggedIn ? '/console' : '/login';
-  const pricingNavTarget =
-    !isLoggedIn && pricingRequireAuth ? '/login' : '/pricing';
-  const showAgentPartnerNav = shouldShowProviderAgentPartner(
-    statusState?.status,
-  );
-  const headerClassName = isPublicRoute
-    ? 'landing-v2-nav landing-v2-nav-shell'
-    : 'landing-v2-nav landing-v2-nav-shell landing-v2-nav-console';
-
-  const breadcrumbLabelMap = {
-    '/console': t('数据看板'),
-    '/console/playground': t('操练场'),
-    '/console/token': t('令牌管理'),
-    '/pricing': t('模型广场'),
-    '/console/log': t('使用日志'),
-    '/console/midjourney': t('绘图日志'),
-    '/console/task': t('任务日志'),
-    '/console/topup': t('钱包'),
-    '/console/personal': t('个人设置'),
-    '/console/channel': t('渠道管理'),
-    '/console/subscription': t('订阅管理'),
-    '/console/models': t('模型管理'),
-    '/console/deployment': t('模型部署'),
-    '/console/call-log': t('调用日志'),
-    '/console/provider': t('服务商设置'),
-    '/console/provider/reward': t('奖励设置'),
-    '/console/provider/reward-report': t('奖励报表'),
-    '/console/provider/redemption': t('兑换码管理'),
-    '/console/provider/users': t('用户管理'),
-    // 顶栏面包屑/标题映射：服务商订阅管理页显示"订阅管理"。
-    '/console/provider/subscription': t('订阅管理'),
-    '/console/provider/profits': t('服务商利润'),
-    '/console/provider/logs': t('服务商使用日志'),
-    '/console/provider/operational': t('运营数据'),
-    '/console/provider/questionSurvey': t('问卷调查'),
-    '/console/billing': t('账单中心'),
-    '/console/operational': t('运营数据'),
-    '/console/reconciliation': t('支付对账'),
-    '/console/user': t('用户管理'),
-    '/console/setting': t('系统设置'),
-    '/console/redemption': t('兑换码管理'),
-    '/console/questionSurvey': t('问卷调查'),
-    '/console/oauth': t('OAuth 授权'),
-    '/console/invitation': t('邀请奖励'),
-    '/console/exchange': t('兑换码'),
-    '/console/certification': t('认证文件'),
+  const pricingTarget = !loggedIn && pricingRequireAuth ? '/login' : '/pricing';
+  const showAgentPartner = shouldShowProviderAgentPartner(statusState?.status);
+  const navLinks = useMemo(() => {
+    if (loggedIn) {
+      const links = [
+        { label: t('数据看板'), to: '/console' },
+        { label: t('令牌管理'), to: '/console/token' },
+        { label: t('模型广场'), to: pricingTarget },
+        { label: t('钱包'), to: '/console/topup' },
+      ];
+      if (showAgentPartner) links.push({ label: t('代理加盟'), to: '/agent-partner' });
+      return links;
+    }
+    const links = [{ label: t('首页'), to: '/' }, { label: t('模型广场'), to: pricingTarget }];
+    if (showAgentPartner) links.push({ label: t('代理加盟'), to: '/agent-partner' });
+    links.push({ label: t('文档'), href: docsHref, external: true }, { label: t('关于'), to: '/about' });
+    return links;
+  }, [docsHref, loggedIn, pricingTarget, showAgentPartner, t]);
+  useEffect(() => setMobileOpen(false), [location.pathname]);
+  const isActive = (link) => link.to && (link.to === '/' ? location.pathname === '/' : location.pathname === link.to || location.pathname.startsWith(`${link.to}/`));
+  const renderLink = (link, mobile = false) => {
+    const className = `${isActive(link) ? 'app-header-link-active' : ''} ${mobile ? 'app-header-mobile-link' : ''}`;
+    const content = <><span>{link.label}</span>{mobile && <span aria-hidden='true'>→</span>}</>;
+    if (link.external) return <a key={link.label} href={link.href} target='_blank' rel='noreferrer' className={className} onClick={() => setMobileOpen(false)}>{content}</a>;
+    return <Link key={link.label} to={link.to} className={className} onClick={() => setMobileOpen(false)}>{content}</Link>;
   };
-
-  const pathname = location.pathname;
-  const currentLabel = pathname.startsWith('/console/chat')
-    ? t('聊天')
-      : breadcrumbLabelMap[pathname] || t('控制台');
-  const breadcrumbItems = [
-    { label: t('首页'), to: '/' },
-    { label: t('控制台'), to: '/console' },
-    { label: currentLabel },
-  ];
-
   return (
-    <header className={headerClassName}>
-      <NoticeModal
-        visible={noticeVisible}
-        onClose={handleNoticeClose}
-        isMobile={isMobile}
-        defaultTab={unreadCount > 0 ? 'system' : 'inApp'}
-        unreadKeys={getUnreadKeys()}
-      />
-      {isPublicRoute ? (
-        <>
-          <Link to='/' className='landing-v2-logo'>
-            <div className='landing-v2-logo-bg'>
-              <img
-                src={logo || '/logo.png'}
-                alt={`${systemName} Logo`}
-                className='landing-v2-real-logo'
-              />
-            </div>
-            <span>{systemName}</span>
-          </Link>
-
-          <div
-            className={`landing-v2-nav-links ${location.pathname === '/pricing' ? 'nav-left' : ''}`}
-          >
-            <Link to='/' className={location.pathname === '/' ? 'landing-v2-nav-link-active' : ''}>
-              {t('首页')}
-            </Link>
-            <Link to={consoleNavTarget} className={location.pathname === '/console' ? 'landing-v2-nav-link-active' : ''}>
-              {t('控制台')}
-            </Link>
-            <Link to={pricingNavTarget} className={location.pathname === '/pricing' ? 'landing-v2-nav-link-active' : ''}>
-              {t('模型广场')}
-            </Link>
-            {showAgentPartnerNav ? (
-              <Link to='/agent-partner' className={location.pathname === '/agent-partner' ? 'landing-v2-nav-link-active' : ''}>
-                {t('代理加盟')}
-              </Link>
-            ) : null}
-            <a href={docsHref} target='_blank' rel='noreferrer' className={location.pathname === '/docs' ? 'landing-v2-nav-link-active' : ''}>
-              {t('文档')}
-            </a>
-            <Link to='/about' className={location.pathname === '/about' ? 'landing-v2-nav-link-active' : ''}>
-              {t('关于')}
-            </Link>
-          </div>
-
-          <div className='landing-v2-nav-actions'>
-            <div className='landing-v2-nav-tools'>
-              <NotificationButton
-                unreadCount={unreadCount}
-                onNoticeOpen={handleNoticeOpen}
-                t={t}
-              />
-              <ThemeToggle
-                theme={theme}
-                onThemeToggle={handleThemeToggle}
-                t={t}
-              />
-              <LanguageSelector
-                currentLang={currentLang}
-                onLanguageChange={handleLanguageChange}
-                t={t}
-              />
-            </div>
-            {isLoggedIn ? (
-              <UserArea
-                userState={userState}
-                isLoading={isLoading}
-                isMobile={isMobile}
-                isSelfUseMode={isSelfUseMode}
-                logout={logout}
-                navigate={navigate}
-                t={t}
-              />
-            ) : (
-              <>
-                <Link to='/login' className='landing-v2-btn-text'>
-                  {t('登录')}
-                </Link>
-                <Link to={consoleNavTarget} className='landing-v2-btn-primary'>
-                  {t('获取 API Key')}
-                </Link>
-              </>
-            )}
-          </div>
-        </>
-      ) : (
-        <div className='w-full px-2'>
-          <div className='flex items-center justify-between h-16'>
-            <div className='flex items-center min-w-0 flex-1 gap-2'>
-              <MobileMenuButton
-                isConsoleRoute={isConsoleRoute}
-                isMobile={isMobile}
-                drawerOpen={drawerOpen}
-                collapsed={collapsed}
-                onToggle={handleMobileMenuToggle}
-                t={t}
-              />
-              <div className='header-console-breadcrumb-wrap hidden md:flex'>
-                <Breadcrumb
-                  separator={<ChevronRight size={14} />}
-                  className='header-console-breadcrumb'
-                >
-                  {breadcrumbItems.map((item, index) => {
-                    const isLast = index === breadcrumbItems.length - 1;
-                    return (
-                      <Breadcrumb.Item key={`${item.label}-${index}`}>
-                        {item.to && !isLast ? (
-                          <Link to={item.to}>{item.label}</Link>
-                        ) : (
-                          <span className='header-console-breadcrumb-current'>
-                            {item.label}
-                          </span>
-                        )}
-                      </Breadcrumb.Item>
-                    );
-                  })}
-                </Breadcrumb>
-              </div>
-            </div>
-            <ActionButtons
-              isNewYear={isNewYear}
-              unreadCount={unreadCount}
-              onNoticeOpen={handleNoticeOpen}
-              theme={theme}
-              onThemeToggle={handleThemeToggle}
-              currentLang={currentLang}
-              onLanguageChange={handleLanguageChange}
-              t={t}
-            />
+    <>
+      <header className='app-header'>
+        <div className='app-header-inner'>
+          <Link to='/' className='app-header-brand' aria-label={systemName}><span className='app-header-brand-logo'><img src={logo || '/logo.png'} alt='' /></span><span className='app-header-brand-name'>{systemName}</span></Link>
+          <nav className='app-header-nav' aria-label={t('主导航')}>{navLinks.map((link) => renderLink(link))}</nav>
+          <div className='app-header-actions'>
+            <ActionButtons isNewYear={false} unreadCount={unreadCount} onNoticeOpen={handleNoticeOpen} theme={theme} onThemeToggle={handleThemeToggle} currentLang={currentLang} onLanguageChange={handleLanguageChange} t={t} />
+            {loggedIn ? <UserArea userState={userState} isLoading={isLoading} isMobile={isMobile} isSelfUseMode={isSelfUseMode} logout={logout} navigate={navigate} t={t} /> : <Link className='app-header-login' to='/login'>{t('登录')}</Link>}
+            <Button theme='borderless' type='tertiary' className='app-header-mobile-toggle' icon={mobileOpen ? <X size={22} /> : <Menu size={22} />} iconOnly onClick={() => setMobileOpen((open) => !open)} aria-label={mobileOpen ? t('关闭菜单') : t('打开菜单')} />
           </div>
         </div>
-      )}
-    </header>
+        <div className={`app-header-mobile-menu ${mobileOpen ? 'app-header-mobile-menu-open' : ''}`}><nav aria-label={t('移动端导航')}>{navLinks.map((link) => renderLink(link, true))}</nav></div>
+      </header>
+      <NoticeModal visible={noticeVisible} onClose={handleNoticeClose} isMobile={isMobile} defaultTab={unreadCount > 0 ? 'system' : 'inApp'} unreadKeys={getUnreadKeys()} />
+    </>
   );
 };
-
 export default HeaderBar;
