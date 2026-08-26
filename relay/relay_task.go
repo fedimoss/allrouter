@@ -323,7 +323,11 @@ func resolveTaskSubmissionPlatform(c *gin.Context, info *relaycommon.RelayInfo) 
 	// MiniMax-H3 uses the OpenAI video protocol and the local database queue,
 	// not MiniMax's Hailuo video protocol. Select its adaptor by model so a
 	// MiniMax-type channel works the same as a Sora/OpenAI-type channel.
-	if info != nil && constant.IsMiniMaxH3Model(info.OriginModelName) {
+	channelType := c.GetInt("channel_type")
+	if info != nil && info.ChannelMeta != nil && info.ChannelType != 0 {
+		channelType = info.ChannelType
+	}
+	if info != nil && constant.IsMiniMaxH3Model(info.OriginModelName) && channelType != constant.ChannelTypeAutodl {
 		return constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeSora))
 	}
 
@@ -515,6 +519,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		service.CloseResponseBodyGracefully(resp)
+		if normalizer, ok := adaptor.(channel.TaskHTTPErrorNormalizer); ok {
+			if normalized := normalizer.NormalizeHTTPError(responseBody, resp.StatusCode); normalized != nil {
+				return nil, normalized
+			}
+		}
 		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
 	}
 

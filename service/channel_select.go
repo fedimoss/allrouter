@@ -23,7 +23,7 @@ func IsChannelTypeCompatibleWithModel(modelName string, channelType int) bool {
 	if !constant.IsMiniMaxH3Model(modelName) {
 		return true
 	}
-	return channelType == constant.ChannelTypeSora || channelType == constant.ChannelTypeOpenAI
+	return channelType == constant.ChannelTypeSora || channelType == constant.ChannelTypeOpenAI || channelType == constant.ChannelTypeAutodl
 }
 
 func getRandomSatisfiedChannel(group string, modelName string, retry int) (*model.Channel, error) {
@@ -31,6 +31,7 @@ func getRandomSatisfiedChannel(group string, modelName string, retry int) (*mode
 		return model.GetChannelByTypes(group, modelName, retry, []int{
 			constant.ChannelTypeSora,
 			constant.ChannelTypeOpenAI,
+			constant.ChannelTypeAutodl,
 		})
 	}
 	return model.GetRandomSatisfiedChannel(group, modelName, retry)

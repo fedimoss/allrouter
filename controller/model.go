@@ -105,6 +105,10 @@ func init() {
 		adaptor.Init(meta)
 		channelId2Models[i] = adaptor.GetModelList()
 	}
+	channelId2Models[constant.ChannelTypeAutodl] = []string{
+		constant.ModelMiniMaxH3,
+		constant.ModelMiniMaxH3Ref2va,
+	}
 	openAIModels = lo.UniqBy(openAIModels, func(m dto.OpenAIModels) string {
 		return m.Id
 	})

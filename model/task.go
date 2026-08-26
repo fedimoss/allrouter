@@ -107,7 +107,10 @@ type TaskPrivateData struct {
 	Key            string          `json:"key,omitempty"`
 	UpstreamTaskID string          `json:"upstream_task_id,omitempty"` // 上游真实 task ID
 	ResultURL      string          `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	PublicBaseURL  string          `json:"public_base_url,omitempty"`  // 异步媒体上传结果的公开访问前缀
 	PendingRequest json.RawMessage `json:"pending_request,omitempty"`
+	// AutoDL result uploads retry across polling cycles. Stored in the existing JSON column.
+	AutoDLResultUploadFailures int `json:"autodl_result_upload_failures,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource     string              `json:"billing_source,omitempty"` // "wallet" 或 "subscription"
 	TokenUsageSettled bool                `json:"token_usage_settled,omitempty"`
@@ -517,13 +520,14 @@ func (Task *Task) Insert() error {
 }
 
 type taskSnapshot struct {
-	Status     TaskStatus
-	Progress   string
-	StartTime  int64
-	FinishTime int64
-	FailReason string
-	ResultURL  string
-	Data       json.RawMessage
+	Status                     TaskStatus
+	Progress                   string
+	StartTime                  int64
+	FinishTime                 int64
+	FailReason                 string
+	ResultURL                  string
+	AutoDLResultUploadFailures int
+	Data                       json.RawMessage
 }
 
 func (s taskSnapshot) Equal(other taskSnapshot) bool {
@@ -533,18 +537,20 @@ func (s taskSnapshot) Equal(other taskSnapshot) bool {
 		s.FinishTime == other.FinishTime &&
 		s.FailReason == other.FailReason &&
 		s.ResultURL == other.ResultURL &&
+		s.AutoDLResultUploadFailures == other.AutoDLResultUploadFailures &&
 		bytes.Equal(s.Data, other.Data)
 }
 
 func (t *Task) Snapshot() taskSnapshot {
 	return taskSnapshot{
-		Status:     t.Status,
-		Progress:   t.Progress,
-		StartTime:  t.StartTime,
-		FinishTime: t.FinishTime,
-		FailReason: t.FailReason,
-		ResultURL:  t.PrivateData.ResultURL,
-		Data:       t.Data,
+		Status:                     t.Status,
+		Progress:                   t.Progress,
+		StartTime:                  t.StartTime,
+		FinishTime:                 t.FinishTime,
+		FailReason:                 t.FailReason,
+		ResultURL:                  t.PrivateData.ResultURL,
+		AutoDLResultUploadFailures: t.PrivateData.AutoDLResultUploadFailures,
+		Data:                       t.Data,
 	}
 }
 

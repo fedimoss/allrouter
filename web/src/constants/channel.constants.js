@@ -194,6 +194,11 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'Responses→Chat',
   },
+  {
+    value: 59,
+    color: 'purple',
+    label: 'AutoDL',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.

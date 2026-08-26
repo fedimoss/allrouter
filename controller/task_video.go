@@ -81,8 +81,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 		key = privateData.Key
 	}
 	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
-		"task_id": taskId,
-		"action":  task.Action,
+		"task_id":         taskId,
+		"action":          task.Action,
+		"public_base_url": task.PrivateData.PublicBaseURL,
 	}, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
@@ -112,8 +113,15 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 		task.Data = t.Data
 	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
-	} else {
+	} else if policy, ok := adaptor.(interface{ PreserveTaskDataOnPoll() bool }); !ok || !policy.PreserveTaskDataOnPoll() {
 		task.Data = redactVideoResponseBody(responseBody)
+	}
+	if processor, ok := adaptor.(interface {
+		ProcessTaskResultBeforePersist(context.Context, *model.Task, *relaycommon.TaskInfo) error
+	}); ok {
+		if err := processor.ProcessTaskResultBeforePersist(ctx, task, taskResult); err != nil {
+			return fmt.Errorf("process task result failed for task %s: %w", taskId, err)
+		}
 	}
 
 	logger.LogDebug(ctx, "UpdateVideoSingleTask taskResult: %+v", taskResult)
