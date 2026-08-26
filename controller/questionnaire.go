@@ -23,8 +23,8 @@ type UserQuestionnaireRequest struct {
 // SubmitUserQuestionnaire 用户提交问卷
 // 接口：POST /api/user/questionnaire（公开，无需登录）
 // 站点归属解析优先级：
-//  1. 已登录用户：取该用户 provider_id；
-//  2. 未登录：按前端传入的域名匹配 provider_domains，匹配到则用对应服务商 ID，否则归主站(0)
+//  1. 站点域名（前端传入的页面域名，或请求所在域名）匹配 provider_domains；
+//  2. 域名未匹配到服务商（主站）：已登录用户取其 provider_id，未登录归主站(0)
 func SubmitUserQuestionnaire(c *gin.Context) {
 	var req UserQuestionnaireRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
@@ -65,19 +65,15 @@ func SubmitUserQuestionnaire(c *gin.Context) {
 }
 
 // resolveQuestionnaireProviderId 解析问卷提交所属的服务商 ID。
-// 已登录用户(userId>0)优先取用户 provider_id；未登录按域名匹配，未匹配到归主站(0)。
+// 域名优先：在哪个站点的页面上提交，就归属哪个站点（服务商站点的登录用户可能是
+// provider_id=0 的主站账号，例如服务商 owner，按用户 provider_id 归属会错误归到主站）。
+// 域名未匹配到服务商（主站）时，已登录用户取其 provider_id，未登录归主站(0)。
 func resolveQuestionnaireProviderId(c *gin.Context, domain string) (int, error) {
-	// 第一优先级：登录用户自己的 provider_id
-	userId := c.GetInt("id")
-	if userId > 0 {
-		user, err := model.GetUserById(userId, false)
-		if err != nil {
-			return 0, errors.New("获取用户信息失败")
-		}
-		return user.ProviderId, nil
+	// 第一优先级：按站点域名匹配服务商
+	// 前端未传 domain 时兜底取请求所在域名（与 TenantResolver 语义一致）
+	if domain == "" {
+		domain = c.Request.Host
 	}
-
-	// 第二优先级：未登录时按前端传入域名匹配服务商
 	domain = model.NormalizeProviderDomain(domain)
 	if domain != "" {
 		ctx, err := model.GetProviderContextByDomainCached(domain)
@@ -86,6 +82,16 @@ func resolveQuestionnaireProviderId(c *gin.Context, domain string) (int, error) 
 		} else if ctx != nil {
 			return ctx.ProviderId, nil
 		}
+	}
+
+	// 第二优先级：域名未匹配到服务商（主站请求），已登录用户取其 provider_id
+	userId := c.GetInt("id")
+	if userId > 0 {
+		user, err := model.GetUserById(userId, false)
+		if err != nil {
+			return 0, errors.New("获取用户信息失败")
+		}
+		return user.ProviderId, nil
 	}
 	return 0, nil // 主站
 }
