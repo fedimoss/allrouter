@@ -74,9 +74,16 @@ func responsesRequestToChatCompletions(req *dto.OpenAIResponsesRequest, ctx *rel
 		}
 	}
 
-	// 映射 reasoning（推理）参数，提取 effort 字段
-	if req.Reasoning != nil && req.Reasoning.Effort != "" {
-		chatReq.ReasoningEffort = req.Reasoning.Effort
+	// 映射 reasoning（推理）参数：提取 effort 字段并钳制到上游合法枚举。
+	// 对齐 cc-switch apply_reasoning_options / map_reasoning_effort：
+	//   - 显式关闭（none/off/disabled）不透传 effort（OpenAI 平台枚举不含 none，
+	//     透传会被 400 Invalid option 拒绝）；关闭意图对绝大多数上游即"不发字段"。
+	//   - 未知枚举值丢弃，避免严格上游 400。
+	//   - 已知值原样透传（minimal/low/medium/high/xhigh/max）。
+	if req.Reasoning != nil {
+		if effort := mapResponsesReasoningEffort(req.Reasoning.Effort); effort != "" {
+			chatReq.ReasoningEffort = effort
+		}
 	}
 
 	// 映射工具列表。工具上下文已在上面构建（buildResponsesChatToolContext），
@@ -95,8 +102,10 @@ func responsesRequestToChatCompletions(req *dto.OpenAIResponsesRequest, ctx *rel
 		}
 	}
 
-	// 映射 parallel_tool_calls（是否允许并行工具调用）
-	if len(req.ParallelToolCalls) > 0 {
+	// 映射 parallel_tool_calls（是否允许并行工具调用）。
+	// 严格 OpenAI 兼容上游（vLLM、企业网关）会拒绝携带 parallel_tool_calls 但 tools 为空的
+	// 请求（对齐 cc-switch：tools 为空时同时丢弃 tool_choice 与 parallel_tool_calls）。
+	if len(req.ParallelToolCalls) > 0 && len(chatReq.Tools) > 0 {
 		var parallel bool // 是否允许并行调用的布尔值
 		if err := common.Unmarshal(req.ParallelToolCalls, &parallel); err == nil {
 			chatReq.ParallelTooCalls = &parallel
@@ -196,6 +205,9 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 	// pendingReasoning 累积顶层 reasoning 条目的文本，前向附挂到其后生成的 assistant 消息
 	// （对应 cc-switch pending_reasoning 语义：思考型模型多轮历史需要保留 reasoning_content）。
 	var pendingReasoning strings.Builder
+	// pendingMedia 暂存从 tool 输出中提取的媒体块（对应 cc-switch pending_media）：
+	// chat 的 role=tool 消息只能放文本，媒体由回合边界处的合成 user 消息承载。
+	var pendingMedia []dto.MediaContent
 	callNames := make(map[string]string)
 
 	// 遍历每个 input 条目，根据 type 字段进行分发处理
@@ -224,14 +236,25 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 			if err != nil {
 				continue
 			}
-			messages = append(messages, *msg)
 			if msg.Role == "assistant" {
+				// assistant 消息：前向消费累积的 reasoning（附挂为本消息 reasoning_content）
+				messages = append(messages, *msg)
 				consumePendingReasoning(messages, &pendingReasoning)
+			} else {
+				// 非 assistant 回合边界消息（user/system 等）：pending reasoning 不允许跨
+				// user 回合泄漏到之后的 assistant，回溯附挂到上一条 assistant（对齐
+				// cc-switch attach_pending_reasoning_to_previous_assistant 的边界语义）；
+				// 其已有 reasoning_content 时追加尾部 reasoning。无上一条 assistant 时丢弃。
+				attachPendingReasoningToPreviousAssistant(messages, &pendingReasoning)
+				flushPendingToolMedia(&messages, &pendingMedia)
+				messages = append(messages, *msg)
 			}
 
 		case "function_call":
 			// 处理函数调用条目，转换为带 tool_calls 的 assistant 消息
-			appendPendingReasoning(&pendingReasoning, extractResponsesToolCallReasoning(itemRaw))
+			appendUniquePendingReasoning(&pendingReasoning, extractResponsesToolCallReasoning(itemRaw))
+			// 上一批 tool 结果的媒体必须在新 assistant 工具调用回合之前呈现
+			flushPendingToolMedia(&messages, &pendingMedia)
 			msg, err := convertResponsesFunctionCallItem(itemRaw, ctx)
 			if err != nil {
 				continue
@@ -242,7 +265,8 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 
 		case "custom_tool_call":
 			// custom 工具调用历史：chat function 名与原始名一致，arguments 包装成 {input: ...}
-			appendPendingReasoning(&pendingReasoning, extractResponsesToolCallReasoning(itemRaw))
+			appendUniquePendingReasoning(&pendingReasoning, extractResponsesToolCallReasoning(itemRaw))
+			flushPendingToolMedia(&messages, &pendingMedia)
 			msg, err := convertResponsesCustomToolCallItem(itemRaw)
 			if err != nil {
 				continue
@@ -253,7 +277,8 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 
 		case "tool_search_call":
 			// tool_search 调用历史：chat function 名固定为 tool_search
-			appendPendingReasoning(&pendingReasoning, extractResponsesToolCallReasoning(itemRaw))
+			appendUniquePendingReasoning(&pendingReasoning, extractResponsesToolCallReasoning(itemRaw))
+			flushPendingToolMedia(&messages, &pendingMedia)
 			msg, err := convertResponsesToolSearchCallItem(itemRaw)
 			if err != nil {
 				continue
@@ -263,19 +288,35 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 			consumePendingReasoning(messages, &pendingReasoning)
 
 		case "function_call_output":
-			// 处理函数调用输出条目，转换为 tool 消息
+			// 处理函数调用输出条目，转换为 tool 消息。
+			// 输出携带媒体块时提取到 pendingMedia（由后续回合边界合成 user 消息承载），
+			// 原位留替换标记；无媒体时保持原纯文本路径零改动（缓存敏感）。
 			msg, err := convertResponsesFunctionCallOutputItem(itemRaw)
 			if err != nil {
 				continue
+			}
+			var outRaw struct {
+				Output json.RawMessage `json:"output"`
+			}
+			if common.Unmarshal(itemRaw, &outRaw) == nil && len(outRaw.Output) > 0 {
+				if plan := planResponsesToolOutputMedia(outRaw.Output); plan != nil {
+					queuePendingToolMedia(&pendingMedia, msg.ToolCallId, plan.mediaParts)
+					msg.Content = plan.toolContent
+				}
 			}
 			setResponsesToolMessageName(msg, callNames, messages)
 			messages = append(messages, *msg)
 
 		case "custom_tool_call_output", "tool_search_output":
-			// custom/tool_search 输出历史：cc-switch 把整个条目规范化成 JSON 字符串作为 tool 消息内容
+			// custom/tool_search 输出历史：cc-switch 把整个条目规范化成 JSON 字符串作为 tool 消息内容。
+			// 媒体块同样提取到 pendingMedia，替换后重新序列化为 content。
 			msg, err := convertResponsesRawToolCallOutputItem(itemRaw)
 			if err != nil {
 				continue
+			}
+			if plan := planResponsesToolOutputMedia([]byte(msg.StringContent())); plan != nil {
+				queuePendingToolMedia(&pendingMedia, msg.ToolCallId, plan.mediaParts)
+				msg.Content = plan.toolContent
 			}
 			setResponsesToolMessageName(msg, callNames, messages)
 			messages = append(messages, *msg)
@@ -289,10 +330,16 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 			wrapped = append(wrapped, itemRaw...)
 			wrapped = append(wrapped, ']')
 			content := parseContentToChatFormat(wrapped, role)
-			messages = append(messages, dto.Message{
-				Role:    role,
-				Content: content,
-			})
+			if role == "assistant" {
+				// assistant content-part：与 message 分支同语义，前向消费 pending reasoning
+				messages = append(messages, dto.Message{Role: role, Content: content})
+				consumePendingReasoning(messages, &pendingReasoning)
+			} else {
+				// 回合边界：pending reasoning 回溯附挂到上一条 assistant；媒体刷出
+				attachPendingReasoningToPreviousAssistant(messages, &pendingReasoning)
+				flushPendingToolMedia(&messages, &pendingMedia)
+				messages = append(messages, dto.Message{Role: role, Content: content})
+			}
 
 		case "reasoning":
 			// 顶层 reasoning 条目：累积 summary 文本，待下一条 assistant 消息生成时附挂为其 reasoning_content。
@@ -333,32 +380,23 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 				Content json.RawMessage `json:"content"` // 消息内容
 			}
 			if err := common.Unmarshal(itemRaw, &simpleMsg); err == nil && simpleMsg.Role != "" {
-				content := parseContentToChatFormat(simpleMsg.Content, simpleMsg.Role)
-				messages = append(messages, dto.Message{
-					Role:    normalizeResponsesRole(simpleMsg.Role),
-					Content: content,
-				})
+				role := normalizeResponsesRole(simpleMsg.Role)
+				if role == "assistant" {
+					messages = append(messages, dto.Message{Role: role, Content: parseContentToChatFormat(simpleMsg.Content, simpleMsg.Role)})
+					consumePendingReasoning(messages, &pendingReasoning)
+				} else {
+					attachPendingReasoningToPreviousAssistant(messages, &pendingReasoning)
+					flushPendingToolMedia(&messages, &pendingMedia)
+					messages = append(messages, dto.Message{Role: role, Content: parseContentToChatFormat(simpleMsg.Content, simpleMsg.Role)})
+				}
 			}
 		}
 	}
 
 	// 收尾：仍未消费的 reasoning（其后没有再出现 assistant）回溯附挂到最后一条 assistant 消息
-	if remaining := strings.TrimSpace(pendingReasoning.String()); remaining != "" {
-		for i := len(messages) - 1; i >= 0; i-- {
-			if messages[i].Role != "assistant" {
-				continue
-			}
-			existing := ""
-			if messages[i].ReasoningContent != nil {
-				existing = strings.TrimSpace(*messages[i].ReasoningContent)
-			}
-			if existing != "" {
-				remaining = existing + "\n\n" + remaining
-			}
-			messages[i].ReasoningContent = &remaining
-			break
-		}
-	}
+	attachPendingReasoningToPreviousAssistant(messages, &pendingReasoning)
+	// 收尾：仍剩余的媒体（其后没有新 assistant 回合/回合边界）也合成 user 消息刷出
+	flushPendingToolMedia(&messages, &pendingMedia)
 	backfillToolCallReasoningPlaceholders(messages)
 
 	return messages, nil
@@ -629,8 +667,22 @@ func hasPrecedingResponsesToolCall(messages []dto.Message, callID string) bool {
 }
 
 func appendPendingReasoning(pending *strings.Builder, reasoning string) {
+	appendPendingReasoningImpl(pending, reasoning, false)
+}
+
+// appendUniquePendingReasoning 追加 tool-call 条目内嵌的 reasoning（对齐 cc-switch
+// append_unique_pending_reasoning）：tool-call 的 reasoning_content 常与相邻 summary
+// reasoning 重复，用包含判断去重，避免同一思考被重复拼接。
+func appendUniquePendingReasoning(pending *strings.Builder, reasoning string) {
+	appendPendingReasoningImpl(pending, reasoning, true)
+}
+
+func appendPendingReasoningImpl(pending *strings.Builder, reasoning string, dedupe bool) {
 	reasoning = strings.TrimSpace(reasoning)
 	if reasoning == "" {
+		return
+	}
+	if dedupe && strings.Contains(pending.String(), reasoning) {
 		return
 	}
 	if pending.Len() > 0 {
@@ -1443,6 +1495,26 @@ func isOpenOSeriesOrGpt5(model string) bool {
 	return strings.HasPrefix(model, "o") || strings.HasPrefix(model, "gpt-5")
 }
 
+// mapResponsesReasoningEffort 把 Responses reasoning.effort 钳制到 Chat Completions
+// reasoning_effort 的合法枚举。对齐 cc-switch map_reasoning_effort（passthrough 模式）：
+//   - 空 / 显式关闭（none/off/disabled）→ 返回空串（不透传：OpenAI 平台枚举不含 none，
+//     透传触发 400 Invalid option；"不发字段"即多数上游的关闭语义）；
+//   - 已知枚举（minimal/low/medium/high/xhigh/max）原样透传；
+//   - 未知值丢弃，避免严格上游 400。
+func mapResponsesReasoningEffort(effort string) string {
+	normalized := strings.ToLower(strings.TrimSpace(effort))
+	switch normalized {
+	case "":
+		return ""
+	case "none", "off", "disabled":
+		return ""
+	case "minimal", "low", "medium", "high", "xhigh", "max":
+		return normalized
+	default:
+		return ""
+	}
+}
+
 // normalizeImageURLRaw 将 Responses 的 input_image.image_url 规范化为 chat/completions 要求的对象。
 // 字符串（data URL 或 http URL）→ {"url": "..."}；已是对象则原样保留；空/null → nil。
 func normalizeImageURLRaw(raw json.RawMessage) any {
@@ -1517,4 +1589,31 @@ func consumePendingReasoning(messages []dto.Message, pending *strings.Builder) {
 	}
 	last.ReasoningContent = &text
 	pending.Reset()
+}
+
+// attachPendingReasoningToPreviousAssistant 把 pending reasoning 回溯附挂到最后一条 assistant
+// 消息（跳过其后的 tool 消息），并清空缓冲（无论是否附挂成功，绝不留到下一条 assistant）。
+// 只允许在「回合边界」（user/system 消息到达）与「整个 input 处理完毕」两种收尾点调用
+// （对齐 cc-switch attach_pending_reasoning_to_previous_assistant 的两种真正尾部场景）：
+// reasoning 不允许跨 user 回合泄漏到之后的 assistant 消息；目标已有 reasoning_content 时
+// 追加尾部 reasoning，以保留同一 assistant turn 的 embedded 与 trailing reasoning。
+func attachPendingReasoningToPreviousAssistant(messages []dto.Message, pending *strings.Builder) {
+	text := strings.TrimSpace(pending.String())
+	if text == "" {
+		return
+	}
+	pending.Reset()
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "tool" {
+			continue
+		}
+		if messages[i].Role != "assistant" {
+			return
+		}
+		if messages[i].ReasoningContent != nil && strings.TrimSpace(*messages[i].ReasoningContent) != "" {
+			text = *messages[i].ReasoningContent + "\n\n" + text
+		}
+		messages[i].ReasoningContent = &text
+		return
+	}
 }

@@ -164,8 +164,9 @@ func TestResponsesChatCompatViaChatCompletionsPreservesToolHistory(t *testing.T)
 	require.Contains(t, string(sent.Messages[1].ToolCalls), "shell_command")
 	require.Equal(t, "tool", sent.Messages[2].Role)
 	require.Equal(t, "call_test", sent.Messages[2].ToolCallId)
-	require.NotNil(t, sent.Messages[2].Name)
-	require.Equal(t, "shell_command", *sent.Messages[2].Name)
+	// assistant tool_call 与 output 在同一请求内配对（call_id 匹配）时，
+	// 上游可按 call_id 解析工具名，不再回填 name（6c250643 的 hasPrecedingResponsesToolCall 语义）
+	require.Nil(t, sent.Messages[2].Name)
 	require.Equal(t, "ok", sent.Messages[2].StringContent())
 }
 
