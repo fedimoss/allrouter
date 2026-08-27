@@ -600,15 +600,6 @@ const AgentPartner = () => {
               <li>
                 <Link to='/pricing'>{t('定价')}</Link>
               </li>
-              <li>
-                <a
-                  href='https://github.com/fedimoss/allrouter/releases'
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  {t('更新日志')}
-                </a>
-              </li>
             </ul>
           </div>
 
@@ -649,27 +640,7 @@ const AgentPartner = () => {
                 <Link to='/about'>{t('关于平台')}</Link>
               </li>
               <li>
-                <a
-                  href='https://github.com/fedimoss/allrouter'
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  {t('项目仓库')}
-                </a>
-              </li>
-              <li>
-                <a
-                  href='https://github.com/fedimoss/allrouter/issues'
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  {t('问题反馈')}
-                </a>
-              </li>
-              <li>
-                <a href={`mailto:support@${systemName.toLowerCase()}`}>
-                  {t('联系我们')}
-                </a>
+                <Link to='/userQuestion'>{t('问题反馈')}</Link>
               </li>
             </ul>
           </div>
