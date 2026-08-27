@@ -22,6 +22,7 @@ import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import App from '../../App';
 import FooterBar from './Footer';
+import SupportFab from '../common/SupportFab';
 import { ToastContainer } from 'react-toastify';
 import React, { useContext, useEffect, useState } from 'react';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
@@ -129,9 +130,8 @@ const PageLayout = () => {
         API.get('/api/web_colors'),
       ]);
       if (webColorsRes.status === 'fulfilled') {
-        const { primaryColor, secondaryColor, buttonTextColor } = extractThemeColors(
-          webColorsRes.value,
-        );
+        const { primaryColor, secondaryColor, buttonTextColor } =
+          extractThemeColors(webColorsRes.value);
         if (primaryColor || secondaryColor || buttonTextColor) {
           applyThemeColors(primaryColor, secondaryColor, buttonTextColor);
         }
@@ -261,6 +261,7 @@ const PageLayout = () => {
           </Content>
         </Layout>
         <ToastContainer />
+        <SupportFab />
       </Layout>
     );
   }
@@ -374,6 +375,7 @@ const PageLayout = () => {
         </Layout>
       </Layout>
       <ToastContainer />
+      <SupportFab />
     </Layout>
   );
 };
