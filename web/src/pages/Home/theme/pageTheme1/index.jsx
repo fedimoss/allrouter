@@ -1203,27 +1203,7 @@ const Home = () => {
                   <h5>{t('帮助中心')}</h5>
                   <ul>
                     <li>
-                      <a
-                        href='https://github.com/fedimoss/allrouter'
-                        target='_blank'
-                        rel='noreferrer'
-                      >
-                        {t('项目仓库')}
-                      </a>
-                    </li>
-                    <li>
-                      <a
-                        href='https://github.com/fedimoss/allrouter/issues'
-                        target='_blank'
-                        rel='noreferrer'
-                      >
-                        {t('问题反馈')}
-                      </a>
-                    </li>
-                    <li>
-                      <a href={`mailto:support@${systemName.toLowerCase()}`}>
-                        {t('联系我们')}
-                      </a>
+                      <Link to='/userQuestion'>{t('问题反馈')}</Link>
                     </li>
                   </ul>
                 </div>

@@ -132,6 +132,8 @@ func SetApiRouter(router *gin.Engine) {
 
 			// 问卷提交：公开接口（登录可选），未登录用户可通过域名归属服务商提交
 			userRoute.POST("/questionnaire", middleware.TryUserAuth(), middleware.AnonymousRequestBodyLimit(), controller.SubmitUserQuestionnaire)
+			// 问卷截图上传：公开接口（登录可选），大小/类型白名单在控制器内校验
+			userRoute.POST("/questionnaire/upload", middleware.TryUserAuth(), middleware.CriticalRateLimit(), controller.UploadQuestionnaireImage)
 
 			adminRoute := userRoute.Group("/")
 			adminRoute.Use(middleware.AdminAuth())

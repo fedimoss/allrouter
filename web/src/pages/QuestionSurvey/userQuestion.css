@@ -10,12 +10,12 @@
 
 .question-survey__header {
   max-width: 760px;
-  margin: 0 auto 34px;
+  margin: 0 auto 28px;
   text-align: center;
 }
 
 .question-survey__brand {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   font-size: 16px;
 }
 
@@ -40,51 +40,10 @@
   box-shadow: 0 8px 28px rgba(25, 25, 25, 0.08);
 }
 
-.question-survey__card .semi-card-body {
-  padding: 36px 40px 34px;
-}
-
-.survey-section + .survey-section {
-  margin-top: 30px;
-  padding-top: 28px;
-  border-top: 1px dashed #e5e5e5;
-}
-
-.survey-section__title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 22px;
-  font-size: 16px;
-}
-
-.survey-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 23px;
-  padding: 0 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.survey-badge--required {
-  color: #006f6b;
-  background: #27c9c4;
-}
-
-.survey-badge--optional {
-  color: #777;
-  background: #f4f4f4;
-  border: 1px solid #e4e4e4;
-}
-
-.survey-label-optional {
-  margin-left: 5px;
-  color: #aaa;
-  font-size: 12px;
-  font-weight: 400;
+/* 全局 index.css 对 .semi-card-body 设置了 padding: 10px !important，
+   这里需更高优先级 + 同级 !important 才能恢复卡片留白 */
+.question-survey .question-survey__card .semi-card-body {
+  padding: 28px 36px !important;
 }
 
 .survey-grid {
@@ -93,12 +52,99 @@
   gap: 0 24px;
 }
 
+/* 问题截图：槽位块上传 */
+.survey-screenshots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.survey-screenshots .semi-upload {
+  display: block;
+}
+
+.survey-screenshots__item {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.survey-screenshots__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.survey-screenshots__item--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px dashed var(--semi-color-border);
+  color: var(--semi-color-text-2);
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.survey-screenshots__item--empty:hover {
+  border-color: var(--semi-color-primary);
+  color: var(--semi-color-primary);
+}
+
+.survey-screenshots__hint {
+  font-size: 12px;
+}
+
+.survey-screenshots__remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.survey-screenshots__remove:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.survey-screenshots__tip {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
+/* 字段统一节奏（含 Form.Slot：其元素同样带 semi-form-field 类）。
+   Semi 字段默认自带 12px 上下 padding，叠加 margin 后模块间隙达 32px，
+   这里清掉 padding、统一用 20px margin 控制模块间距 */
 .question-survey .semi-form-field {
-  margin-bottom: 22px;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-bottom: 20px;
+}
+
+/* 同意条款是最后一个字段，间距交给操作区的 margin/padding 控制 */
+.question-survey .semi-form-field:last-child {
+  margin-bottom: 0;
 }
 
 .question-survey .semi-form-field-label {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   font-size: 14px;
   font-weight: 600;
 }
@@ -106,7 +152,7 @@
 .question-survey .semi-input-wrapper,
 .question-survey .semi-select,
 .question-survey .semi-datepicker {
-  min-height: 42px;
+  min-height: 38px;
   border-radius: 6px;
 }
 
@@ -128,7 +174,7 @@
 .question-survey .semi-radio-wrapper {
   min-width: 74px;
   margin-right: 0;
-  padding: 8px 14px;
+  padding: 6px 12px;
   border: 1px solid #e2e2e2;
   border-radius: 20px;
 }
@@ -147,8 +193,8 @@
 .question-survey__actions {
   display: flex;
   gap: 12px;
-  margin-top: 30px;
-  padding-top: 22px;
+  margin-top: 8px;
+  padding-top: 12px;
   border-top: 1px solid #eee;
 }
 
@@ -180,8 +226,8 @@
     font-size: 26px;
   }
 
-  .question-survey__card .semi-card-body {
-    padding: 24px 18px;
+  .question-survey .question-survey__card .semi-card-body {
+    padding: 24px 18px !important;
   }
 
   .survey-grid {
@@ -190,6 +236,11 @@
 
   .question-survey__actions {
     flex-direction: column;
+  }
+
+  /* 纵向排列时主轴为高度，flex:1 的 basis 0 会使 height:44px 失效，须禁用 flex */
+  .question-survey__actions .semi-button-primary {
+    flex: none;
   }
 
   .question-survey__actions .semi-button-tertiary {

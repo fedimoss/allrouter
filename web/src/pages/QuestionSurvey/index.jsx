@@ -21,6 +21,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
+  Divider,
   Space,
   Modal,
   Empty,
@@ -47,15 +48,6 @@ import CardPro from '../../components/common/ui/CardPro';
 
 const { Text } = Typography;
 
-// 行业选项配置：值与 /userQuestion 页提交的索引值对应（1 开始），展示文案可调整
-const INDUSTRY_OPTIONS = [
-  '互联网 / 软件',
-  '金融',
-  '教育',
-  '医疗',
-  '制造业',
-  '其他',
-];
 // 问题类型选项配置：值与 /userQuestion 页提交的索引值对应（1 开始）
 const ISSUE_TYPE_OPTIONS = [
   '功能问题',
@@ -183,21 +175,22 @@ const QuestionSurvey = () => {
     { label: t('姓名'), value: data.name || '-' },
     { label: t('联系方式'), value: data.contact || '-' },
     {
-      label: t('行业'),
-      value: optionText(INDUSTRY_OPTIONS, data.industry, t),
-    },
-    {
       label: t('问题类型'),
       value: optionText(ISSUE_TYPE_OPTIONS, data.issueType, t),
     },
-    { label: t('问题描述'), value: data.description || '-' },
-    { label: t('公司/团队'), value: data.company || '-' },
-    { label: t('发生时间'), value: data.occurredAt || '-' },
     {
       label: t('紧急程度'),
       value: URGENCY_MAP[data.urgency] ? t(URGENCY_MAP[data.urgency]) : '-',
     },
-    { label: t('期望与建议'), value: data.suggestion || '-' },
+    { label: t('问题描述'), value: data.description || '-' },
+    {
+      label: t('问题截图'),
+      // 数组走弹窗里的图片分支渲染；老记录无此字段显示 '-'
+      value: Array.isArray(data.screenshots) && data.screenshots.length
+        ? data.screenshots
+        : '-',
+    },
+    { label: t('其他'), value: data.other || '-' },
     {
       label: t('同意联系'),
       value: data.consent ? t('是') : t('否'),
@@ -278,18 +271,18 @@ const QuestionSurvey = () => {
           },
         ]),
     {
-      title: t('用户名称'),
-      dataIndex: 'username',
-      render: (_, record) => {
-        return <div className='font-medium'>{formatUserName(record)}</div>;
-      },
-    },
-    {
       title: t('用户ID'),
       dataIndex: 'user_id',
       width: 90,
       render: (value) => {
         return <div>{value != null ? value : '-'}</div>;
+      },
+    },
+    {
+      title: t('用户名称'),
+      dataIndex: 'username',
+      render: (_, record) => {
+        return <div className='font-medium'>{formatUserName(record)}</div>;
       },
     },
     {
@@ -413,43 +406,70 @@ const QuestionSurvey = () => {
       <Modal
         visible={!!detailRecord}
         onCancel={handleCloseDetail}
+        title={t('问卷详情')}
         footer={
           <Button theme='solid' onClick={handleCloseDetail}>
             {t('确定')}
           </Button>
         }
       >
-        <div className='py-2'>
-          <h3 className='text-lg font-semibold mb-3'>{t('问卷详情')}</h3>
-          {detailRecord && (
-            <>
-              <div className='mb-3 space-y-1 text-sm'>
-                <div>
-                  <span className='text-gray-500'>{t('用户')}：</span>
-                  <span className='font-medium'>
-                    {formatUserName(detailRecord)}
-                  </span>
-                </div>
-                <div>
-                  <span className='text-gray-500'>{t('问卷提交时间')}：</span>
-                  <span className='font-medium'>
-                    {detailRecord.created_at
-                      ? timestamp2string(detailRecord.created_at)
-                      : '-'}
-                  </span>
-                </div>
+        {detailRecord && (
+          <>
+            {/* 提交者信息：与问卷内容之间用分割线区分 */}
+            <div className='flex flex-wrap gap-x-8 gap-y-1 text-sm'>
+              <div>
+                <span className='text-gray-500'>{t('用户')}：</span>
+                <span className='font-medium'>
+                  {formatUserName(detailRecord)}
+                </span>
               </div>
-              <div className='space-y-2 text-sm'>
-                {detailFields(detailData, t).map((field, idx) => (
-                  <div key={idx}>
-                    <span className='text-gray-500'>{field.label}：</span>
-                    <span className='font-medium'>{field.value}</span>
-                  </div>
-                ))}
+              <div>
+                <span className='text-gray-500'>{t('问卷提交时间')}：</span>
+                <span className='font-medium'>
+                  {detailRecord.created_at
+                    ? timestamp2string(detailRecord.created_at)
+                    : '-'}
+                </span>
               </div>
-            </>
-          )}
-        </div>
+            </div>
+
+            <Divider margin='12px' />
+
+            {/* 问卷内容：标签列固定宽度对齐，值列自适应 */}
+            <div className='space-y-2 text-sm'>
+              {detailFields(detailData, t).map((field, idx) => (
+                <div key={idx} className='flex items-start gap-3'>
+                  <span className='w-20 shrink-0 text-gray-500'>
+                    {field.label}：
+                  </span>
+                  {Array.isArray(field.value) ? (
+                    // 问题截图：缩略图展示，点击新窗口查看原图
+                    <div className='flex flex-wrap gap-2'>
+                      {field.value.map((url) => (
+                        <a
+                          key={url}
+                          href={url}
+                          target='_blank'
+                          rel='noreferrer'
+                        >
+                          <img
+                            src={url}
+                            alt={t('问题截图')}
+                            className='w-16 h-16 object-cover rounded-md border border-gray-200'
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className='break-all font-medium'>
+                      {field.value}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </Modal>
     </div>
   );

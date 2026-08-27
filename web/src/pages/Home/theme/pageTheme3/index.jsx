@@ -473,13 +473,6 @@ const SiteFooter = ({
         <a href='#features'>{t('功能特性')}</a>
         <a href='#models'>{t('模型生态')}</a>
         <Link to='/pricing'>{t('定价')}</Link>
-        <a
-          href='https://github.com/fedimoss/allrouter/releases'
-          target='_blank'
-          rel='noreferrer'
-        >
-          {t('更新日志')}
-        </a>
       </nav>
       <nav className='footer-col' aria-label={t('资源')}>
         <b>{t('资源')}</b>
@@ -503,21 +496,7 @@ const SiteFooter = ({
       <nav className='footer-col' aria-label={t('帮助中心')}>
         <b>{t('帮助中心')}</b>
         <Link to='/about'>{t('关于平台')}</Link>
-        <a
-          href='https://github.com/fedimoss/allrouter'
-          target='_blank'
-          rel='noreferrer'
-        >
-          {t('项目仓库')}
-        </a>
-        <a
-          href='https://github.com/fedimoss/allrouter/issues'
-          target='_blank'
-          rel='noreferrer'
-        >
-          {t('问题反馈')}
-        </a>
-        <a href={`mailto:support@${name.toLowerCase()}`}>{t('联系我们')}</a>
+        <Link to='/userQuestion'>{t('问题反馈')}</Link>
       </nav>
     </div>
     <div
