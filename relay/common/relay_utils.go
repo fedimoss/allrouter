@@ -97,6 +97,13 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 		AspectRatio: formData.Get("aspect_ratio"),
 		Metadata:    make(map[string]interface{}),
 	}
+	if shortEdge := strings.TrimSpace(formData.Get("short_edge")); shortEdge != "" {
+		value, err := strconv.Atoi(shortEdge)
+		if err != nil {
+			return req, fmt.Errorf("short_edge must be an integer")
+		}
+		req.ShortEdge = &value
+	}
 	if target := strings.TrimSpace(formData.Get("target")); target != "" {
 		req.Target = json.RawMessage(target)
 	}
@@ -202,6 +209,7 @@ func isKnownTaskField(field string) bool {
 	knownFields["task"] = true
 	knownFields["seed"] = true
 	knownFields["aspect_ratio"] = true
+	knownFields["short_edge"] = true
 	knownFields["target"] = true
 	knownFields["start_time_seconds"] = true
 	return knownFields[field]

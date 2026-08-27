@@ -734,6 +734,7 @@ type TaskSubmitReq struct {
 	NumOutputsPerPrompt *int                   `json:"num_outputs_per_prompt,omitempty"`
 	N                   *int                   `json:"n,omitempty"`
 	AspectRatio         string                 `json:"aspect_ratio,omitempty"`
+	ShortEdge           *int                   `json:"short_edge,omitempty"`
 	Target              json.RawMessage        `json:"target,omitempty"`
 	InputReference      string                 `json:"input_reference,omitempty"`
 	Metadata            map[string]interface{} `json:"metadata,omitempty"`
@@ -756,6 +757,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		NumOutputs          json.RawMessage `json:"num_outputs,omitempty"`
 		NumOutputsPerPrompt json.RawMessage `json:"num_outputs_per_prompt,omitempty"`
 		N                   json.RawMessage `json:"n,omitempty"`
+		ShortEdge           json.RawMessage `json:"short_edge,omitempty"`
 		Seed                json.RawMessage `json:"seed,omitempty"`
 		*Alias
 	}{
@@ -830,6 +832,9 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	if t.N, err = parseOptionalInt("n", aux.N); err != nil {
 		return err
 	}
+	if t.ShortEdge, err = parseOptionalInt("short_edge", aux.ShortEdge); err != nil {
+		return err
+	}
 
 	if len(aux.Metadata) > 0 {
 		var metadataStr string
@@ -865,12 +870,14 @@ func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 }
 
 type TaskInfo struct {
-	Code             int    `json:"code"`
-	TaskID           string `json:"task_id"`
-	Status           string `json:"status"`
-	Reason           string `json:"reason,omitempty"`
-	Url              string `json:"url,omitempty"`
-	RemoteUrl        string `json:"remote_url,omitempty"`
+	Code      int    `json:"code"`
+	TaskID    string `json:"task_id"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason,omitempty"`
+	Url       string `json:"url,omitempty"`
+	RemoteUrl string `json:"remote_url,omitempty"`
+	// Internal marker used by chained task processors.
+	Stage            string `json:"-"`
 	Progress         string `json:"progress,omitempty"`
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费

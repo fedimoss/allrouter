@@ -51,6 +51,13 @@ import {
 
 const terminalStatuses = new Set(['completed', 'failed']);
 const activeStatuses = new Set(['queued', 'in_progress']);
+const miniMaxH3HistoryActions = [
+  'minimaxH3Generate',
+  'minimaxH3Upscale',
+  'textGenerate',
+  'firstTailGenerate',
+  'referenceGenerate',
+];
 
 const normalizeVideoTask = (source) => {
   if (!source) return null;
@@ -172,13 +179,19 @@ const FramePicker = ({
   );
 };
 
-export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId, model }) => {
+export const useMiniMaxH3VideoGeneration = ({
+  enabled,
+  group,
+  userId,
+  model,
+}) => {
   const { t } = useTranslation();
   const isRef2va = model === MINIMAX_H3_REF2VA_MODEL;
   const storageKey = `minimax_h3_playground_task_${model || MINIMAX_H3_MODEL}_${userId || 'unknown'}`;
   const [prompt, setPrompt] = useState('');
   const [taskType, setTaskType] = useState('t2va');
   const [aspectRatio, setAspectRatio] = useState('9:16');
+  const [shortEdge, setShortEdge] = useState('768');
   const [seed, setSeed] = useState('');
   const [firstFrame, setFirstFrame] = useState(null);
   const [lastFrame, setLastFrame] = useState(null);
@@ -194,6 +207,7 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId, model }) =
   useEffect(() => {
     setTaskType('t2va');
     setAspectRatio('9:16');
+    setShortEdge('768');
     setSeed('');
     setFirstFrame(null);
     setLastFrame(null);
@@ -262,18 +276,32 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId, model }) =
     if (!enabled || !userId) return;
     setHistoryLoading(true);
     try {
-      const response = await API.get(
-        `${API_ENDPOINTS.VIDEO_TASKS}?p=1&page_size=20&action=minimaxH3Generate`,
-        { skipErrorHandler: true, disableDuplicate: true },
+      const responses = await Promise.all(
+        miniMaxH3HistoryActions.map((action) =>
+          API.get(
+            `${API_ENDPOINTS.VIDEO_TASKS}?p=1&page_size=20&action=${action}`,
+            { skipErrorHandler: true, disableDuplicate: true },
+          ),
+        ),
       );
-      const payload = response.data?.success ? response.data.data : null;
-      const history = (payload?.items || [])
+      const itemsByID = new Map();
+      responses.forEach((response) => {
+        const payload = response.data?.success ? response.data.data : null;
+        (payload?.items || []).forEach((item) =>
+          itemsByID.set(item.id || item.task_id, item),
+        );
+      });
+      const history = [...itemsByID.values()]
         .map(normalizeVideoTask)
         .filter((item) => {
           if (!item) return false;
           const itemModel = item.model || item.properties?.origin_model_name;
           return itemModel === model;
-        });
+        })
+        .sort(
+          (left, right) =>
+            Number(right.created_at || 0) - Number(left.created_at || 0),
+        );
       const savedTaskID = localStorage.getItem(storageKey);
       setTasks(history);
       const restoredID = history.some((item) => item.id === savedTaskID)
@@ -340,6 +368,7 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId, model }) =
     const effectiveTaskType = isRef2va ? 'ref2va' : taskType;
     formData.append('task', effectiveTaskType);
     formData.append('aspect_ratio', aspectRatio);
+    formData.append('short_edge', shortEdge);
     if (seed.trim()) formData.append('seed', seed.trim());
     if (group) formData.append('group', group);
     if (!isRef2va && taskType === 'fl2va') {
@@ -348,7 +377,8 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId, model }) =
     }
     if (isRef2va && referenceVideo) {
       formData.append('reference_video', referenceVideo);
-      if (startTimeSeconds.trim()) formData.append('start_time_seconds', startTimeSeconds.trim());
+      if (startTimeSeconds.trim())
+        formData.append('start_time_seconds', startTimeSeconds.trim());
     }
     return formData;
   };
@@ -389,7 +419,8 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId, model }) =
 
   const isActive = submitting || (task && !terminalStatuses.has(task.status));
   const minimaxH3VideoURL =
-    MINIMAX_H3_MODELS.includes(task?.model) && typeof task?.content?.url === 'string'
+    MINIMAX_H3_MODELS.includes(task?.model) &&
+    typeof task?.content?.url === 'string'
       ? task.content.url.trim()
       : '';
   const videoContentURL =
@@ -425,6 +456,8 @@ export const useMiniMaxH3VideoGeneration = ({ enabled, group, userId, model }) =
     isRef2va,
     aspectRatio,
     setAspectRatio,
+    shortEdge,
+    setShortEdge,
     seed,
     setSeed,
     firstFrame,
@@ -465,6 +498,8 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
     isRef2va,
     aspectRatio,
     setAspectRatio,
+    shortEdge,
+    setShortEdge,
     seed,
     setSeed,
     firstFrame,
@@ -493,7 +528,12 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
       {!isRef2va && (
         <div className='playground-v2-field'>
           <label className='playground-v2-field-label'>{t('Task type')}</label>
-          <select className='playground-v2-text-input' value={taskType} disabled={isActive} onChange={(event) => setTaskType(event.target.value)}>
+          <select
+            className='playground-v2-text-input'
+            value={taskType}
+            disabled={isActive}
+            onChange={(event) => setTaskType(event.target.value)}
+          >
             <option value='t2va'>t2va</option>
             <option value='fl2va'>fl2va</option>
           </select>
@@ -501,7 +541,12 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
       )}
       <div className='playground-v2-field'>
         <label className='playground-v2-field-label'>{t('Aspect ratio')}</label>
-        <select className='playground-v2-text-input' value={aspectRatio} disabled={isActive} onChange={(event) => setAspectRatio(event.target.value)}>
+        <select
+          className='playground-v2-text-input'
+          value={aspectRatio}
+          disabled={isActive}
+          onChange={(event) => setAspectRatio(event.target.value)}
+        >
           <option value='16:9'>16:9</option>
           <option value='9:16'>9:16</option>
           <option value='1:1'>1:1</option>
@@ -511,8 +556,26 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
         </select>
       </div>
       <div className='playground-v2-field'>
+        <label className='playground-v2-field-label'>{t('分辨率')}</label>
+        <select
+          className='playground-v2-text-input'
+          value={shortEdge}
+          disabled={isActive}
+          onChange={(event) => setShortEdge(event.target.value)}
+        >
+          <option value='768'>768P</option>
+          <option value='1536'>1536P</option>
+        </select>
+      </div>
+      <div className='playground-v2-field'>
         <label className='playground-v2-field-label'>{t('Random seed')}</label>
-        <input className='playground-v2-text-input' value={seed} disabled={isActive} placeholder='default' onChange={(event) => setSeed(event.target.value)} />
+        <input
+          className='playground-v2-text-input'
+          value={seed}
+          disabled={isActive}
+          placeholder='default'
+          onChange={(event) => setSeed(event.target.value)}
+        />
       </div>
       <div className='playground-v2-field'>
         <label className='playground-v2-field-label'>{t('视频描述')}</label>
@@ -526,40 +589,60 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
         />
       </div>
 
-      {!isRef2va && taskType === 'fl2va' && <div className='playground-v2-frame-grid'>
-        <FramePicker
-          label={t('首帧（可选）')}
-          file={firstFrame}
-          previewUrl={firstPreview}
-          disabled={isActive}
-          onChange={setFirstFrame}
-          onClear={() => setFirstFrame(null)}
-        />
-        <FramePicker
-          label={t('尾帧（可选）')}
-          file={lastFrame}
-          previewUrl={lastPreview}
-          disabled={isActive}
-          onChange={setLastFrame}
-          onClear={() => setLastFrame(null)}
-        />
-      </div>}
+      {!isRef2va && taskType === 'fl2va' && (
+        <div className='playground-v2-frame-grid'>
+          <FramePicker
+            label={t('首帧（可选）')}
+            file={firstFrame}
+            previewUrl={firstPreview}
+            disabled={isActive}
+            onChange={setFirstFrame}
+            onClear={() => setFirstFrame(null)}
+          />
+          <FramePicker
+            label={t('尾帧（可选）')}
+            file={lastFrame}
+            previewUrl={lastPreview}
+            disabled={isActive}
+            onChange={setLastFrame}
+            onClear={() => setLastFrame(null)}
+          />
+        </div>
+      )}
       {isRef2va && (
         <div className='playground-v2-reference-video-field'>
-          <div className='playground-v2-field-label'>{t('Reference video (MP4)')}</div>
+          <div className='playground-v2-field-label'>
+            {t('Reference video (MP4)')}
+          </div>
           <label className='playground-v2-reference-video-picker'>
             <Video size={20} />
-            <span>{referenceVideo ? referenceVideo.name : t('Choose reference video')}</span>
+            <span>
+              {referenceVideo
+                ? referenceVideo.name
+                : t('Choose reference video')}
+            </span>
             <small>{t('MP4 only, up to 512 MB')}</small>
             <input
               type='file'
               accept='video/mp4'
               disabled={isActive}
-              onChange={(event) => setReferenceVideo(event.target.files?.[0] || null)}
+              onChange={(event) =>
+                setReferenceVideo(event.target.files?.[0] || null)
+              }
             />
           </label>
-          <label className='playground-v2-field-label'>{t('Reference start time (seconds)')}</label>
-          <input className='playground-v2-text-input' type='number' min='0' step='0.1' value={startTimeSeconds} disabled={isActive} onChange={(event) => setStartTimeSeconds(event.target.value)} />
+          <label className='playground-v2-field-label'>
+            {t('Reference start time (seconds)')}
+          </label>
+          <input
+            className='playground-v2-text-input'
+            type='number'
+            min='0'
+            step='0.1'
+            value={startTimeSeconds}
+            disabled={isActive}
+            onChange={(event) => setStartTimeSeconds(event.target.value)}
+          />
         </div>
       )}
 
@@ -691,7 +774,9 @@ const VideoGenerationArea = ({ controller, styleState, onToggleSettings }) => {
             <Film size={16} />
           </span>
           <h2 className='playground-v2-panel-title'>{t('AI 视频')}</h2>
-          <span className='playground-v2-outline-pill'>{model || MINIMAX_H3_MODEL}</span>
+          <span className='playground-v2-outline-pill'>
+            {model || MINIMAX_H3_MODEL}
+          </span>
         </div>
         {styleState.isMobile && (
           <button

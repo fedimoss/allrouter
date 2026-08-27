@@ -173,6 +173,13 @@ func initConstantEnv() {
 	if constant.MiniMaxH3ReferenceVideoMaxBytes <= 0 {
 		constant.MiniMaxH3ReferenceVideoMaxBytes = 512 << 20
 	}
+	constant.MiniMaxH3UpscaleURL = GetEnvOrDefaultString("MINIMAX_H3_UPSCALE_URL", "")
+	constant.MiniMaxH3UpscaleAPIKey = GetEnvOrDefaultString("MINIMAX_H3_UPSCALE_API_KEY", "")
+	constant.MiniMaxH3UpscaleOutputOrigin = GetEnvOrDefaultString("MINIMAX_H3_UPSCALE_OUTPUT_ORIGIN", "")
+	constant.MiniMaxH3UpscaleTimeoutSeconds = GetEnvOrDefault("MINIMAX_H3_UPSCALE_TIMEOUT_SECONDS", 300)
+	if constant.MiniMaxH3UpscaleTimeoutSeconds <= 0 {
+		constant.MiniMaxH3UpscaleTimeoutSeconds = 300
+	}
 
 	soraPatchStr := GetEnvOrDefaultString("TASK_PRICE_PATCH", "")
 	if soraPatchStr != "" {

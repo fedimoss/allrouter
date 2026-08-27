@@ -2,6 +2,7 @@ package sora
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -79,6 +80,14 @@ type miniMaxH3Request struct {
 	Seed                int64                `json:"seed"`
 }
 
+func miniMaxH3RequestedShortEdge(req relaycommon.TaskSubmitReq) (int, error) {
+	return service.MiniMaxH3RequestedShortEdge(req.ShortEdge)
+}
+
+func validateMiniMaxH3UpscaleConfig(shortEdge int) error {
+	return service.ValidateMiniMaxH3UpscaleConfig(shortEdge)
+}
+
 type miniMaxH3Condition struct {
 	Type             string   `json:"type"`
 	URI              string   `json:"uri"`
@@ -116,6 +125,7 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+	proxy       string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -171,7 +181,7 @@ func validateMiniMaxH3Ref2vaRequest(c *gin.Context, info *relaycommon.RelayInfo,
 
 	unsupported := make([]string, 0)
 	allowedFields := map[string]bool{
-		"model": true, "prompt": true, "task": true, "aspect_ratio": true, "seed": true,
+		"model": true, "prompt": true, "task": true, "aspect_ratio": true, "seed": true, "short_edge": true,
 		"start_time_seconds": true,
 	}
 	if info.IsPlayground {
@@ -204,6 +214,13 @@ func validateMiniMaxH3Ref2vaRequest(c *gin.Context, info *relaycommon.RelayInfo,
 			"invalid_request",
 			http.StatusBadRequest,
 		)
+	}
+	requestedShortEdge, targetErr := miniMaxH3RequestedShortEdge(req)
+	if targetErr != nil {
+		return service.TaskErrorWrapperLocal(targetErr, "invalid_request", http.StatusBadRequest)
+	}
+	if configErr := validateMiniMaxH3UpscaleConfig(requestedShortEdge); configErr != nil {
+		return service.TaskErrorWrapperLocal(configErr, "upscale_service_not_configured", http.StatusServiceUnavailable)
 	}
 
 	taskType := strings.TrimSpace(req.Task)
@@ -257,7 +274,7 @@ func validateMiniMaxH3FramesRequest(c *gin.Context, info *relaycommon.RelayInfo,
 
 	unsupported := make([]string, 0)
 	allowedFields := map[string]bool{
-		"model": true, "prompt": true, "task": true, "aspect_ratio": true, "seed": true,
+		"model": true, "prompt": true, "task": true, "aspect_ratio": true, "seed": true, "short_edge": true,
 	}
 	if info.IsPlayground {
 		allowedFields["group"] = true
@@ -353,6 +370,13 @@ func validateMiniMaxH3FramesRequest(c *gin.Context, info *relaycommon.RelayInfo,
 			http.StatusBadRequest,
 		)
 	}
+	requestedShortEdge, targetErr := miniMaxH3RequestedShortEdge(req)
+	if targetErr != nil {
+		return service.TaskErrorWrapperLocal(targetErr, "invalid_request", http.StatusBadRequest)
+	}
+	if configErr := validateMiniMaxH3UpscaleConfig(requestedShortEdge); configErr != nil {
+		return service.TaskErrorWrapperLocal(configErr, "upscale_service_not_configured", http.StatusServiceUnavailable)
+	}
 
 	taskType := strings.TrimSpace(req.Task)
 	if taskType == "" {
@@ -415,6 +439,10 @@ func buildMiniMaxH3UpstreamRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 		AspectRatio:     aspectRatio,
 		DurationSeconds: miniMaxH3FixedDurationSeconds,
 	}
+	outputShortEdge, targetErr := miniMaxH3RequestedShortEdge(req)
+	if targetErr != nil {
+		return service.TaskErrorWrapperLocal(targetErr, "invalid_request", http.StatusBadRequest)
+	}
 	seconds := strconv.FormatFloat(miniMaxH3FixedDurationSeconds, 'f', -1, 64)
 	upstreamRequest := miniMaxH3Request{
 		Model:               req.Model,
@@ -434,11 +462,14 @@ func buildMiniMaxH3UpstreamRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 		Prompt:              req.Prompt,
 		Model:               req.Model,
 		AspectRatio:         upstreamRequest.Target.AspectRatio,
-		Size:                "768P",
+		Size:                fmt.Sprintf("%dP", outputShortEdge),
 		Seconds:             upstreamRequest.Seconds,
 		NumOutputsPerPrompt: &outputCount,
 	})
 	c.Set(miniMaxH3RequestBodyKey, upstreamRequest)
+	if outputShortEdge == 1536 {
+		c.Set("minimax_h3_output_short_edge", outputShortEdge)
+	}
 	info.Action = constant.TaskActionMiniMaxH3Generate
 	return nil
 }
@@ -826,9 +857,23 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 
 // FetchTask fetch task status
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	a.proxy = proxy
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
+	}
+
+	if upscaleID, ok := body["upscale_task_id"].(string); ok && strings.TrimSpace(upscaleID) != "" {
+		resp, err := service.FetchMiniMaxH3Upscale(context.Background(), upscaleID)
+		if err != nil {
+			return nil, err
+		}
+		payload := map[string]any{"status": strings.ToLower(resp.Status), "progress": resp.Progress, "url": resp.URL, "message": resp.Reason, "minimax_h3_upscale": true}
+		data, err := common.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(data)), Header: make(http.Header)}, nil
 	}
 
 	uri := fmt.Sprintf("%s/v1/videos/%s", baseUrl, taskID)
@@ -856,6 +901,38 @@ func (a *TaskAdaptor) GetChannelName() string {
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+	var upscale struct {
+		Status   string `json:"status"`
+		Progress int    `json:"progress"`
+		URL      string `json:"url"`
+		Message  string `json:"message"`
+		Upscale  bool   `json:"minimax_h3_upscale"`
+	}
+	if common.Unmarshal(respBody, &upscale) == nil && upscale.Upscale {
+		result := &relaycommon.TaskInfo{Code: 0}
+		result.Stage = "minimax_h3_upscale"
+		switch strings.ToLower(strings.TrimSpace(upscale.Status)) {
+		case "queued", "pending":
+			result.Status = model.TaskStatusQueued
+		case "running", "processing", "in_progress":
+			result.Status = model.TaskStatusInProgress
+		case "completed", "success", "succeeded", "done", "finished":
+			result.Status = model.TaskStatusSuccess
+			result.Url = upscale.URL
+		case "failed", "failure", "error", "cancelled", "canceled":
+			result.Status = model.TaskStatusFailure
+			result.Reason = upscale.Message
+			if strings.TrimSpace(result.Reason) == "" {
+				result.Reason = "video upscale failed"
+			}
+		default:
+			return nil, fmt.Errorf("unknown upscale task status: %s", upscale.Status)
+		}
+		if upscale.Progress > 0 && upscale.Progress < 100 {
+			result.Progress = fmt.Sprintf("%d%%", upscale.Progress)
+		}
+		return result, nil
+	}
 	resTask := responseTask{}
 	if err := common.Unmarshal(respBody, &resTask); err != nil {
 		return nil, errors.Wrap(err, "unmarshal task result failed")
@@ -887,6 +964,50 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	}
 
 	return &taskResult, nil
+}
+
+// ProcessTaskResultBeforePersist chains a configured 1536P upscale task after
+// MiniMax-H3 reports completion. The original task remains in progress until
+// the second service reports completion.
+func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *model.Task, result *relaycommon.TaskInfo) error {
+	if task == nil || result == nil || !constant.IsMiniMaxH3Model(task.Properties.OriginModelName) || result.Status != model.TaskStatusSuccess {
+		return nil
+	}
+	bc := task.PrivateData.BillingContext
+	if result.Stage == "minimax_h3_upscale" {
+		service.PersistMiniMaxH3UpscaleResult(ctx, task, result)
+		return nil
+	}
+	if bc == nil || strings.ToUpper(strings.TrimSpace(bc.Resolution)) != "1536P" || strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" {
+		if strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" {
+			result.Status = model.TaskStatusInProgress
+			result.Progress = "95%"
+		}
+		return nil
+	}
+	if strings.TrimSpace(constant.MiniMaxH3UpscaleURL) == "" {
+		return fmt.Errorf("MINIMAX_H3_UPSCALE_URL is required for 1536P output")
+	}
+	sourceURL := fmt.Sprintf("%s/v1/videos/%s/content", strings.TrimRight(a.baseURL, "/"), task.PrivateData.UpstreamTaskID)
+	sourceKey := task.PrivateData.Key
+	if sourceKey == "" {
+		sourceKey = a.apiKey
+	}
+	upscaleID, err := service.SubmitMiniMaxH3Upscale(ctx, sourceURL, sourceKey, a.proxy, task.TaskID)
+	if err != nil {
+		task.PrivateData.MiniMaxH3UpscaleStatus = "failed"
+		result.Status = model.TaskStatusFailure
+		result.Progress = "100%"
+		result.Reason = fmt.Sprintf("submit video upscale failed: %v", err)
+		result.Url = ""
+		return nil
+	}
+	task.PrivateData.MiniMaxH3UpscaleTaskID = upscaleID
+	task.PrivateData.MiniMaxH3UpscaleStatus = "queued"
+	task.Action = constant.TaskActionMiniMaxH3Upscale
+	result.Status = model.TaskStatusInProgress
+	result.Progress = "90%"
+	return nil
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {

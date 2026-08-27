@@ -51,6 +51,7 @@ type miniMaxH3QueuedRequest struct {
 	FlowShift           float64          `json:"flow_shift"`
 	AudioFlowShift      float64          `json:"audio_flow_shift"`
 	Seed                int64            `json:"seed"`
+	OutputShortEdge     int              `json:"output_short_edge,omitempty"`
 }
 
 func encodeMiniMaxH3MultipartRequest(pendingRequest []byte) ([]byte, string, error) {
@@ -486,9 +487,18 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		if err := common.Unmarshal(pendingRequest, &pending); err != nil {
 			return nil, service.TaskErrorWrapper(err, "parse_minimax_h3_request_failed", http.StatusInternalServerError)
 		}
+		if outputShortEdge, ok := c.Get("minimax_h3_output_short_edge"); ok {
+			if value, ok := outputShortEdge.(int); ok {
+				pending.OutputShortEdge = value
+				pendingRequest, _ = common.Marshal(pending)
+			}
+		}
 		size := "768x1344"
 		if pending.Target["aspect_ratio"] == "16:9" {
 			size = "1344x768"
+		}
+		if pending.OutputShortEdge == 1536 {
+			size = "1536P"
 		}
 		queuedData, err := common.Marshal(map[string]any{
 			"id":         info.PublicTaskID,

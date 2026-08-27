@@ -85,6 +85,7 @@ func UploadAutoDLMedia(ctx context.Context, data []byte, filename, contentType, 
 }
 
 func PublicAutoDLMediaURL(rawPath, publicBaseURL string) (string, error) {
+	publicBaseURL = "https://allrouter.ai"
 	rawPath = strings.TrimSpace(rawPath)
 	if rawPath == "" {
 		return "", fmt.Errorf("media upload response path is empty")
@@ -114,9 +115,9 @@ func PublicAutoDLMediaURL(rawPath, publicBaseURL string) (string, error) {
 	return publicBaseURL + "/" + rawPath, nil
 }
 
-// PersistAutoDLResult downloads AutoDL's short-lived result URL and stores a
-// durable copy through the configured media uploader.
-func PersistAutoDLResult(ctx context.Context, resultURL, publicBaseURL string) (string, error) {
+// PersistVideoResult downloads a temporary video URL and stores a durable copy
+// through the configured media uploader.
+func PersistVideoResult(ctx context.Context, resultURL, publicBaseURL, filename string) (string, error) {
 	resultURL = strings.TrimSpace(resultURL)
 	if resultURL == "" {
 		return "", fmt.Errorf("result URL is empty")
@@ -150,5 +151,9 @@ func PersistAutoDLResult(ctx context.Context, resultURL, publicBaseURL string) (
 	if contentType == "" {
 		contentType = "video/mp4"
 	}
-	return UploadAutoDLMedia(ctx, data, "autodl-result.mp4", contentType, publicBaseURL)
+	return UploadAutoDLMedia(ctx, data, filename, contentType, publicBaseURL)
+}
+
+func PersistAutoDLResult(ctx context.Context, resultURL, publicBaseURL string) (string, error) {
+	return PersistVideoResult(ctx, resultURL, publicBaseURL, "autodl-result.mp4")
 }

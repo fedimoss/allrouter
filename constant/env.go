@@ -24,6 +24,10 @@ var MiniMaxH3ReferenceUploadURL string
 var MiniMaxH3ReferenceUploadAPIKey string
 var MiniMaxH3ReferenceUploadTimeoutSeconds int
 var MiniMaxH3ReferenceVideoMaxBytes int64
+var MiniMaxH3UpscaleURL string
+var MiniMaxH3UpscaleAPIKey string
+var MiniMaxH3UpscaleOutputOrigin string
+var MiniMaxH3UpscaleTimeoutSeconds int
 
 // temporary variable for sora patch, will be removed in future
 var TaskPricePatches []string
