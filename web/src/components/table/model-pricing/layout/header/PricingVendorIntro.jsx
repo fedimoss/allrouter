@@ -18,56 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { memo, useMemo, useCallback } from 'react';
-import {
-  ArrowUpRight,
-  Flame,
-  Gem,
-  Link2,
-  Rocket,
-  Sparkles,
-  Zap,
-} from 'lucide-react';
+import { Link } from 'react-router-dom';
 import SearchActions from './SearchActions';
-import { getSystemName } from '@/helpers';
-import pricingBannerImg from '../../../../../../public/pricing-banner.jpg'
+import { getLobeHubIcon, getSystemName } from '@/helpers';
 
 const systemName = getSystemName() || '';
-
-
-const getRecommendationCards = (t) => [
-  {
-    key: 'hot',
-    title: t('热门优选'),
-    description: t('快速查看当前点击量和使用量最高的模型。'),
-    tags: ['GPT-4-Turbo', 'Claude 3.5'],
-    icon: Flame,
-    accentIcon: ArrowUpRight,
-    tone: 'warm',
-  },
-  {
-    key: 'value',
-    title: t('性价比首选'),
-    description: t('按价格和倍率快速筛出更适合成本敏感场景的模型。'),
-    tags: ['Haiku', 'Llama 3 8B'],
-    icon: Gem,
-    accentIcon: Link2,
-    tone: 'mint',
-  },
-  {
-    key: 'latest',
-    title: t('最新上架'),
-    description: t('优先查看最近新增或带有新标签的模型。'),
-    tags: ['GPT-5-Codex', 'Gemini 1.5 Pro'],
-    icon: Rocket,
-    accentIcon: Zap,
-    tone: 'blue',
-  },
-];
 
 const PricingVendorIntro = memo(
   ({
     models = [],
     allModels = [],
+    filterVendor = 'all',
     selectedRowKeys = [],
     copyText,
     handleChange,
@@ -93,24 +54,6 @@ const PricingVendorIntro = memo(
     t,
   }) => {
     const sourceModels = allModels.length > 0 ? allModels : models;
-    const recommendationCards = useMemo(() => getRecommendationCards(t), [t]);
-
-    const featuredModels = useMemo(
-      () => [
-        sourceModels.find((item) => item.tags?.toLowerCase().includes('hot')) ||
-          sourceModels.find((item) => item.model_name?.toLowerCase().includes('gpt')) ||
-          sourceModels[0],
-        sourceModels.find((item) => item.tags?.toLowerCase().includes('value')) ||
-          [...sourceModels]
-            .filter((item) => item.quota_type === 0)
-            .sort((a, b) => (a.model_ratio || 999) - (b.model_ratio || 999))[0] ||
-          sourceModels[1],
-        sourceModels.find((item) => item.tags?.toLowerCase().includes('new')) ||
-          sourceModels.find((item) => item.model_name?.toLowerCase().includes('gemini')) ||
-          sourceModels[2],
-      ],
-      [sourceModels],
-    );
 
     const resetBaseFilters = useCallback(() => {
       sidebarProps?.setFilterVendor?.('all');
@@ -119,54 +62,103 @@ const PricingVendorIntro = memo(
       sidebarProps?.setFilterEndpointType?.('all');
     }, [sidebarProps]);
 
-    const handleRecommendationClick = useCallback(
-      (key) => {
-        resetBaseFilters();
-
-        if (key === 'hot') {
-          sidebarProps?.setFilterQuotaType?.('all');
-          sidebarProps?.setFilterTag?.('hot');
-          setSortMode?.('hot');
-        } else if (key === 'value') {
-          sidebarProps?.setFilterTag?.('all');
-          sidebarProps?.setFilterQuotaType?.(0);
-          setSortMode?.('value');
-        } else if (key === 'latest') {
-          sidebarProps?.setFilterQuotaType?.('all');
-          sidebarProps?.setFilterTag?.('new');
-          setSortMode?.('latest');
-        }
-
-        sidebarProps?.setCurrentPage?.(1);
-      },
-      [resetBaseFilters, setSortMode, sidebarProps],
-    );
-
     const toDocs = useCallback(() => {
       window.open('/docs', '_blank');
     }, []);
 
+    // 供应商胶囊数据：与静态页 provider-tab 一致（图标 + 名称 + 数量）
+    const providerItems = useMemo(() => {
+      const vendors = new Map();
+      (sourceModels || []).forEach((model) => {
+        const name = model.vendor_name;
+        if (!name) return;
+        if (!vendors.has(name)) {
+          vendors.set(name, { count: 0, icon: model.vendor_icon || model.icon || '' });
+        }
+        vendors.get(name).count += 1;
+      });
+      return [
+        { value: 'all', label: t('全部'), count: sourceModels.length, icon: '' },
+        ...Array.from(vendors.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([name, info]) => ({ value: name, label: name, count: info.count, icon: info.icon })),
+      ];
+    }, [sourceModels, t]);
+
+    const handleProviderClick = useCallback(
+      (value) => {
+        sidebarProps?.setFilterVendor?.(value);
+        sidebarProps?.setCurrentPage?.(1);
+      },
+      [sidebarProps],
+    );
+
+    const renderProviderIcon = (item) => {
+      if (!item.icon) return null;
+      return <span className='llm-provider-tab__icon'>{getLobeHubIcon(item.icon, 16)}</span>;
+    };
+
     return (
       <div className='pricing-market-top-shell'>
         {!isMobile && (
-          <div className='pricing-market-recommend-section' style={{backgroundImage: `url(${pricingBannerImg})`, backgroundSize: 'cover', backgroundPosition: 'center'}}>
-            <div className='pricing-banner-cont'>
-              {/* <div className='pricing-banner-cont-title'>GPT-5.5 & Gemini 3.1 Pro</div> */}
-              <div className='pricing-banner-cont-title color'>{t('现已全面接入')} {systemName}</div>
-              <div className='pricing-banner-cont-description'>
-                {t('更快的响应速度，更低的网络延迟，通过')} {systemName} {t('智能路由引擎，自动为您选择最优渠道。')}
+          <>
+            {/* 顶部 Banner：静态页 LLM.html 的流光样式（品牌双色湍流光斑） */}
+            <section className='llm-hero-banner'>
+              <div className='llm-hero-flow' aria-hidden='true'>
+                <div className='llm-flow-blob llm-flow-blob-1' />
+                <div className='llm-flow-blob llm-flow-blob-2' />
+                <div className='llm-flow-blob llm-flow-blob-3' />
               </div>
-              <div className='pricing-banner-cont-action'>
-                <div className='pricing-banner-cont-action-btn'>{t('立即调用')}</div>
-                <div className='pricing-banner-cont-action-btn' onClick={() => toDocs() }>
+              <h1>
+                {t('一个接口')}
+                <br />
+                {t('接入全球')} <em>{t('主流大模型')}</em>
+              </h1>
+              <p>
+                {t('Claude、DeepSeek、Gemini、GPT 等顶级模型统一封装，透明计价，按量付费，一行代码完成调用。')}
+              </p>
+              <div className='llm-banner-actions'>
+                <Link className='llm-btn-primary' to='/console/token'>
+                  {t('获取 API 密钥')}
+                </Link>
+                <button type='button' className='llm-btn-ghost' onClick={toDocs}>
                   {t('查看文档')}
-                </div>
+                </button>
               </div>
+            </section>
+
+            {/* 供应商切换：横向胶囊 tabs */}
+            <section className='llm-provider-bar' aria-label={t('按供应商筛选')}>
+              {providerItems.map((item) => (
+                <button
+                  key={item.value}
+                  type='button'
+                  className={
+                    filterVendor === item.value
+                      ? 'llm-provider-tab active'
+                      : 'llm-provider-tab'
+                  }
+                  onClick={() => handleProviderClick(item.value)}
+                >
+                  {renderProviderIcon(item)}
+                  <span>{item.label}</span>
+                  <span className='count'>{item.count}</span>
+                </button>
+              ))}
+            </section>
+
+            {/* 列表 meta：数量 + 更新时间 */}
+            <div className='llm-list-meta'>
+              <b>
+                {t('共 {{count}} 个模型', { count: models.length })}
+              </b>
+              <span>{systemName}</span>
             </div>
-          </div>
+          </>
         )}
 
-        <div className='pricing-market-toolbar-shell'>
+        {/* 搜索/工具栏整行暂时隐藏（需求：先注释掉；含排序、token 单位、视图切换） */}
+        {/* <div className='pricing-market-toolbar-shell'>
           <SearchActions
             selectedRowKeys={selectedRowKeys}
             copyText={copyText}
@@ -192,7 +184,7 @@ const PricingVendorIntro = memo(
             setSortMode={setSortMode}
             t={t}
           />
-        </div>
+        </div> */}
       </div>
     );
   },

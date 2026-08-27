@@ -49,17 +49,12 @@ import {
   Form,
   Icon,
   Modal,
-} from '@douyinfe/semi-ui';
-import Title from '@douyinfe/semi-ui/lib/es/typography/title';
-import Text from '@douyinfe/semi-ui/lib/es/typography/text';
+  Title,
+  Text,
+} from './AuthPrimitives';
 import TelegramLoginButton from 'react-telegram-login';
 
-import {
-  IconGithubLogo,
-  IconMail,
-  IconLock,
-  IconKey,
-} from '@douyinfe/semi-icons';
+import { Github, KeyRound, LockKeyhole, Mail } from 'lucide-react';
 import OIDCIcon from '../common/logo/OIDCIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
@@ -67,7 +62,7 @@ import TwoFAVerification from './TwoFAVerification';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 
-const LoginForm = () => {
+const LoginForm = ({ embedded = false, onSwitch }) => {
   let navigate = useNavigate();
   const { t } = useTranslation();
   const githubButtonTextKeyByState = {
@@ -89,7 +84,7 @@ const LoginForm = () => {
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const [showWeChatLoginModal, setShowWeChatLoginModal] = useState(false);
-  const [showEmailLogin, setShowEmailLogin] = useState(false);
+  const [showEmailLogin, setShowEmailLogin] = useState(embedded);
   const [wechatLoading, setWechatLoading] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
   const [discordLoading, setDiscordLoading] = useState(false);
@@ -97,6 +92,7 @@ const LoginForm = () => {
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
   const [emailLoginLoading, setEmailLoginLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
+  const [rememberPassword, setRememberPassword] = useState(false);
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const [otherLoginOptionsLoading, setOtherLoginOptionsLoading] =
     useState(false);
@@ -233,6 +229,7 @@ const LoginForm = () => {
           {
             username,
             password,
+            remember: rememberPassword,
           },
         );
         const { success, message, data } = res.data;
@@ -541,7 +538,7 @@ const LoginForm = () => {
                     theme='outline'
                     className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={<IconGithubLogo size='large' />}
+                    icon={<Github size={20} />}
                     onClick={handleGitHubClick}
                     loading={githubLoading}
                     disabled={githubButtonDisabled}
@@ -636,7 +633,7 @@ const LoginForm = () => {
                     theme='outline'
                     className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={<IconKey size='large' />}
+                    icon={<KeyRound size={20} />}
                     onClick={handlePasskeyLogin}
                     loading={passkeyLoading}
                   >
@@ -652,7 +649,7 @@ const LoginForm = () => {
                   theme='solid'
                   type='primary'
                   className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
-                  icon={<IconMail size='large' />}
+                  icon={<Mail size={20} />}
                   onClick={handleEmailLoginClick}
                   loading={emailLoginLoading}
                 >
@@ -699,11 +696,17 @@ const LoginForm = () => {
               )}
 
               {!status.self_use_mode_enabled && (
-                <div className='mt-6 text-center text-sm'>
+                <div className='auth-account-switch mt-6 text-center text-sm'>
                   <Text>
                     {t('没有账户？')}{' '}
                     <Link
                       to='/register'
+                      onClick={(event) => {
+                        if (onSwitch) {
+                          event.preventDefault();
+                          onSwitch('register');
+                        }
+                      }}
                       className='text-blue-600 hover:text-blue-800 font-medium'
                     >
                       {t('注册')}
@@ -720,153 +723,92 @@ const LoginForm = () => {
 
   const renderEmailLoginForm = () => {
     return (
-      <div className='flex flex-col items-center'>
-        <div className='w-full max-w-md'>
-          <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
-            <Title heading={3}>{systemName}</Title>
+      <div className='auth-primary-form'>
+        <Form>
+          <Form.Input
+            field='username'
+            label={t('电子邮箱 / 用户名')}
+            placeholder={t('请输入邮箱或用户名')}
+            name='username'
+            onChange={(value) => handleChange('username', value)}
+            prefix={<Mail size={18} />}
+            autoComplete='username'
+          />
+
+          <Form.Input
+            field='password'
+            label={
+              <span className='auth-label-row'>
+                <span>{t('密码')}</span>
+                <Button
+                  theme='borderless'
+                  type='tertiary'
+                  className='auth-forgot-button'
+                  onClick={handleResetPasswordClick}
+                  loading={resetPasswordLoading}
+                >
+                  {t('忘记密码？')}
+                </Button>
+              </span>
+            }
+            placeholder={t('请输入您的密码')}
+            name='password'
+            mode='password'
+            onChange={(value) => handleChange('password', value)}
+            prefix={<LockKeyhole size={18} />}
+            autoComplete='current-password'
+          />
+
+          <div className='auth-remember-row'>
+            <Checkbox
+              checked={rememberPassword}
+              onChange={(e) => setRememberPassword(e.target.checked)}
+            >
+              {t('记住我')}
+            </Checkbox>
           </div>
 
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
-            <div className='flex justify-center pt-6 pb-2'>
-              <Title heading={3} className='text-gray-800 dark:text-gray-200'>
-                {t('登 录')}
-              </Title>
+          {(hasUserAgreement || hasPrivacyPolicy) && (
+            <div className='auth-agreement-check'>
+              <Checkbox
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+              >
+                <Text>{t('我已阅读并同意用户协议和隐私政策')}</Text>
+              </Checkbox>
             </div>
-            <div className='px-2 py-8'>
-              {status.passkey_login && passkeySupported && (
-                <Button
-                  theme='outline'
-                  type='tertiary'
-                  className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors mb-4'
-                  icon={<IconKey size='large' />}
-                  onClick={handlePasskeyLogin}
-                  loading={passkeyLoading}
-                >
-                  <span className='ml-3'>{t('使用 Passkey 登录')}</span>
-                </Button>
-              )}
-              <Form className='space-y-3'>
-                <Form.Input
-                  field='username'
-                  label={t('用户名或邮箱')}
-                  placeholder={t('请输入您的用户名或邮箱地址')}
-                  name='username'
-                  onChange={(value) => handleChange('username', value)}
-                  prefix={<IconMail />}
-                />
+          )}
 
-                <Form.Input
-                  field='password'
-                  label={t('密码')}
-                  placeholder={t('请输入您的密码')}
-                  name='password'
-                  mode='password'
-                  onChange={(value) => handleChange('password', value)}
-                  prefix={<IconLock />}
-                />
+          <Button
+            theme='solid'
+            className='auth-primary-submit'
+            type='primary'
+            htmlType='submit'
+            onClick={handleSubmit}
+            loading={loginLoading}
+            disabled={
+              (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
+            }
+          >
+            <span>{t('立即登录')}</span>
+            <span className='auth-submit-arrow' aria-hidden='true'>
+              →
+            </span>
+          </Button>
+        </Form>
 
-                {(hasUserAgreement || hasPrivacyPolicy) && (
-                  <div className='pt-4'>
-                    <Checkbox
-                      checked={agreedToTerms}
-                      onChange={(e) => setAgreedToTerms(e.target.checked)}
-                    >
-                      <Text size='small' className='text-gray-600'>
-                        {t('我已阅读并同意')}
-                        {hasUserAgreement && (
-                          <>
-                            <a
-                              href='/user-agreement'
-                              target='_blank'
-                              rel='noopener noreferrer'
-                              className='text-blue-600 hover:text-blue-800 mx-1'
-                            >
-                              {t('用户协议')}
-                            </a>
-                          </>
-                        )}
-                        {hasUserAgreement && hasPrivacyPolicy && t('和')}
-                        {hasPrivacyPolicy && (
-                          <>
-                            <a
-                              href='/privacy-policy'
-                              target='_blank'
-                              rel='noopener noreferrer'
-                              className='text-blue-600 hover:text-blue-800 mx-1'
-                            >
-                              {t('隐私政策')}
-                            </a>
-                          </>
-                        )}
-                      </Text>
-                    </Checkbox>
-                  </div>
-                )}
-
-                <div className='space-y-2 pt-2'>
-                  <Button
-                    theme='solid'
-                    className='w-full !rounded-full'
-                    type='primary'
-                    htmlType='submit'
-                    onClick={handleSubmit}
-                    loading={loginLoading}
-                    disabled={
-                      (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
-                    }
-                  >
-                    {t('继续')}
-                  </Button>
-
-                  <Button
-                    theme='borderless'
-                    type='tertiary'
-                    className='w-full !rounded-full'
-                    onClick={handleResetPasswordClick}
-                    loading={resetPasswordLoading}
-                  >
-                    {t('忘记密码？')}
-                  </Button>
-                </div>
-              </Form>
-
-              {hasOAuthLoginOptions && (
-                <>
-                  <Divider margin='12px' align='center'>
-                    {t('或')}
-                  </Divider>
-
-                  <div className='mt-4 text-center'>
-                    <Button
-                      theme='outline'
-                      type='tertiary'
-                      className='w-full !rounded-full'
-                      onClick={handleOtherLoginOptionsClick}
-                      loading={otherLoginOptionsLoading}
-                    >
-                      {t('其他登录选项')}
-                    </Button>
-                  </div>
-                </>
-              )}
-
-              {!status.self_use_mode_enabled && (
-                <div className='mt-6 text-center text-sm'>
-                  <Text>
-                    {t('没有账户？')}{' '}
-                    <Link
-                      to='/register'
-                      className='text-blue-600 hover:text-blue-800 font-medium'
-                    >
-                      {t('注册')}
-                    </Link>
-                  </Text>
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
+        {(hasOAuthLoginOptions || (status.passkey_login && passkeySupported)) && (
+          <div className='auth-other-options'>
+            <Button
+              theme='borderless'
+              type='tertiary'
+              onClick={handleOtherLoginOptionsClick}
+              loading={otherLoginOptionsLoading}
+            >
+              {t('其他登录选项')}
+            </Button>
+          </div>
+        )}
       </div>
     );
   };
@@ -949,7 +891,7 @@ const LoginForm = () => {
   };
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
+    <div className={`relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 ${embedded ? 'auth-form-embedded' : ''}`}>
       {/* 背景模糊晕染球 */}
       <div
         className='blur-ball blur-ball-indigo'

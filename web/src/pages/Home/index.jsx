@@ -47,15 +47,10 @@ import LanguageSelector from '../../components/layout/headerbar/LanguageSelector
 import NotificationButton from '../../components/layout/headerbar/NotificationButton';
 import UserArea from '../../components/layout/headerbar/UserArea';
 import MarqueeLogos from '../../components/common/MarqueeLogos';
-import FloatingSupport from '../../components/common/FloatingSupport';
 import PageTheme1Home from './theme/pageTheme1';
 import PageTheme3Home from './theme/pageTheme3';
 
-import {
-  buildSupportConfig,
-  getLogo,
-  getSystemName,
-} from '../../helpers';
+import { getLogo, getSystemName } from '../../helpers';
 
 import openaiLogo from '../../../public/logos/openai.svg';
 import anthropicLogo from '../../../public/logos/anthropic.svg';
@@ -184,10 +179,6 @@ const Home = () => {
   const apiReferenceHref = withBrowserBaseUrl(`/${docsLangPrefix}/docs/api`);
   const communityHref = withBrowserBaseUrl(
     `/${docsLangPrefix}/docs/support/community-interaction`,
-  );
-  const supportConfig = useMemo(
-    () => buildSupportConfig(statusState?.status),
-    [statusState?.status],
   );
   const currentUser = userState?.user || getStoredUser();
   const isLoggedIn = Boolean(currentUser?.id);
@@ -484,14 +475,6 @@ const Home = () => {
         visible={noticeVisible}
         onClose={() => setNoticeVisible(false)}
         isMobile={isMobile}
-      />
-      <FloatingSupport
-        wechatQRCode={supportConfig.wechatQRCode}
-        wechatDesc={supportConfig.wechatDesc}
-        qqQrcode={supportConfig.qqQrcode}
-        qqSupport={supportConfig.qqSupport}
-        telegramQRCode={supportConfig.telegramQRCode}
-        telegramDesc={supportConfig.telegramDesc}
       />
       <Modal
         title={`${statusState?.status?.version?.version || 'v2.0'} ${t('更新日志')}`}

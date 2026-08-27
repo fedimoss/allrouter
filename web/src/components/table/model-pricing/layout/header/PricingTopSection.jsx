@@ -94,6 +94,7 @@ const PricingTopSection = memo(
           <PricingVendorIntroWithSkeleton
             loading={loading}
             filterVendor={filterVendor}
+            sidebarProps={sidebarProps}
             models={filteredModels}
             allModels={models}
             t={t}

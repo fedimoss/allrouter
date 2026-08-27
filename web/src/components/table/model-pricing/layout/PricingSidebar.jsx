@@ -46,8 +46,6 @@ const PricingSidebar = ({
   setFilterQuotaType,
   filterEndpointType,
   setFilterEndpointType,
-  filterVendor,
-  setFilterVendor,
   filterTag,
   setFilterTag,
   setCurrentPage,
@@ -58,7 +56,6 @@ const PricingSidebar = ({
   const {
     quotaTypeModels,
     endpointTypeModels,
-    vendorModels,
     tagModels,
     groupCountModels,
   } = usePricingFilterCounts({
@@ -66,7 +63,7 @@ const PricingSidebar = ({
     filterGroup,
     filterQuotaType,
     filterEndpointType,
-    filterVendor,
+    filterVendor: categoryProps.filterVendor ?? 'all',
     filterTag,
     searchValue: categoryProps.searchValue,
   });
@@ -87,39 +84,7 @@ const PricingSidebar = ({
       setTokenUnit,
     });
 
-  const providerItems = React.useMemo(() => {
-    const vendors = new Map();
-    let unknownCount = 0;
-
-    (categoryProps.models || []).forEach((model) => {
-      if (model.vendor_name) {
-        vendors.set(model.vendor_name, (vendors.get(model.vendor_name) || 0) + 1);
-      } else {
-        unknownCount += 1;
-      }
-    });
-
-    const items = [
-      { value: 'all', label: t('全部供应商'), count: vendorModels.length },
-      ...Array.from(vendors.keys())
-        .sort((a, b) => a.localeCompare(b))
-        .map((name) => ({
-          value: name,
-          label: name,
-          count: vendorModels.filter((model) => model.vendor_name === name).length,
-        })),
-    ];
-
-    if (unknownCount > 0) {
-      items.push({
-        value: 'unknown',
-        label: t('未知供应商'),
-        count: vendorModels.filter((model) => !model.vendor_name).length,
-      });
-    }
-
-    return items;
-  }, [categoryProps.models, t, vendorModels]);
+  // 供应商筛选已上移为顶部横向胶囊 tabs（见 PricingVendorIntro），此处不再重复。
 
   const groupItems = React.useMemo(() => {
     const groups = Object.keys(categoryProps.usableGroup || {}).filter(Boolean);
@@ -209,16 +174,6 @@ const PricingSidebar = ({
           {t('重置')}
         </Button> */}
       </div>
-
-      <Section title={t('模型供应商')}>
-        {providerItems.map((item) => (
-          <label key={item.value} className='pricing-market-filter-row'>
-            <Checkbox checked={filterVendor === item.value} onChange={() => setFilterVendor(item.value)} />
-            <span className='flex-1'>{item.label}</span>
-            <div>{item.count}</div>
-          </label>
-        ))}
-      </Section>
 
       <Section title={t('可用与使用分组')}>
         {groupItems.map((item) => (

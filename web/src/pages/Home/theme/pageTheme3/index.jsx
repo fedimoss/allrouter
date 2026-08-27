@@ -27,7 +27,6 @@ import React, {
 } from 'react';
 import {
   ArrowRight,
-  ArrowUp,
   Braces,
   Play,
   RotateCcw,
@@ -38,7 +37,6 @@ import {
 import {
   API,
   applyThemeColors,
-  buildSupportConfig,
   extractThemeColors,
   fetchNotice,
   getLogo,
@@ -56,7 +54,6 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import NoticeModal from '../../../../components/layout/NoticeModal';
 import Hls from 'hls.js';
-import Theme3Header from './Theme3Header';
 
 import './index.css';
 
@@ -148,17 +145,6 @@ const flattenPhrase = (segments) => {
   });
   return chars;
 };
-
-const TG_ICON = (
-  <svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true' width='20' height='20'>
-    <path d='M21.9 4.4 2.8 11.9c-.95.38-.9 1.66.08 1.98l4.76 1.52 1.83 5.72c.28.86 1.37 1.03 1.93.34l2.53-3.18 4.98 3.67c.74.55 1.8.14 2.01-.75l3.06-15.8c.2-1.03-.84-1.86-1.78-1.44ZM8.6 14.1l8.7-7.3c.22-.18.45.16.27.36l-7.2 6.9-.3 3.06-1.45-3.02Z' />
-  </svg>
-);
-
-const qr = (url) =>
-  `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=8&data=${encodeURIComponent(
-    url,
-  )}`;
 
 // Typewriter hook driving the hero <h1>
 function useTypewriter(titleRef, active, hasIntro, phrases) {
@@ -252,10 +238,10 @@ const VideoLayer = () => {
     let hls;
     const tryPlay = () => video.play().catch(() => undefined);
 
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = VIDEO_SRC;
-      video.addEventListener('loadedmetadata', tryPlay, { once: true });
-    } else if (Hls.isSupported()) {
+    // Prefer hls.js: desktop Chrome/Edge report canPlayType() === 'maybe' for
+    // HLS but fail to play it natively (MEDIA_ERR_SRC_NOT_SUPPORTED). Only
+    // fall back to the native path when MSE is unavailable (e.g. iOS Safari).
+    if (Hls.isSupported()) {
       hls = new Hls({ enableWorker: false, lowLatencyMode: false });
       hls.loadSource(VIDEO_SRC);
       hls.attachMedia(video);
@@ -263,6 +249,16 @@ const VideoLayer = () => {
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (data?.fatal) setFallback(true);
       });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = VIDEO_SRC;
+      video.addEventListener('loadedmetadata', tryPlay, { once: true });
+      video.addEventListener(
+        'error',
+        () => {
+          if (!destroyed) setFallback(true);
+        },
+        { once: true },
+      );
     } else {
       setFallback(true);
     }
@@ -523,91 +519,6 @@ const SiteFooter = ({
   </footer>
 );
 
-// Floating action buttons: Telegram / Wechat / QQ / back-to-top
-// Uses buildSupportConfig-driven URLs/images via props.
-const SupportFab = ({ support }) => {
-  const [showTop, setShowTop] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setShowTop(window.scrollY > 360);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  const scrollTop = () => {
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
-  };
-
-  const tgImage = support?.telegramQRCode || '';
-  const tgDesc = support?.telegramDesc || '';
-  const wxImage = support?.wechatQRCode || '';
-  const wxDesc = support?.wechatDesc || '';
-  const qqImage = support?.qqQrcode || '';
-  const qqDesc = support?.qqSupport || '';
-
-  const showTg = !!(tgImage || tgDesc);
-  const showWx = !!(wxImage || wxDesc);
-  const showQq = !!(qqImage || qqDesc);
-  const hasAny = showTg || showWx || showQq;
-
-  // Fallbacks so QR generation still works when only text is supplied
-  const tgQrSrc = tgImage || (tgDesc ? qr(tgDesc) : '');
-  const qqQrSrc = qqImage || (qqDesc ? qr(qqDesc) : '');
-
-  if (!hasAny && !showTop) {
-    // still render the back-to-top button only
-  }
-
-  return (
-    <div className='fab'>
-      {showTg && (
-        <div className='fab-contact'>
-          <button className='fab-btn fab-tg' type='button'>
-            {TG_ICON}
-          </button>
-          <div className='fab-qr'>
-            {tgQrSrc ? <img src={tgQrSrc} loading='lazy' /> : null}
-            {tgDesc ? <span>{tgDesc}</span> : <span></span>}
-          </div>
-        </div>
-      )}
-      {showQq && (
-        <div className='fab-contact'>
-          <button className='fab-btn fab-qq' type='button'>
-            QQ
-          </button>
-          <div className='fab-qr'>
-            {qqQrSrc ? <img src={qqQrSrc}  loading='lazy' /> : null}
-            {qqDesc ? <span>{qqDesc}</span> : <span></span>}
-          </div>
-        </div>
-      )}
-      {showWx && (
-        <div className='fab-contact'>
-          <button className='fab-btn fab-wx' type='button'>
-            <svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true' width='20' height='20'>
-              <path d='M9.5 4C5.36 4 2 6.91 2 10.5c0 1.86.95 3.53 2.46 4.67L4 18l2.86-1.64c.82.23 1.7.35 2.64.35.28 0 .56-.01.83-.04A6.5 6.5 0 0 1 10 14.5c0-3.59 3.36-6.5 7.5-6.5.24 0 .48.01.71.03C17.19 5.6 13.72 4 9.5 4zM7 8a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5.5 3c-3.04 0-5.5 2.02-5.5 4.5s2.46 4.5 5.5 4.5c.73 0 1.42-.1 2.06-.28L22 21l-.43-1.87C22.79 18.34 23.5 17 23.5 15.5c0-2.48-2.46-4.5-6-4.5zm-2 2.25a.88.88 0 1 1 0 1.75.88.88 0 0 1 0-1.75zm4 0a.88.88 0 1 1 0 1.75.88.88 0 0 1 0-1.75z' />
-            </svg>
-          </button>
-          <div className='fab-qr'>
-            {wxImage ? <img src={wxImage}  loading='lazy' /> : null}
-            {wxDesc ? <span>{wxDesc}</span> : <span></span>}
-          </div>
-        </div>
-      )}
-      <button
-        className={`fab-btn fab-top ${showTop ? 'fab-top--show' : ''}`}
-        type='button'
-        onClick={scrollTop}
-      >
-        <ArrowUp size={20} aria-hidden='true' />
-      </button>
-    </div>
-  );
-};
-
 // ---------------------------------------------------------------------------
 // Main Home page (theme 3)
 // ---------------------------------------------------------------------------
@@ -651,11 +562,6 @@ const Theme3Home = () => {
 
   const currentUser = userState?.user || null;
   const isLoggedIn = Boolean(currentUser?.id);
-
-  const supportConfig = useMemo(
-    () => buildSupportConfig(statusState?.status),
-    [statusState?.status],
-  );
 
   // Fetch theme colors + status
   useEffect(() => {
@@ -789,8 +695,6 @@ const Theme3Home = () => {
           </defs>
           <ellipse cx='450' cy='110' rx='390' ry='22' fill='url(#glow-color)' filter='url(#glow-blur)' />
         </svg>
-
-
         <section className='hero-content' aria-labelledby='hero-title'>
           <div className='hero-copy'>
             <div className='hero-eyebrow'>
@@ -844,7 +748,6 @@ const Theme3Home = () => {
         footerHtml={footerHtml}
         t={t}
       />
-      <SupportFab support={supportConfig} />
 
         {!introDone && (
           <IntroSequence

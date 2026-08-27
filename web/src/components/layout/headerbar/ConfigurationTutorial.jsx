@@ -56,8 +56,6 @@ const OS_TABS = [
   { key: 'linux', label: 'Linux' },
   { key: 'windows', label: 'Windows' },
 ];
-
-
 const MASKED_KEY = 'sk-*************';
 
 // ──────────── Helpers ────────────
@@ -495,7 +493,7 @@ env_key = "PACKYCODE_API_KEY"`;
 
 // ──────────── Main Component ────────────
 
-export default function ConfigurationTutorial({ className }) {
+export default function ConfigurationTutorial({ className, renderTrigger }) {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState('openai');
@@ -522,9 +520,11 @@ export default function ConfigurationTutorial({ className }) {
 
   return (
     <>
-      <Button theme='outline' type='tertiary' onClick={openPanel}>
-        <IconBookStroked /><span className="hidden sm:inline">&nbsp;{t('配置教程')}</span>
-      </Button>
+      {renderTrigger ? renderTrigger(openPanel) : (
+        <Button theme='outline' type='tertiary' onClick={openPanel} className={className}>
+          <IconBookStroked /><span className="hidden sm:inline">&nbsp;{t('配置教程')}</span>
+        </Button>
+      )}
 
       {/* ── Right Slide-in Panel ── */}
       <SideSheet

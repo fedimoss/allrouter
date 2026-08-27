@@ -22,14 +22,17 @@ import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import App from '../../App';
 import FooterBar from './Footer';
+import AuthModal from '../auth/AuthModal';
+import FloatingSupport from '../common/FloatingSupport';
 import { ToastContainer } from 'react-toastify';
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useTranslation } from 'react-i18next';
 import {
   API,
   applyBranding,
+  buildSupportConfig,
   showError,
   setStatusData,
   applyThemeColors,
@@ -42,7 +45,7 @@ const { Sider, Content, Header } = Layout;
 
 const PageLayout = () => {
   const [, userDispatch] = useContext(UserContext);
-  const [, statusDispatch] = useContext(StatusContext);
+  const [statusState, statusDispatch] = useContext(StatusContext);
   const isMobile = useIsMobile();
   const [collapsed, , setCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -100,16 +103,27 @@ const PageLayout = () => {
     location.pathname === '/docs' || location.pathname.startsWith('/docs/');
   // Console navigation is hosted in the authenticated user dropdown.
   const showSider = false;
-  const authRoutesWithoutHeader = [
-    '/login',
-    '/register',
-    '/reset',
-    '/user/reset',
-  ];
+  const authRoutesWithoutHeader = ['/reset', '/user/reset'];
   const shouldShowHeader =
     !authRoutesWithoutHeader.includes(location.pathname) &&
     !selfContainedPages.includes(location.pathname);
   const shouldSplitConsoleLayout = false;
+
+  // 客服/配置教程悬浮球：全局显示，所有页面共用
+  const supportConfig = useMemo(
+    () => buildSupportConfig(statusState?.status),
+    [statusState?.status],
+  );
+  const floatingSupport = (
+    <FloatingSupport
+      wechatQRCode={supportConfig.wechatQRCode}
+      wechatDesc={supportConfig.wechatDesc}
+      qqQrcode={supportConfig.qqQrcode}
+      qqSupport={supportConfig.qqSupport}
+      telegramQRCode={supportConfig.telegramQRCode}
+      telegramDesc={supportConfig.telegramDesc}
+    />
+  );
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -267,6 +281,8 @@ const PageLayout = () => {
           </Content>
         </Layout>
         <ToastContainer />
+        <AuthModal />
+        {floatingSupport}
       </Layout>
     );
   }
@@ -396,6 +412,8 @@ const PageLayout = () => {
         </Layout>
       </Layout>
       <ToastContainer />
+      <AuthModal />
+      {floatingSupport}
     </Layout>
   );
 };

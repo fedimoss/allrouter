@@ -37,7 +37,15 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     return links;
   }, [docsHref, loggedIn, pricingTarget, showAgentPartner, t]);
   useEffect(() => setMobileOpen(false), [location.pathname]);
-  const isActive = (link) => link.to && (link.to === '/' ? location.pathname === '/' : location.pathname === link.to || location.pathname.startsWith(`${link.to}/`));
+  const isActive = (link) => {
+    if (!link.to) return false;
+    // `/console` is the dashboard landing page, not a parent navigation item.
+    // Otherwise `/console/token` would make both dashboard and token active.
+    if (link.to === '/console') return location.pathname === '/console';
+    return link.to === '/'
+      ? location.pathname === '/'
+      : location.pathname === link.to || location.pathname.startsWith(`${link.to}/`);
+  };
   const renderLink = (link, mobile = false) => {
     const className = `${isActive(link) ? 'app-header-link-active' : ''} ${mobile ? 'app-header-mobile-link' : ''}`;
     const content = <><span>{link.label}</span>{mobile && <span aria-hidden='true'>→</span>}</>;

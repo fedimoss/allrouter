@@ -76,11 +76,12 @@ const PricingPage = () => {
   return (
     <div className='pricing-market'>
       <Layout className='pricing-layout'>
-        {!isMobile && (
+        {/* 左侧筛选栏暂时隐藏（需求：对齐静态页 LLM.html 单列布局；移动端筛选弹窗不受影响） */}
+        {/* {!isMobile && (
           <Sider className='pricing-scroll-hide pricing-sidebar'>
             <PricingSidebar {...allProps} />
           </Sider>
-        )}
+        )} */}
 
         <Content className='pricing-scroll-hide pricing-content'>
           <PricingContent

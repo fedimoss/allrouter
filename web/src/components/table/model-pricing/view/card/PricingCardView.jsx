@@ -29,7 +29,7 @@ import {
   Avatar,
 } from '@douyinfe/semi-ui';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
-import { Copy, Heart, Info, Eye } from 'lucide-react';
+import { ArrowUpRight, Copy, Eye } from 'lucide-react';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
@@ -47,26 +47,6 @@ import { renderLimitedItems } from '../../../../common/ui/RenderUtils';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 const getModelKey = (model) => model.key ?? model.model_name ?? model.id;
-
-const estimateContext = (modelName = '') => {
-  const name = String(modelName).toLowerCase();
-  if (name.includes('claude')) return '200k';
-  if (name.includes('gpt-4') || name.includes('gpt-5')) return '128k';
-  if (name.includes('gemini')) return '1M';
-  if (name.includes('llama')) return '8k';
-  return '64k';
-};
-
-const estimateChannelCount = (model, usableGroup) => {
-  if (!Array.isArray(model?.enable_groups)) return 0;
-
-  const usableGroupNames = new Set(Object.keys(usableGroup || {}));
-  if (usableGroupNames.size === 0) {
-    return model.enable_groups.length;
-  }
-
-  return model.enable_groups.filter((group) => usableGroupNames.has(group)).length;
-};
 
 const buildPrimaryPriceItems = (priceData, t, quotaDisplayType) => {
   if (priceData?.isDynamicPricing) {
@@ -238,8 +218,6 @@ const PricingCardView = ({
             quotaDisplayType: siteDisplayType,
           });
           const priceItems = buildPrimaryPriceItems(priceData, t, siteDisplayType);
-          const priceBoardItems = [...priceItems, { key: 'detail', label: t('详情'), isAction: true }];
-          const priceGridStyle = { gridTemplateColumns: `repeat(${Math.max(priceBoardItems.length, 1)}, minmax(0, 1fr))` };
 
           if (isMobile) {
             return (
@@ -322,62 +300,51 @@ const PricingCardView = ({
                 onClick={() => handleOpenModelDetail(model)}
                 style={{ cursor: openModelDetail ? 'pointer' : 'default' }}
               >
-                <div className='pricing-market-desktop-card-header'>
-                  <div className='pricing-market-desktop-card-brand'>
-                    {getModelIcon(model)}
-                    <div className='pricing-market-desktop-card-title-wrap'>
-                      <h3>{model.model_name}</h3>
-                      <div className='pricing-market-desktop-card-meta'>
-                        {/* <span>Context: {estimateContext(model.model_name)}</span> */}
-                        <span>{estimateChannelCount(model, usableGroup)} {t('个渠道')}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className='pricing-market-desktop-card-actions'>
-                    {/* <Button theme='borderless' type='tertiary' icon={<Heart size={16} />} onClick={(e) => { e.stopPropagation(); }} /> */}
-                    <Button theme='borderless' type='tertiary' icon={<Copy size={14} />} onClick={(e) => { e.stopPropagation(); copyText(model.model_name); }} />
-                    {/* {rowSelection && <Checkbox checked={isSelected} onChange={(e) => handleCheckboxChange(model, e.target.checked)} />} */}
-                  </div>
+                {/* 静态页 LLM.html 的 model-card 结构 */}
+                <div className='llm-model-card__head'>
+                  {getModelIcon(model)}
+                  <span className='llm-model-card__name'>{model.model_name}</span>
+                  <button
+                    type='button'
+                    className='llm-model-card__copy'
+                    aria-label={t('复制模型代码')}
+                    onClick={(e) => { e.stopPropagation(); copyText(model.model_name); }}
+                  >
+                    <Copy size={14} />
+                  </button>
+                  <span className='llm-model-card__channel'>
+                    {model.vendor_name || t('通用')}
+                  </span>
                 </div>
 
-                <p className='pricing-market-desktop-card-description'>
+                <p className='llm-model-card__desc'>
                   {model.description_i18n ? JSON.parse(model.description_i18n)[i18n_key] : (t(model.description) || `${model.vendor_name || t('通用')} ${t('最新模型，适合多轮对话、推理与生产环境调用。')}`)}
                 </p>
 
-                {/* <div className='pricing-market-desktop-card-tags'>
-                  {(rawTags.length ? rawTags : [t('对话')]).map((tag) => (
-                    <span key={tag} className='pricing-market-desktop-card-tag' style={{ backgroundColor: `${stringToColor(tag)}22`, color: stringToColor(tag) }}>
-                      {tag}
-                    </span>
+                <div className='llm-model-card__prices'>
+                  {priceItems.map((item) => (
+                    <div key={item.key} className='llm-price-cell'>
+                      <small>{item.label}</small>
+                      <b>
+                        {item.isDynamic
+                          ? formatDynamicPriceCompactSummary(priceData.billingExpr, t)
+                          : item.value}
+                      </b>
+                      <span>{item.isDynamic ? t('点击查看详情') : item.suffix}</span>
+                    </div>
                   ))}
-                </div> */}
-
-                <div className='pricing-market-price-board'>
-                  <div className='pricing-market-price-head' style={priceGridStyle}>
-                    {priceBoardItems.map((item) => <span key={item.key}>{item.label}</span>)}
-                  </div>
-                  <div className='pricing-market-price-row' style={priceGridStyle}>
-                    {priceBoardItems.map((item) => (
-                      item.isAction ? (
-                        <Eye
-                          key={item.key}
-                          size={16}
-                          className='pricing-market-detail-trigger'
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenModelDetail(model);
-                          }}
-                        />
-                      ) : item.isDynamic ? (
-                        <span key={item.key}>
-                          {formatDynamicPriceCompactSummary(priceData.billingExpr, t)}
-                          <small>{t('点击查看详情')}</small>
-                        </span>
-                      ) : (
-                        <span key={item.key}>{item.value}<small>{item.suffix}</small></span>
-                      )
-                    ))}
+                  <div className='llm-price-cell llm-price-cell--detail'>
+                    <button
+                      type='button'
+                      aria-label={t('查看详情')}
+                      title={t('查看详情')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenModelDetail(model);
+                      }}
+                    >
+                      <ArrowUpRight size={15} />
+                    </button>
                   </div>
                 </div>
 
@@ -388,10 +355,6 @@ const PricingCardView = ({
                     <span>{t('分组倍率')} {priceData?.usedGroupRatio ?? '-'}</span>
                   </div>
                 )}
-
-                {/* <button type='button' className='pricing-market-desktop-card-link' onClick={(e) => { e.stopPropagation(); handleOpenModelDetail(model); }}>
-                  {t('查看全部渠道对比')} <ChevronDown size={14} />
-                </button> */}
               </div>
             </Card>
           );

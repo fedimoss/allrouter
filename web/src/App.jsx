@@ -22,8 +22,6 @@ import { Route, Routes, useLocation, useParams } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
 import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
-import LoginPage from './pages/Login';
-import RegisterPage from './pages/Login/register';
 import NotFound from './pages/NotFound';
 import Forbidden from './pages/Forbidden';
 import Setting from './pages/Setting';
@@ -90,10 +88,13 @@ const getHomeThemeKey = (theme) => {
 const HomeRoute = () => {
   const [statusState] = useContext(StatusContext);
   const statusLoaded = statusState?.status !== undefined;
-  const themeKey = getHomeThemeKey(
-    statusState?.status?.provider_config?.home_page_theme,
-  );
-  const HomeComp = HomeThemes[themeKey]; // 默认使用 style_c 主题
+  const status = statusState?.status;
+  const providerConfig = status?.provider_config;
+  const configuredTheme = providerConfig?.enabled
+    ? providerConfig?.home_page_theme
+    : status?.home_page_theme || providerConfig?.home_page_theme;
+  const themeKey = getHomeThemeKey(configuredTheme);
+  const HomeComp = HomeThemes[themeKey || 'style_c']; // 默认使用 style_c 主题
 
   if (!statusLoaded) {
     return <Loading />;
@@ -382,7 +383,7 @@ function App() {
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <AuthRedirect>
-                <LoginPage />
+                <HomeRoute />
               </AuthRedirect>
             </Suspense>
           }
@@ -392,7 +393,7 @@ function App() {
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <AuthRedirect>
-                <RegisterPage />
+                <HomeRoute />
               </AuthRedirect>
             </Suspense>
           }

@@ -41,16 +41,10 @@ import {
   Form,
   Icon,
   Modal,
-} from '@douyinfe/semi-ui';
-import Title from '@douyinfe/semi-ui/lib/es/typography/title';
-import Text from '@douyinfe/semi-ui/lib/es/typography/text';
-import {
-  IconGithubLogo,
-  IconMail,
-  IconUser,
-  IconLock,
-  IconKey,
-} from '@douyinfe/semi-icons';
+  Title,
+  Text,
+} from './AuthPrimitives';
+import { Github, KeyRound, LockKeyhole, Mail, UserRound } from 'lucide-react';
 import {
   onGitHubOAuthClicked,
   onLinuxDOOAuthClicked,
@@ -66,7 +60,7 @@ import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 import { SIGNUP_SOURCE } from '../../constants';
 
-const RegisterForm = () => {
+const RegisterForm = ({ embedded = false, onSwitch }) => {
   let navigate = useNavigate();
   const { t } = useTranslation();
   const githubButtonTextKeyByState = {
@@ -89,7 +83,7 @@ const RegisterForm = () => {
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const [showWeChatLoginModal, setShowWeChatLoginModal] = useState(false);
-  const [showEmailRegister, setShowEmailRegister] = useState(false);
+  const [showEmailRegister, setShowEmailRegister] = useState(embedded);
   const [wechatLoading, setWechatLoading] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
   const [discordLoading, setDiscordLoading] = useState(false);
@@ -243,7 +237,11 @@ const RegisterForm = () => {
         );
         const { success, message } = res.data;
         if (success) {
-          navigate('/login');
+          if (embedded && onSwitch) {
+            onSwitch('login');
+          } else {
+            navigate('/login');
+          }
           showSuccess('注册成功！');
         } else {
           showError(message);
@@ -432,7 +430,7 @@ const RegisterForm = () => {
                     theme='outline'
                     className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={<IconGithubLogo size='large' />}
+                    icon={<Github size={20} />}
                     onClick={handleGitHubClick}
                     loading={githubLoading}
                     disabled={githubButtonDisabled}
@@ -530,7 +528,7 @@ const RegisterForm = () => {
                   theme='solid'
                   type='primary'
                   className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
-                  icon={<IconMail size='large' />}
+                  icon={<Mail size={20} />}
                   onClick={handleEmailRegisterClick}
                   loading={emailRegisterLoading}
                 >
@@ -538,11 +536,17 @@ const RegisterForm = () => {
                 </Button>
               </div>
 
-              <div className='mt-6 text-center text-sm'>
+              <div className='auth-account-switch mt-6 text-center text-sm'>
                 <Text>
                   {t('已有账户？')}{' '}
                   <Link
                     to='/login'
+                    onClick={(event) => {
+                      if (onSwitch) {
+                        event.preventDefault();
+                        onSwitch('login');
+                      }
+                    }}
                     className='text-blue-600 hover:text-blue-800 font-medium'
                   >
                     {t('登录')}
@@ -558,175 +562,152 @@ const RegisterForm = () => {
 
   const renderEmailRegisterForm = () => {
     return (
-      <div className='flex flex-col items-center'>
-        <div className='w-full max-w-md'>
-          <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
-            <Title heading={3} className='!text-gray-800'>
-              {systemName}
-            </Title>
-          </div>
+      <div className='auth-primary-form'>
+        <Form>
+          <Form.Input
+            field='username'
+            label={t('用户名')}
+            placeholder={t('请输入用户名')}
+            name='username'
+            onChange={(value) => handleChange('username', value)}
+            prefix={<UserRound size={18} />}
+            autoComplete='username'
+          />
 
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
-            <div className='flex justify-center pt-6 pb-2'>
-              <Title heading={3} className='text-gray-800 dark:text-gray-200'>
-                {t('注 册')}
-              </Title>
-            </div>
-            <div className='px-2 py-8'>
-              <Form className='space-y-3'>
+          <Form.Input
+            field='email'
+            label={t('电子邮箱')}
+            placeholder={t('name@company.com')}
+            name='email'
+            type='email'
+            onChange={(value) => handleChange('email', value)}
+            prefix={<Mail size={18} />}
+            autoComplete='email'
+          />
+
+          {showEmailVerification && (
+            <div className='auth-code-field'>
+              <div className='auth-code-label'>
+                <span>{t('邮箱验证码')}</span>
+                <span>{t('6 位验证码')}</span>
+              </div>
+              <div className='auth-code-row'>
                 <Form.Input
-                  field='username'
-                  label={t('用户名')}
-                  placeholder={t('请输入用户名')}
-                  name='username'
-                  onChange={(value) => handleChange('username', value)}
-                  prefix={<IconUser />}
+                  field='verification_code'
+                  placeholder={t('请输入 6 位验证码')}
+                  name='verification_code'
+                  onChange={(value) =>
+                    handleChange('verification_code', value)
+                  }
+                  prefix={<KeyRound size={18} />}
+                  autoComplete='one-time-code'
                 />
-
-                <Form.Input
-                  field='password'
-                  label={t('密码')}
-                  placeholder={t('输入密码，最短 8 位，最长 20 位')}
-                  name='password'
-                  mode='password'
-                  onChange={(value) => handleChange('password', value)}
-                  prefix={<IconLock />}
-                />
-
-                <Form.Input
-                  field='password2'
-                  label={t('确认密码')}
-                  placeholder={t('确认密码')}
-                  name='password2'
-                  mode='password'
-                  onChange={(value) => handleChange('password2', value)}
-                  prefix={<IconLock />}
-                />
-
-                {showEmailVerification && (
-                  <>
-                    <Form.Input
-                      field='email'
-                      label={t('邮箱')}
-                      placeholder={t('输入邮箱地址')}
-                      name='email'
-                      type='email'
-                      onChange={(value) => handleChange('email', value)}
-                      prefix={<IconMail />}
-                      suffix={
-                        <Button
-                          onClick={sendVerificationCode}
-                          loading={verificationCodeLoading}
-                          disabled={disableButton || verificationCodeLoading}
-                        >
-                          {disableButton
-                            ? `${t('重新发送')} (${countdown})`
-                            : t('获取验证码')}
-                        </Button>
-                      }
-                    />
-                    <Form.Input
-                      field='verification_code'
-                      label={t('验证码')}
-                      placeholder={t('输入验证码')}
-                      name='verification_code'
-                      onChange={(value) =>
-                        handleChange('verification_code', value)
-                      }
-                      prefix={<IconKey />}
-                    />
-                  </>
-                )}
-
-                {(hasUserAgreement || hasPrivacyPolicy) && (
-                  <div className='pt-4'>
-                    <Checkbox
-                      checked={agreedToTerms}
-                      onChange={(e) => setAgreedToTerms(e.target.checked)}
-                    >
-                      <Text size='small' className='text-gray-600'>
-                        {t('我已阅读并同意')}
-                        {hasUserAgreement && (
-                          <>
-                            <a
-                              href='/user-agreement'
-                              target='_blank'
-                              rel='noopener noreferrer'
-                              className='text-blue-600 hover:text-blue-800 mx-1'
-                            >
-                              {t('用户协议')}
-                            </a>
-                          </>
-                        )}
-                        {hasUserAgreement && hasPrivacyPolicy && t('和')}
-                        {hasPrivacyPolicy && (
-                          <>
-                            <a
-                              href='/privacy-policy'
-                              target='_blank'
-                              rel='noopener noreferrer'
-                              className='text-blue-600 hover:text-blue-800 mx-1'
-                            >
-                              {t('隐私政策')}
-                            </a>
-                          </>
-                        )}
-                      </Text>
-                    </Checkbox>
-                  </div>
-                )}
-
-                <div className='space-y-2 pt-2'>
-                  <Button
-                    theme='solid'
-                    className='w-full !rounded-full'
-                    type='primary'
-                    htmlType='submit'
-                    onClick={handleSubmit}
-                    loading={registerLoading}
-                    disabled={
-                      (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
-                    }
-                  >
-                    {t('注册')}
-                  </Button>
-                </div>
-              </Form>
-
-              {hasOAuthRegisterOptions && (
-                <>
-                  <Divider margin='12px' align='center'>
-                    {t('或')}
-                  </Divider>
-
-                  <div className='mt-4 text-center'>
-                    <Button
-                      theme='outline'
-                      type='tertiary'
-                      className='w-full !rounded-full'
-                      onClick={handleOtherRegisterOptionsClick}
-                      loading={otherRegisterOptionsLoading}
-                    >
-                      {t('其他注册选项')}
-                    </Button>
-                  </div>
-                </>
-              )}
-
-              <div className='mt-6 text-center text-sm'>
-                <Text>
-                  {t('已有账户？')}{' '}
-                  <Link
-                    to='/login'
-                    className='text-blue-600 hover:text-blue-800 font-medium'
-                  >
-                    {t('登录')}
-                  </Link>
-                </Text>
+                <Button
+                  className='auth-send-code'
+                  onClick={sendVerificationCode}
+                  loading={verificationCodeLoading}
+                  disabled={disableButton || verificationCodeLoading}
+                >
+                  {disableButton
+                    ? `${t('重新发送')} (${countdown})`
+                    : t('发送验证码')}
+                </Button>
               </div>
             </div>
-          </Card>
+          )}
+
+          <Form.Input
+            field='password'
+            label={t('设置密码')}
+            placeholder={t('至少 8 位，包含字母和数字')}
+            name='password'
+            mode='password'
+            onChange={(value) => handleChange('password', value)}
+            prefix={<LockKeyhole size={18} />}
+            autoComplete='new-password'
+          />
+
+          <Form.Input
+            field='password2'
+            label={t('确认密码')}
+            placeholder={t('请再次输入密码')}
+            name='password2'
+            mode='password'
+            onChange={(value) => handleChange('password2', value)}
+            prefix={<LockKeyhole size={18} />}
+            autoComplete='new-password'
+          />
+
+          {(hasUserAgreement || hasPrivacyPolicy) && (
+            <div className='auth-agreement-check'>
+              <Checkbox
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+              >
+                <Text>
+                  {t('我已阅读并同意')}
+                  {hasUserAgreement && (
+                    <a href='/user-agreement' target='_blank' rel='noopener noreferrer'>
+                      {t('用户协议')}
+                    </a>
+                  )}
+                  {hasUserAgreement && hasPrivacyPolicy && t('和')}
+                  {hasPrivacyPolicy && (
+                    <a href='/privacy-policy' target='_blank' rel='noopener noreferrer'>
+                      {t('隐私政策')}
+                    </a>
+                  )}
+                </Text>
+              </Checkbox>
+            </div>
+          )}
+
+          <Button
+            theme='solid'
+            className='auth-primary-submit'
+            type='primary'
+            htmlType='submit'
+            onClick={handleSubmit}
+            loading={registerLoading}
+            disabled={
+              (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
+            }
+          >
+            <span>{t('立即注册')}</span>
+            <span className='auth-submit-arrow' aria-hidden='true'>
+              →
+            </span>
+          </Button>
+        </Form>
+
+        {hasOAuthRegisterOptions && (
+          <div className='auth-other-options'>
+            <Button
+              theme='borderless'
+              type='tertiary'
+              onClick={handleOtherRegisterOptionsClick}
+              loading={otherRegisterOptionsLoading}
+            >
+              {t('其他注册选项')}
+            </Button>
+          </div>
+        )}
+
+        <div className='auth-account-switch'>
+          <Text>
+            {t('已有账户？')}{' '}
+            <Link
+              to='/login'
+              onClick={(event) => {
+                if (onSwitch) {
+                  event.preventDefault();
+                  onSwitch('login');
+                }
+              }}
+            >
+              {t('登录')}
+            </Link>
+          </Text>
         </div>
       </div>
     );
@@ -772,7 +753,7 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
+    <div className={`relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 ${embedded ? 'auth-form-embedded' : ''}`}>
       {/* 背景模糊晕染球 */}
       <div
         className='blur-ball blur-ball-indigo'

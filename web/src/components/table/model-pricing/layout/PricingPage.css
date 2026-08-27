@@ -1105,3 +1105,134 @@ html.dark .pricing-market-mobile-card .semi-button {
   color: #cbd5e1 !important;
 }
 
+/* ==========================================================================
+   静态页 LLM.html 风格（模型广场重构）：hero banner 流光 / 供应商胶囊 / 模型卡片
+   品牌色映射到 --theme-primary，暗色走 html.dark
+   ========================================================================== */
+
+/* ---- 单列居中布局（对齐静态页 .page：max-width 1198px，无左侧筛选栏） ---- */
+.pricing-market .pricing-layout {
+  max-width: 1198px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 静态页为整页滚动：去掉固定高度应用壳，让页面随内容自然生长，
+   滚动交给外层 PageLayout 的滚动容器 */
+.pricing-market .pricing-layout { height: auto; overflow: visible; }
+.pricing-market .pricing-content { height: auto; }
+.pricing-market .pricing-view-container { flex: none; overflow: visible; padding-bottom: 40px; }
+
+/* ---- 顶部 Banner：底色 + 品牌双色流动湍流光斑 ---- */
+.llm-hero-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #0a0a0a;
+  padding: 44px 40px;
+  color: #f8fafc;
+}
+.llm-hero-flow { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.llm-flow-blob { position: absolute; will-change: transform, opacity; filter: blur(60px); pointer-events: none; }
+.llm-flow-blob-1 { top: -5%; left: -5%; width: 75%; height: 85%; background: radial-gradient(ellipse 90% 65% at 50% 50%, rgba(28, 223, 213, 0.5), rgba(28, 223, 213, 0.24) 35%, rgba(28, 223, 213, 0.06) 65%, transparent 90%); animation: llm-flow-drift-1 6s ease-in-out infinite; }
+.llm-flow-blob-2 { top: -5%; right: -5%; width: 70%; height: 80%; background: radial-gradient(ellipse 80% 60% at 50% 50%, rgba(21, 201, 193, 0.5), rgba(21, 201, 193, 0.22) 35%, rgba(21, 201, 193, 0.05) 65%, transparent 90%); animation: llm-flow-drift-2 8s ease-in-out infinite; }
+.llm-flow-blob-3 { top: 5%; left: 15%; width: 65%; height: 65%; background: radial-gradient(ellipse 70% 45% at 50% 50%, rgba(28, 223, 213, 0.32), rgba(21, 201, 193, 0.16) 35%, rgba(28, 223, 213, 0.03) 65%, transparent 90%); animation: llm-flow-drift-3 5s ease-in-out infinite; }
+@keyframes llm-flow-drift-1 { 0%, 100% { transform: translate(-12%, -28%) scale(1) rotate(0deg); opacity: 0.85; } 20% { transform: translate(22%, 30%) scale(1.4) rotate(14deg); opacity: 1; } 40% { transform: translate(-8%, -20%) scale(1.2) rotate(-12deg); opacity: 0.75; } 60% { transform: translate(18%, 25%) scale(1.45) rotate(8deg); opacity: 1; } 80% { transform: translate(-15%, -10%) scale(1.1) rotate(-6deg); opacity: 0.9; } }
+@keyframes llm-flow-drift-2 { 0%, 100% { transform: translate(12%, 28%) scale(1) rotate(0deg); opacity: 0.85; } 20% { transform: translate(-20%, -22%) scale(1.4) rotate(-12deg); opacity: 1; } 40% { transform: translate(16%, 18%) scale(1.5) rotate(10deg); opacity: 0.75; } 60% { transform: translate(-10%, -28%) scale(1.2) rotate(-6deg); opacity: 1; } 80% { transform: translate(14%, 20%) scale(1.35) rotate(4deg); opacity: 0.9; } }
+@keyframes llm-flow-drift-3 { 0%, 100% { transform: translate(0, -30%) scale(1) rotate(0deg); opacity: 0.8; } 20% { transform: translate(20%, 22%) scale(1.45) rotate(12deg); opacity: 1; } 40% { transform: translate(-15%, -25%) scale(1.25) rotate(-14deg); opacity: 0.85; } 60% { transform: translate(12%, 28%) scale(1.5) rotate(8deg); opacity: 1; } 80% { transform: translate(-8%, -15%) scale(1.15) rotate(-5deg); opacity: 0.9; } }
+@media (prefers-reduced-motion: reduce) { .llm-flow-blob { animation: none !important; } }
+.llm-hero-banner h1,
+.llm-hero-banner p,
+.llm-hero-banner .llm-banner-actions { position: relative; z-index: 1; }
+.llm-hero-banner h1 { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; color: #f8fafc; }
+.llm-hero-banner h1 em { font-style: normal; color: var(--theme-primary, #1cdfd5); }
+.llm-hero-banner p { margin: 12px 0 0; max-width: 520px; font-size: 14px; line-height: 1.75; color: rgba(255, 255, 255, 0.6); }
+.llm-banner-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+.llm-btn-primary { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0 22px; border-radius: 9px; background: var(--theme-gradient, var(--theme-primary, #1cdfd5)); color: var(--theme-primary-btn-color, #0a0a0a); font-size: 14px; font-weight: 600; transition: filter 0.18s, transform 0.18s; }
+.llm-btn-primary:hover { filter: brightness(1.05); transform: translateY(-1px); }
+.llm-btn-ghost { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0 22px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, 0.2); background: transparent; color: #f8fafc; font-size: 14px; font-weight: 600; cursor: pointer; transition: border-color 0.18s, color 0.18s; }
+.llm-btn-ghost:hover { border-color: var(--theme-primary, #1cdfd5); color: var(--theme-primary, #1cdfd5); }
+
+/* ---- 供应商切换：横向胶囊 tabs ---- */
+.llm-provider-bar { display: flex; flex-wrap: wrap; gap: 11px; margin: 24px 0 0; }
+.llm-provider-tab { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px; border-radius: 9px; border: 1px solid rgba(10, 10, 10, 0.14); background: #fff; font-size: 13px; font-weight: 600; color: rgba(10, 10, 10, 0.62); white-space: nowrap; cursor: pointer; transition: border-color 0.18s, background-color 0.18s, color 0.18s, transform 0.18s; }
+.llm-provider-tab:hover { transform: translateY(-1px); color: #0a0a0a; }
+.llm-provider-tab.active { background: #e8e8e8; color: #0a0a0a; }
+.llm-provider-tab .count { font-size: 11px; font-weight: 600; color: rgba(10, 10, 10, 0.42); background: rgba(10, 10, 10, 0.06); border-radius: 999px; padding: 0 6px; }
+.llm-provider-tab.active .count { background: rgba(10, 10, 10, 0.08); color: rgba(10, 10, 10, 0.62); }
+.llm-provider-tab__icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; overflow: hidden; }
+.llm-provider-tab__icon svg, .llm-provider-tab__icon img { width: 16px; height: 16px; object-fit: contain; }
+
+/* ---- 列表 meta ---- */
+.llm-list-meta { display: flex; align-items: center; justify-content: space-between; margin: 20px 2px 16px; font-size: 12px; color: rgba(10, 10, 10, 0.42); }
+.llm-list-meta b { color: #0a0a0a; font-size: 14px; font-weight: 700; }
+
+/* ---- 模型卡片（静态页 model-card 结构） ---- */
+.pricing-market-desktop-card { border-radius: 9px !important; }
+.llm-model-card__head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.llm-model-card__head .pricing-market-model-logo { width: 26px; height: 26px; border-radius: 6px; box-shadow: none; background: transparent; }
+.llm-model-card__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: #0a0a0a; }
+.llm-model-card__copy { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: rgba(10, 10, 10, 0.28); cursor: pointer; transition: color 0.18s, background-color 0.18s; }
+.llm-model-card__copy:hover { color: var(--theme-primary, #15c9c1); background: rgba(28, 223, 213, 0.12); }
+.llm-model-card__channel { margin-left: auto; flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; color: rgba(10, 10, 10, 0.42); background: rgba(10, 10, 10, 0.05); border-radius: 999px; padding: 3px 10px; }
+.llm-model-card__desc { margin: 10px 0 0; font-size: 14px; line-height: 1.7; color: rgba(10, 10, 10, 0.62); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 48px; }
+.llm-model-card__prices { margin-top: 16px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; border-top: 1px solid rgba(10, 10, 10, 0.08); padding-top: 16px; }
+.llm-price-cell { min-width: 0; }
+.llm-price-cell small { display: block; font-size: 12px; color: rgba(10, 10, 10, 0.42); }
+.llm-price-cell b { display: block; margin-top: 4px; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: #0a0a0a; font-variant-numeric: tabular-nums; word-break: break-all; }
+.llm-price-cell span { font-size: 12px; color: rgba(10, 10, 10, 0.28); }
+.llm-price-cell--detail { display: flex; align-items: flex-end; justify-content: flex-end; grid-column: -2 / -1; grid-row: 1; }
+.llm-price-cell--detail button { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; border: 1px solid rgba(10, 10, 10, 0.14); background: transparent; color: rgba(10, 10, 10, 0.42); cursor: pointer; transition: border-color 0.18s, color 0.18s, transform 0.18s; }
+.llm-price-cell--detail button:hover { color: var(--theme-primary, #15c9c1); border-color: var(--theme-primary, #15c9c1); transform: translateY(-1px); }
+/* 详情/分析按钮统一固定在价格行最右侧（对齐静态页：始终 4 列，按钮为行尾单元格） */
+
+/* ---- 暗色模式 ---- */
+html.dark .llm-provider-tab { background: #111; border-color: rgba(255, 255, 255, 0.16); color: rgba(255, 255, 255, 0.62); }
+html.dark .llm-provider-tab:hover { color: #ededed; }
+html.dark .llm-provider-tab.active { background: #3a3a3a; color: #fff; }
+html.dark .llm-provider-tab .count { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.5); }
+html.dark .llm-provider-tab.active .count { background: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.7); }
+html.dark .llm-list-meta { color: rgba(255, 255, 255, 0.4); }
+html.dark .llm-list-meta b { color: #ededed; }
+html.dark .llm-model-card__name { color: #ededed; }
+html.dark .llm-model-card__copy { color: rgba(255, 255, 255, 0.3); }
+html.dark .llm-model-card__copy:hover { color: var(--theme-primary, #1cdfd5); background: rgba(28, 223, 213, 0.1); }
+html.dark .llm-model-card__channel { color: rgba(255, 255, 255, 0.45); background: rgba(255, 255, 255, 0.06); }
+html.dark .llm-model-card__desc { color: rgba(255, 255, 255, 0.55); }
+html.dark .llm-model-card__prices { border-top-color: rgba(255, 255, 255, 0.09); }
+html.dark .llm-price-cell small { color: rgba(255, 255, 255, 0.4); }
+html.dark .llm-price-cell b { color: #ededed; }
+html.dark .llm-price-cell span { color: rgba(255, 255, 255, 0.3); }
+html.dark .llm-price-cell--detail button { border-color: rgba(255, 255, 255, 0.16); color: rgba(255, 255, 255, 0.5); }
+html.dark .llm-price-cell--detail button:hover { color: var(--theme-primary, #1cdfd5); border-color: rgba(28, 223, 213, 0.5); }
+
+@media (max-width: 640px) {
+  .llm-hero-banner { padding: 28px 22px; }
+  .llm-hero-banner h1 { font-size: 24px; }
+}
+
+/* ---- 配色精确对齐静态页（含其 tdesign-align 覆盖后的最终效果） ---- */
+/* 页面底色：静态页 light #F8FAFC / dark #0a0a0a 纯色 */
+.pricing-market { background: #f8fafc !important; min-height: 100%; }
+html.dark .pricing-market { background: #0a0a0a !important; }
+
+/* 亮色 Banner：静态页 light 模式为白底深字 */
+html:not(.dark) .llm-hero-banner { background: #ffffff; border-color: rgba(0, 0, 0, 0.06); }
+html:not(.dark) .llm-hero-banner h1 { color: rgba(0, 0, 0, 0.9); }
+html:not(.dark) .llm-hero-banner p { color: rgba(0, 0, 0, 0.6); }
+html:not(.dark) .llm-btn-ghost { border-color: rgba(0, 0, 0, 0.12); color: rgba(0, 0, 0, 0.9); }
+html:not(.dark) .llm-btn-ghost:hover { border-color: var(--theme-primary, #15c9c1); color: var(--theme-primary, #15c9c1); }
+html:not(.dark) .llm-flow-blob-1 { background: radial-gradient(ellipse 90% 65% at 50% 50%, rgba(28, 223, 213, 0.35), rgba(28, 223, 213, 0.18) 35%, rgba(28, 223, 213, 0.05) 65%, transparent 90%); }
+html:not(.dark) .llm-flow-blob-2 { background: radial-gradient(ellipse 80% 60% at 50% 50%, rgba(21, 201, 193, 0.35), rgba(21, 201, 193, 0.16) 35%, rgba(21, 201, 193, 0.04) 65%, transparent 90%); }
+html:not(.dark) .llm-flow-blob-3 { background: radial-gradient(ellipse 70% 45% at 50% 50%, rgba(28, 223, 213, 0.22), rgba(21, 201, 193, 0.12) 35%, rgba(28, 223, 213, 0.02) 65%, transparent 90%); }
+
+/* 供应商胶囊：静态页实际渲染为 3px 小圆角 */
+.llm-provider-tab { border-radius: 3px; }
+
+/* 卡片底/边框：静态页 light 白底中性灰边 / dark #111 */
+html:not(.dark) .pricing-market-desktop-card { background: #fff !important; border-color: rgba(10, 10, 10, 0.08) !important; box-shadow: none; }
+html:not(.dark) .pricing-market-desktop-card:hover { border-color: rgba(10, 10, 10, 0.2) !important; box-shadow: 0 8px 24px rgba(10, 10, 10, 0.06); }
+html.dark .pricing-market-desktop-card { background: #111 !important; border-color: rgba(255, 255, 255, 0.09) !important; box-shadow: none; }
+html.dark .pricing-market-desktop-card:hover { border-color: rgba(255, 255, 255, 0.22) !important; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); }
+

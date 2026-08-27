@@ -65,7 +65,8 @@ const SearchActions = memo(
     if (isMobile) {
       return (
         <div className='pricing-market-mobile-toolbar'>
-          <div className='pricing-market-mobile-search'>
+          {/* 搜索模块暂时隐藏（需求：先注释掉搜索） */}
+          {/* <div className='pricing-market-mobile-search'>
             <Input
               prefix={<IconSearch />}
               placeholder={t('模糊搜索模型名称')}
@@ -75,7 +76,7 @@ const SearchActions = memo(
               onChange={handleChange}
               showClear
             />
-          </div>
+          </div> */}
           <div className='pricing-market-mobile-actions'>
             <Button
               type='primary'
@@ -101,7 +102,8 @@ const SearchActions = memo(
 
     return (
       <div className='pricing-market-toolbar'>
-        <div className='pricing-market-toolbar-search'>
+        {/* 搜索模块暂时隐藏（需求：先注释掉搜索） */}
+        {/* <div className='pricing-market-toolbar-search'>
           <Input
             prefix={<IconSearch />}
             placeholder={t('模糊搜索模型名称') + '  GPT-4 / Claude / Gemini'}
@@ -111,7 +113,7 @@ const SearchActions = memo(
             onChange={handleChange}
             showClear
           />
-        </div>
+        </div> */}
 
         <div className='pricing-market-toolbar-count'>
           {t('共 {{count}} 个模型', { count: filteredCount })}
