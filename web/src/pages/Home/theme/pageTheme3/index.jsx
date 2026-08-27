@@ -83,8 +83,16 @@ const VIDEO_SRC =
 const INTRO_SEEN_KEY = 'theme3_intro_seen';
 
 const INTRO_STEPS = [
-  { index: '01', title: '一套 API', caption: '接入 OpenAI、Claude、Llama 及 50+ 模型' },
-  { index: '02', title: '智能路由', caption: '自动选择更稳、更快、更划算的调用路径' },
+  {
+    index: '01',
+    title: '一套 API',
+    caption: '接入 OpenAI、Claude、Llama 及 50+ 模型',
+  },
+  {
+    index: '02',
+    title: '智能路由',
+    caption: '自动选择更稳、更快、更划算的调用路径',
+  },
   { index: '03', title: '自建算力集群', caption: 'H200 / B300 / ARM CPU' },
 ];
 
@@ -150,7 +158,13 @@ const flattenPhrase = (segments) => {
 };
 
 const TG_ICON = (
-  <svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true' width='20' height='20'>
+  <svg
+    viewBox='0 0 24 24'
+    fill='currentColor'
+    aria-hidden='true'
+    width='20'
+    height='20'
+  >
     <path d='M21.9 4.4 2.8 11.9c-.95.38-.9 1.66.08 1.98l4.76 1.52 1.83 5.72c.28.86 1.37 1.03 1.93.34l2.53-3.18 4.98 3.67c.74.55 1.8.14 2.01-.75l3.06-15.8c.2-1.03-.84-1.86-1.78-1.44ZM8.6 14.1l8.7-7.3c.22-.18.45.16.27.36l-7.2 6.9-.3 3.06-1.45-3.02Z' />
   </svg>
 );
@@ -167,7 +181,9 @@ function useTypewriter(titleRef, active, hasIntro, phrases) {
     const el = titleRef.current;
     if (!el || !active) return undefined;
     if (!phrases || phrases.length === 0) return undefined;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
 
     const render = (node, chars, n) => {
       node.innerHTML = '';
@@ -275,14 +291,17 @@ const VideoLayer = () => {
   }, []);
 
   return (
-    <div className={`video-layer ${fallback ? 'video-layer--fallback' : ''}`} aria-hidden='true'>
+    <div
+      className={`video-layer ${fallback ? 'video-layer--fallback' : ''}`}
+      aria-hidden='true'
+    >
       <video ref={videoRef} muted loop playsInline preload='auto' />
       <div className='video-noise' />
     </div>
   );
 };
 
-const IntroSequence = ({ logo, name, runId, onComplete,t }) => {
+const IntroSequence = ({ logo, name, runId, onComplete, t }) => {
   useEffect(() => {
     const id = window.setTimeout(onComplete, 3100);
     return () => window.clearTimeout(id);
@@ -311,11 +330,7 @@ const IntroSequence = ({ logo, name, runId, onComplete,t }) => {
       <div className='intro-progress' aria-hidden='true'>
         <i />
       </div>
-      <button
-        type='button'
-        className='skip-intro'
-        onClick={onComplete}
-      >
+      <button type='button' className='skip-intro' onClick={onComplete}>
         跳过开场
         <ArrowRight size={14} strokeWidth={1.8} aria-hidden='true' />
       </button>
@@ -323,7 +338,7 @@ const IntroSequence = ({ logo, name, runId, onComplete,t }) => {
   );
 };
 
-const ModelEcosystem = ({t}) => (
+const ModelEcosystem = ({ t }) => (
   <section className='model-ecosystem' aria-label='支持全球主流开源模型'>
     <div className='model-ecosystem__label'>
       <span>
@@ -335,7 +350,11 @@ const ModelEcosystem = ({t}) => (
     <div className='model-marquee'>
       <div className='model-marquee__track'>
         {[0, 1].map((group) => (
-          <div key={group} className='model-marquee__group' aria-hidden={group === 1}>
+          <div
+            key={group}
+            className='model-marquee__group'
+            aria-hidden={group === 1}
+          >
             {MODEL_LIST.map((m) => (
               <Link
                 key={`${group}-${m.name}`}
@@ -357,7 +376,11 @@ const ModelEcosystem = ({t}) => (
 
 const ComputeCard = ({ t }) => (
   <aside className='compute-card' aria-label={t('自建算力集群')}>
-    <svg className='compute-card__circuit' viewBox='0 0 320 184' aria-hidden='true'>
+    <svg
+      className='compute-card__circuit'
+      viewBox='0 0 320 184'
+      aria-hidden='true'
+    >
       <path d='M18 48h44l14 14h38' />
       <path d='M18 134h58l14-14h34' />
       <path d='M204 28v24l-16 16v18' />
@@ -384,7 +407,9 @@ const ComputeCard = ({ t }) => (
       <div className='compute-card__copy'>
         <span>ALLROUTER COMPUTE</span>
         <h2>
-          {t('自建')}<span className='serif-italic'>{t('算力')}</span>{t('集群')}
+          {t('自建')}
+          <span className='serif-italic'>{t('算力')}</span>
+          {t('集群')}
         </h2>
         <p>H200 / B300 / ARM CPU</p>
       </div>
@@ -458,7 +483,9 @@ const SiteFooter = ({
           <img src={logo} alt='' width='31' height='31' />
           <span>{name}</span>
         </Link>
-        <p>{t('统一 AI 接入网关，为团队提供模型接入、路由、计费与治理能力。')}</p>
+        <p>
+          {t('统一 AI 接入网关，为团队提供模型接入、路由、计费与治理能力。')}
+        </p>
       </div>
       <nav className='footer-col' aria-label={t('产品')}>
         <b>{t('产品')}</b>
@@ -524,7 +551,8 @@ const SiteFooter = ({
 );
 
 // Floating action buttons: Telegram / Wechat / QQ / back-to-top
-// Uses buildSupportConfig-driven URLs/images via props.
+// Uses buildSupportConfig-driven lists via props. 每渠道支持多张二维码：
+// 1 张沿用单列样式；2 张两列；3 张三列；4 张 2×2（见 .fab-qr-grid CSS）。
 const SupportFab = ({ support }) => {
   const [showTop, setShowTop] = useState(false);
 
@@ -536,25 +564,52 @@ const SupportFab = ({ support }) => {
   }, []);
 
   const scrollTop = () => {
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
     window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
   };
 
-  const tgImage = support?.telegramQRCode || '';
-  const tgDesc = support?.telegramDesc || '';
-  const wxImage = support?.wechatQRCode || '';
-  const wxDesc = support?.wechatDesc || '';
-  const qqImage = support?.qqQrcode || '';
-  const qqDesc = support?.qqSupport || '';
+  const tgList = support?.telegramList || [];
+  const wxList = support?.wechatList || [];
+  const qqList = support?.qqList || [];
 
-  const showTg = !!(tgImage || tgDesc);
-  const showWx = !!(wxImage || wxDesc);
-  const showQq = !!(qqImage || qqDesc);
+  const showTg = tgList.length > 0;
+  const showWx = wxList.length > 0;
+  const showQq = qqList.length > 0;
   const hasAny = showTg || showWx || showQq;
 
-  // Fallbacks so QR generation still works when only text is supplied
-  const tgQrSrc = tgImage || (tgDesc ? qr(tgDesc) : '');
-  const qqQrSrc = qqImage || (qqDesc ? qr(qqDesc) : '');
+  // 渲染单个渠道的多二维码弹窗：单张保持现网无标题样式，
+  // 多张时增加「渠道标题」行 + 网格布局（qr/qrcode 由调用方传入）。
+  // Fallback：仅填描述无图时，用描述文本生成占位二维码（沿用旧逻辑）。
+  const renderQrPopup = (list, makeFallbackQr) => {
+    if (list.length === 1) {
+      const { url, desc } = list[0];
+      const qrSrc = url || (desc && makeFallbackQr ? makeFallbackQr(desc) : '');
+      return (
+        <div className='fab-qr'>
+          {qrSrc ? <img src={qrSrc} loading='lazy' /> : null}
+          {desc ? <span>{desc}</span> : <span></span>}
+        </div>
+      );
+    }
+    return (
+      <div className='fab-qr fab-qr--multi'>
+        <div className='fab-qr-grid' data-count={Math.min(list.length, 4)}>
+          {list.slice(0, 4).map((item, i) => (
+            <div className='fab-qr-item' key={i}>
+              {item.url ? (
+                <img src={item.url} loading='lazy' />
+              ) : item.desc && makeFallbackQr ? (
+                <img src={makeFallbackQr(item.desc)} loading='lazy' />
+              ) : null}
+              {item.desc ? <span>{item.desc}</span> : <span></span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   if (!hasAny && !showTop) {
     // still render the back-to-top button only
@@ -567,10 +622,7 @@ const SupportFab = ({ support }) => {
           <button className='fab-btn fab-tg' type='button'>
             {TG_ICON}
           </button>
-          <div className='fab-qr'>
-            {tgQrSrc ? <img src={tgQrSrc} loading='lazy' /> : null}
-            {tgDesc ? <span>{tgDesc}</span> : <span></span>}
-          </div>
+          {renderQrPopup(tgList, (text) => qr(text))}
         </div>
       )}
       {showQq && (
@@ -578,23 +630,23 @@ const SupportFab = ({ support }) => {
           <button className='fab-btn fab-qq' type='button'>
             QQ
           </button>
-          <div className='fab-qr'>
-            {qqQrSrc ? <img src={qqQrSrc}  loading='lazy' /> : null}
-            {qqDesc ? <span>{qqDesc}</span> : <span></span>}
-          </div>
+          {renderQrPopup(qqList, (text) => qr(text))}
         </div>
       )}
       {showWx && (
         <div className='fab-contact'>
           <button className='fab-btn fab-wx' type='button'>
-            <svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true' width='20' height='20'>
+            <svg
+              viewBox='0 0 24 24'
+              fill='currentColor'
+              aria-hidden='true'
+              width='20'
+              height='20'
+            >
               <path d='M9.5 4C5.36 4 2 6.91 2 10.5c0 1.86.95 3.53 2.46 4.67L4 18l2.86-1.64c.82.23 1.7.35 2.64.35.28 0 .56-.01.83-.04A6.5 6.5 0 0 1 10 14.5c0-3.59 3.36-6.5 7.5-6.5.24 0 .48.01.71.03C17.19 5.6 13.72 4 9.5 4zM7 8a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5.5 3c-3.04 0-5.5 2.02-5.5 4.5s2.46 4.5 5.5 4.5c.73 0 1.42-.1 2.06-.28L22 21l-.43-1.87C22.79 18.34 23.5 17 23.5 15.5c0-2.48-2.46-4.5-6-4.5zm-2 2.25a.88.88 0 1 1 0 1.75.88.88 0 0 1 0-1.75zm4 0a.88.88 0 1 1 0 1.75.88.88 0 0 1 0-1.75z' />
             </svg>
           </button>
-          <div className='fab-qr'>
-            {wxImage ? <img src={wxImage}  loading='lazy' /> : null}
-            {wxDesc ? <span>{wxDesc}</span> : <span></span>}
-          </div>
+          {renderQrPopup(wxList)}
         </div>
       )}
       <button
@@ -622,7 +674,9 @@ const Theme3Home = () => {
   const [noticeVisible, setNoticeVisible] = useState(false);
   const [versionLogVisible, setVersionLogVisible] = useState(false);
   const [introDone, setIntroDone] = useState(() => {
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
     if (reduced) return true;
     try {
       return window.localStorage.getItem(INTRO_SEEN_KEY) === '1';
@@ -726,7 +780,8 @@ const Theme3Home = () => {
   // Hero pointer parallax
   useEffect(() => {
     const el = heroRef.current;
-    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+      return undefined;
     const onMove = (e) => {
       const x = (e.clientX / window.innerWidth - 0.5) * 14;
       const y = (e.clientY / window.innerHeight - 0.5) * 10;
@@ -754,98 +809,143 @@ const Theme3Home = () => {
   return (
     <div className={`t3-app ${actualTheme === 'light' ? 't3-app--light' : ''}`}>
       <div className='app-shell'>
-      <NoticeModal
-        visible={noticeVisible}
-        onClose={() => setNoticeVisible(false)}
-        isMobile={isMobile}
-      />
-      <Modal
-        title={`${versionLabel} ${t('更新日志')}`}
-        visible={versionLogVisible}
-        onCancel={() => setVersionLogVisible(false)}
-        footer={null}
-        width={520}
-      >
-        <div className='pb-20' style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
-          {statusState?.status?.version?.log || t('暂无更新日志')}
-        </div>
-      </Modal>
-
-      <main className='hero' ref={heroRef}>
-        <VideoLayer />
-        <div className='hero-overlay hero-overlay--left' aria-hidden='true' />
-        <div className='hero-overlay hero-overlay--bottom' aria-hidden='true' />
-        <div className='hero-grid' aria-hidden='true' />
-        <svg className='central-glow' viewBox='0 0 900 220' aria-hidden='true'>
-          <defs>
-            <filter id='glow-blur' x='-20%' y='-100%' width='140%' height='300%'>
-              <feGaussianBlur stdDeviation='25' />
-            </filter>
-            <linearGradient id='glow-color' x1='0' y1='0' x2='1' y2='0'>
-              <stop offset='0' stopColor='var(--theme-primary, #17372d)' stopOpacity='0' />
-              <stop offset='0.48' stopColor='var(--theme-primary, #68e4de)' stopOpacity='0.48' />
-              <stop offset='1' stopColor='var(--theme-primary, #17372d)' stopOpacity='0' />
-            </linearGradient>
-          </defs>
-          <ellipse cx='450' cy='110' rx='390' ry='22' fill='url(#glow-color)' filter='url(#glow-blur)' />
-        </svg>
-
-        <Theme3Header />
-
-        <section className='hero-content' aria-labelledby='hero-title'>
-          <div className='hero-copy'>
-            <div className='hero-eyebrow'>
-              <i />
-              <span>{t('统一大模型网关 · 稳定运行中')}</span>
-            </div>
-            <h1 id='hero-title' ref={heroTitleRef}>
-              {t('一套 API，')}
-              <br />
-              {t('畅连所有 AI')}
-            </h1>
-            <p className='hero-description'>
-              {t('在 OpenAI、Claude、Llama 及 50+ 模型间即时切换。通过智能路由与自建算力，为每次调用选择更稳、更快、更划算的路径。')}
-            </p>
-            <div className='hero-buttons'>
-              <Link className='primary-cta' to={isLoggedIn ? '/console' : '/login'}>
-                {t('免费开始构建')}
-                <ArrowRight size={18} strokeWidth={2} aria-hidden='true' />
-              </Link>
-              <a className='secondary-cta' href={docsHref} target='_blank' rel='noreferrer'>
-                <Play size={15} fill='currentColor' aria-hidden='true' />
-                {t('阅读文档')}
-              </a>
-            </div>
-            <ModelEcosystem t={t} />
-          </div>
-          <div className='compute-card-wrap'>
-            <ComputeCard t={t} />
-          </div>
-        </section>
-
-        <CapabilityRail t={t} />
-
-        <button
-          type='button'
-          className='replay-button'
-          onClick={replayIntro}
-          title='重播开场动画'
+        <NoticeModal
+          visible={noticeVisible}
+          onClose={() => setNoticeVisible(false)}
+          isMobile={isMobile}
+        />
+        <Modal
+          title={`${versionLabel} ${t('更新日志')}`}
+          visible={versionLogVisible}
+          onCancel={() => setVersionLogVisible(false)}
+          footer={null}
+          width={520}
         >
-          <RotateCcw size={15} aria-hidden='true' />
-          <span>重播开场</span>
-        </button>
-      </main>
+          <div
+            className='pb-20'
+            style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}
+          >
+            {statusState?.status?.version?.log || t('暂无更新日志')}
+          </div>
+        </Modal>
 
-      <SiteFooter
-        logo={logo}
-        name={systemName}
-        docsHref={docsHref}
-        apiReferenceHref={apiReferenceHref}
-        communityHref={communityHref}
-        footerHtml={footerHtml}
-        t={t}
-      />
-      <SupportFab support={supportConfig} />
+        <main className='hero' ref={heroRef}>
+          <VideoLayer />
+          <div className='hero-overlay hero-overlay--left' aria-hidden='true' />
+          <div
+            className='hero-overlay hero-overlay--bottom'
+            aria-hidden='true'
+          />
+          <div className='hero-grid' aria-hidden='true' />
+          <svg
+            className='central-glow'
+            viewBox='0 0 900 220'
+            aria-hidden='true'
+          >
+            <defs>
+              <filter
+                id='glow-blur'
+                x='-20%'
+                y='-100%'
+                width='140%'
+                height='300%'
+              >
+                <feGaussianBlur stdDeviation='25' />
+              </filter>
+              <linearGradient id='glow-color' x1='0' y1='0' x2='1' y2='0'>
+                <stop
+                  offset='0'
+                  stopColor='var(--theme-primary, #17372d)'
+                  stopOpacity='0'
+                />
+                <stop
+                  offset='0.48'
+                  stopColor='var(--theme-primary, #68e4de)'
+                  stopOpacity='0.48'
+                />
+                <stop
+                  offset='1'
+                  stopColor='var(--theme-primary, #17372d)'
+                  stopOpacity='0'
+                />
+              </linearGradient>
+            </defs>
+            <ellipse
+              cx='450'
+              cy='110'
+              rx='390'
+              ry='22'
+              fill='url(#glow-color)'
+              filter='url(#glow-blur)'
+            />
+          </svg>
+
+          <Theme3Header />
+
+          <section className='hero-content' aria-labelledby='hero-title'>
+            <div className='hero-copy'>
+              <div className='hero-eyebrow'>
+                <i />
+                <span>{t('统一大模型网关 · 稳定运行中')}</span>
+              </div>
+              <h1 id='hero-title' ref={heroTitleRef}>
+                {t('一套 API，')}
+                <br />
+                {t('畅连所有 AI')}
+              </h1>
+              <p className='hero-description'>
+                {t(
+                  '在 OpenAI、Claude、Llama 及 50+ 模型间即时切换。通过智能路由与自建算力，为每次调用选择更稳、更快、更划算的路径。',
+                )}
+              </p>
+              <div className='hero-buttons'>
+                <Link
+                  className='primary-cta'
+                  to={isLoggedIn ? '/console' : '/login'}
+                >
+                  {t('免费开始构建')}
+                  <ArrowRight size={18} strokeWidth={2} aria-hidden='true' />
+                </Link>
+                <a
+                  className='secondary-cta'
+                  href={docsHref}
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  <Play size={15} fill='currentColor' aria-hidden='true' />
+                  {t('阅读文档')}
+                </a>
+              </div>
+              <ModelEcosystem t={t} />
+            </div>
+            <div className='compute-card-wrap'>
+              <ComputeCard t={t} />
+            </div>
+          </section>
+
+          <CapabilityRail t={t} />
+
+          <button
+            type='button'
+            className='replay-button'
+            onClick={replayIntro}
+            title='重播开场动画'
+          >
+            <RotateCcw size={15} aria-hidden='true' />
+            <span>重播开场</span>
+          </button>
+        </main>
+
+        <SiteFooter
+          logo={logo}
+          name={systemName}
+          docsHref={docsHref}
+          apiReferenceHref={apiReferenceHref}
+          communityHref={communityHref}
+          footerHtml={footerHtml}
+          t={t}
+        />
+        <SupportFab support={supportConfig} />
 
         {!introDone && (
           <IntroSequence

@@ -21,70 +21,123 @@ import React from 'react';
 import { Popover } from '@douyinfe/semi-ui';
 import qqLogo from '../../../public/qq.png';
 
-const normalize = (value = '') => String(value).trim();
-
-// 客服弹层：二维码图片在上、文本描述在下；两者皆空时返回 null。
-const renderSupportPopover = (image, text, alt) => {
-  if (!image && !text) return null;
+// 客服弹层：支持每渠道多张二维码。
+// 单张：二维码在上、描述在下（沿用原样式）。
+// 多张：网格布局 —— 2 张两列、3 张三列、4 张 2×2，每张带独立描述。
+const renderSupportPopover = (list, alt) => {
+  const items = (list || []).filter((item) => item && (item.url || item.desc));
+  if (items.length === 0) return null;
+  if (items.length === 1) {
+    const { url, desc } = items[0];
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 8,
+          maxWidth: 160,
+        }}
+      >
+        {url ? (
+          <img
+            src={url}
+            alt={alt}
+            style={{
+              width: 140,
+              height: 140,
+              objectFit: 'contain',
+              borderRadius: 6,
+              display: 'block',
+            }}
+          />
+        ) : null}
+        {desc ? (
+          <span
+            style={{
+              fontSize: 13,
+              color: 'var(--semi-color-text-1)',
+              textAlign: 'center',
+              wordBreak: 'break-word',
+              whiteSpace: 'pre-wrap',
+              lineHeight: 1.4,
+            }}
+          >
+            {desc}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 8,
-        maxWidth: 160,
+        display: 'grid',
+        gridTemplateColumns:
+          items.length === 3 ? 'repeat(3, 104px)' : 'repeat(2, 112px)',
+        gap: '14px 10px',
+        maxWidth: 380,
       }}
     >
-      {image ? (
-        <img
-          src={image}
-          alt={alt}
+      {items.slice(0, 4).map((item, index) => (
+        <div
+          key={index}
           style={{
-            width: 140,
-            height: 140,
-            objectFit: 'contain',
-            borderRadius: 6,
-            display: 'block',
-          }}
-        />
-      ) : null}
-      {text ? (
-        <span
-          style={{
-            fontSize: 13,
-            color: 'var(--semi-color-text-1)',
-            textAlign: 'center',
-            wordBreak: 'break-word',
-            whiteSpace: 'pre-wrap',
-            lineHeight: 1.4,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 6,
+            minWidth: 0,
           }}
         >
-          {text}
-        </span>
-      ) : null}
+          {item.url ? (
+            <img
+              src={item.url}
+              alt={alt}
+              style={{
+                width: items.length === 3 ? 104 : 112,
+                height: items.length === 3 ? 104 : 112,
+                objectFit: 'contain',
+                borderRadius: 6,
+                background: '#fff',
+                display: 'block',
+              }}
+            />
+          ) : null}
+          {item.desc ? (
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--semi-color-text-1)',
+                textAlign: 'center',
+                wordBreak: 'break-word',
+                lineHeight: 1.4,
+                maxWidth: 130,
+              }}
+            >
+              {item.desc}
+            </span>
+          ) : null}
+        </div>
+      ))}
     </div>
   );
 };
 
-const FloatingSupport = ({
-  wechatQRCode,
-  wechatDesc,
-  qqQrcode,
-  qqSupport,
-  telegramQRCode,
-  telegramDesc,
-}) => {
-  const wechatImage = normalize(wechatQRCode);
-  const wechatText = normalize(wechatDesc);
-  const qqImage = normalize(qqQrcode);
-  const qqText = normalize(qqSupport);
-  const telegramImage = normalize(telegramQRCode);
-  const telegramText = normalize(telegramDesc);
+const FloatingSupport = ({ wechatList, qqList, telegramList }) => {
+  const wechatItems = (wechatList || []).filter(
+    (item) => item && (item.url || item.desc),
+  );
+  const qqItems = (qqList || []).filter(
+    (item) => item && (item.url || item.desc),
+  );
+  const telegramItems = (telegramList || []).filter(
+    (item) => item && (item.url || item.desc),
+  );
 
-  const showWechat = Boolean(wechatImage || wechatText);
-  const showQQ = Boolean(qqImage || qqText);
-  const showTelegram = Boolean(telegramImage || telegramText);
+  const showWechat = wechatItems.length > 0;
+  const showQQ = qqItems.length > 0;
+  const showTelegram = telegramItems.length > 0;
 
   if (!showWechat && !showQQ && !showTelegram) {
     return null;
@@ -94,7 +147,7 @@ const FloatingSupport = ({
     <div className='floating-support' aria-label='customer support'>
       {showWechat ? (
         <Popover
-          content={renderSupportPopover(wechatImage, wechatText, '微信客服二维码')}
+          content={renderSupportPopover(wechatItems, '微信客服二维码')}
           position='left'
           showArrow
           trigger='hover'
@@ -106,7 +159,7 @@ const FloatingSupport = ({
       ) : null}
       {showTelegram ? (
         <Popover
-          content={renderSupportPopover(telegramImage, telegramText, 'Telegram客服二维码')}
+          content={renderSupportPopover(telegramItems, 'Telegram客服二维码')}
           position='left'
           showArrow
           trigger='hover'
@@ -118,7 +171,7 @@ const FloatingSupport = ({
       ) : null}
       {showQQ ? (
         <Popover
-          content={renderSupportPopover(qqImage, qqText, 'QQ客服二维码')}
+          content={renderSupportPopover(qqItems, 'QQ客服二维码')}
           position='left'
           showArrow
           trigger='hover'

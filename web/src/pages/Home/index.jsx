@@ -51,11 +51,7 @@ import FloatingSupport from '../../components/common/FloatingSupport';
 import PageTheme1Home from './theme/pageTheme1';
 import PageTheme3Home from './theme/pageTheme3';
 
-import {
-  buildSupportConfig,
-  getLogo,
-  getSystemName,
-} from '../../helpers';
+import { buildSupportConfig, getLogo, getSystemName } from '../../helpers';
 
 import openaiLogo from '../../../public/logos/openai.svg';
 import anthropicLogo from '../../../public/logos/anthropic.svg';
@@ -159,10 +155,9 @@ const Home = () => {
   const docsLink = statusState?.status?.docs_link || '';
   const serverAddress = `${window.location.origin}`;
   const providerConfig = statusState?.status?.provider_config;
-  const homePageTheme =
-    providerConfig?.enabled
-      ? providerConfig?.home_page_theme || 'default'
-      : statusState?.status?.home_page_theme || 'default';
+  const homePageTheme = providerConfig?.enabled
+    ? providerConfig?.home_page_theme || 'default'
+    : statusState?.status?.home_page_theme || 'default';
   const hasCustomHomePageContent =
     homePageContentLoaded && String(homePageContent || '').trim() !== '';
   const showStyleAHome =
@@ -486,12 +481,9 @@ const Home = () => {
         isMobile={isMobile}
       />
       <FloatingSupport
-        wechatQRCode={supportConfig.wechatQRCode}
-        wechatDesc={supportConfig.wechatDesc}
-        qqQrcode={supportConfig.qqQrcode}
-        qqSupport={supportConfig.qqSupport}
-        telegramQRCode={supportConfig.telegramQRCode}
-        telegramDesc={supportConfig.telegramDesc}
+        wechatList={supportConfig.wechatList}
+        qqList={supportConfig.qqList}
+        telegramList={supportConfig.telegramList}
       />
       <Modal
         title={`${statusState?.status?.version?.version || 'v2.0'} ${t('更新日志')}`}
@@ -500,7 +492,10 @@ const Home = () => {
         footer={null}
         width={520}
       >
-        <div className='pb-20' style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
+        <div
+          className='pb-20'
+          style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}
+        >
           {statusState?.status?.version?.log || t('暂无更新日志')}
         </div>
       </Modal>
@@ -580,7 +575,8 @@ const Home = () => {
                   onClick={() => setVersionLogVisible(true)}
                 >
                   <span className='landing-v2-hero-badge-dot' />
-                  {statusState?.status?.version?.version || 'v2.0'} {t('现已上线')}
+                  {statusState?.status?.version?.version || 'v2.0'}{' '}
+                  {t('现已上线')}
                 </div>
                 <div className='landing-v2-hero-title'>
                   {t('一套 API，畅连所有 AI')}
@@ -778,7 +774,9 @@ const Home = () => {
                     </a>
                   </li>
                   <li>
-                    <a href={`mailto:support@${systemName.toLowerCase()}`}>{t('联系我们')}</a>
+                    <a href={`mailto:support@${systemName.toLowerCase()}`}>
+                      {t('联系我们')}
+                    </a>
                   </li>
                 </ul>
               </div>
@@ -786,7 +784,13 @@ const Home = () => {
 
             <div className='landing-v2-footer-bottom'>
               {/* <span>© {new Date().getFullYear()} {systemName}. All rights reserved.</span> */}
-              <span dangerouslySetInnerHTML={{ __html: statusState?.status.footer_html || `© ${new Date().getFullYear()} ${systemName}. All rights reserved.` }} />
+              <span
+                dangerouslySetInnerHTML={{
+                  __html:
+                    statusState?.status.footer_html ||
+                    `© ${new Date().getFullYear()} ${systemName}. All rights reserved.`,
+                }}
+              />
             </div>
           </footer>
         </>

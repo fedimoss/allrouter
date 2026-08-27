@@ -1693,11 +1693,8 @@ CREATE TABLE provider_configs (
     updated_at bigint,
     secondary_color character varying(32) DEFAULT ''::character varying,
     wechat_support text DEFAULT ''::character varying,
-    qq_support text DEFAULT ''::character varying,
-    wechat_support_desc text DEFAULT ''::character varying,
     qq_support_qrcode text DEFAULT ''::character varying,
     telegram_support text DEFAULT ''::character varying,
-    telegram_support_desc text DEFAULT ''::character varying,
     import_price_ratio numeric(10,6) DEFAULT 1 NOT NULL,
     home_page_theme character varying(64) DEFAULT ''::character varying,
     model_pricing_sync_enabled boolean DEFAULT false,
@@ -1826,20 +1823,6 @@ COMMENT ON COLUMN provider_configs.wechat_support IS '微信客服';
 
 
 --
--- Name: COLUMN provider_configs.qq_support; Type: COMMENT;;
---
-
-COMMENT ON COLUMN provider_configs.qq_support IS 'QQ客服';
-
-
---
--- Name: COLUMN provider_configs.wechat_support_desc; Type: COMMENT;;
---
-
-COMMENT ON COLUMN provider_configs.wechat_support_desc IS '微信客服文本描述';
-
-
---
 -- Name: COLUMN provider_configs.qq_support_qrcode; Type: COMMENT;;
 --
 
@@ -1851,13 +1834,6 @@ COMMENT ON COLUMN provider_configs.qq_support_qrcode IS 'QQ客服二维码';
 --
 
 COMMENT ON COLUMN provider_configs.telegram_support IS 'Telegram客服';
-
-
---
--- Name: COLUMN provider_configs.telegram_support_desc; Type: COMMENT;;
---
-
-COMMENT ON COLUMN provider_configs.telegram_support_desc IS 'Telegram客服文本描述';
 
 
 --

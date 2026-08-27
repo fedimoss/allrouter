@@ -42,24 +42,25 @@ type providerDomainsSaveRequest struct {
 }
 
 type providerConfigRequest struct {
-	SiteName            string `json:"site_name"`
-	Logo                string `json:"logo"`
-	ThemeColor          string `json:"theme_color"`
-	SecondaryColor      string `json:"secondary_color"`
-	LoginBackground     string `json:"login_background"`
-	HomePageTheme       string `json:"home_page_theme"`
-	HomeModules         string `json:"home_modules"`
-	NavModules          string `json:"nav_modules"`
-	PricingDisplay      string `json:"pricing_display"`
-	Announcement        string `json:"announcement"`
-	FooterText          string `json:"footer_text"`
-	SupportUrl          string `json:"support_url"`
-	WechatSupport       string `json:"wechat_support"`
-	QQSupport           string `json:"qq_support"`
-	WechatSupportDesc   string `json:"wechat_support_desc"`
-	QQSupportQrcode     string `json:"qq_support_qrcode"`
-	TelegramSupport     string `json:"telegram_support"`
-	TelegramSupportDesc string `json:"telegram_support_desc"`
+	SiteName        string `json:"site_name"`
+	Logo            string `json:"logo"`
+	ThemeColor      string `json:"theme_color"`
+	SecondaryColor  string `json:"secondary_color"`
+	LoginBackground string `json:"login_background"`
+	HomePageTheme   string `json:"home_page_theme"`
+	HomeModules     string `json:"home_modules"`
+	NavModules      string `json:"nav_modules"`
+	PricingDisplay  string `json:"pricing_display"`
+	Announcement    string `json:"announcement"`
+	FooterText      string `json:"footer_text"`
+	SupportUrl      string `json:"support_url"`
+	WechatSupport   string `json:"wechat_support"`    // 旧格式：URL 或 JSON 数组字符串
+	QQSupportQrcode string `json:"qq_support_qrcode"` // 旧格式：URL 或 JSON 数组字符串
+	TelegramSupport string `json:"telegram_support"`  // 旧格式：URL 或 JSON 数组字符串
+	// 多二维码列表（新格式，优先于旧标量字段）
+	WechatSupportList   []common.SupportQRCode `json:"wechat_support_list"`
+	QQSupportList       []common.SupportQRCode `json:"qq_support_list"`
+	TelegramSupportList []common.SupportQRCode `json:"telegram_support_list"`
 }
 
 type providerNavModulesRequest struct {
@@ -198,12 +199,13 @@ func providerConfigResponse(c *gin.Context, cfg *model.ProviderConfig) gin.H {
 	resp["announcement"] = cfg.Announcement
 	resp["footer_text"] = cfg.FooterText
 	resp["support_url"] = cfg.SupportUrl
-	resp["wechat_support"] = cfg.WechatSupport // 微信客服
-	resp["qq_support"] = cfg.QQSupport         // QQ客服
-	resp["wechat_support_desc"] = cfg.WechatSupportDesc
-	resp["qq_support_qrcode"] = cfg.QQSupportQrcode
-	resp["telegram_support"] = cfg.TelegramSupport
-	resp["telegram_support_desc"] = cfg.TelegramSupportDesc
+	resp["wechat_support"] = cfg.WechatSupport      // 微信客服（兼容保留：新格式为 JSON 数组，旧格式为单 URL）
+	resp["qq_support_qrcode"] = cfg.QQSupportQrcode // QQ客服二维码（兼容保留）
+	resp["telegram_support"] = cfg.TelegramSupport  // Telegram客服（兼容保留）
+	// 多二维	码列表：解析后的 [{url, desc}] 数组，前端优先消费这三个字段
+	resp["wechat_support_list"] = common.ParseSupportQRCodes(cfg.WechatSupport)
+	resp["qq_support_list"] = common.ParseSupportQRCodes(cfg.QQSupportQrcode)
+	resp["telegram_support_list"] = common.ParseSupportQRCodes(cfg.TelegramSupport)
 	return resp
 }
 
@@ -712,24 +714,22 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 	if c.GetInt("role") < common.RoleAdminUser {
 		req.HomePageTheme = ""
 	}
+	// 三渠道多二维码：新格式 list 优先，回退旧标量字段（兼容旧前端提交，描述字段已废弃）
 	updates := map[string]interface{}{
-		"site_name":             strings.TrimSpace(req.SiteName),
-		"logo":                  strings.TrimSpace(req.Logo),
-		"login_background":      strings.TrimSpace(req.LoginBackground),
-		"home_page_theme":       strings.TrimSpace(req.HomePageTheme),
-		"home_modules":          req.HomeModules,
-		"nav_modules":           req.NavModules,
-		"pricing_display":       req.PricingDisplay,
-		"announcement":          strings.TrimSpace(req.Announcement),
-		"footer_text":           strings.TrimSpace(req.FooterText),
-		"support_url":           strings.TrimSpace(req.SupportUrl),
-		"updated_at":            common.GetTimestamp(),
-		"wechat_support":        strings.TrimSpace(req.WechatSupport), // 微信客服
-		"qq_support":            strings.TrimSpace(req.QQSupport),     // QQ客服
-		"wechat_support_desc":   strings.TrimSpace(req.WechatSupportDesc),
-		"qq_support_qrcode":     strings.TrimSpace(req.QQSupportQrcode),
-		"telegram_support":      strings.TrimSpace(req.TelegramSupport),
-		"telegram_support_desc": strings.TrimSpace(req.TelegramSupportDesc),
+		"site_name":         strings.TrimSpace(req.SiteName),
+		"logo":              strings.TrimSpace(req.Logo),
+		"login_background":  strings.TrimSpace(req.LoginBackground),
+		"home_page_theme":   strings.TrimSpace(req.HomePageTheme),
+		"home_modules":      req.HomeModules,
+		"nav_modules":       req.NavModules,
+		"pricing_display":   req.PricingDisplay,
+		"announcement":      strings.TrimSpace(req.Announcement),
+		"footer_text":       strings.TrimSpace(req.FooterText),
+		"support_url":       strings.TrimSpace(req.SupportUrl),
+		"updated_at":        common.GetTimestamp(),
+		"wechat_support":    resolveSupportQRCodes(req.WechatSupportList, req.WechatSupport),     // 微信客服（JSON 数组）
+		"qq_support_qrcode": resolveSupportQRCodes(req.QQSupportList, req.QQSupportQrcode),       // QQ客服二维码（JSON 数组）
+		"telegram_support":  resolveSupportQRCodes(req.TelegramSupportList, req.TelegramSupport), // Telegram客服（JSON 数组）
 	}
 	if c.GetInt("role") >= common.RoleAdminUser {
 		updates["theme_color"] = req.ThemeColor
@@ -741,28 +741,25 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 		importPriceRatio := 1.0
 		now := common.GetTimestamp()
 		cfg = model.ProviderConfig{
-			ProviderId:          providerId,
-			SiteName:            strings.TrimSpace(req.SiteName),
-			Logo:                strings.TrimSpace(req.Logo),
-			ThemeColor:          req.ThemeColor,
-			SecondaryColor:      req.SecondaryColor,
-			LoginBackground:     strings.TrimSpace(req.LoginBackground),
-			HomePageTheme:       strings.TrimSpace(req.HomePageTheme),
-			HomeModules:         req.HomeModules,
-			NavModules:          req.NavModules,
-			PricingDisplay:      req.PricingDisplay,
-			Announcement:        strings.TrimSpace(req.Announcement),
-			FooterText:          strings.TrimSpace(req.FooterText),
-			SupportUrl:          strings.TrimSpace(req.SupportUrl),
-			CreatedAt:           now,
-			UpdatedAt:           now,
-			WechatSupport:       strings.TrimSpace(req.WechatSupport),
-			QQSupport:           strings.TrimSpace(req.QQSupport),
-			WechatSupportDesc:   strings.TrimSpace(req.WechatSupportDesc),
-			QQSupportQrcode:     strings.TrimSpace(req.QQSupportQrcode),
-			TelegramSupport:     strings.TrimSpace(req.TelegramSupport),
-			TelegramSupportDesc: strings.TrimSpace(req.TelegramSupportDesc),
-			ImportPriceRatio:    importPriceRatio,
+			ProviderId:       providerId,
+			SiteName:         strings.TrimSpace(req.SiteName),
+			Logo:             strings.TrimSpace(req.Logo),
+			ThemeColor:       req.ThemeColor,
+			SecondaryColor:   req.SecondaryColor,
+			LoginBackground:  strings.TrimSpace(req.LoginBackground),
+			HomePageTheme:    strings.TrimSpace(req.HomePageTheme),
+			HomeModules:      req.HomeModules,
+			NavModules:       req.NavModules,
+			PricingDisplay:   req.PricingDisplay,
+			Announcement:     strings.TrimSpace(req.Announcement),
+			FooterText:       strings.TrimSpace(req.FooterText),
+			SupportUrl:       strings.TrimSpace(req.SupportUrl),
+			CreatedAt:        now,
+			UpdatedAt:        now,
+			WechatSupport:    resolveSupportQRCodes(req.WechatSupportList, req.WechatSupport),
+			QQSupportQrcode:  resolveSupportQRCodes(req.QQSupportList, req.QQSupportQrcode),
+			TelegramSupport:  resolveSupportQRCodes(req.TelegramSupportList, req.TelegramSupport),
+			ImportPriceRatio: importPriceRatio,
 		}
 		if err := model.DB.Create(&cfg).Error; err != nil {
 			common.ApiError(c, err)

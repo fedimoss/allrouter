@@ -41,6 +41,7 @@ import {
   showError,
   showSuccess,
   timestamp2string,
+  SUPPORT_QRCODE_MAX_COUNT,
 } from '../../helpers';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
@@ -57,6 +58,26 @@ const HOME_PAGE_THEME_OPTIONS = [
   { label: '风格一', value: 'style_a' },
   { label: '风格二', value: 'style_c' },
 ];
+
+// 解析单个渠道的二维码列表：qrcodeValue 为后端存储原值
+// （新格式 JSON 数组字符串，或旧格式单 URL——旧格式仅保留图片，描述已废弃）。
+export const parseSupportQrcodeList = (qrcodeValue) => {
+  const trimmed = String(qrcodeValue || '').trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item) => item && (item.url || item.desc))
+          .slice(0, SUPPORT_QRCODE_MAX_COUNT);
+      }
+    } catch {
+      // 损坏数据：回退旧格式处理
+    }
+  }
+  return [{ url: trimmed, desc: '' }];
+};
 
 const OtherSetting = () => {
   const { t } = useTranslation();
@@ -75,12 +96,10 @@ const OtherSetting = () => {
     About: '',
     HomePageTheme: 'default',
     HomePageContent: '',
+    // 客服二维码存储原值（JSON 数组或旧格式单 URL），仅用于解析出 supportLists
     WechatSupport: '',
-    WechatSupportDesc: '',
-    QQSupport: '',
     QQSupportQrcode: '',
     TelegramSupport: '',
-    TelegramSupportDesc: '',
   });
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -133,6 +152,19 @@ const OtherSetting = () => {
   });
   const [versionLogLoading, setVersionLogLoading] = useState(false);
   const [versionLogSubmitting, setVersionLogSubmitting] = useState(false);
+
+  // 客服三渠道多二维码列表：{ wechat: [{url,desc}], telegram: [...], qq: [...] }
+  const [supportLists, setSupportLists] = useState({
+    wechat: [],
+    telegram: [],
+    qq: [],
+  });
+  // 每渠道每个上传位的上传中状态：{ wechat: [bool,bool,bool,bool], ... }
+  const [supportUploading, setSupportUploading] = useState({
+    wechat: [false, false, false, false],
+    telegram: [false, false, false, false],
+    qq: [false, false, false, false],
+  });
 
   const fetchVersionLogs = async () => {
     setVersionLogLoading(true);
@@ -565,151 +597,79 @@ const OtherSetting = () => {
     }
   };
 
-  const handleWeChatQRCodeUpload = async ({
-    file,
-    fileInstance,
-    onSuccess,
-    onError,
-  }) => {
-    try {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        WeChatQRCodeUpload: true,
-      }));
-      const uploadFile = fileInstance || file?.fileInstance;
-      if (!uploadFile) {
-        throw new Error(t('请选择图片'));
+  // 客服二维码上传（通用）：channel 为 supportChannels 配置，index 为该渠道的上传位序号。
+  // 上传成功后回写 supportLists 对应槽位的 url。
+  const handleSupportQrcodeUpload =
+    (channel, index) =>
+    async ({ file, fileInstance, onSuccess, onError }) => {
+      try {
+        setSupportUploading((prev) => ({
+          ...prev,
+          [channel.key]: prev[channel.key].map((v, i) =>
+            i === index ? true : v,
+          ),
+        }));
+        const uploadFile = fileInstance || file?.fileInstance;
+        if (!uploadFile) {
+          throw new Error(t('请选择图片'));
+        }
+        const formData = new FormData();
+        formData.append(channel.formDataName, uploadFile);
+        const res = await API.post(channel.endpoint, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        const { success, message, data } = res.data || {};
+        if (!success) {
+          throw new Error(message || t(channel.errorKey));
+        }
+        const qrcodePath = getLogoUploadPath(data);
+        if (!qrcodePath) {
+          throw new Error(t(channel.invalidKey));
+        }
+        setSupportLists((prev) => {
+          const list = [...prev[channel.key]];
+          const current = list[index] || { url: '', desc: '' };
+          list[index] = { ...current, url: qrcodePath };
+          return { ...prev, [channel.key]: list };
+        });
+        showSuccess(t(channel.successKey));
+        onSuccess?.(data || {});
+      } catch (error) {
+        showError(error?.message || t(channel.errorKey));
+        onError?.({ status: 500 }, error);
+      } finally {
+        setSupportUploading((prev) => ({
+          ...prev,
+          [channel.key]: prev[channel.key].map((v, i) =>
+            i === index ? false : v,
+          ),
+        }));
       }
-      const formData = new FormData();
-      formData.append('wechat_qrcode', uploadFile);
-      const res = await API.post('/api/option/wechat_qrcode', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      const { success, message, data } = res.data || {};
-      if (!success) {
-        throw new Error(message || t('微信二维码上传失败'));
-      }
-      const wechatQRCodePath = getLogoUploadPath(data);
-      if (!wechatQRCodePath) {
-        throw new Error(t('微信二维码上传返回地址无效'));
-      }
-      setInputs((inputs) => ({
-        ...inputs,
-        WechatSupport: wechatQRCodePath,
-      }));
-      formAPIWebSupport.current?.setValue?.('WechatSupport', wechatQRCodePath);
-      showSuccess(t('微信二维码上传成功'));
-      onSuccess?.(data || {});
-    } catch (error) {
-      showError(error?.message || t('微信二维码上传失败'));
-      onError?.({ status: 500 }, error);
-    } finally {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        WeChatQRCodeUpload: false,
-      }));
-    }
+    };
+
+  // 更新某渠道某槽位的描述文本
+  const handleSupportDescChange = (channelKey, index, desc) => {
+    setSupportLists((prev) => {
+      const list = [...prev[channelKey]];
+      const current = list[index] || { url: '', desc: '' };
+      list[index] = { ...current, desc };
+      return { ...prev, [channelKey]: list };
+    });
   };
 
-  const handleTelegramQRCodeUpload = async ({
-    file,
-    fileInstance,
-    onSuccess,
-    onError,
-  }) => {
-    try {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        TelegramQRCodeUpload: true,
-      }));
-      const uploadFile = fileInstance || file?.fileInstance;
-      if (!uploadFile) {
-        throw new Error(t('请选择图片'));
+  // 清空某渠道某槽位（删除二维码 + 描述）
+  const clearSupportSlot = (channelKey, index) => {
+    setSupportLists((prev) => {
+      const list = [...prev[channelKey]];
+      list[index] = { url: '', desc: '' };
+      // 全空时重置为空数组，避免残留空槽位被保存
+      if (list.every((item) => !item || (!item.url && !item.desc))) {
+        return { ...prev, [channelKey]: [] };
       }
-      const formData = new FormData();
-      formData.append('telegram_qrcode', uploadFile);
-      const res = await API.post('/api/option/telegram_qrcode', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      const { success, message, data } = res.data || {};
-      if (!success) {
-        throw new Error(message || t('Telegram二维码上传失败'));
-      }
-      const telegramQRCodePath = getLogoUploadPath(data);
-      if (!telegramQRCodePath) {
-        throw new Error(t('Telegram二维码上传返回地址无效'));
-      }
-      setInputs((inputs) => ({
-        ...inputs,
-        TelegramSupport: telegramQRCodePath,
-      }));
-      formAPIWebSupport.current?.setValue?.(
-        'TelegramSupport',
-        telegramQRCodePath,
-      );
-      showSuccess(t('Telegram二维码上传成功'));
-      onSuccess?.(data || {});
-    } catch (error) {
-      showError(error?.message || t('Telegram二维码上传失败'));
-      onError?.({ status: 500 }, error);
-    } finally {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        TelegramQRCodeUpload: false,
-      }));
-    }
-  };
-
-  const handleQQQRCodeUpload = async ({
-    file,
-    fileInstance,
-    onSuccess,
-    onError,
-  }) => {
-    try {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        QQQRCodeUpload: true,
-      }));
-      const uploadFile = fileInstance || file?.fileInstance;
-      if (!uploadFile) {
-        throw new Error(t('请选择图片'));
-      }
-      const formData = new FormData();
-      formData.append('qq_qrcode', uploadFile);
-      const res = await API.post('/api/option/qq_qrcode', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      const { success, message, data } = res.data || {};
-      if (!success) {
-        throw new Error(message || t('QQ二维码上传失败'));
-      }
-      const qqQRCodePath = getLogoUploadPath(data);
-      if (!qqQRCodePath) {
-        throw new Error(t('QQ二维码上传返回地址无效'));
-      }
-      setInputs((inputs) => ({
-        ...inputs,
-        QQSupportQrcode: qqQRCodePath,
-      }));
-      formAPIWebSupport.current?.setValue?.('QQSupportQrcode', qqQRCodePath);
-      showSuccess(t('QQ二维码上传成功'));
-      onSuccess?.(data || {});
-    } catch (error) {
-      showError(error?.message || t('QQ二维码上传失败'));
-      onError?.({ status: 500 }, error);
-    } finally {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        QQQRCodeUpload: false,
-      }));
-    }
+      return { ...prev, [channelKey]: list };
+    });
   };
 
   const submitWebSupport = async () => {
@@ -718,13 +678,15 @@ const OtherSetting = () => {
         ...loadingInput,
         WebSupport: true,
       }));
+      // 统一清洗：过滤空槽位、截断至最大数量
+      const cleanList = (list) =>
+        (list || [])
+          .filter((item) => item && (item.url || item.desc))
+          .slice(0, SUPPORT_QRCODE_MAX_COUNT);
       const res = await API.post('/api/option/web_support', {
-        wechat_support: inputs.WechatSupport || '',
-        wechat_support_desc: inputs.WechatSupportDesc || '',
-        qq_support: inputs.QQSupport || '',
-        qq_support_qrcode: inputs.QQSupportQrcode || '',
-        telegram_support: inputs.TelegramSupport || '',
-        telegram_support_desc: inputs.TelegramSupportDesc || '',
+        wechat_support_list: cleanList(supportLists.wechat),
+        qq_support_list: cleanList(supportLists.qq),
+        telegram_support_list: cleanList(supportLists.telegram),
       });
       const { success, message } = res.data || {};
       if (success) {
@@ -837,6 +799,12 @@ const OtherSetting = () => {
       formAPISettingGeneral.current.setValues(newInputs);
       formAPIPersonalization.current.setValues(newInputs);
       formAPIWebSupport.current?.setValues(newInputs);
+      // 解析三渠道多二维码列表（新格式 JSON 数组 / 旧格式单 URL 兼容）
+      setSupportLists({
+        wechat: parseSupportQrcodeList(newInputs.WechatSupport),
+        telegram: parseSupportQrcodeList(newInputs.TelegramSupport),
+        qq: parseSupportQrcodeList(newInputs.QQSupportQrcode),
+      });
     } else {
       showError(message);
     }
@@ -860,123 +828,158 @@ const OtherSetting = () => {
     return statusState.status ? timestamp2string(timestamp) : '';
   };
 
-  // 客服二维码上传区：虚线方框既是上传触发区又是预览区。channel 为 supportChannels 中的配置。
+  // 客服渠道多二维码槽位渲染：每渠道最多 4 位，一行并排 4 个竖单元——
+  // 「二维码 N + 删除」标签行 + 118px 上传/预览方块 + 下方窄描述输入。
+  // 空槽位虚线占位，中间删除产生的洞也渲染，保持位次稳定。
   const renderQrcodeDropzone = (channel) => {
-    const image = inputs[channel.qrcodeField];
-    const uploading = loadingInput[channel.loadingKey];
+    const list = supportLists[channel.key] || [];
+    const slots = Array.from(
+      { length: SUPPORT_QRCODE_MAX_COUNT },
+      (_, i) => list[i] || { url: '', desc: '' },
+    );
     return (
-      <Upload
-        action='/'
-        accept='image/*'
-        showUploadList={false}
-        uploadTrigger='auto'
-        customRequest={channel.uploadHandler}
-      >
-        <div
-          style={{
-            position: 'relative',
-            width: 100,
-            height: 100,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            border: `1px dashed ${uploading ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`,
-            borderRadius: 6,
-            cursor: 'pointer',
-            overflow: 'hidden',
-            color: 'var(--semi-color-text-2)',
-            transition: 'border-color 0.18s ease',
-          }}
-        >
-          {uploading ? (
-            <span style={{ fontSize: 12 }}>{t('上传中...')}</span>
-          ) : image ? (
-            <img
-              src={image}
-              alt={t(channel.altKey)}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {slots.map((slot, index) => {
+          const uploading = supportUploading[channel.key]?.[index];
+          const hasContent = !!(slot.url || slot.desc);
+          return (
+            <div
+              key={`${channel.key}-${index}`}
               style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                display: 'block',
-              }}
-            />
-          ) : (
-            <>
-              <IconUpload style={{ fontSize: 22 }} />
-              <span style={{ fontSize: 12 }}>{t('上传二维码')}</span>
-            </>
-          )}
-          {image && !uploading ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setInputs((prev) => ({ ...prev, [channel.qrcodeField]: '' }));
-                formAPIWebSupport.current?.setValue?.(channel.qrcodeField, '');
-              }}
-              style={{
-                position: 'absolute',
-                top: 2,
-                right: 2,
-                width: 18,
-                height: 18,
-                borderRadius: '50%',
-                border: 'none',
-                background: 'var(--semi-color-danger)',
-                color: '#fff',
-                fontSize: 12,
-                lineHeight: '18px',
-                cursor: 'pointer',
+                width: 118,
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 0,
+                flexDirection: 'column',
+                gap: 6,
               }}
             >
-              ×
-            </button>
-          ) : null}
-        </div>
-      </Upload>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <span
+                  style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}
+                >
+                  {t('二维码 {{index}}', { index: index + 1 })}
+                </span>
+                {hasContent ? (
+                  <button
+                    onClick={() => clearSupportSlot(channel.key, index)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--semi-color-danger)',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {t('删除')}
+                  </button>
+                ) : null}
+              </div>
+              <Upload
+                action='/'
+                accept='image/*'
+                showUploadList={false}
+                uploadTrigger='auto'
+                customRequest={handleSupportQrcodeUpload(channel, index)}
+              >
+                <div
+                  style={{
+                    position: 'relative',
+                    width: 118,
+                    height: 118,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    border: `1px dashed ${uploading ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`,
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                    color: 'var(--semi-color-text-2)',
+                    transition: 'border-color 0.18s ease',
+                  }}
+                >
+                  {uploading ? (
+                    <span style={{ fontSize: 12 }}>{t('上传中...')}</span>
+                  ) : slot.url ? (
+                    <img
+                      src={slot.url}
+                      alt={t(channel.altKey)}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        display: 'block',
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <IconUpload style={{ fontSize: 20 }} />
+                      <span style={{ fontSize: 12 }}>{t('上传二维码')}</span>
+                    </>
+                  )}
+                </div>
+              </Upload>
+              <Input
+                placeholder={t('描述（可选）')}
+                value={slot.desc}
+                onChange={(value) =>
+                  handleSupportDescChange(channel.key, index, value)
+                }
+                size='small'
+                style={{ width: '100%' }}
+              />
+            </div>
+          );
+        })}
+      </div>
     );
   };
 
   // 客服渠道配置：驱动“客服设置”卡片的统一渲染。
+  // 每渠道最多上传 SUPPORT_QRCODE_MAX_COUNT 张二维码，各自带独立描述。
   const supportChannels = [
     {
       key: 'wechat',
       icon: 'fab fa-weixin',
       color: '#07c160',
       titleKey: '微信客服',
-      qrcodeField: 'WechatSupport',
-      descField: 'WechatSupportDesc',
       altKey: '微信二维码',
-      uploadHandler: handleWeChatQRCodeUpload,
-      loadingKey: 'WeChatQRCodeUpload',
+      endpoint: '/api/option/wechat_qrcode',
+      formDataName: 'wechat_qrcode',
+      errorKey: '微信二维码上传失败',
+      invalidKey: '微信二维码上传返回地址无效',
+      successKey: '微信二维码上传成功',
     },
     {
       key: 'telegram',
       icon: 'fab fa-telegram',
       color: '#229ed9',
       titleKey: 'Telegram客服',
-      qrcodeField: 'TelegramSupport',
-      descField: 'TelegramSupportDesc',
       altKey: 'Telegram二维码',
-      uploadHandler: handleTelegramQRCodeUpload,
-      loadingKey: 'TelegramQRCodeUpload',
+      endpoint: '/api/option/telegram_qrcode',
+      formDataName: 'telegram_qrcode',
+      errorKey: 'Telegram二维码上传失败',
+      invalidKey: 'Telegram二维码上传返回地址无效',
+      successKey: 'Telegram二维码上传成功',
     },
     {
       key: 'qq',
       icon: 'fab fa-qq',
       color: '#12b7f5',
       titleKey: 'QQ客服',
-      qrcodeField: 'QQSupportQrcode',
-      descField: 'QQSupport',
       altKey: 'QQ二维码',
-      uploadHandler: handleQQQRCodeUpload,
-      loadingKey: 'QQQRCodeUpload',
+      endpoint: '/api/option/qq_qrcode',
+      formDataName: 'qq_qrcode',
+      errorKey: 'QQ二维码上传失败',
+      invalidKey: 'QQ二维码上传返回地址无效',
+      successKey: 'QQ二维码上传成功',
     },
   ];
 
@@ -1493,17 +1496,20 @@ const OtherSetting = () => {
                     <span style={{ fontWeight: 600, fontSize: 14 }}>
                       {t(channel.titleKey)}
                     </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: 'var(--semi-color-text-2)',
+                        marginLeft: 'auto',
+                      }}
+                    >
+                      {t(
+                        '最多上传 {{count}} 张二维码，每张可填写独立描述，空位不展示',
+                        { count: SUPPORT_QRCODE_MAX_COUNT },
+                      )}
+                    </span>
                   </div>
-                  <div style={{ marginBottom: 12 }}>
-                    {renderQrcodeDropzone(channel)}
-                  </div>
-                  <Form.TextArea
-                    label={t('文本描述')}
-                    placeholder={t('可填写号码、链接或推广文案')}
-                    field={channel.descField}
-                    onChange={handleInputChange}
-                    autosize={{ minRows: 2, maxRows: 6 }}
-                  />
+                  {renderQrcodeDropzone(channel)}
                 </div>
               ))}
               <Button

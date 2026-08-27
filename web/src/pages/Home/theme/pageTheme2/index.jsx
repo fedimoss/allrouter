@@ -35,7 +35,11 @@ import {
 } from '../../../../helpers';
 import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
-import { useActualTheme, useSetTheme, useTheme } from '../../../../context/Theme';
+import {
+  useActualTheme,
+  useSetTheme,
+  useTheme,
+} from '../../../../context/Theme';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { marked } from 'marked';
 import { Modal } from '@douyinfe/semi-ui';
@@ -99,8 +103,7 @@ const featureCards = [
   {
     imgUrl: iconOne,
     title: '多渠道比价',
-    description:
-      '智能分析各家模型渠道实时价格，为您锁定当前最优成本路径。',
+    description: '智能分析各家模型渠道实时价格，为您锁定当前最优成本路径。',
   },
   {
     imgUrl: iconTwo,
@@ -111,14 +114,12 @@ const featureCards = [
   {
     imgUrl: iconThree,
     title: '自营品质保障',
-    description:
-      '官方直连渠道，高 SLA 可用性保障，无感应对上游波动。',
+    description: '官方直连渠道，高 SLA 可用性保障，无感应对上游波动。',
   },
   {
     imgUrl: iconFour,
     title: '商家生态入驻',
-    description:
-      '开放的市场生态，支持优质算力商家入驻，共同打造最低价集群。',
+    description: '开放的市场生态，支持优质算力商家入驻，共同打造最低价集群。',
   },
 ];
 
@@ -146,7 +147,7 @@ const workflowSteps = [
 ];
 
 const heroStats = [
-  { value: '50%+', label: '基于典型场景估算',tag:'节省' },
+  { value: '50%+', label: '基于典型场景估算', tag: '节省' },
   { value: '48+', label: '可用模型渠道' },
   { value: '99.99%', label: '高可用路由' },
   { value: '1 API', label: '统一接入入口' },
@@ -463,12 +464,9 @@ const Home = () => {
         isMobile={isMobile}
       />
       <FloatingSupport
-        wechatQRCode={supportConfig.wechatQRCode}
-        wechatDesc={supportConfig.wechatDesc}
-        qqQrcode={supportConfig.qqQrcode}
-        qqSupport={supportConfig.qqSupport}
-        telegramQRCode={supportConfig.telegramQRCode}
-        telegramDesc={supportConfig.telegramDesc}
+        wechatList={supportConfig.wechatList}
+        qqList={supportConfig.qqList}
+        telegramList={supportConfig.telegramList}
       />
       <Modal
         title={`${versionLabel} ${t('更新日志')}`}
@@ -582,11 +580,16 @@ const Home = () => {
                 <div className='home-hero-stats'>
                   {heroStats.map((stat) => (
                     <>
-                    <div className='home-stat-item' key={stat.value}>
-                      <h3>{ stat.tag && <span className='home-stat-tag'>{t(stat.tag)}</span>} {t(stat.value)}</h3>
-                      <p>{t(stat.label)}</p>
-                    </div>
-                    <div className='home-stat-item-line'></div>
+                      <div className='home-stat-item' key={stat.value}>
+                        <h3>
+                          {stat.tag && (
+                            <span className='home-stat-tag'>{t(stat.tag)}</span>
+                          )}{' '}
+                          {t(stat.value)}
+                        </h3>
+                        <p>{t(stat.label)}</p>
+                      </div>
+                      <div className='home-stat-item-line'></div>
                     </>
                   ))}
                 </div>
@@ -603,9 +606,7 @@ const Home = () => {
                     <span className='home-window-title'>
                       {systemName} / {t('智能路由控制台')}
                     </span>
-                    <span className='home-window-badge'>
-                      {t('实时路由')}
-                    </span>
+                    <span className='home-window-badge'>{t('实时路由')}</span>
                   </div>
 
                   <div className='home-mockup-body'>
@@ -613,9 +614,7 @@ const Home = () => {
                       <div className='home-panel-title'>
                         <h4>{t('模型请求编排')}</h4>
                         <p>
-                          {t(
-                            '根据延迟、价格、稳定性自动选择最佳模型路径。',
-                          )}
+                          {t('根据延迟、价格、稳定性自动选择最佳模型路径。')}
                         </p>
                       </div>
                       <div className='home-model-list'>
@@ -682,7 +681,9 @@ const Home = () => {
                         <div className='home-savings-title'>
                           {t('智能路由节省')}
                         </div>
-                        <div className='home-savings-amount'>{t('快速构建')}</div>
+                        <div className='home-savings-amount'>
+                          {t('快速构建')}
+                        </div>
                         <div className='home-savings-desc'>
                           {t('通过智能路由策略，帮助优化模型调用成本。')}
                         </div>
@@ -702,9 +703,7 @@ const Home = () => {
 
           <section className='home-logo-bar-section'>
             <div className='home-container home-logo-bar-container'>
-              <p className='home-logo-bar-title'>
-                {t('支持全球主流开源模型')}
-              </p>
+              <p className='home-logo-bar-title'>{t('支持全球主流开源模型')}</p>
               <MarqueeLogos logos={partnerLogos} speed={0.5} />
             </div>
           </section>
@@ -725,13 +724,8 @@ const Home = () => {
 
               <div className='home-features-grid'>
                 {featureCards.map((feature) => (
-                  <article
-                    key={feature.title}
-                    className='home-feature-card'
-                  >
-                    <div
-                      className={`home-icon-wrapper`}
-                    >
+                  <article key={feature.title} className='home-feature-card'>
+                    <div className={`home-icon-wrapper`}>
                       <img src={feature.imgUrl} alt={feature.title} />
                     </div>
                     <h3>{t(feature.title)}</h3>
@@ -748,7 +742,7 @@ const Home = () => {
                 {t('从一次请求开始，自动完成模型选择')}
               </h2>
               <p className='home-section-subtitle'>
-                {getSystemName()} 
+                {getSystemName()}
                 {t(
                   '将模型接入、价格判断、稳定性降级与请求观测串成一条可管理的链路。',
                 )}
@@ -756,10 +750,7 @@ const Home = () => {
 
               <div className='home-workflow-grid'>
                 {workflowSteps.map((step) => (
-                  <div
-                    className='home-workflow-step'
-                    key={step.number}
-                  >
+                  <div className='home-workflow-step' key={step.number}>
                     <div className='home-step-number'>{step.number}</div>
                     <h4>{t(step.title)}</h4>
                     <p>{t(step.description)}</p>
@@ -785,9 +776,7 @@ const Home = () => {
               <div className='home-agentic-grid'>
                 <div className='home-agentic-left-card'>
                   <div className='home-agentic-info-block'>
-                    <div className='home-pill-tag'>
-                      {t('AGENTIC AI 探索')}
-                    </div>
+                    <div className='home-pill-tag'>{t('AGENTIC AI 探索')}</div>
                     <h3>{t('让智能体从“会对话”走向“能执行”')}</h3>
                     <p>
                       {t(
@@ -796,7 +785,11 @@ const Home = () => {
                     </p>
                   </div>
                   <div className='home-agentic-visual-block'>
-                    <img src={imgOne} alt='imgOne' className='home-refined-img' />
+                    <img
+                      src={imgOne}
+                      alt='imgOne'
+                      className='home-refined-img'
+                    />
                   </div>
                 </div>
 
@@ -809,10 +802,7 @@ const Home = () => {
                   </p>
                   <div className='home-explore-pills'>
                     {explorePills.map((pill) => (
-                      <div
-                        className='home-explore-pill'
-                        key={pill.name}
-                      >
+                      <div className='home-explore-pill' key={pill.name}>
                         <span>{pill.name}</span>
                         <small>{t(pill.desc)}</small>
                       </div>
@@ -851,9 +841,7 @@ const Home = () => {
                 <div className='home-brand-left'>
                   <h2>新易算</h2>
                   <h4>
-                    {t(
-                      '面向企业智能化场景的新一代算力与 AI 基础设施服务商',
-                    )}
+                    {t('面向企业智能化场景的新一代算力与 AI 基础设施服务商')}
                   </h4>
                   <p>
                     {t(
@@ -974,9 +962,7 @@ const Home = () => {
                       </a>
                     </li>
                     <li>
-                      <a
-                        href={`mailto:support@${systemName.toLowerCase()}`}
-                      >
+                      <a href={`mailto:support@${systemName.toLowerCase()}`}>
                         {t('联系我们')}
                       </a>
                     </li>
@@ -987,8 +973,7 @@ const Home = () => {
 
             <div className='home-footer-bottom'>
               <span>
-                © {new Date().getFullYear()} {systemName}. All rights
-                reserved.
+                © {new Date().getFullYear()} {systemName}. All rights reserved.
               </span>
             </div>
           </footer>

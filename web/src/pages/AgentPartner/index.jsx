@@ -19,19 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useContext, useMemo, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
-import {
-  Network,
-  BadgeCheck,
-  Server,
-  LayoutDashboard,
-} from 'lucide-react';
+import { Network, BadgeCheck, Server, LayoutDashboard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   getLogo,
-  getQQSupport,
+  getQQSupportList,
   getSystemName,
-  getWechatSupport,
+  getWechatSupportList,
   withBrowserBaseUrl,
 } from '../../helpers';
 import { StatusContext } from '../../context/Status';
@@ -144,7 +139,7 @@ const whyUsCards = [
     icon: LayoutDashboard,
     title: '可视化收益看板',
     desc: '实时查看用户增长、充值金额与本月分成。',
-  }
+  },
 ];
 
 function WhyUsCard({ t, title, desc }) {
@@ -166,6 +161,19 @@ function WhyUsCard({ t, title, desc }) {
   );
 }
 
+// 旧格式兼容：把单 URL 包装成 [{url, desc}] 列表（旧描述字段已废弃）。
+const parseLegacySupport = (qrcodeValue) => {
+  const trimmed = String(qrcodeValue || '').trim();
+  if (!trimmed) return [];
+  return [{ url: trimmed, desc: '' }];
+};
+
+// 从 QQ 二维码列表首项描述中提取 QQ 号（用于 tencent:// 会话链接）。
+const getQQNumberFromList = (list) =>
+  String(
+    (Array.isArray(list) && list.length > 0 ? list[0]?.desc : '') || '',
+  ).replace(/\D/g, '');
+
 const AgentPartner = () => {
   const { t, i18n } = useTranslation();
   const [statusState] = useContext(StatusContext);
@@ -174,21 +182,32 @@ const AgentPartner = () => {
   const supportConfig = useMemo(() => {
     const status = statusState?.status;
     if (!status) {
+      const qqList = getQQSupportList();
       return {
-        wechatQRCode: getWechatSupport(),
-        qqSupport: getQQSupport(),
+        wechatList: getWechatSupportList(),
+        qqNumber: getQQNumberFromList(qqList),
       };
     }
     const providerConfig = status.provider_config;
     if (providerConfig?.enabled) {
+      const qqList = Array.isArray(providerConfig.qq_support_list)
+        ? providerConfig.qq_support_list
+        : parseLegacySupport(providerConfig.qq_support_qrcode);
       return {
-        wechatQRCode: providerConfig.wechat_support || '',
-        qqSupport: providerConfig.qq_support || '',
+        wechatList: Array.isArray(providerConfig.wechat_support_list)
+          ? providerConfig.wechat_support_list
+          : parseLegacySupport(providerConfig.wechat_support),
+        qqNumber: getQQNumberFromList(qqList),
       };
     }
+    const qqList = Array.isArray(status.qq_support_list)
+      ? status.qq_support_list
+      : parseLegacySupport(status.qq_support_qrcode);
     return {
-      wechatQRCode: status.wechat_support || '',
-      qqSupport: status.qq_support || '',
+      wechatList: Array.isArray(status.wechat_support_list)
+        ? status.wechat_support_list
+        : parseLegacySupport(status.wechat_support),
+      qqNumber: getQQNumberFromList(qqList),
     };
   }, [statusState?.status]);
 
@@ -222,7 +241,9 @@ const AgentPartner = () => {
                 {t('成为合作代理商')}
               </h1>
               <p className='text-[#A6ACB0] line-height-1.5 font-[20px]'>
-                {t('为开发者与企业引入稳定、低成本的大模型 API 服务，获得长期分润收益。')}
+                {t(
+                  '为开发者与企业引入稳定、低成本的大模型 API 服务，获得长期分润收益。',
+                )}
               </p>
               <div className='flex flex-wrap gap-3 mb-4 mt-8 relative'>
                 <button
@@ -232,9 +253,7 @@ const AgentPartner = () => {
                   {t('立即申请')}
                   <ArrowRight size={16} />
                 </button>
-                <a
-                  className='inline-flex items-center gap-1.5 px-6 py-3 rounded-lg text-[var(--theme-primary)] border border-[var(--theme-primary)]/30 hover:bg-[var(--theme-primary)]/5 transition'
-                >
+                <a className='inline-flex items-center gap-1.5 px-6 py-3 rounded-lg text-[var(--theme-primary)] border border-[var(--theme-primary)]/30 hover:bg-[var(--theme-primary)]/5 transition'>
                   {t('了解方案')}
                 </a>
                 {showSupport && (
@@ -243,7 +262,9 @@ const AgentPartner = () => {
                     <div className='px-5 pt-5 bg-gradient-to-r from-[var(--theme-primary)]/5 to-[var(--theme-secondary)]/5'>
                       <div className='flex items-center justify-between'>
                         <div>
-                          <h4 className='text-base font-bold text-[var(--landing-v2-text-main)]'>{t('联系客服申请')}</h4>
+                          <h4 className='text-base font-bold text-[var(--landing-v2-text-main)]'>
+                            {t('联系客服申请')}
+                          </h4>
                         </div>
                         <button
                           onClick={() => setShowSupport(false)}
@@ -255,45 +276,64 @@ const AgentPartner = () => {
                     </div>
 
                     <div className='p-5 space-y-4'>
-                      {/* WeChat */}
-                      {supportConfig.wechatQRCode && (
-                        <div className='flex items-center gap-4 p-3 rounded-xl bg-gray-50 dark:bg-white/5'>
-                          <img
-                            src={supportConfig.wechatQRCode}
-                            alt={t('微信客服二维码')}
-                            className='w-24 h-24 rounded-lg object-cover flex-shrink-0 border border-gray-100 dark:border-gray-700'
-                          />
-                          <div className='flex-1 min-w-0'>
-                            <div className='flex items-center gap-1.5 mb-1'>
-                              <i className='fab fa-weixin text-green-500 text-base' />
-                              <span className='text-sm font-semibold text-[var(--landing-v2-text-main)]'>{t('微信客服')}</span>
+                      {/* WeChat：多二维码时纵向堆叠，每张带独立描述 */}
+                      {supportConfig.wechatList?.length > 0 &&
+                        supportConfig.wechatList
+                          .filter((item) => item && (item.url || item.desc))
+                          .slice(0, 4)
+                          .map((item, index) => (
+                            <div
+                              key={index}
+                              className='flex items-center gap-4 p-3 rounded-xl bg-gray-50 dark:bg-white/5'
+                            >
+                              {item.url ? (
+                                <img
+                                  src={item.url}
+                                  alt={t('微信客服二维码')}
+                                  className='w-24 h-24 rounded-lg object-cover flex-shrink-0 border border-gray-100 dark:border-gray-700'
+                                />
+                              ) : null}
+                              <div className='flex-1 min-w-0'>
+                                <div className='flex items-center gap-1.5 mb-1'>
+                                  <i className='fab fa-weixin text-green-500 text-base' />
+                                  <span className='text-sm font-semibold text-[var(--landing-v2-text-main)]'>
+                                    {t('微信客服')}
+                                  </span>
+                                </div>
+                                <p className='text-xs text-[var(--landing-v2-text-sub)] leading-relaxed'>
+                                  {item.desc || t('扫码添加客服微信')}
+                                </p>
+                              </div>
                             </div>
-                            <p className='text-xs text-[var(--landing-v2-text-sub)] leading-relaxed'>
-                              {t('扫码添加客服微信')}
-                            </p>
-                          </div>
-                        </div>
-                      )}
+                          ))}
 
                       {/* QQ */}
-                      {supportConfig.qqSupport && (() => {
-                        const qqNumber = String(supportConfig.qqSupport).replace(/\D/g, '');
-                        return qqNumber ? (
-                          <a
-                            href={`tencent://message/?uin=${qqNumber}&Site=&Menu=yes`}
-                            className='flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition group'
-                          >
-                            <div className='w-10 h-10 rounded-lg bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center flex-shrink-0'>
-                              <i className='fab fa-qq text-sky-500 text-lg' />
-                            </div>
-                            <div className='flex-1 min-w-0'>
-                              <span className='text-sm font-semibold text-[var(--landing-v2-text-main)]'>{t('QQ客服')}</span>
-                              <p className='text-xs text-[var(--landing-v2-text-sub)]'>{qqNumber}</p>
-                            </div>
-                            <ArrowRight size={14} className='text-[var(--landing-v2-text-sub)] group-hover:text-[var(--theme-primary)] transition flex-shrink-0' />
-                          </a>
-                        ) : null;
-                      })()}
+                      {supportConfig.qqNumber &&
+                        (() => {
+                          const qqNumber = supportConfig.qqNumber;
+                          return qqNumber ? (
+                            <a
+                              href={`tencent://message/?uin=${qqNumber}&Site=&Menu=yes`}
+                              className='flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition group'
+                            >
+                              <div className='w-10 h-10 rounded-lg bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center flex-shrink-0'>
+                                <i className='fab fa-qq text-sky-500 text-lg' />
+                              </div>
+                              <div className='flex-1 min-w-0'>
+                                <span className='text-sm font-semibold text-[var(--landing-v2-text-main)]'>
+                                  {t('QQ客服')}
+                                </span>
+                                <p className='text-xs text-[var(--landing-v2-text-sub)]'>
+                                  {qqNumber}
+                                </p>
+                              </div>
+                              <ArrowRight
+                                size={14}
+                                className='text-[var(--landing-v2-text-sub)] group-hover:text-[var(--theme-primary)] transition flex-shrink-0'
+                              />
+                            </a>
+                          ) : null;
+                        })()}
                     </div>
                   </div>
                 )}
@@ -348,26 +388,24 @@ const AgentPartner = () => {
                       <p className='text-[10px] text-gray-400 mt-1'>
                         {t('转化率')}
                       </p>
-                      <p className='text-xl font-extrabold text-white'>
-                        18.6%
-                      </p>
+                      <p className='text-xl font-extrabold text-white'>18.6%</p>
                     </div>
                   </div>
                   <div className='bg-white/5 rounded-lg p-4'>
                     <div className='flex justify-between items-end h-20'>
-                      {[
-                        40, 65, 45, 80, 55, 90, 70, 95, 60, 85, 75, 100,
-                      ].map((h, i) => (
-                        <div
-                          key={i}
-                          className='flex-1 mx-0.5 rounded-t'
-                          style={{
-                            height: `${h}%`,
-                            background:
-                              'linear-gradient(to top, var(--theme-primary), var(--theme-secondary))',
-                          }}
-                        />
-                      ))}
+                      {[40, 65, 45, 80, 55, 90, 70, 95, 60, 85, 75, 100].map(
+                        (h, i) => (
+                          <div
+                            key={i}
+                            className='flex-1 mx-0.5 rounded-t'
+                            style={{
+                              height: `${h}%`,
+                              background:
+                                'linear-gradient(to top, var(--theme-primary), var(--theme-secondary))',
+                            }}
+                          />
+                        ),
+                      )}
                     </div>
                   </div>
                 </div>
@@ -416,7 +454,10 @@ const AgentPartner = () => {
               </div>
               <div className='w-12 h-1 mx-auto rounded-full bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] mb-4' />
               <p className='text-[var(--landing-v2-text-sub)] text-sm'>
-                {t('具备其中任意一项，就可以把 {{systemName}} 代理计划做成稳定副业。', { systemName })}
+                {t(
+                  '具备其中任意一项，就可以把 {{systemName}} 代理计划做成稳定副业。',
+                  { systemName },
+                )}
               </p>
             </div>
             <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 overflow-hidden'>
@@ -425,7 +466,8 @@ const AgentPartner = () => {
                   key={card.title}
                   style={{
                     height: '300px',
-                    background: 'linear-gradient(120deg, #FFFFFF 4.39%, #F2FFFD 46.49%, #ECFFE1 92.11%)',
+                    background:
+                      'linear-gradient(120deg, #FFFFFF 4.39%, #F2FFFD 46.49%, #ECFFE1 92.11%)',
                   }}
                   className=' flex flex-col items-center relative rounded-xl text-center'
                 >
@@ -458,10 +500,7 @@ const AgentPartner = () => {
             </div>
             <div className='grid grid-cols-1 sm:grid-cols-3 gap-8'>
               {successStories.map((story) => (
-                <div
-                  key={story.name}
-                  className='text-center px-4'
-                >
+                <div key={story.name} className='text-center px-4'>
                   <p className='text-[42px] font-[700] text-[var(--landing-v2-text-main)]'>
                     {t(story.revenue)}
                   </p>
@@ -481,7 +520,10 @@ const AgentPartner = () => {
         </section>
 
         {/* ===== Why Choose Us ===== */}
-        <section id='why-us' className='w-full py-20 px-6 bg-gray-50 dark:bg-gray-900/30'>
+        <section
+          id='why-us'
+          className='w-full py-20 px-6 bg-gray-50 dark:bg-gray-900/30'
+        >
           <div className='max-w-2xl mx-auto'>
             <div className='text-center mb-12'>
               <div className='text-[36px] sm:text-3xl font-extrabold text-[var(--landing-v2-text-main)] mb-3'>
@@ -509,9 +551,7 @@ const AgentPartner = () => {
             <p>
               {t('加入代理计划，把统一 API 服务推荐给更多开发者和企业客户。')}
             </p>
-            <Link
-              className='landing-v2-btn-primary landing-v2-btn-lg'
-            >
+            <Link className='landing-v2-btn-primary landing-v2-btn-lg'>
               {t('提交合作意向表')}
             </Link>
           </div>
@@ -612,14 +652,18 @@ const AgentPartner = () => {
                 </a>
               </li>
               <li>
-                <a href={`mailto:support@${systemName.toLowerCase()}`}>{t('联系我们')}</a>
+                <a href={`mailto:support@${systemName.toLowerCase()}`}>
+                  {t('联系我们')}
+                </a>
               </li>
             </ul>
           </div>
         </div>
 
         <div className='landing-v2-footer-bottom'>
-          <span>© {new Date().getFullYear()} {systemName}. All rights reserved.</span>
+          <span>
+            © {new Date().getFullYear()} {systemName}. All rights reserved.
+          </span>
         </div>
       </footer>
     </div>

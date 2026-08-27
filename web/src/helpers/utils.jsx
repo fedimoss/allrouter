@@ -80,61 +80,89 @@ export function getLogo() {
   return logo;
 }
 
-export function getWechatSupport() {
-  return localStorage.getItem('wechat_support') || '';
+export function getWechatSupportList() {
+  try {
+    const raw = localStorage.getItem('wechat_support_list');
+    const list = raw ? JSON.parse(raw) : null;
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
 }
 
-export function getWechatSupportDesc() {
-  return localStorage.getItem('wechat_support_desc') || '';
+export function getQQSupportList() {
+  try {
+    const raw = localStorage.getItem('qq_support_list');
+    const list = raw ? JSON.parse(raw) : null;
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
 }
 
-export function getQQSupport() {
-  return localStorage.getItem('qq_support') || '';
+export function getTelegramSupportList() {
+  try {
+    const raw = localStorage.getItem('telegram_support_list');
+    const list = raw ? JSON.parse(raw) : null;
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
 }
 
-export function getQQSupportQrcode() {
-  return localStorage.getItem('qq_support_qrcode') || '';
-}
+// 每个客服渠道支持的最大二维码数量（与后端 common.SupportQRCodeMaxCount 一致）
+export const SUPPORT_QRCODE_MAX_COUNT = 4;
 
-export function getTelegramSupport() {
-  return localStorage.getItem('telegram_support') || '';
-}
-
-export function getTelegramSupportDesc() {
-  return localStorage.getItem('telegram_support_desc') || '';
-}
+// 解析单个渠道的二维码列表：优先 *_list 数组字段，回退旧标量字段（旧格式单 URL，描述已废弃不兼容）。
+const parseSupportChannelList = (list, legacyImage) => {
+  if (Array.isArray(list) && list.length > 0) {
+    return list.filter((item) => item && (item.url || item.desc));
+  }
+  const image = String(legacyImage || '').trim();
+  if (!image) return [];
+  return [{ url: image, desc: '' }];
+};
 
 // 统一计算浮动客服配置：优先 provider_config（启用时），否则 status，最后回退 localStorage。
-// 三渠道各含二维码图片 + 文本描述。
+// 三渠道各返回 [{url, desc}] 二维码列表（SUPPORT_QRCODE_MAX_COUNT 张以内）。
 export function buildSupportConfig(status) {
   if (!status) {
     return {
-      wechatQRCode: getWechatSupport(),
-      wechatDesc: getWechatSupportDesc(),
-      qqQrcode: getQQSupportQrcode(),
-      qqSupport: getQQSupport(),
-      telegramQRCode: getTelegramSupport(),
-      telegramDesc: getTelegramSupportDesc(),
+      wechatList: getWechatSupportList(),
+      qqList: getQQSupportList(),
+      telegramList: getTelegramSupportList(),
     };
   }
   const providerConfig = status.provider_config;
   if (providerConfig?.enabled) {
     return {
-      wechatQRCode: providerConfig.wechat_support || '',
-      wechatDesc: providerConfig.wechat_support_desc || '',
-      qqQrcode: providerConfig.qq_support_qrcode || '',
-      qqSupport: providerConfig.qq_support || '',
-      telegramQRCode: providerConfig.telegram_support || '',
-      telegramDesc: providerConfig.telegram_support_desc || '',
+      wechatList: parseSupportChannelList(
+        providerConfig.wechat_support_list,
+        providerConfig.wechat_support,
+      ),
+      qqList: parseSupportChannelList(
+        providerConfig.qq_support_list,
+        providerConfig.qq_support_qrcode,
+      ),
+      telegramList: parseSupportChannelList(
+        providerConfig.telegram_support_list,
+        providerConfig.telegram_support,
+      ),
     };
   }
   return {
-    wechatQRCode: status.wechat_support || '',
-    wechatDesc: status.wechat_support_desc || '',
-    qqQrcode: status.qq_support_qrcode || '',
-    qqSupport: status.qq_support || '',
-    telegramQRCode: status.telegram_support || '',
-    telegramDesc: status.telegram_support_desc || '',
+    wechatList: parseSupportChannelList(
+      status.wechat_support_list,
+      status.wechat_support,
+    ),
+    qqList: parseSupportChannelList(
+      status.qq_support_list,
+      status.qq_support_qrcode,
+    ),
+    telegramList: parseSupportChannelList(
+      status.telegram_support_list,
+      status.telegram_support,
+    ),
   };
 }
 
@@ -1090,9 +1118,7 @@ export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
 export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
   if (!billingExpr) {
     return (
-      <span style={{ color: 'var(--semi-color-text-1)' }}>
-        {t('动态计费')}
-      </span>
+      <span style={{ color: 'var(--semi-color-text-1)' }}>{t('动态计费')}</span>
     );
   }
 

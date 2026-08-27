@@ -35,7 +35,11 @@ import {
 } from '../../../../helpers';
 import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
-import { useActualTheme, useSetTheme, useTheme } from '../../../../context/Theme';
+import {
+  useActualTheme,
+  useSetTheme,
+  useTheme,
+} from '../../../../context/Theme';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { marked } from 'marked';
 import { Modal } from '@douyinfe/semi-ui';
@@ -100,8 +104,7 @@ const featureCards = [
   {
     imgUrl: iconOne,
     title: '多渠道比价',
-    description:
-      '智能分析各家模型渠道实时价格，为您锁定当前最优成本路径。',
+    description: '智能分析各家模型渠道实时价格，为您锁定当前最优成本路径。',
   },
   {
     imgUrl: iconTwo,
@@ -112,14 +115,12 @@ const featureCards = [
   {
     imgUrl: iconThree,
     title: '自营品质保障',
-    description:
-      '官方直连渠道，高 SLA 可用性保障，无感应对上游波动。',
+    description: '官方直连渠道，高 SLA 可用性保障，无感应对上游波动。',
   },
   {
     imgUrl: iconFour,
     title: '商家生态入驻',
-    description:
-      '开放的市场生态，支持优质算力商家入驻，共同打造最低价集群。',
+    description: '开放的市场生态，支持优质算力商家入驻，共同打造最低价集群。',
   },
 ];
 
@@ -147,7 +148,7 @@ const workflowSteps = [
 ];
 
 const heroStats = [
-  { value: '50%+', label: '基于典型场景估算',tag:'节省' },
+  { value: '50%+', label: '基于典型场景估算', tag: '节省' },
   { value: '48+', label: '可用模型渠道' },
   { value: '99.99%', label: '高可用路由' },
   { value: '1 API', label: '统一接入入口' },
@@ -464,12 +465,9 @@ const Home = () => {
         isMobile={isMobile}
       />
       <FloatingSupport
-        wechatQRCode={supportConfig.wechatQRCode}
-        wechatDesc={supportConfig.wechatDesc}
-        qqQrcode={supportConfig.qqQrcode}
-        qqSupport={supportConfig.qqSupport}
-        telegramQRCode={supportConfig.telegramQRCode}
-        telegramDesc={supportConfig.telegramDesc}
+        wechatList={supportConfig.wechatList}
+        qqList={supportConfig.qqList}
+        telegramList={supportConfig.telegramList}
       />
       <Modal
         title={`${versionLabel} ${t('更新日志')}`}
@@ -583,11 +581,16 @@ const Home = () => {
                 <div className='home-hero-stats'>
                   {heroStats.map((stat) => (
                     <>
-                    <div className='home-stat-item' key={stat.value}>
-                      <h3>{ stat.tag && <span className='home-stat-tag'>{t(stat.tag)}</span>} {t(stat.value)}</h3>
-                      <p>{t(stat.label)}</p>
-                    </div>
-                    <div className='home-stat-item-line'></div>
+                      <div className='home-stat-item' key={stat.value}>
+                        <h3>
+                          {stat.tag && (
+                            <span className='home-stat-tag'>{t(stat.tag)}</span>
+                          )}{' '}
+                          {t(stat.value)}
+                        </h3>
+                        <p>{t(stat.label)}</p>
+                      </div>
+                      <div className='home-stat-item-line'></div>
                     </>
                   ))}
                 </div>
@@ -604,9 +607,7 @@ const Home = () => {
                     <span className='home-window-title'>
                       {systemName} / {t('智能路由控制台')}
                     </span>
-                    <span className='home-window-badge'>
-                      {t('实时路由')}
-                    </span>
+                    <span className='home-window-badge'>{t('实时路由')}</span>
                   </div>
 
                   <div className='home-mockup-body'>
@@ -614,9 +615,7 @@ const Home = () => {
                       <div className='home-panel-title'>
                         <h4>{t('模型请求编排')}</h4>
                         <p>
-                          {t(
-                            '根据延迟、价格、稳定性自动选择最佳模型路径。',
-                          )}
+                          {t('根据延迟、价格、稳定性自动选择最佳模型路径。')}
                         </p>
                       </div>
                       <div className='home-model-list'>
@@ -683,7 +682,9 @@ const Home = () => {
                         <div className='home-savings-title'>
                           {t('智能路由节省')}
                         </div>
-                        <div className='home-savings-amount'>{t('快速构建')}</div>
+                        <div className='home-savings-amount'>
+                          {t('快速构建')}
+                        </div>
                         <div className='home-savings-desc'>
                           {t('通过智能路由策略，帮助优化模型调用成本。')}
                         </div>
@@ -703,40 +704,38 @@ const Home = () => {
 
           <section className='home-logo-bar-section'>
             <div className='home-container home-logo-bar-container'>
-              <p className='home-logo-bar-title'>
-                {t('支持全球主流开源模型')}
-              </p>
+              <p className='home-logo-bar-title'>{t('支持全球主流开源模型')}</p>
               <MarqueeLogos logos={partnerLogos} speed={0.5} />
             </div>
           </section>
 
           <section className='home-token-section'>
-            <div className="w-full mx-auto bg-white rounded-[24px] border border-gray-100 p-6 md:p-12 shadow-sm font-sans flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 md:gap-12 relative overflow-hidden">
-
+            <div className='w-full mx-auto bg-white rounded-[24px] border border-gray-100 p-6 md:p-12 shadow-sm font-sans flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 md:gap-12 relative overflow-hidden'>
               {/* 右上角淡橙色渐变背景装饰 */}
-              <div className="absolute w-[460px] h-[460px] home-token-bg-gradient" />
+              <div className='absolute w-[460px] h-[460px] home-token-bg-gradient' />
 
               {/* 左侧文字区块 */}
-              <div className="flex-1 z-10">
-                <h1 className="text-[28px] md:text-[38px] font-bold text-gray-900 leading-[1.3] tracking-wide">
+              <div className='flex-1 z-10'>
+                <h1 className='text-[28px] md:text-[38px] font-bold text-gray-900 leading-[1.3] tracking-wide'>
                   {t('生产 AGENTIC 时代的高效 Token，')}
-                  <br className="hidden md:inline" />
-                  {t('致力于实现 AI 平权')} 
+                  <br className='hidden md:inline' />
+                  {t('致力于实现 AI 平权')}
                 </h1>
-                <p className="mt-4 md:mt-6 text-sm md:text-base text-gray-500 leading-relaxed max-w-[540px]">
-                  {t('打造新时期的推理底座：面向复杂推理、长上下文与代码专家场景，满足AGENTIC复杂推理（1M长文本）任务的代码专家。')}
+                <p className='mt-4 md:mt-6 text-sm md:text-base text-gray-500 leading-relaxed max-w-[540px]'>
+                  {t(
+                    '打造新时期的推理底座：面向复杂推理、长上下文与代码专家场景，满足AGENTIC复杂推理（1M长文本）任务的代码专家。',
+                  )}
                 </p>
               </div>
 
               {/* 右侧交互与卡片区块 */}
-              <div className="flex-1 flex flex-col items-start lg:items-end gap-6 z-10 lg:w-auto">
-
+              <div className='flex-1 flex flex-col items-start lg:items-end gap-6 z-10 lg:w-auto'>
                 {/* 四个白色胶囊标签 - 移动端自动换行/平铺 */}
-                <div className="flex flex-wrap gap-2 md:gap-3 w-full justify-start lg:justify-end">
+                <div className='flex flex-wrap gap-2 md:gap-3 w-full justify-start lg:justify-end'>
                   {['智能', '高效', '性价比', '1M 长文本'].map((tag, index) => (
                     <span
                       key={index}
-                      className="px-8 py-2 bg-white border border-[#E2E6ED] rounded-full text-xs md:text-sm font-[700] text-[#111621] whitespace-nowrap"
+                      className='px-8 py-2 bg-white border border-[#E2E6ED] rounded-full text-xs md:text-sm font-[700] text-[#111621] whitespace-nowrap'
                     >
                       {t(tag)}
                     </span>
@@ -744,38 +743,42 @@ const Home = () => {
                 </div>
 
                 {/* 黑色核心特性卡片 */}
-                <div className="w-full lg:w-[610px] bg-[#0D1117] rounded-[20px] p-5 md:p-6 shadow-[0_15px_30px_rgba(0,0,0,0.15)] flex justify-between items-center gap-4 border border-gray-800">
+                <div className='w-full lg:w-[610px] bg-[#0D1117] rounded-[20px] p-5 md:p-6 shadow-[0_15px_30px_rgba(0,0,0,0.15)] flex justify-between items-center gap-4 border border-gray-800'>
                   {/* 黑色卡片左侧文本 */}
-                  <div className="flex-1">
-                    <h3 className="text-white text-base md:text-[18px] font-semibold tracking-wide mb-3">
+                  <div className='flex-1'>
+                    <h3 className='text-white text-base md:text-[18px] font-semibold tracking-wide mb-3'>
                       {t('面向 1M 长文本与代码专家的复杂推理')}
                     </h3>
                     {/* 点状分隔的英文标签组 */}
-                    <div className="text-[11px] md:text-xs text-gray-400 font-mono flex flex-wrap gap-x-2 gap-y-1 leading-normal">
+                    <div className='text-[11px] md:text-xs text-gray-400 font-mono flex flex-wrap gap-x-2 gap-y-1 leading-normal'>
                       <span>agentic reasoning</span>
-                      <span className="text-gray-600">•</span>
+                      <span className='text-gray-600'>•</span>
                       <span>code expert</span>
-                      <span className="text-gray-600">•</span>
+                      <span className='text-gray-600'>•</span>
                       <span>hybrid inference</span>
                       <span>cost-aware routing</span>
-                      <span className="text-gray-600">•</span>
+                      <span className='text-gray-600'>•</span>
                       <span>token production</span>
                     </div>
                   </div>
 
                   {/* 黑色卡片右侧图标组 */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="flex flex-col items-center gap-1.5">
-                      <div className="w-11 h-11 md:w-12 md:h-12 bg-[#FF5700] rounded-[12px] flex items-center justify-center font-bold text-white text-sm shadow-lg shadow-orange-700/20">
+                  <div className='flex items-center gap-3 shrink-0'>
+                    <div className='flex flex-col items-center gap-1.5'>
+                      <div className='w-11 h-11 md:w-12 md:h-12 bg-[#FF5700] rounded-[12px] flex items-center justify-center font-bold text-white text-sm shadow-lg shadow-orange-700/20'>
                         {`</>`}
                       </div>
-                      <span className="text-[10px] text-gray-400 font-medium">Code</span>
+                      <span className='text-[10px] text-gray-400 font-medium'>
+                        Code
+                      </span>
                     </div>
-                    <div className="flex flex-col items-center gap-1.5">
-                      <div className="w-11 h-11 md:w-12 md:h-12 bg-[#00C06B] rounded-[12px] flex items-center justify-center font-bold text-white text-sm md:text-base tracking-tighter shadow-lg shadow-green-700/20">
+                    <div className='flex flex-col items-center gap-1.5'>
+                      <div className='w-11 h-11 md:w-12 md:h-12 bg-[#00C06B] rounded-[12px] flex items-center justify-center font-bold text-white text-sm md:text-base tracking-tighter shadow-lg shadow-green-700/20'>
                         1M
                       </div>
-                      <span className="text-[10px] text-gray-400 font-medium">Context</span>
+                      <span className='text-[10px] text-gray-400 font-medium'>
+                        Context
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -799,13 +802,8 @@ const Home = () => {
 
               <div className='home-features-grid'>
                 {featureCards.map((feature) => (
-                  <article
-                    key={feature.title}
-                    className='home-feature-card'
-                  >
-                    <div
-                      className={`home-icon-wrapper`}
-                    >
+                  <article key={feature.title} className='home-feature-card'>
+                    <div className={`home-icon-wrapper`}>
                       <img src={feature.imgUrl} alt={feature.title} />
                     </div>
                     <h3>{t(feature.title)}</h3>
@@ -822,7 +820,7 @@ const Home = () => {
                 {t('从一次请求开始，自动完成模型选择')}
               </h2>
               <p className='home-section-subtitle'>
-                {getSystemName()} 
+                {getSystemName()}
                 {t(
                   '将模型接入、价格判断、稳定性降级与请求观测串成一条可管理的链路。',
                 )}
@@ -830,10 +828,7 @@ const Home = () => {
 
               <div className='home-workflow-grid'>
                 {workflowSteps.map((step) => (
-                  <div
-                    className='home-workflow-step'
-                    key={step.number}
-                  >
+                  <div className='home-workflow-step' key={step.number}>
                     <div className='home-step-number'>{step.number}</div>
                     <h4>{t(step.title)}</h4>
                     <p>{t(step.description)}</p>
@@ -846,9 +841,7 @@ const Home = () => {
           <section className='home-agentic-section'>
             <div className='home-container'>
               <div className='home-section-header'>
-                <h2 className='home-section-title'>
-                  {t('公司的产品定位')}
-                </h2>
+                <h2 className='home-section-title'>{t('公司的产品定位')}</h2>
                 <p className='home-section-subtitle'>
                   {t(
                     '在 AGENTIC 驱动 AI 产业变化的当下，通过软硬一体化的深度协同，重点产出能够满足 AGENTIC 时代复杂推理（1M 长文本）任务的、具备高性价比的 TOKEN 产品。',
@@ -859,9 +852,7 @@ const Home = () => {
               <div className='home-agentic-grid'>
                 <div className='home-agentic-left-card'>
                   <div className='home-agentic-info-block'>
-                    <div className='home-pill-tag'>
-                      {t('TOKEN PRODUCT')}
-                    </div>
+                    <div className='home-pill-tag'>{t('TOKEN PRODUCT')}</div>
                     <h3>{t('高性价比的TOKEN产品')}</h3>
                     <p>
                       {t(
@@ -870,7 +861,11 @@ const Home = () => {
                     </p>
                   </div>
                   <div className='home-agentic-visual-block'>
-                    <img src={imgOne} alt='imgOne' className='home-refined-img' />
+                    <img
+                      src={imgOne}
+                      alt='imgOne'
+                      className='home-refined-img'
+                    />
                   </div>
                 </div>
 
@@ -883,10 +878,7 @@ const Home = () => {
                   </p>
                   <div className='home-explore-pills'>
                     {explorePills.map((pill) => (
-                      <div
-                        className='home-explore-pill'
-                        key={pill.name}
-                      >
+                      <div className='home-explore-pill' key={pill.name}>
                         <span>{t(pill.name)}</span>
                         <small>{t(pill.desc)}</small>
                       </div>
@@ -898,63 +890,83 @@ const Home = () => {
           </section>
 
           <section>
-            <div className="home-token-section home-gpu">
-              <div className="relative w-full mx-auto bg-[#14161a] rounded-[28px] border border-[#22252a] p-4 sm:p-6 md:p-12 flex flex-col lg:flex-row items-center justify-between gap-10 lg:gap-16 overflow-hidden">
-                <div className="absolute -top-40 -right-40 w-[600px] h-[600px] bg-gradient-to-bl from-orange-500/10 to-transparent rounded-full blur-[130px] pointer-events-none" />
-                <div className="w-full lg:flex-1 flex flex-col justify-center z-10">
-                  <span className="text-[11px] md:text-xs font-mono font-bold tracking-[0.18em] text-[#D4C39E] uppercase block mb-4 md:mb-5">
+            <div className='home-token-section home-gpu'>
+              <div className='relative w-full mx-auto bg-[#14161a] rounded-[28px] border border-[#22252a] p-4 sm:p-6 md:p-12 flex flex-col lg:flex-row items-center justify-between gap-10 lg:gap-16 overflow-hidden'>
+                <div className='absolute -top-40 -right-40 w-[600px] h-[600px] bg-gradient-to-bl from-orange-500/10 to-transparent rounded-full blur-[130px] pointer-events-none' />
+                <div className='w-full lg:flex-1 flex flex-col justify-center z-10'>
+                  <span className='text-[11px] md:text-xs font-mono font-bold tracking-[0.18em] text-[#D4C39E] uppercase block mb-4 md:mb-5'>
                     AI Inference Base
                   </span>
-                  <h1 className="text-[30px] sm:text-4xl md:text-[48px] font-bold text-white tracking-tight leading-[1.15] mb-5">
+                  <h1 className='text-[30px] sm:text-4xl md:text-[48px] font-bold text-white tracking-tight leading-[1.15] mb-5'>
                     GPU + ARM AI CPU
                   </h1>
-                  <p className="text-[14px] sm:text-base md:text-[22px] text-[#A3ADC2] leading-relaxed max-w-[580px] font-normal mb-6 md:mb-14">
-                    {t('GPU + ARM AI CPU 全新混合架构，重新定义 AI Agentic 计算基础设施。')}
+                  <p className='text-[14px] sm:text-base md:text-[22px] text-[#A3ADC2] leading-relaxed max-w-[580px] font-normal mb-6 md:mb-14'>
+                    {t(
+                      'GPU + ARM AI CPU 全新混合架构，重新定义 AI Agentic 计算基础设施。',
+                    )}
                   </p>
-                  <div className="w-full max-w-[640px] bg-[#090C11] border border-[#2E3745] rounded-[16px] p-5 sm:p-6 font-mono text-xs mt-8 sm:text-xs md:text-[14px] leading-[1.8] tracking-wide shadow-inner">
-                    <div className="flex items-start gap-2.5">
-                      <span className="text-[#00c06b] shrink-0 font-bold">&gt;</span>
-                      <p className="text-[#86868b]">
-                        <span className="text-[#00c06b]">product: efficient token for agentic era</span>
+                  <div className='w-full max-w-[640px] bg-[#090C11] border border-[#2E3745] rounded-[16px] p-5 sm:p-6 font-mono text-xs mt-8 sm:text-xs md:text-[14px] leading-[1.8] tracking-wide shadow-inner'>
+                    <div className='flex items-start gap-2.5'>
+                      <span className='text-[#00c06b] shrink-0 font-bold'>
+                        &gt;
+                      </span>
+                      <p className='text-[#86868b]'>
+                        <span className='text-[#00c06b]'>
+                          product: efficient token for agentic era
+                        </span>
                       </p>
                     </div>
-                    <div className="flex items-start gap-2.5 mt-2">
-                      <span className="text-[#00c06b] shrink-0 font-bold">&gt;</span>
-                      <p className="text-[#86868b]">
-                        <span className="text-white">context_window: 1M long-context reasoning</span>
+                    <div className='flex items-start gap-2.5 mt-2'>
+                      <span className='text-[#00c06b] shrink-0 font-bold'>
+                        &gt;
+                      </span>
+                      <p className='text-[#86868b]'>
+                        <span className='text-white'>
+                          context_window: 1M long-context reasoning
+                        </span>
                       </p>
                     </div>
-                    <div className="flex items-start gap-2.5 mt-2">
-                      <span className="text-[#00c06b] shrink-0 font-bold">&gt;</span>
-                      <p className="text-[#86868b]">
-                        <span className="text-[#D4C39E]">architecture: GPU + ARM AI CPU co-optimization</span>
+                    <div className='flex items-start gap-2.5 mt-2'>
+                      <span className='text-[#00c06b] shrink-0 font-bold'>
+                        &gt;
+                      </span>
+                      <p className='text-[#86868b]'>
+                        <span className='text-[#D4C39E]'>
+                          architecture: GPU + ARM AI CPU co-optimization
+                        </span>
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="w-full lg:w-[620px] xl:w-[680px] lg:h-[330px] shrink-0 z-10 flex flex-col gap-6 lg:gap-8 items-center lg:items-end">
-                  <div className="relative w-full min-h-[280px] lg:aspect-[1.65/1] bg-[#1a1d24] border border-[#2d3139] rounded-[24px] flex flex-col justify-center items-center shadow-[0_16px_40px_rgba(0,0,0,0.5)] px-6 sm:px-12 py-8 lg:py-0 overflow-hidden">
-                    <div className="flex items-center justify-between w-full max-w-[440px] relative mb-6 lg:mb-10">
-                      <div className="flex flex-col gap-2 opacity-40">
+                <div className='w-full lg:w-[620px] xl:w-[680px] lg:h-[330px] shrink-0 z-10 flex flex-col gap-6 lg:gap-8 items-center lg:items-end'>
+                  <div className='relative w-full min-h-[280px] lg:aspect-[1.65/1] bg-[#1a1d24] border border-[#2d3139] rounded-[24px] flex flex-col justify-center items-center shadow-[0_16px_40px_rgba(0,0,0,0.5)] px-6 sm:px-12 py-8 lg:py-0 overflow-hidden'>
+                    <div className='flex items-center justify-between w-full max-w-[440px] relative mb-6 lg:mb-10'>
+                      <div className='flex flex-col gap-2 opacity-40'>
                         {[...Array(6)].map((_, i) => (
-                          <div key={i} className="w-12 h-[1.2px] bg-gradient-to-r from-transparent to-white" />
+                          <div
+                            key={i}
+                            className='w-12 h-[1.2px] bg-gradient-to-r from-transparent to-white'
+                          />
                         ))}
                       </div>
                       {/* 中央 ARM 核心高亮橙色块 */}
-                      <div className="relative z-10 w-24 h-24 sm:w-28 sm:h-28 bg-[var(--home-primary)] rounded-[24px] flex items-center justify-center text-white font-bold text-[24px] sm:text-[28px] tracking-wide shadow-[0_10px_30px_rgba(255,87,0,0.4)] transition-transform duration-300 hover:scale-105">
+                      <div className='relative z-10 w-24 h-24 sm:w-28 sm:h-28 bg-[var(--home-primary)] rounded-[24px] flex items-center justify-center text-white font-bold text-[24px] sm:text-[28px] tracking-wide shadow-[0_10px_30px_rgba(255,87,0,0.4)] transition-transform duration-300 hover:scale-105'>
                         ARM
                       </div>
 
                       {/* 右侧 6 条平行渐变线条 */}
-                      <div className="flex flex-col gap-2 opacity-40">
+                      <div className='flex flex-col gap-2 opacity-40'>
                         {[...Array(6)].map((_, i) => (
-                          <div key={i} className="w-12 h-[1.2px] bg-gradient-to-l from-transparent to-white" />
+                          <div
+                            key={i}
+                            className='w-12 h-[1.2px] bg-gradient-to-l from-transparent to-white'
+                          />
                         ))}
                       </div>
                     </div>
-                    <div className="w-full flex flex-wrap">
-                      <span className="px-4 py-2 mr-[22px] mb-[14px] sm:px-10 sm:py-2.5 bg-[var(--home-primary)] text-white font-bold text-[11px] sm:text-xs rounded-full shadow-[0_4px_12px_rgba(255,87,0,0.25)] whitespace-nowrap">
+                    <div className='w-full flex flex-wrap'>
+                      <span className='px-4 py-2 mr-[22px] mb-[14px] sm:px-10 sm:py-2.5 bg-[var(--home-primary)] text-white font-bold text-[11px] sm:text-xs rounded-full shadow-[0_4px_12px_rgba(255,87,0,0.25)] whitespace-nowrap'>
                         GPU Compute
                       </span>
                       {[
@@ -962,11 +974,11 @@ const Home = () => {
                         'Hybrid Arch',
                         'Agentic Compute',
                         'AI Infrastructure',
-                        'Hybrid Nodes'
+                        'Hybrid Nodes',
                       ].map((text, idx) => (
                         <span
                           key={idx}
-                          className="px-4 py-2 mr-[22px] mb-[14px] sm:px-10 sm:py-2.5 bg-white text-[#0f1115] font-bold text-[11px] sm:text-xs rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.1)] whitespace-nowrap transition-transform duration-200 hover:-translate-y-0.5"
+                          className='px-4 py-2 mr-[22px] mb-[14px] sm:px-10 sm:py-2.5 bg-white text-[#0f1115] font-bold text-[11px] sm:text-xs rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.1)] whitespace-nowrap transition-transform duration-200 hover:-translate-y-0.5'
                         >
                           {text}
                         </span>
@@ -984,9 +996,7 @@ const Home = () => {
                 <div className='home-brand-left'>
                   <h2>{t('新易算')}</h2>
                   <h4>
-                    {t(
-                      '面向企业智能化场景的新一代算力与 AI 基础设施服务商',
-                    )}
+                    {t('面向企业智能化场景的新一代算力与 AI 基础设施服务商')}
                   </h4>
                   <p>
                     {t(
@@ -1011,7 +1021,9 @@ const Home = () => {
                     </div>
                   </div>
                   <div className='home-brand-footer'>
-                    <h4>{t('新易算')} | {systemName}</h4>
+                    <h4>
+                      {t('新易算')} | {systemName}
+                    </h4>
                     <p>
                       {t(
                         'GPU + ARM AI CPU 混合架构驱动的新一代算力底座 + 企业级API路由网关',
@@ -1023,38 +1035,44 @@ const Home = () => {
             </div>
           </section>
 
-          <section className="home-token-section home-intro">
-            <div className="w-full bg-white rounded-[32px] border border-gray-100 p-6 sm:p-10 md:p-14 lg:p-16 flex flex-col lg:flex-row items-stretch justify-between gap-10 lg:gap-14 shadow-[0_10px_50px_rgba(0,0,0,0.03)]">
-              <div className="w-full lg:flex-1 flex flex-col justify-between py-1 z-10">
+          <section className='home-token-section home-intro'>
+            <div className='w-full bg-white rounded-[32px] border border-gray-100 p-6 sm:p-10 md:p-14 lg:p-16 flex flex-col lg:flex-row items-stretch justify-between gap-10 lg:gap-14 shadow-[0_10px_50px_rgba(0,0,0,0.03)]'>
+              <div className='w-full lg:flex-1 flex flex-col justify-between py-1 z-10'>
                 <div>
-                  <h1 className="text-[28px] md:text-[56px] font-bold text-[#111621] tracking-tight mb-4 md:mb-5">
+                  <h1 className='text-[28px] md:text-[56px] font-bold text-[#111621] tracking-tight mb-4 md:mb-5'>
                     {t('合作方介绍')}
                   </h1>
-                  <h3 className="text-base md:text-[26px] font-semibold text-[#29303D] tracking-normal mb-4 md:mb-5 leading-snug">
-                    {t('FEDIMOSS × 之江易算，共建 AGENTIC 时代 AI Inference 生产底座')}
+                  <h3 className='text-base md:text-[26px] font-semibold text-[#29303D] tracking-normal mb-4 md:mb-5 leading-snug'>
+                    {t(
+                      'FEDIMOSS × 之江易算，共建 AGENTIC 时代 AI Inference 生产底座',
+                    )}
                   </h3>
 
-                  <div className="text-[15px] md:text-[22px] text-[#656E7C] leading-[1.75] tracking-wide mb-6 md:mb-8">
-                    {t('一侧负责 AI 基础设施软件栈研究与异构推理优化，一侧负责算力技术集成应用与企业场景交付。能力互补，把复杂推理能力转化为稳定、可规模化的高效 Token 供给。')}
+                  <div className='text-[15px] md:text-[22px] text-[#656E7C] leading-[1.75] tracking-wide mb-6 md:mb-8'>
+                    {t(
+                      '一侧负责 AI 基础设施软件栈研究与异构推理优化，一侧负责算力技术集成应用与企业场景交付。能力互补，把复杂推理能力转化为稳定、可规模化的高效 Token 供给。',
+                    )}
                   </div>
-                  <div className="w-full bg-[#F6F7F9] rounded-[16px] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 border border-[#E2E6ED] mb-8 lg:mb-12">
-                    <span className="text-sm md:text-[20px] font-bold text-gray-900 shrink-0">
+                  <div className='w-full bg-[#F6F7F9] rounded-[16px] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 border border-[#E2E6ED] mb-8 lg:mb-12'>
+                    <span className='text-sm md:text-[20px] font-bold text-gray-900 shrink-0'>
                       {t('强强联合')}
                     </span>
-                    <div className="hidden sm:block w-[1px] h-4 bg-gray-300" />
-                    <p className="text-[13px] md:text-[18px] text-[#656E7C] leading-relaxed">
-                      {t('打造高性价比 Token 产品 · 1M 长文本复杂推理 · AI Inference 底座')}
+                    <div className='hidden sm:block w-[1px] h-4 bg-gray-300' />
+                    <p className='text-[13px] md:text-[18px] text-[#656E7C] leading-relaxed'>
+                      {t(
+                        '打造高性价比 Token 产品 · 1M 长文本复杂推理 · AI Inference 底座',
+                      )}
                     </p>
                   </div>
                 </div>
-                <div className="w-full flex flex-wrap gap-2.5 sm:gap-3">
-                  <span className="px-5 py-2 bg-white border border-gray-100 rounded-full text-[14px] sm:text-xs font-medium text-[var(--home-primary)] shadow-[0_2px_8px_rgba(0,0,0,0.02)] whitespace-nowrap">
+                <div className='w-full flex flex-wrap gap-2.5 sm:gap-3'>
+                  <span className='px-5 py-2 bg-white border border-gray-100 rounded-full text-[14px] sm:text-xs font-medium text-[var(--home-primary)] shadow-[0_2px_8px_rgba(0,0,0,0.02)] whitespace-nowrap'>
                     {t('AI 软件栈')}
                   </span>
                   {['异构推理', '算力集成', '企业交付'].map((text, idx) => (
                     <span
                       key={idx}
-                      className="px-5 py-2 bg-white border border-gray-100 rounded-full text-[11px] sm:text-xs font-medium text-gray-600 shadow-[0_2px_8px_rgba(0,0,0,0.02)] whitespace-nowrap"
+                      className='px-5 py-2 bg-white border border-gray-100 rounded-full text-[11px] sm:text-xs font-medium text-gray-600 shadow-[0_2px_8px_rgba(0,0,0,0.02)] whitespace-nowrap'
                     >
                       {t(text)}
                     </span>
@@ -1063,56 +1081,59 @@ const Home = () => {
               </div>
 
               {/* =================【右侧：黑底深邃架构卡片区域】================= */}
-              <div className="w-full lg:w-[690px] xl:w-[690px] bg-[#0c0e12] rounded-[24px] border border-[#1b1e24] p-6 sm:p-8 flex flex-col gap-5 shadow-[0_20px_50px_rgba(0,0,0,0.3)] shrink-0">
-
+              <div className='w-full lg:w-[690px] xl:w-[690px] bg-[#0c0e12] rounded-[24px] border border-[#1b1e24] p-6 sm:p-8 flex flex-col gap-5 shadow-[0_20px_50px_rgba(0,0,0,0.3)] shrink-0'>
                 {/* 卡片头部的小型英文字缀 */}
-                <div className="border-b border-[#1c1f26] pb-4 mb-1">
-                  <span className="text-[14px] sm:text-[15px] font-mono font-bold tracking-[0.18em] text-[var(--home-primary)] uppercase block">
+                <div className='border-b border-[#1c1f26] pb-4 mb-1'>
+                  <span className='text-[14px] sm:text-[15px] font-mono font-bold tracking-[0.18em] text-[var(--home-primary)] uppercase block'>
                     PARTNERSHIP STACK
                   </span>
                 </div>
 
                 {/* 1. FEDIMOSS 内层子卡片 */}
-                <div className="w-full bg-[#14171d] border border-[#222730] rounded-[16px] p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300 hover:border-[#313845]">
-                  <div className="flex items-center gap-4">
+                <div className='w-full bg-[#14171d] border border-[#222730] rounded-[16px] p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300 hover:border-[#313845]'>
+                  <div className='flex items-center gap-4'>
                     {/* 蓝色模拟 Logo 块 */}
-                    <div className="w-12 h-12 rounded-[12px] flex items-center justify-center text-white font-black text-xl shadow-[0_4px_12px_rgba(29,78,216,0.3)] shrink-0">
-                      <img src={fedimoossLogo} alt="FEDIMOSS" />
+                    <div className='w-12 h-12 rounded-[12px] flex items-center justify-center text-white font-black text-xl shadow-[0_4px_12px_rgba(29,78,216,0.3)] shrink-0'>
+                      <img src={fedimoossLogo} alt='FEDIMOSS' />
                     </div>
                     <div>
-                      <h4 className="text-white text-[16px] sm:text-[18px] font-bold tracking-wide">
+                      <h4 className='text-white text-[16px] sm:text-[18px] font-bold tracking-wide'>
                         FEDIMOSS
                       </h4>
-                      <p className="text-[11px] sm:text-xs text-gray-400 mt-1">
+                      <p className='text-[11px] sm:text-xs text-gray-400 mt-1'>
                         {t('AI 基础设施软件栈研究')}
                       </p>
                     </div>
                   </div>
                   {/* 右侧解析细字描述 */}
-                  <p className="text-[11px] sm:text-xs text-gray-400 leading-relaxed sm:max-w-[240px] border-t sm:border-t-0 border-[#222730] pt-3 sm:pt-0 w-full sm:w-auto">
-                    {t('ARM架构CPU 高性能推理优化、CPU+GPU 异构方案，已和北美知名 AI 处理器芯片机构技术合作。')}
+                  <p className='text-[11px] sm:text-xs text-gray-400 leading-relaxed sm:max-w-[240px] border-t sm:border-t-0 border-[#222730] pt-3 sm:pt-0 w-full sm:w-auto'>
+                    {t(
+                      'ARM架构CPU 高性能推理优化、CPU+GPU 异构方案，已和北美知名 AI 处理器芯片机构技术合作。',
+                    )}
                   </p>
                 </div>
 
                 {/* 2. 之江易算 内层子卡片 */}
-                <div className="w-full bg-[#14171d] border border-[#222730] rounded-[16px] p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300 hover:border-[#313845]">
-                  <div className="flex items-center gap-4">
+                <div className='w-full bg-[#14171d] border border-[#222730] rounded-[16px] p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300 hover:border-[#313845]'>
+                  <div className='flex items-center gap-4'>
                     {/* 青蓝色模拟 Logo 块 */}
-                    <div className="w-12 h-12 bg-white rounded-[12px] flex items-center justify-center border border-gray-200 shadow-sm shrink-0">
-                      <img src={newLogo} alt="之江易算" className="w-4" />
+                    <div className='w-12 h-12 bg-white rounded-[12px] flex items-center justify-center border border-gray-200 shadow-sm shrink-0'>
+                      <img src={newLogo} alt='之江易算' className='w-4' />
                     </div>
                     <div>
-                      <h4 className="text-white text-[16px] sm:text-[18px] font-bold tracking-wide">
+                      <h4 className='text-white text-[16px] sm:text-[18px] font-bold tracking-wide'>
                         {t('之江易算')}
                       </h4>
-                      <p className="text-[11px] sm:text-xs text-gray-400 mt-1">
+                      <p className='text-[11px] sm:text-xs text-gray-400 mt-1'>
                         {t('算力技术集成应用')}
                       </p>
                     </div>
                   </div>
                   {/* 右侧解析细字描述 */}
-                  <p className="text-[11px] sm:text-xs text-gray-400 leading-relaxed sm:max-w-[240px] border-t sm:border-t-0 border-[#222730] pt-3 sm:pt-0 w-full sm:w-auto">
-                    {t('面向企业场景提供算力集成、应用落地与工程化交付能力。为上市公司集智股份的全资子公司。')}
+                  <p className='text-[11px] sm:text-xs text-gray-400 leading-relaxed sm:max-w-[240px] border-t sm:border-t-0 border-[#222730] pt-3 sm:pt-0 w-full sm:w-auto'>
+                    {t(
+                      '面向企业场景提供算力集成、应用落地与工程化交付能力。为上市公司集智股份的全资子公司。',
+                    )}
                   </p>
                 </div>
               </div>
@@ -1134,7 +1155,13 @@ const Home = () => {
                   </p>
                 </div>
                 <div className='home-footer-bottom'>
-                  <span dangerouslySetInnerHTML={{ __html: statusState?.status.footer_html || `© ${new Date().getFullYear()} ${systemName}. All rights reserved.` }} />
+                  <span
+                    dangerouslySetInnerHTML={{
+                      __html:
+                        statusState?.status.footer_html ||
+                        `© ${new Date().getFullYear()} ${systemName}. All rights reserved.`,
+                    }}
+                  />
                 </div>
               </div>
 
@@ -1208,9 +1235,7 @@ const Home = () => {
                       </a>
                     </li>
                     <li>
-                      <a
-                        href={`mailto:support@${systemName.toLowerCase()}`}
-                      >
+                      <a href={`mailto:support@${systemName.toLowerCase()}`}>
                         {t('联系我们')}
                       </a>
                     </li>

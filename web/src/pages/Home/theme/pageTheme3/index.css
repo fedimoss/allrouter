@@ -335,6 +335,22 @@
 .t3-app .fab-contact:hover .fab-qr, .t3-app .fab-contact.open .fab-qr{opacity:1;pointer-events:auto;transform:translateY(-50%) scale(1)}
 .t3-app .fab-qr img{width:126px;height:126px;border-radius:8px;background:#fff;display:block}
 .t3-app .fab-qr span{display:block;margin-top:8px;font-size:12px;color:rgba(255,255,255,.62)}
+/* 多二维码弹窗：宽度按数量自适应；网格 2 列 / 3 列（4 张为 2×2） */
+.t3-app .fab-qr--multi{width:auto;max-width:calc(100vw - 68px);padding:12px}
+.t3-app .fab-qr-grid{display:grid;gap:14px 10px}
+.t3-app .fab-qr-grid[data-count="2"],.t3-app .fab-qr-grid[data-count="4"]{grid-template-columns:repeat(2,112px)}
+.t3-app .fab-qr-grid[data-count="3"]{grid-template-columns:repeat(3,104px)}
+.t3-app .fab-qr--multi .fab-qr-item{display:flex;flex-direction:column;align-items:center;min-width:0}
+.t3-app .fab-qr--multi .fab-qr-item img{width:112px;height:112px}
+.t3-app .fab-qr-grid[data-count="3"] .fab-qr-item img{width:104px;height:104px}
+.t3-app .fab-qr--multi .fab-qr-item span{max-width:130px;overflow-wrap:anywhere;line-height:1.5}
+@media (width<560px){
+  .t3-app .fab-qr--multi{right:52px}
+  /* 窄屏 3 列降级为两列 + 第 3 张整行居中 */
+  .t3-app .fab-qr-grid[data-count="3"]{grid-template-columns:repeat(2,112px)}
+  .t3-app .fab-qr-grid[data-count="3"] .fab-qr-item img{width:112px;height:112px}
+  .t3-app .fab-qr-grid[data-count="3"] .fab-qr-item:nth-child(3){grid-column:1/-1}
+}
 .t3-app .fab-top{opacity:0;pointer-events:none;transform:translateY(10px)}
 .t3-app .fab-top.fab-top--show{opacity:1;pointer-events:auto;transform:translateY(0)}
 .t3-app--light .fab-btn{background:rgba(255,255,255,.88);border-color:rgba(12,25,20,.16);color:#0e1915}

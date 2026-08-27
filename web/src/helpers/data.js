@@ -25,12 +25,19 @@ export function setStatusData(data) {
   localStorage.setItem('system_name', data.system_name);
   localStorage.setItem('logo', data.logo);
   const supportConfig = buildSupportConfig(data);
-  localStorage.setItem('wechat_support', supportConfig.wechatQRCode || '');
-  localStorage.setItem('wechat_support_desc', supportConfig.wechatDesc || '');
-  localStorage.setItem('qq_support', supportConfig.qqSupport || '');
-  localStorage.setItem('qq_support_qrcode', supportConfig.qqQrcode || '');
-  localStorage.setItem('telegram_support', supportConfig.telegramQRCode || '');
-  localStorage.setItem('telegram_support_desc', supportConfig.telegramDesc || '');
+  // 多二维码列表缓存：每渠道 [{url, desc}]
+  localStorage.setItem(
+    'wechat_support_list',
+    JSON.stringify(supportConfig.wechatList || []),
+  );
+  localStorage.setItem(
+    'qq_support_list',
+    JSON.stringify(supportConfig.qqList || []),
+  );
+  localStorage.setItem(
+    'telegram_support_list',
+    JSON.stringify(supportConfig.telegramList || []),
+  );
   localStorage.setItem('footer_html', data.footer_html);
   localStorage.setItem('quota_per_unit', data.quota_per_unit);
   // 兼容：保留旧字段，同时写入新的额度展示类型

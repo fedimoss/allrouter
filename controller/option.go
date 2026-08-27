@@ -1096,14 +1096,29 @@ func UploadQQCustomerQrcode(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"url": qrcodeURL})
 }
 
-// setWebSupportRequest 设置网站客服请求
+// setWebSupportRequest 设置网站客服请求。
+// 二维码字段双轨兼容：*_list 为新格式（[{url,desc}] 数组，优先）；
+// 旧标量字段（wechat_support 等）保留给旧前端提交（旧格式单 URL，描述已废弃不兼容）。
 type setWebSupportRequest struct {
-	WechatSupport       string `json:"wechat_support"`        // 微信客服二维码
-	WechatSupportDesc   string `json:"wechat_support_desc"`   // 微信客服文本描述
-	QQSupport           string `json:"qq_support"`            // QQ客服文本描述
-	QQSupportQrcode     string `json:"qq_support_qrcode"`     // QQ客服二维码
-	TelegramSupport     string `json:"telegram_support"`      // Telegram客服二维码
-	TelegramSupportDesc string `json:"telegram_support_desc"` // Telegram客服文本描述
+	WechatSupport       string                 `json:"wechat_support"`        // 微信客服二维码（旧格式：URL 或 JSON 数组字符串）
+	QQSupportQrcode     string                 `json:"qq_support_qrcode"`     // QQ客服二维码（旧格式：URL 或 JSON 数组字符串）
+	TelegramSupport     string                 `json:"telegram_support"`      // Telegram客服二维码（旧格式：URL 或 JSON 数组字符串）
+	WechatSupportList   []common.SupportQRCode `json:"wechat_support_list"`   // 微信客服二维码列表（新格式，优先）
+	QQSupportList       []common.SupportQRCode `json:"qq_support_list"`       // QQ客服二维码列表（新格式，优先）
+	TelegramSupportList []common.SupportQRCode `json:"telegram_support_list"` // Telegram客服二维码列表（新格式，优先）
+}
+
+// resolveSupportQRCodes 统一解析一个渠道的二维码存储值：
+// 新格式 list 非空时直接规范化；否则回退旧标量字段（兼容旧前端提交的单 URL / 历史存储值）。
+func resolveSupportQRCodes(list []common.SupportQRCode, legacyValue string) string {
+	if len(list) > 0 {
+		return common.EncodeSupportQRCodes(list)
+	}
+	// 旧前端提交：legacyValue 可能已是 JSON 数组字符串（此前保存过新格式）或旧单 URL
+	if items := common.ParseSupportQRCodes(legacyValue); len(items) > 0 {
+		return common.EncodeSupportQRCodes(items)
+	}
+	return ""
 }
 
 // SetWebSupport 设置网站客服
@@ -1114,29 +1129,17 @@ func SetWebSupport(c *gin.Context) {
 		return
 	}
 	// 更新微信客服
-	if err := model.UpdateOption("WechatSupport", strings.TrimSpace(req.WechatSupport)); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if err := model.UpdateOption("WechatSupportDesc", strings.TrimSpace(req.WechatSupportDesc)); err != nil {
+	if err := model.UpdateOption("WechatSupport", resolveSupportQRCodes(req.WechatSupportList, req.WechatSupport)); err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	// 更新QQ客服
-	if err := model.UpdateOption("QQSupport", strings.TrimSpace(req.QQSupport)); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if err := model.UpdateOption("QQSupportQrcode", strings.TrimSpace(req.QQSupportQrcode)); err != nil {
+	if err := model.UpdateOption("QQSupportQrcode", resolveSupportQRCodes(req.QQSupportList, req.QQSupportQrcode)); err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	// 更新Telegram客服
-	if err := model.UpdateOption("TelegramSupport", strings.TrimSpace(req.TelegramSupport)); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if err := model.UpdateOption("TelegramSupportDesc", strings.TrimSpace(req.TelegramSupportDesc)); err != nil {
+	if err := model.UpdateOption("TelegramSupport", resolveSupportQRCodes(req.TelegramSupportList, req.TelegramSupport)); err != nil {
 		common.ApiError(c, err)
 		return
 	}

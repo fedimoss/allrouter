@@ -17,12 +17,9 @@ var Version = "v0.0.0"            // this hard coding will be replaced automatic
 var SystemName = "All Router"
 var Footer = ""
 var Logo = ""
-var WechatSupport = ""       // 微信客服
-var WechatSupportDesc = ""   // 微信客服文本描述
-var QQSupport = ""           // QQ客服
-var QQSupportQrcode = ""     // QQ客服二维码
-var TelegramSupport = ""     // Telegram客服
-var TelegramSupportDesc = "" // Telegram客服文本描述
+var WechatSupport = ""   // 微信客服（多二维码 JSON 数组或旧格式单 URL）
+var QQSupportQrcode = "" // QQ客服二维码（多二维码 JSON 数组或旧格式单 URL）
+var TelegramSupport = "" // Telegram客服（多二维码 JSON 数组或旧格式单 URL）
 var TopUpLink = ""
 
 var themeValue atomic.Value // stores string; safe for concurrent read/write

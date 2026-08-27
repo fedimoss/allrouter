@@ -89,20 +89,21 @@ func GetStatus(c *gin.Context) {
 		"home_page_theme":             common.OptionMap["HomePageTheme"],
 		"system_name":                 common.SystemName,
 		"logo":                        common.Logo,
-		"wechat_support":              common.WechatSupport,       // 微信客服
-		"wechat_support_desc":         common.WechatSupportDesc,   // 微信客服文本描述
-		"qq_support":                  common.QQSupport,           // QQ客服
-		"qq_support_qrcode":           common.QQSupportQrcode,     // QQ客服二维码
-		"telegram_support":            common.TelegramSupport,     // Telegram客服
-		"telegram_support_desc":       common.TelegramSupportDesc, // Telegram客服文本描述
-		"footer_html":                 common.Footer,
-		"wechat_qrcode":               common.WeChatAccountQRCodeImageURL,
-		"wechat_login":                common.WeChatAuthEnabled,
-		"server_address":              system_setting.ServerAddress,
-		"turnstile_check":             common.TurnstileCheckEnabled,
-		"turnstile_site_key":          common.TurnstileSiteKey,
-		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
-		"quota_per_unit":              common.QuotaPerUnit,
+		"wechat_support":              common.WechatSupport,   // 微信客服（兼容保留：新格式为 JSON 数组，旧格式为单 URL）
+		"qq_support_qrcode":           common.QQSupportQrcode, // QQ客服二维码（兼容保留）
+		"telegram_support":            common.TelegramSupport, // Telegram客服（兼容保留）
+		// 多二维码列表：解析后的 [{url, desc}] 数组，前端优先消费这三个字段
+		"wechat_support_list":   common.ParseSupportQRCodes(common.WechatSupport),
+		"qq_support_list":       common.ParseSupportQRCodes(common.QQSupportQrcode),
+		"telegram_support_list": common.ParseSupportQRCodes(common.TelegramSupport),
+		"footer_html":           common.Footer,
+		"wechat_qrcode":         common.WeChatAccountQRCodeImageURL,
+		"wechat_login":          common.WeChatAuthEnabled,
+		"server_address":        system_setting.ServerAddress,
+		"turnstile_check":       common.TurnstileCheckEnabled,
+		"turnstile_site_key":    common.TurnstileSiteKey,
+		"docs_link":             operation_setting.GetGeneralSetting().DocsLink,
+		"quota_per_unit":        common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
 		"display_in_currency":           operation_setting.IsCurrencyDisplay(),
 		"quota_display_type":            operation_setting.GetQuotaDisplayType(),

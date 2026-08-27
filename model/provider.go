@@ -69,12 +69,10 @@ type ProviderConfig struct {
 	ModelPricingSyncLastSummary string `json:"model_pricing_sync_last_summary" gorm:"type:text"`
 	CreatedAt                   int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt                   int64  `json:"updated_at" gorm:"bigint"`
-	WechatSupport               string `json:"wechat_support" gorm:"type:text"`
-	QQSupport                   string `json:"qq_support" gorm:"type:text"`
-	WechatSupportDesc           string `json:"wechat_support_desc" gorm:"type:text"`
-	QQSupportQrcode             string `json:"qq_support_qrcode" gorm:"type:text"`
-	TelegramSupport             string `json:"telegram_support" gorm:"type:text"`
-	TelegramSupportDesc         string `json:"telegram_support_desc" gorm:"type:text"`
+	// 三渠道客服二维码：存 [{url, desc}] JSON 数组（旧存量数据可能是单 URL 纯文本，读取时兼容解析）
+	WechatSupport   string `json:"wechat_support" gorm:"type:text"`
+	QQSupportQrcode string `json:"qq_support_qrcode" gorm:"type:text"`
+	TelegramSupport string `json:"telegram_support" gorm:"type:text"`
 }
 
 type ProviderModelPricing struct {

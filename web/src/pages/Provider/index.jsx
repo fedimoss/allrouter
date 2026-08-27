@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Button,
   Form,
@@ -41,7 +47,7 @@ import {
   IconPlus,
   IconRefresh,
   IconUpload,
-  IconMinusCircleStroked
+  IconMinusCircleStroked,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import {
@@ -56,6 +62,7 @@ import {
   showSuccess,
   stringifyProviderNavModules,
   timestamp2string,
+  SUPPORT_QRCODE_MAX_COUNT,
 } from '../../helpers';
 import ProviderRewardModal from './ProviderRewardModal';
 import DynamicPricingBreakdown from '../../components/table/model-pricing/modal/components/DynamicPricingBreakdown';
@@ -114,12 +121,29 @@ const emptyConfig = {
   secondary_color: DEFAULT_THEME_SECONDARY_COLOR,
   home_page_theme: 'default',
   wechat_support: '',
-  wechat_support_desc: '',
-  qq_support: '',
   qq_support_qrcode: '',
   telegram_support: '',
-  telegram_support_desc: '',
   footer_text: '',
+};
+
+// 解析单个渠道的二维码列表：存储值可能是新格式 JSON 数组字符串或旧格式单 URL
+// （旧格式仅保留图片，描述已废弃）。与 OtherSetting.parseSupportQrcodeList 保持一致逻辑。
+const parseProviderSupportList = (qrcodeValue) => {
+  const trimmed = String(qrcodeValue || '').trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item) => item && (item.url || item.desc))
+          .slice(0, SUPPORT_QRCODE_MAX_COUNT);
+      }
+    } catch {
+      // 损坏数据：回退旧格式处理
+    }
+  }
+  return [{ url: trimmed, desc: '' }];
 };
 
 // 客服渠道配置（与 OtherSetting 客服设置一致）：驱动「页面配置」弹窗里的客服设置卡片。
@@ -129,8 +153,7 @@ const supportChannels = [
     icon: 'fab fa-weixin',
     color: '#07c160',
     titleKey: '微信客服',
-    imageField: 'wechat_support',
-    descField: 'wechat_support_desc',
+    legacyQrcodeField: 'wechat_support',
     altKey: '微信二维码',
     endpoint: '/api/option/wechat_qrcode',
     formDataName: 'wechat_qrcode',
@@ -143,8 +166,7 @@ const supportChannels = [
     icon: 'fab fa-telegram',
     color: '#229ed9',
     titleKey: 'Telegram客服',
-    imageField: 'telegram_support',
-    descField: 'telegram_support_desc',
+    legacyQrcodeField: 'telegram_support',
     altKey: 'Telegram二维码',
     endpoint: '/api/option/telegram_qrcode',
     formDataName: 'telegram_qrcode',
@@ -157,8 +179,7 @@ const supportChannels = [
     icon: 'fab fa-qq',
     color: '#12b7f5',
     titleKey: 'QQ客服',
-    imageField: 'qq_support_qrcode',
-    descField: 'qq_support',
+    legacyQrcodeField: 'qq_support_qrcode',
     altKey: 'QQ二维码',
     endpoint: '/api/option/qq_qrcode',
     formDataName: 'qq_qrcode',
@@ -246,9 +267,7 @@ const parseProviderSmtpConfig = (value, exposePassword = false) => {
       // Keep the UI defensive as well: only the dedicated administrator flow
       // may put a returned credential into form state.
       password: exposePassword ? storedPassword : '',
-      password_configured: !!(
-        parsed.password_configured || storedPassword
-      ),
+      password_configured: !!(parsed.password_configured || storedPassword),
       from_email: parsed.from_email ?? parsed.smtp_from ?? '',
       from_name: parsed.from_name ?? '',
       reply_to: parsed.reply_to ?? '',
@@ -409,7 +428,8 @@ const ProviderPage = () => {
     (provider) =>
       !!provider?.id &&
       (smtpAdminMode ||
-        (providerOwner && Number(provider.owner_user_id) === Number(currentUserId))),
+        (providerOwner &&
+          Number(provider.owner_user_id) === Number(currentUserId))),
     [currentUserId, providerOwner, smtpAdminMode],
   );
   const pageTitle = adminMode ? t('服务商管理') : t('服务商设置');
@@ -437,11 +457,6 @@ const ProviderPage = () => {
   const [smtpSaving, setSmtpSaving] = useState(false);
   const [smtpFormKey, setSmtpFormKey] = useState(0);
   const [logoUploading, setLogoUploading] = useState(false);
-  const [qrUploading, setQrUploading] = useState({
-    wechat: false,
-    telegram: false,
-    qq: false,
-  });
   const [baseModels, setBaseModels] = useState([]);
   const [baseModelPrices, setBaseModelPrices] = useState([]);
   const [baseModelPriceProviderId, setBaseModelPriceProviderId] =
@@ -453,10 +468,11 @@ const ProviderPage = () => {
     theme_color: DEFAULT_THEME_PRIMARY_COLOR,
     secondary_color: DEFAULT_THEME_SECONDARY_COLOR,
   });
-  const [configQrImages, setConfigQrImages] = useState({
-    wechat_support: '',
-    telegram_support: '',
-    qq_support_qrcode: '',
+  // 客服三渠道多二维码列表：{ wechat: [{url,desc}], telegram: [...], qq: [...] }
+  const [configSupportLists, setConfigSupportLists] = useState({
+    wechat: [],
+    telegram: [],
+    qq: [],
   });
   const [ownerModalVisible, setOwnerModalVisible] = useState(false);
   const [ownerCandidates, setOwnerCandidates] = useState([]);
@@ -720,10 +736,18 @@ const ProviderPage = () => {
       theme_color: values.theme_color,
       secondary_color: values.secondary_color,
     });
-    setConfigQrImages({
-      wechat_support: values.wechat_support || '',
-      telegram_support: values.telegram_support || '',
-      qq_support_qrcode: values.qq_support_qrcode || '',
+    // 解析三渠道多二维码列表：优先 *_list 数组字段，回退旧标量字段
+    const config = currentProvider?.config || {};
+    setConfigSupportLists({
+      wechat: Array.isArray(config.wechat_support_list)
+        ? config.wechat_support_list
+        : parseProviderSupportList(config.wechat_support),
+      telegram: Array.isArray(config.telegram_support_list)
+        ? config.telegram_support_list
+        : parseProviderSupportList(config.telegram_support),
+      qq: Array.isArray(config.qq_support_list)
+        ? config.qq_support_list
+        : parseProviderSupportList(config.qq_support_qrcode),
     });
   }, [configModalVisible, currentProvider]);
 
@@ -796,9 +820,7 @@ const ProviderPage = () => {
         const option = (res.data.data || []).find(
           (item) => item.key === PROVIDER_SMTP_OPTION_KEY,
         );
-        setSmtpConfig(
-          parseProviderSmtpConfig(option?.value, smtpAdminMode),
-        );
+        setSmtpConfig(parseProviderSmtpConfig(option?.value, smtpAdminMode));
         setSmtpConfigLoaded(true);
         setSmtpFormKey((key) => key + 1);
       } else {
@@ -909,7 +931,8 @@ const ProviderPage = () => {
 
   // 仅在“当前服务商的主站模型列表已加载完成”时才判定下架，避免列表未到位时的误判
   const baseModelsLoadedForCurrentProvider =
-    baseModelPriceProviderId === (currentProvider?.id || 0) && !baseModelsLoading;
+    baseModelPriceProviderId === (currentProvider?.id || 0) &&
+    !baseModelsLoading;
 
   // 当前选中的实际模型是否已被主站下架（不可启用）
   const selectedBaseModelUnavailable = Boolean(
@@ -934,7 +957,13 @@ const ProviderPage = () => {
             : name,
         value: name,
       }));
-  }, [baseModelVisibleSet, baseModels, baseModelsLoadedForCurrentProvider, editingPricing, t]);
+  }, [
+    baseModelVisibleSet,
+    baseModels,
+    baseModelsLoadedForCurrentProvider,
+    editingPricing,
+    t,
+  ]);
 
   const selectedBaseModelPrices = useMemo(
     () =>
@@ -1049,130 +1078,174 @@ const ProviderPage = () => {
     }
   };
 
-  // 客服二维码统一上传：复用全局 /api/option/{wechat,telegram,qq}_qrcode 接口，
-  // 上传成功后回写 configQrImages（驱动 dropzone 预览）与表单字段。
-  const handleSupportQrcodeUpload = (channel) => async ({
-    file,
-    fileInstance,
-    onSuccess,
-    onError,
-  }) => {
-    try {
-      setQrUploading((prev) => ({ ...prev, [channel.key]: true }));
-      const uploadFile = fileInstance || file?.fileInstance;
-      if (!uploadFile) {
-        throw new Error(t('请选择图片'));
+  // 客服二维码统一上传（多码版）：复用全局 /api/option/{wechat,telegram,qq}_qrcode 接口，
+  // 上传成功后回写 configSupportLists 对应槽位的 url。
+  const handleSupportQrcodeUpload =
+    (channel, index) =>
+    async ({ file, fileInstance, onSuccess, onError }) => {
+      try {
+        const uploadFile = fileInstance || file?.fileInstance;
+        if (!uploadFile) {
+          throw new Error(t('请选择图片'));
+        }
+        const formData = new FormData();
+        formData.append(channel.formDataName, uploadFile);
+        const res = await API.post(channel.endpoint, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        const { success, message, data } = res.data || {};
+        if (!success) {
+          throw new Error(message || t(channel.errorKey));
+        }
+        const qrcodePath = getLogoUploadPath(data);
+        if (!qrcodePath) {
+          throw new Error(t(channel.invalidKey));
+        }
+        setConfigSupportLists((prev) => {
+          const list = [...(prev[channel.key] || [])];
+          const current = list[index] || { url: '', desc: '' };
+          list[index] = { ...current, url: qrcodePath };
+          return { ...prev, [channel.key]: list };
+        });
+        showSuccess(t(channel.successKey));
+        onSuccess?.(data || {});
+      } catch (error) {
+        showError(error?.message || t(channel.errorKey));
+        onError?.({ status: 500 }, error);
       }
-      const formData = new FormData();
-      formData.append(channel.formDataName, uploadFile);
-      const res = await API.post(channel.endpoint, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      const { success, message, data } = res.data || {};
-      if (!success) {
-        throw new Error(message || t(channel.errorKey));
-      }
-      const qrcodePath = getLogoUploadPath(data);
-      if (!qrcodePath) {
-        throw new Error(t(channel.invalidKey));
-      }
-      setConfigQrImages((prev) => ({ ...prev, [channel.imageField]: qrcodePath }));
-      configFormRef.current?.setValue?.(channel.imageField, qrcodePath);
-      showSuccess(t(channel.successKey));
-      onSuccess?.(data || {});
-    } catch (error) {
-      showError(error?.message || t(channel.errorKey));
-      onError?.({ status: 500 }, error);
-    } finally {
-      setQrUploading((prev) => ({ ...prev, [channel.key]: false }));
-    }
+    };
+
+  // 更新某渠道某槽位的描述文本
+  const handleSupportDescChange = (channelKey, index, desc) => {
+    setConfigSupportLists((prev) => {
+      const list = [...(prev[channelKey] || [])];
+      const current = list[index] || { url: '', desc: '' };
+      list[index] = { ...current, desc };
+      return { ...prev, [channelKey]: list };
+    });
   };
 
-  // 客服二维码上传区：虚线方框既是上传触发区又是预览区。
+  // 清空某渠道某槽位
+  const clearSupportSlot = (channelKey, index) => {
+    setConfigSupportLists((prev) => {
+      const list = [...(prev[channelKey] || [])];
+      list[index] = { url: '', desc: '' };
+      if (list.every((item) => !item || (!item.url && !item.desc))) {
+        return { ...prev, [channelKey]: [] };
+      }
+      return { ...prev, [channelKey]: list };
+    });
+  };
+
+  // 客服渠道多二维码槽位渲染：每渠道最多 4 位，一行并排 4 个竖单元——
+  // 「二维码 N + 删除」标签行 + 118px 上传/预览方块 + 下方窄描述输入（与 OtherSetting 一致）。
   const renderSupportDropzone = (channel) => {
-    const image = configQrImages[channel.imageField] || '';
-    const uploading = qrUploading[channel.key];
+    const list = configSupportLists[channel.key] || [];
+    const slots = Array.from(
+      { length: SUPPORT_QRCODE_MAX_COUNT },
+      (_, i) => list[i] || { url: '', desc: '' },
+    );
     return (
-      <Upload
-        action='/'
-        accept='image/*'
-        showUploadList={false}
-        uploadTrigger='auto'
-        customRequest={handleSupportQrcodeUpload(channel)}
-      >
-        <div
-          style={{
-            position: 'relative',
-            width: 100,
-            height: 100,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            border: `1px dashed ${uploading ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`,
-            borderRadius: 6,
-            cursor: 'pointer',
-            overflow: 'hidden',
-            color: 'var(--semi-color-text-2)',
-            transition: 'border-color 0.18s ease',
-          }}
-        >
-          {uploading ? (
-            <span style={{ fontSize: 12 }}>{t('上传中...')}</span>
-          ) : image ? (
-            <img
-              src={image}
-              alt={t(channel.altKey)}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {slots.map((slot, index) => {
+          const hasContent = !!(slot.url || slot.desc);
+          return (
+            <div
+              key={`${channel.key}-${index}`}
               style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                display: 'block',
-              }}
-            />
-          ) : (
-            <>
-              <IconUpload style={{ fontSize: 22 }} />
-              <span style={{ fontSize: 12 }}>{t('上传二维码')}</span>
-            </>
-          )}
-          {image && !uploading ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setConfigQrImages((prev) => ({
-                  ...prev,
-                  [channel.imageField]: '',
-                }));
-                configFormRef.current?.setValue?.(channel.imageField, '');
-              }}
-              style={{
-                position: 'absolute',
-                top: 2,
-                right: 2,
-                width: 18,
-                height: 18,
-                borderRadius: '50%',
-                border: 'none',
-                background: 'var(--semi-color-danger)',
-                color: '#fff',
-                fontSize: 12,
-                lineHeight: '18px',
-                cursor: 'pointer',
+                width: 118,
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 0,
+                flexDirection: 'column',
+                gap: 6,
               }}
             >
-              ×
-            </button>
-          ) : null}
-        </div>
-      </Upload>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <span
+                  style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}
+                >
+                  {t('二维码 {{index}}', { index: index + 1 })}
+                </span>
+                {hasContent ? (
+                  <button
+                    onClick={() => clearSupportSlot(channel.key, index)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--semi-color-danger)',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {t('删除')}
+                  </button>
+                ) : null}
+              </div>
+              <Upload
+                action='/'
+                accept='image/*'
+                showUploadList={false}
+                uploadTrigger='auto'
+                customRequest={handleSupportQrcodeUpload(channel, index)}
+              >
+                <div
+                  style={{
+                    position: 'relative',
+                    width: 118,
+                    height: 118,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    border: `1px dashed var(--semi-color-border)`,
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                    color: 'var(--semi-color-text-2)',
+                    transition: 'border-color 0.18s ease',
+                  }}
+                >
+                  {slot.url ? (
+                    <img
+                      src={slot.url}
+                      alt={t(channel.altKey)}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        display: 'block',
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <IconUpload style={{ fontSize: 20 }} />
+                      <span style={{ fontSize: 12 }}>{t('上传二维码')}</span>
+                    </>
+                  )}
+                </div>
+              </Upload>
+              <Input
+                placeholder={t('描述（可选）')}
+                value={slot.desc}
+                onChange={(value) =>
+                  handleSupportDescChange(channel.key, index, value)
+                }
+                size='small'
+                style={{ width: '100%' }}
+              />
+            </div>
+          );
+        })}
+      </div>
     );
   };
 
@@ -1268,12 +1341,22 @@ const ProviderPage = () => {
 
   const submitConfig = async () => {
     const values = configFormRef.current?.getValues?.() || {};
+    // 三渠道多二维码列表：过滤空槽位、截断至最大数量
+    const cleanList = (key) =>
+      (configSupportLists[key] || [])
+        .filter((item) => item && (item.url || item.desc))
+        .slice(0, SUPPORT_QRCODE_MAX_COUNT);
     const payload = {
       ...values,
-      wechat_support: configQrImages.wechat_support || '',
-      telegram_support: configQrImages.telegram_support || '',
-      qq_support_qrcode: configQrImages.qq_support_qrcode || '',
+      wechat_support_list: cleanList('wechat'),
+      telegram_support_list: cleanList('telegram'),
+      qq_support_list: cleanList('qq'),
     };
+    // 旧标量字段不再随请求提交：二维码一律以 *_list 为准。
+    // 若残留提交，后端 resolveSupportQRCodes 会在 list 为空时回退使用它们，导致删除不生效。
+    delete payload.wechat_support;
+    delete payload.qq_support_qrcode;
+    delete payload.telegram_support;
     const url = adminMode
       ? `/api/provider/admin/${currentProvider.id}/config`
       : '/api/provider/config';
@@ -1395,7 +1478,11 @@ const ProviderPage = () => {
     };
     // 前端拦截：已下架的主站模型不允许启用（后端亦有同样校验，这里先给即时提示）
     if (payload.enabled && selectedBaseModelUnavailable) {
-      showError(t('该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。'));
+      showError(
+        t(
+          '该主站模型当前已下架，暂时无法启用。请等待主站恢复模型后再启用，或更换实际调用模型。',
+        ),
+      );
       return;
     }
     const url = adminMode
@@ -1602,7 +1689,7 @@ const ProviderPage = () => {
               config?.theme_color ||
               config?.secondary_color ||
               config?.wechat_support ||
-              config?.qq_support
+              config?.qq_support_qrcode
                 ? t('已配置')
                 : t('未配置')}
             </Text>
@@ -1664,7 +1751,11 @@ const ProviderPage = () => {
                     )}
                     onConfirm={() => disableProvider(record)}
                   >
-                    <Button size='small' type='warning' icon={<IconMinusCircleStroked />}>
+                    <Button
+                      size='small'
+                      type='warning'
+                      icon={<IconMinusCircleStroked />}
+                    >
                       {t('禁用')}
                     </Button>
                   </Popconfirm>
@@ -1686,7 +1777,11 @@ const ProviderPage = () => {
                   )}
                   onConfirm={() => deleteProvider(record)}
                 >
-                  <Button size='small' type='danger' icon={<IconDeleteStroked />}>
+                  <Button
+                    size='small'
+                    type='danger'
+                    icon={<IconDeleteStroked />}
+                  >
                     {t('删除')}
                   </Button>
                 </Popconfirm>
@@ -1762,8 +1857,7 @@ const ProviderPage = () => {
             size='small'
             icon={<IconEdit />}
             onClick={() => openPricingModal(record)}
-          >
-          </Button>
+          ></Button>
           <Popconfirm
             title={t('确认删除？')}
             onConfirm={() => deletePricing(record)}
@@ -1838,9 +1932,9 @@ const ProviderPage = () => {
           ? t('动态计费')
           : record.billing_mode === 'per_second'
             ? t('按秒计费')
-          : quotaType === 1
-            ? t('按次价格')
-            : t('Token 倍率'),
+            : quotaType === 1
+              ? t('按次价格')
+              : t('Token 倍率'),
     },
     {
       title: t('输入价格'),
@@ -1852,11 +1946,18 @@ const ProviderPage = () => {
           </Text>
         ) : record.billing_mode === 'per_second' ? (
           <Space vertical align='start' spacing={2}>
-            {Object.entries(record.resolution_prices || {}).map(([resolution, price]) => (
-              <Text key={resolution}>
-                {resolution}: {t('原价')} {formatPriceNumber(price)}/s · {t('服务商成本价')} {formatPriceNumber(record.cost_resolution_prices?.[resolution])}/s
-              </Text>
-            ))}
+            {Object.entries(record.resolution_prices || {}).map(
+              ([resolution, price]) => (
+                <Text key={resolution}>
+                  {resolution}: {t('原价')} {formatPriceNumber(price)}/s ·{' '}
+                  {t('服务商成本价')}{' '}
+                  {formatPriceNumber(
+                    record.cost_resolution_prices?.[resolution],
+                  )}
+                  /s
+                </Text>
+              ),
+            )}
           </Space>
         ) : (
           <Space vertical align='start' spacing={1}>
@@ -2223,10 +2324,7 @@ const ProviderPage = () => {
                 title={t('确认删除？')}
                 onConfirm={() => removeDomainRow(row.rowKey)}
               >
-                <Button
-                  type='danger'
-                  icon={<IconDeleteStroked />}
-                />
+                <Button type='danger' icon={<IconDeleteStroked />} />
               </Popconfirm>
             </div>
           ))}
@@ -2385,16 +2483,20 @@ const ProviderPage = () => {
                 <span style={{ fontWeight: 600, fontSize: 14 }}>
                   {t(channel.titleKey)}
                 </span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--semi-color-text-2)',
+                    marginLeft: 'auto',
+                  }}
+                >
+                  {t(
+                    '最多上传 {{count}} 张二维码，每张可填写独立描述，空位不展示',
+                    { count: SUPPORT_QRCODE_MAX_COUNT },
+                  )}
+                </span>
               </div>
-              <div style={{ marginBottom: 10 }}>
-                {renderSupportDropzone(channel)}
-              </div>
-              <Form.TextArea
-                field={channel.descField}
-                label={t('文本描述')}
-                placeholder={t('可填写号码、链接或推广文案')}
-                autosize={{ minRows: 2, maxRows: 6 }}
-              />
+              {renderSupportDropzone(channel)}
             </div>
           ))}
         </Form>
@@ -2580,7 +2682,8 @@ const ProviderPage = () => {
               {modelPricingSyncConfig.last_summary ? (
                 <Text type='tertiary' size='small'>
                   {' ｜ '}
-                  {t('新增')} {modelPricingSyncConfig.last_summary.added_count || 0}
+                  {t('新增')}{' '}
+                  {modelPricingSyncConfig.last_summary.added_count || 0}
                   {' ｜ '}
                   {t('软禁用')}{' '}
                   {modelPricingSyncConfig.last_summary.disabled_count || 0}
