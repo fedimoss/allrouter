@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -124,8 +125,9 @@ func GetMyUserQuestionnaires(c *gin.Context) {
 }
 
 // GetUserQuestionnairesAdmin 管理端分页查询问卷提交记录
-// 接口：GET /api/questionnaire?p=1&page_size=10（AdminAuth）
-// 仅主站管理员(providerId=0)可调用，查看主站全部问卷提交记录。
+// 接口：GET /api/questionnaire?p=1&page_size=10&provider_id=0（AdminAuth）
+// 仅主站管理员(providerId=0)可调用。provider_id 筛选：缺省/非法 → 0（主站，保持原行为）；
+// >0 → 指定服务商站点；-1 → 全部站点。
 func GetUserQuestionnairesAdmin(c *gin.Context) {
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	if providerId != 0 {
@@ -133,8 +135,15 @@ func GetUserQuestionnairesAdmin(c *gin.Context) {
 		return
 	}
 
+	filterProvider := 0
+	if v := strings.TrimSpace(c.Query("provider_id")); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			filterProvider = p
+		}
+	}
+
 	pageInfo := common.GetPageQuery(c)
-	records, total, err := model.GetUserQuestionnairesAdmin(0, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	records, total, err := model.GetUserQuestionnairesAdmin(filterProvider, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -146,7 +155,7 @@ func GetUserQuestionnairesAdmin(c *gin.Context) {
 	return
 }
 
-// DeleteUserQuestionnaire 主站管理端删除问卷提交记录
+// DeleteUserQuestionnaire 主站管理端删除问卷提交记录（任意站点）
 // 接口：DELETE /api/questionnaire/:id（AdminAuth）
 func DeleteUserQuestionnaire(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
@@ -159,7 +168,7 @@ func DeleteUserQuestionnaire(c *gin.Context) {
 		common.ApiErrorMsg(c, "仅主站管理员可访问")
 		return
 	}
-	if err := model.DeleteUserQuestionnaire(id, 0); err != nil {
+	if err := model.DeleteUserQuestionnaireById(id); err != nil {
 		common.ApiError(c, err)
 		return
 	}

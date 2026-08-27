@@ -17,14 +17,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Space, Modal, Empty, Toast, Table } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Space,
+  Modal,
+  Empty,
+  Toast,
+  Table,
+  Select,
+  Typography,
+} from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { RefreshCw, Eye, Trash2 } from 'lucide-react';
+import { IconComment } from '@douyinfe/semi-icons';
 import {
   API,
   timestamp2string,
@@ -33,7 +43,9 @@ import {
   isProviderOwner,
   isAdmin,
 } from '../../helpers';
-import './questionSurvey.css';
+import CardPro from '../../components/common/ui/CardPro';
+
+const { Text } = Typography;
 
 // 行业选项配置：值与 /userQuestion 页提交的索引值对应（1 开始），展示文案可调整
 const INDUSTRY_OPTIONS = [
@@ -71,17 +83,50 @@ const QuestionSurvey = () => {
   // 服务商 owner 模式：使用 /api/provider/ 接口，只操作本站问卷；主站管理员使用 /api/user/questionnaire/admin/
   const providerMode = isProviderOwner() && !isAdmin();
 
+  // 主站管理员筛选：站点选项 + 当前选中（0=主站，>0=分站，-1=全部）
+  const [providerFilter, setProviderFilter] = useState(0);
+  const [providerOptions, setProviderOptions] = useState([]);
+
+  // 主站管理员加载分站列表（用于右上角筛选下拉）
+  useEffect(() => {
+    if (providerMode) return;
+    let cancelled = false;
+    API.get('/api/provider/admin')
+      .then((res) => {
+        if (cancelled || !res.data.success) return;
+        const providers = Array.isArray(res.data.data) ? res.data.data : [];
+        setProviderOptions(
+          providers.map((p) => ({ value: p.id, label: p.name || `#${p.id}` })),
+        );
+      })
+      .catch(() => {
+        // 分站列表加载失败不阻塞页面，仅筛选下拉无分站选项
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [providerMode]);
+
+  // 请求序号：切换筛选/快速操作时丢弃过期响应，避免旧请求后返回覆盖新数据
+  const requestIdRef = useRef(0);
+
   // 加载问卷提交记录
   const loadRecords = useCallback(
     async (currentPage) => {
+      const requestId = ++requestIdRef.current;
       setLoading(true);
       try {
         const url = providerMode
           ? '/api/provider/questionnaires'
           : '/api/questionnaire';
         const res = await API.get(url, {
-          params: { p: currentPage, page_size: pageSize },
+          params: {
+            p: currentPage,
+            page_size: pageSize,
+            ...(providerMode ? {} : { provider_id: providerFilter }),
+          },
         });
+        if (requestId !== requestIdRef.current) return; // 过期响应，丢弃
         if (res.data.success) {
           setRecords(res.data.data.items || []);
           setTotal(res.data.data.total || 0);
@@ -90,20 +135,19 @@ const QuestionSurvey = () => {
           Toast.error(res.data.message || t('加载失败'));
         }
       } catch (err) {
+        if (requestId !== requestIdRef.current) return; // 过期响应，丢弃
         Toast.error(t('加载失败'));
       } finally {
-        setLoading(false);
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
-    [pageSize, t, providerMode],
+    [pageSize, t, providerMode, providerFilter],
   );
 
   // 问卷详情弹窗
   const [detailRecord, setDetailRecord] = useState(null);
-
-  useEffect(() => {
-    loadRecords(1);
-  }, [loadRecords]);
 
   useEffect(() => {
     loadRecords(1);
@@ -151,9 +195,7 @@ const QuestionSurvey = () => {
     { label: t('发生时间'), value: data.occurredAt || '-' },
     {
       label: t('紧急程度'),
-      value: URGENCY_MAP[data.urgency]
-        ? t(URGENCY_MAP[data.urgency])
-        : '-',
+      value: URGENCY_MAP[data.urgency] ? t(URGENCY_MAP[data.urgency]) : '-',
     },
     { label: t('期望与建议'), value: data.suggestion || '-' },
     {
@@ -220,11 +262,34 @@ const QuestionSurvey = () => {
   });
 
   const columns = [
+    ...(providerMode
+      ? []
+      : [
+          {
+            title: t('来源站点'),
+            dataIndex: 'provider_id',
+            width: 140,
+            render: (_, record) => {
+              if (record.provider_id === 0) return <div>{t('主站')}</div>;
+              return (
+                <div>{record.provider_name || `#${record.provider_id}`}</div>
+              );
+            },
+          },
+        ]),
     {
       title: t('用户名称'),
       dataIndex: 'username',
       render: (_, record) => {
         return <div className='font-medium'>{formatUserName(record)}</div>;
+      },
+    },
+    {
+      title: t('用户ID'),
+      dataIndex: 'user_id',
+      width: 90,
+      render: (value) => {
+        return <div>{value != null ? value : '-'}</div>;
       },
     },
     {
@@ -264,62 +329,85 @@ const QuestionSurvey = () => {
     },
   ];
 
-  const detailData = detailRecord ? parseSurveyData(detailRecord.survey_data) : {};
+  const detailData = detailRecord
+    ? parseSurveyData(detailRecord.survey_data)
+    : {};
 
   return (
-    <div className='survey-v2 mt-[10px] px-2'>
-      <div className='survey-v2-shell'>
-        <div className='survey-v2-card'>
-          <div className='survey-v2-toolbar'>
-            <div>
-              <div className='survey-v2-toolbar-title'>{t('问卷调查')}</div>
-              <div className='survey-v2-toolbar-desc-txt'>
-                {t('查看用户提交的问卷记录，可查看详情与删除。')}
-              </div>
+    <div className='px-2'>
+      <CardPro
+        type='type1'
+        descriptionArea={
+          <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
+            <div className='flex items-center text-blue-500'>
+              <IconComment className='mr-2' />
+              <Text>{t('问卷调查')}</Text>
             </div>
-            <div className='survey-v2-toolbar-right'>
+            <Text type='tertiary' size='small'>
+              {t('查看用户提交的问卷记录，可查看详情与删除。')}
+            </Text>
+          </div>
+        }
+        actionsArea={
+          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
+            <div className='flex gap-2 w-full md:w-auto'>
               <Button
                 type='tertiary'
                 icon={<RefreshCw size={14} />}
                 onClick={handleRefresh}
-                style={{ marginRight: 8 }}
+                size='small'
               >
                 {t('刷新')}
               </Button>
             </div>
-          </div>
-
-          <div className='survey-v2-table-area'>
-            <Table
-              columns={columns}
-              dataSource={records}
-              rowKey='id'
-              loading={loading}
-              scroll={{ x: 'max-content' }}
-              pagination={false}
-              empty={
-                <Empty
-                  image={
-                    <IllustrationNoResult style={{ width: 150, height: 150 }} />
-                  }
-                  darkModeImage={
-                    <IllustrationNoResultDark
-                      style={{ width: 150, height: 150 }}
-                    />
-                  }
-                  description={t('暂无问卷提交记录')}
-                  style={{ padding: 30 }}
+            {!providerMode && (
+              <div className='flex gap-2 w-full md:w-auto'>
+                <Select
+                  value={providerFilter}
+                  onChange={(value) => {
+                    // 只更新筛选值；加载由 useEffect([loadRecords]) 在筛选变化后自动触发，
+                    // 避免手动调用使用旧闭包值发出过期请求造成数据竞态
+                    setProviderFilter(value);
+                  }}
+                  optionList={[
+                    { value: -1, label: t('全部站点') },
+                    { value: 0, label: t('主站') },
+                    ...providerOptions,
+                  ]}
+                  style={{ width: 180 }}
+                  size='small'
+                  placeholder={t('选择站点')}
                 />
-              }
-              className='rounded-xl overflow-hidden'
-              size='middle'
-            />
-            {paginationArea && (
-              <div className='survey-v2-pagination'>{paginationArea}</div>
+              </div>
             )}
           </div>
-        </div>
-      </div>
+        }
+        paginationArea={paginationArea}
+        t={t}
+      >
+        <Table
+          columns={columns}
+          dataSource={records}
+          rowKey='id'
+          loading={loading}
+          scroll={{ x: 'max-content' }}
+          pagination={false}
+          empty={
+            <Empty
+              image={
+                <IllustrationNoResult style={{ width: 150, height: 150 }} />
+              }
+              darkModeImage={
+                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+              }
+              description={t('暂无问卷提交记录')}
+              style={{ padding: 30 }}
+            />
+          }
+          className='rounded-xl overflow-hidden'
+          size='middle'
+        />
+      </CardPro>
 
       {/* 问卷详情弹窗 */}
       <Modal

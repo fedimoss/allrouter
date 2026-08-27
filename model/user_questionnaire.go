@@ -43,22 +43,26 @@ func GetUserQuestionnairesInProvider(providerId int, userId int) ([]UserQuestion
 	return records, err
 }
 
-// AdminQuestionnaireRecord 管理端问卷提交记录视图（联表带用户信息）
+// AdminQuestionnaireRecord 管理端问卷提交记录视图（联表带用户/分站信息）
 type AdminQuestionnaireRecord struct {
-	Id          int    `json:"id"`
-	ProviderId  int    `json:"provider_id"`
-	UserId      int    `json:"user_id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	SurveyData  string `json:"survey_data"`
-	CreatedAt   int64  `json:"created_at"`
+	Id           int    `json:"id"`
+	ProviderId   int    `json:"provider_id"`
+	ProviderName string `json:"provider_name"`
+	UserId       int    `json:"user_id"`
+	Username     string `json:"username"`
+	DisplayName  string `json:"display_name"`
+	SurveyData   string `json:"survey_data"`
+	CreatedAt    int64  `json:"created_at"`
 }
 
 // GetUserQuestionnairesAdmin 管理端分页查询问卷提交记录。
-// providerId 为站点 ID（0=主站，>0=服务商站点），严格按站点隔离，互不可见；按提交时间倒序。
+// providerId 为站点 ID：0=主站，>0=服务商站点，-1=全部站点；按提交时间倒序。
 func GetUserQuestionnairesAdmin(providerId int, startIdx int, pageSize int) ([]AdminQuestionnaireRecord, int64, error) {
 	// 注意：因 LEFT JOIN users（users 表也有 provider_id 列），所有列引用必须加 user_questionnaires 前缀
-	base := DB.Model(&UserQuestionnaire{}).Where("user_questionnaires.provider_id = ?", providerId)
+	base := DB.Model(&UserQuestionnaire{})
+	if providerId >= 0 {
+		base = base.Where("user_questionnaires.provider_id = ?", providerId)
+	}
 	var total int64
 	if err := base.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -66,14 +70,21 @@ func GetUserQuestionnairesAdmin(providerId int, startIdx int, pageSize int) ([]A
 
 	var records []AdminQuestionnaireRecord
 	err := base.
-		Select("user_questionnaires.id, user_questionnaires.provider_id, user_questionnaires.user_id, " +
+		Select("user_questionnaires.id, user_questionnaires.provider_id, " +
+			"COALESCE(providers.name, '') AS provider_name, user_questionnaires.user_id, " +
 			"COALESCE(users.username, '') AS username, COALESCE(users.display_name, '') AS display_name, " +
 			"user_questionnaires.survey_data, user_questionnaires.created_at").
 		Joins("LEFT JOIN users ON users.id = user_questionnaires.user_id").
+		Joins("LEFT JOIN providers ON providers.id = user_questionnaires.provider_id").
 		Order("user_questionnaires.id DESC").
 		Offset(startIdx).Limit(pageSize).
 		Scan(&records).Error
 	return records, total, err
+}
+
+// DeleteUserQuestionnaireById 按 id 删除任意站点问卷记录（仅主站管理员使用）。
+func DeleteUserQuestionnaireById(id int) error {
+	return DB.Where("id = ?", id).Delete(&UserQuestionnaire{}).Error
 }
 
 // DeleteUserQuestionnaire 删除问卷提交记录，严格按站点隔离（providerId=0 仅可删主站记录）。
