@@ -253,59 +253,70 @@ const AgentPartner = () => {
                   {t('立即申请')}
                   <ArrowRight size={16} />
                 </button>
-                <a className='inline-flex items-center gap-1.5 px-6 py-3 rounded-lg text-[var(--theme-primary)] border border-[var(--theme-primary)]/30 hover:bg-[var(--theme-primary)]/5 transition'>
-                  {t('了解方案')}
-                </a>
                 {showSupport && (
-                  <div className='absolute top-full left-0 mt-3 z-50 bg-white dark:bg-[#1a1f2e] rounded-2xl shadow-2xl border border-gray-200/60 dark:border-gray-700/40 p-0 w-[320px] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200'>
+                  <div className='absolute top-full left-0 mt-3 z-50 bg-white dark:bg-[#1a1f2e] rounded-2xl shadow-2xl border border-gray-200/60 dark:border-gray-700/40 p-0 w-[340px] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200'>
                     {/* Header */}
                     <div className='px-5 pt-5 bg-gradient-to-r from-[var(--theme-primary)]/5 to-[var(--theme-secondary)]/5'>
-                      <div className='flex items-center justify-between'>
+                      <div className='flex items-center justify-between pb-4'>
                         <div>
                           <h4 className='text-base font-bold text-[var(--landing-v2-text-main)]'>
                             {t('联系客服申请')}
                           </h4>
+                          <p className='text-xs text-[var(--landing-v2-text-sub)] mt-0.5'>
+                            {t('选择对应客服，扫码添加')}
+                          </p>
                         </div>
                         <button
                           onClick={() => setShowSupport(false)}
-                          className='w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-[var(--landing-v2-text-sub)] hover:text-[var(--landing-v2-text-main)] hover:bg-gray-200 dark:hover:bg-gray-600 transition text-sm'
+                          className='w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-[var(--landing-v2-text-sub)] hover:text-[var(--landing-v2-text-main)] hover:bg-gray-200 dark:hover:bg-gray-600 transition text-sm'
                         >
                           &times;
                         </button>
                       </div>
                     </div>
 
-                    <div className='p-5 space-y-4'>
-                      {/* WeChat：多二维码时纵向堆叠，每张带独立描述 */}
-                      {supportConfig.wechatList?.length > 0 &&
-                        supportConfig.wechatList
-                          .filter((item) => item && (item.url || item.desc))
-                          .slice(0, 4)
-                          .map((item, index) => (
-                            <div
-                              key={index}
-                              className='flex items-center gap-4 p-3 rounded-xl bg-gray-50 dark:bg-white/5'
-                            >
-                              {item.url ? (
-                                <img
-                                  src={item.url}
-                                  alt={t('微信客服二维码')}
-                                  className='w-24 h-24 rounded-lg object-cover flex-shrink-0 border border-gray-100 dark:border-gray-700'
-                                />
-                              ) : null}
-                              <div className='flex-1 min-w-0'>
-                                <div className='flex items-center gap-1.5 mb-1'>
-                                  <i className='fab fa-weixin text-green-500 text-base' />
-                                  <span className='text-sm font-semibold text-[var(--landing-v2-text-main)]'>
-                                    {t('微信客服')}
-                                  </span>
-                                </div>
-                                <p className='text-xs text-[var(--landing-v2-text-sub)] leading-relaxed'>
-                                  {item.desc || t('扫码添加客服微信')}
-                                </p>
-                              </div>
+                    <div className='px-5 py-4 max-h-[70vh] overflow-y-auto'>
+                      {/* WeChat：2×2 网格，二维码居上、描述居下 */}
+                      {supportConfig.wechatList?.length > 0 && (
+                        <>
+                          <div className='flex items-center gap-2 mb-3'>
+                            <div className='w-6 h-6 rounded-md bg-green-500/10 flex items-center justify-center flex-shrink-0'>
+                              <i className='fab fa-weixin text-green-500 text-xs' />
                             </div>
-                          ))}
+                            <span className='text-sm font-semibold text-[var(--landing-v2-text-main)]'>
+                              {t('微信客服')}
+                            </span>
+                          </div>
+                          <div className='grid grid-cols-2 gap-3'>
+                            {supportConfig.wechatList
+                              .filter((item) => item && (item.url || item.desc))
+                              .slice(0, 4)
+                              .map((item, index) => (
+                                <div
+                                  key={index}
+                                  className='p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-transparent hover:border-[var(--theme-primary)]/40 transition'
+                                >
+                                  {item.url ? (
+                                    <img
+                                      src={item.url}
+                                      alt={item.desc || t('微信客服二维码')}
+                                      className='w-full aspect-square rounded-lg object-cover border border-gray-100 dark:border-gray-700'
+                                    />
+                                  ) : null}
+                                  <p
+                                    className={`mt-2 text-xs font-medium text-center truncate ${
+                                      item.desc
+                                        ? 'text-[var(--landing-v2-text-main)]'
+                                        : 'text-[var(--landing-v2-text-sub)]'
+                                    }`}
+                                  >
+                                    {item.desc || t('扫码添加客服微信')}
+                                  </p>
+                                </div>
+                              ))}
+                          </div>
+                        </>
+                      )}
 
                       {/* QQ */}
                       {supportConfig.qqNumber &&
@@ -314,7 +325,7 @@ const AgentPartner = () => {
                           return qqNumber ? (
                             <a
                               href={`tencent://message/?uin=${qqNumber}&Site=&Menu=yes`}
-                              className='flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition group'
+                              className='mt-3 flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition group'
                             >
                               <div className='w-10 h-10 rounded-lg bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center flex-shrink-0'>
                                 <i className='fab fa-qq text-sky-500 text-lg' />
@@ -334,6 +345,10 @@ const AgentPartner = () => {
                             </a>
                           ) : null;
                         })()}
+
+                      <p className='mt-3 text-center text-[11px] text-[var(--landing-v2-text-sub)]'>
+                        {t('手机端可截图后相册识别二维码')}
+                      </p>
                     </div>
                   </div>
                 )}
