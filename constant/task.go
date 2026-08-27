@@ -17,6 +17,7 @@ const (
 	TaskActionReferenceGenerate = "referenceGenerate"
 	TaskActionRemix             = "remixGenerate"
 	TaskActionMiniMaxH3Generate = "minimaxH3Generate"
+	TaskActionMiniMaxH3Upscale  = "minimaxH3Upscale"
 )
 
 // MiniMax-H3 model identifiers used across the gateway.

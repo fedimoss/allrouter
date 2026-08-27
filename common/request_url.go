@@ -15,6 +15,17 @@ func GetTrustedRequestBaseURL(c *gin.Context, fallbackURL string) string {
 	return GetTrustedRequestBaseURLWithDomains(c, fallbackURL, nil)
 }
 
+// GetRequestBaseURL returns the origin used by the caller for the current
+// request. X-Forwarded-Host takes precedence over Host because it represents
+// the public origin when the gateway runs behind a reverse proxy.
+func GetRequestBaseURL(c *gin.Context, fallbackURL string) string {
+	candidates := GetRequestBaseURLCandidates(c)
+	if len(candidates) > 0 {
+		return strings.TrimRight(candidates[len(candidates)-1], "/")
+	}
+	return strings.TrimRight(strings.TrimSpace(fallbackURL), "/")
+}
+
 // GetTrustedRequestBaseURLWithDomains returns the current request origin when it is safe
 // for redirects against the provided trusted domains.
 func GetTrustedRequestBaseURLWithDomains(c *gin.Context, fallbackURL string, trustedDomains []string) string {

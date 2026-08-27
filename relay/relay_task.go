@@ -51,6 +51,7 @@ type miniMaxH3QueuedRequest struct {
 	FlowShift           float64          `json:"flow_shift"`
 	AudioFlowShift      float64          `json:"audio_flow_shift"`
 	Seed                int64            `json:"seed"`
+	OutputShortEdge     int              `json:"output_short_edge,omitempty"`
 }
 
 func encodeMiniMaxH3MultipartRequest(pendingRequest []byte) ([]byte, string, error) {
@@ -323,7 +324,11 @@ func resolveTaskSubmissionPlatform(c *gin.Context, info *relaycommon.RelayInfo) 
 	// MiniMax-H3 uses the OpenAI video protocol and the local database queue,
 	// not MiniMax's Hailuo video protocol. Select its adaptor by model so a
 	// MiniMax-type channel works the same as a Sora/OpenAI-type channel.
-	if info != nil && constant.IsMiniMaxH3Model(info.OriginModelName) {
+	channelType := c.GetInt("channel_type")
+	if info != nil && info.ChannelMeta != nil && info.ChannelType != 0 {
+		channelType = info.ChannelType
+	}
+	if info != nil && constant.IsMiniMaxH3Model(info.OriginModelName) && channelType != constant.ChannelTypeAutodl {
 		return constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeSora))
 	}
 
@@ -482,9 +487,18 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		if err := common.Unmarshal(pendingRequest, &pending); err != nil {
 			return nil, service.TaskErrorWrapper(err, "parse_minimax_h3_request_failed", http.StatusInternalServerError)
 		}
+		if outputShortEdge, ok := c.Get("minimax_h3_output_short_edge"); ok {
+			if value, ok := outputShortEdge.(int); ok {
+				pending.OutputShortEdge = value
+				pendingRequest, _ = common.Marshal(pending)
+			}
+		}
 		size := "768x1344"
 		if pending.Target["aspect_ratio"] == "16:9" {
 			size = "1344x768"
+		}
+		if pending.OutputShortEdge == 1536 {
+			size = "1536P"
 		}
 		queuedData, err := common.Marshal(map[string]any{
 			"id":         info.PublicTaskID,
@@ -515,6 +529,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		service.CloseResponseBodyGracefully(resp)
+		if normalizer, ok := adaptor.(channel.TaskHTTPErrorNormalizer); ok {
+			if normalized := normalizer.NormalizeHTTPError(responseBody, resp.StatusCode); normalized != nil {
+				return nil, normalized
+			}
+		}
 		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
 	}
 

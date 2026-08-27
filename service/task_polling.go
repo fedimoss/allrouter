@@ -458,8 +458,10 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return nil
 	}
 	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
-		"task_id": upstreamID,
-		"action":  task.Action,
+		"task_id":         upstreamID,
+		"upscale_task_id": task.PrivateData.MiniMaxH3UpscaleTaskID,
+		"action":          task.Action,
+		"public_base_url": task.PrivateData.PublicBaseURL,
 	}, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", task.TaskID, err)
@@ -489,8 +491,33 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", task.TaskID, err)
 	}
+	if processor, ok := adaptor.(interface {
+		ProcessTaskResultBeforePersist(context.Context, *model.Task, *relaycommon.TaskInfo) error
+	}); ok {
+		if err := processor.ProcessTaskResultBeforePersist(ctx, task, taskResult); err != nil {
+			return fmt.Errorf("process task result failed for task %s: %w", task.TaskID, err)
+		}
+	}
+	if taskResult.Stage == "minimax_h3_upscale" {
+		switch model.TaskStatus(taskResult.Status) {
+		case model.TaskStatusSuccess:
+			task.PrivateData.MiniMaxH3UpscaleStatus = "completed"
+		case model.TaskStatusFailure:
+			task.PrivateData.MiniMaxH3UpscaleStatus = "failed"
+		case model.TaskStatusQueued:
+			task.PrivateData.MiniMaxH3UpscaleStatus = "queued"
+		default:
+			task.PrivateData.MiniMaxH3UpscaleStatus = "running"
+		}
+	}
 
-	task.Data = redactVideoResponseBody(responseBody)
+	preserveTaskData := constant.IsMiniMaxH3Model(task.Properties.OriginModelName)
+	if policy, ok := adaptor.(interface{ PreserveTaskDataOnPoll() bool }); ok && policy.PreserveTaskDataOnPoll() {
+		preserveTaskData = true
+	}
+	if !preserveTaskData {
+		task.Data = redactVideoResponseBody(responseBody)
+	}
 
 	logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask taskResult: %+v", taskResult))
 
@@ -517,6 +544,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				taskResult = relaycommon.FailTaskInfo("upstream returned unrecognized message")
 			}
 		}
+	}
+	if taskResult.Stage == "minimax_h3_upscale" && taskResult.Status == model.TaskStatusSuccess {
+		task.PrivateData.ResultURL = taskResult.Url
 	}
 
 	shouldRefund := false

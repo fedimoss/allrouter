@@ -78,6 +78,11 @@ type TaskAdaptor interface {
 	ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error)
 }
 
+// TaskHTTPErrorNormalizer optionally converts provider HTTP error bodies into the gateway task error format.
+type TaskHTTPErrorNormalizer interface {
+	NormalizeHTTPError(body []byte, statusCode int) *dto.TaskError
+}
+
 // PerSecondBillingEstimator is implemented by task adaptors that can expose
 // the effective duration and resolution sent upstream. Models configured with
 // per_second billing fail closed when their adaptor does not implement it.
