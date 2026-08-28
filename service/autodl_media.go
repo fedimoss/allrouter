@@ -85,7 +85,6 @@ func UploadAutoDLMedia(ctx context.Context, data []byte, filename, contentType, 
 }
 
 func PublicAutoDLMediaURL(rawPath, publicBaseURL string) (string, error) {
-	publicBaseURL = "https://allrouter.ai"
 	rawPath = strings.TrimSpace(rawPath)
 	if rawPath == "" {
 		return "", fmt.Errorf("media upload response path is empty")
