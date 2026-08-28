@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
+	taskautodl "github.com/QuantumNous/new-api/relay/channel/task/autodl"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -116,6 +117,81 @@ func cleanupMiniMaxH3PendingFrames(pendingRequest []byte) {
 	}
 }
 
+// miniMaxH3ResponseSize 计算 MiniMax-H3 统一契约的展示分辨率：
+// 1536P 请求固定返回 "1536P"，768P 请求按宽高比返回像素尺寸
+// （与 autodl 适配器 resolutionFor 的横竖判定保持一致：先看 size，再看 aspect_ratio）。
+func miniMaxH3ResponseSize(c *gin.Context) string {
+	outputShortEdge := c.GetInt("minimax_h3_output_short_edge")
+	if outputShortEdge <= 0 {
+		if req, err := relaycommon.GetTaskRequest(c); err == nil {
+			outputShortEdge, _ = service.MiniMaxH3RequestedShortEdge(req.ShortEdge)
+		}
+	}
+	if outputShortEdge == service.MiniMaxH3UpscaleShortEdge {
+		return "1536P"
+	}
+	if miniMaxH3RequestIsLandscape(c) {
+		return "1344x768"
+	}
+	return "768x1344"
+}
+
+func miniMaxH3RequestIsLandscape(c *gin.Context) bool {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return false
+	}
+	value := strings.ToLower(strings.TrimSpace(req.Size))
+	if value == "" {
+		value = strings.ToLower(strings.TrimSpace(req.AspectRatio))
+	}
+	if strings.Contains(value, "16:9") {
+		return true
+	}
+	if strings.Contains(value, "x") {
+		parts := strings.SplitN(value, "x", 2)
+		if len(parts) == 2 {
+			width, widthErr := strconv.Atoi(strings.TrimSpace(parts[0]))
+			height, heightErr := strconv.Atoi(strings.TrimSpace(parts[1]))
+			if widthErr == nil && heightErr == nil && width > height {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// marshalMiniMaxH3SubmitResponse keeps the POST /v1/videos response separate
+// from the richer status-query contract. The task is queued locally, so this
+// is the response the client receives before an upstream task exists.
+func marshalMiniMaxH3SubmitResponse(taskID, modelName, seconds, size string, createdAt int64) ([]byte, error) {
+	return common.Marshal(map[string]any{
+		"id":         taskID,
+		"task_id":    taskID,
+		"object":     "video",
+		"model":      modelName,
+		"status":     dto.VideoStatusQueued,
+		"progress":   0,
+		"created_at": createdAt,
+		"seconds":    seconds,
+		"size":       size,
+	})
+}
+
+// marshalAutoDLMiniMaxH3SubmitResponse mirrors the AutoDL adaptor's direct
+// submit response. Both MiniMax-H3 channels expose the public task ID through
+// both id and task_id in the create response.
+func marshalAutoDLMiniMaxH3SubmitResponse(taskID, modelName, seconds, size string, createdAt int64) ([]byte, error) {
+	video := dto.NewOpenAIVideo()
+	video.ID = taskID
+	video.TaskID = taskID
+	video.Model = modelName
+	video.CreatedAt = createdAt
+	video.Seconds = seconds
+	video.Size = size
+	return common.Marshal(video)
+}
+
 func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.MiniMaxH3SubmitResult, error) {
 	if task == nil {
 		return nil, errors.New("task is required")
@@ -123,12 +199,50 @@ func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.
 	if len(task.PrivateData.PendingRequest) == 0 {
 		return nil, errors.New("MiniMax-H3 pending request is empty")
 	}
-	defer cleanupMiniMaxH3PendingFrames(task.PrivateData.PendingRequest)
-
 	ch, err := model.GetChannelById(task.ChannelId, true)
 	if err != nil {
 		return nil, fmt.Errorf("get MiniMax-H3 channel: %w", err)
 	}
+	if ch.Type == constant.ChannelTypeAutodl {
+		return submitQueuedAutoDLMiniMaxH3Task(ctx, task, ch)
+	}
+	return submitQueuedSoraMiniMaxH3Task(ctx, task, ch)
+}
+
+// submitQueuedAutoDLMiniMaxH3Task 派发排队的 AutoDL MiniMax-H3 任务：
+// PendingRequest 中保存了 workflow 与提交时构建好的请求体，直接提交到
+// ComfyUI 工作流接口。
+func submitQueuedAutoDLMiniMaxH3Task(ctx context.Context, task *model.Task, ch *model.Channel) (*service.MiniMaxH3SubmitResult, error) {
+	var queued taskautodl.AutoDLQueuedRequest
+	if err := common.Unmarshal(task.PrivateData.PendingRequest, &queued); err != nil {
+		return nil, fmt.Errorf("parse AutoDL pending request: %w", err)
+	}
+	baseURL := constant.ChannelBaseURLs[ch.Type]
+	if ch.GetBaseURL() != "" {
+		baseURL = ch.GetBaseURL()
+	}
+	key := task.PrivateData.Key
+	if key == "" {
+		key = ch.Key
+	}
+	upstreamTaskID, err := taskautodl.SubmitQueuedTask(ctx, baseURL, key, ch.GetSetting().Proxy, &queued)
+	if err != nil {
+		return nil, err
+	}
+	taskData, err := common.Marshal(service.BuildMiniMaxH3QueuedVideoResponse(
+		task.TaskID, task.Properties.OriginModelName, queued.Size, task.CreatedAt))
+	if err != nil {
+		return nil, fmt.Errorf("marshal AutoDL queued response: %w", err)
+	}
+	return &service.MiniMaxH3SubmitResult{
+		UpstreamTaskID: upstreamTaskID,
+		TaskData:       taskData,
+	}, nil
+}
+
+func submitQueuedSoraMiniMaxH3Task(ctx context.Context, task *model.Task, ch *model.Channel) (*service.MiniMaxH3SubmitResult, error) {
+	defer cleanupMiniMaxH3PendingFrames(task.PrivateData.PendingRequest)
+
 	baseURL := constant.ChannelBaseURLs[ch.Type]
 	if ch.GetBaseURL() != "" {
 		baseURL = ch.GetBaseURL()
@@ -152,8 +266,6 @@ func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.
 		if uploadErr != nil {
 			return nil, uploadErr
 		}
-		fmt.Print("--------------------------------------")
-		fmt.Print(uploadedURI)
 		pending.Conditions[i]["uri"] = uploadedURI
 	}
 	encodedPending, err := common.Marshal(pending)
@@ -509,6 +621,36 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		if err != nil {
 			return nil, service.TaskErrorWrapper(err, "read_minimax_h3_request_failed", http.StatusInternalServerError)
 		}
+		if info.ChannelType == constant.ChannelTypeAutodl {
+			// AutoDL 渠道：请求体（媒体上传已完成）与 workflow 一并持久化，
+			// 由本地 MiniMax-H3 并发队列派发提交，与 sora 渠道共用同一套
+			// 并发统计、排队与超时清理逻辑。
+			var body map[string]any
+			if err := common.Unmarshal(pendingRequest, &body); err != nil {
+				return nil, service.TaskErrorWrapper(err, "parse_minimax_h3_request_failed", http.StatusInternalServerError)
+			}
+			size := miniMaxH3ResponseSize(c)
+			queued, err := taskautodl.BuildQueuedRequest(c.GetString("minimax_h3_task_type"), size, body)
+			if err != nil {
+				return nil, service.TaskErrorWrapper(err, "invalid_minimax_h3_task_type", http.StatusBadRequest)
+			}
+			pendingJSON, err := common.Marshal(queued)
+			if err != nil {
+				return nil, service.TaskErrorWrapper(err, "marshal_minimax_h3_pending_request_failed", http.StatusInternalServerError)
+			}
+			queuedData, err := marshalAutoDLMiniMaxH3SubmitResponse(
+				info.PublicTaskID, info.OriginModelName, service.MiniMaxH3VideoSeconds, size, time.Now().Unix())
+			if err != nil {
+				return nil, service.TaskErrorWrapper(err, "marshal_minimax_h3_queued_response_failed", http.StatusInternalServerError)
+			}
+			return &TaskSubmitResult{
+				TaskData:       queuedData,
+				PendingRequest: pendingJSON,
+				Platform:       platform,
+				Quota:          info.PriceData.Quota,
+				Queued:         true,
+			}, nil
+		}
 		var pending miniMaxH3QueuedRequest
 		if err := common.Unmarshal(pendingRequest, &pending); err != nil {
 			return nil, service.TaskErrorWrapper(err, "parse_minimax_h3_request_failed", http.StatusInternalServerError)
@@ -523,19 +665,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		if pending.Target["aspect_ratio"] == "16:9" {
 			size = "1344x768"
 		}
-		if pending.OutputShortEdge == 1536 {
+		if pending.OutputShortEdge == service.MiniMaxH3UpscaleShortEdge {
 			size = "1536P"
 		}
-		queuedData, err := common.Marshal(map[string]any{
-			"id":         info.PublicTaskID,
-			"object":     "video",
-			"model":      info.OriginModelName,
-			"status":     dto.VideoStatusQueued,
-			"progress":   0,
-			"created_at": time.Now().Unix(),
-			"seconds":    pending.Seconds,
-			"size":       size,
-		})
+		queuedData, err := marshalMiniMaxH3SubmitResponse(
+			info.PublicTaskID, info.OriginModelName, pending.Seconds, size, time.Now().Unix())
 		if err != nil {
 			return nil, service.TaskErrorWrapper(err, "marshal_minimax_h3_queued_response_failed", http.StatusInternalServerError)
 		}

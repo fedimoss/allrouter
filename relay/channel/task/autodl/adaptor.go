@@ -92,17 +92,6 @@ func normalizeTask(value string) string {
 	}
 }
 
-func actionForTask(task string) string {
-	switch task {
-	case "t2va":
-		return constant.TaskActionTextGenerate
-	case "fl2va":
-		return constant.TaskActionFirstTailGenerate
-	default:
-		return constant.TaskActionReferenceGenerate
-	}
-}
-
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
 	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionTextGenerate); err != nil {
 		return err
@@ -133,10 +122,15 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	// during polling and response conversion.
 	c.Set("minimax_h3_output_short_edge", shortEdge)
 	c.Set("minimax_h3_task_type", task)
-	info.Action = actionForTask(task)
+	// 与 sora 渠道统一：三个任务类型（t2va/fl2va/ref2va）共用 minimaxH3Generate，
+	// 使 AutoDL 提交同样进入本地 MiniMax-H3 并发队列统计与派发；具体任务类型
+	// 持久化在 PrivateData.MiniMaxH3TaskType，由派发阶段选择对应 workflow。
+	info.Action = constant.TaskActionMiniMaxH3Generate
 	return nil
 }
 
+// workflow 仅供直连提交路径兼容使用。MiniMax-H3 提交统一走本地并发队列，
+// 队列派发按持久化的任务类型选择端点（见 workflowForTaskType / SubmitQueuedTask）。
 func (a *TaskAdaptor) workflow(info *relaycommon.RelayInfo) (string, error) {
 	switch info.Action {
 	case constant.TaskActionTextGenerate:
@@ -687,84 +681,23 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	if len(task.Data) > 0 {
 		_ = common.Unmarshal(task.Data, &response)
 	}
+	// MiniMax-H3 与 sora 渠道共用统一响应契约（service.NormalizeMiniMaxH3VideoResponse），
+	// 客户端无法感知任务实际由哪个渠道承载。
+	return common.Marshal(service.NormalizeMiniMaxH3VideoResponse(task, response))
+}
 
-	response["id"] = task.TaskID
-	response["task_id"] = task.TaskID
-	response["object"] = "video"
-	response["model"] = task.Properties.OriginModelName
-	videoStatus := task.Status.ToVideoStatus()
-	if videoStatus == dto.VideoStatusUnknown {
-		videoStatus = dto.VideoStatusInProgress
+// workflowForTaskType 由任务类型（t2va/fl2va/ref2va）选择 AutoDL workflow。
+// 队列派发阶段无法依赖 info.Action（已统一为 minimaxH3Generate），
+// 需要按持久化的任务类型选择提交端点。
+func workflowForTaskType(taskType string) (string, error) {
+	switch taskType {
+	case "t2va":
+		return workflowText, nil
+	case "fl2va":
+		return workflowFrames, nil
+	case "ref2va":
+		return workflowReference, nil
+	default:
+		return "", fmt.Errorf("unsupported AutoDL MiniMax-H3 task type %q", taskType)
 	}
-	response["status"] = videoStatus
-	progress := dto.NewOpenAIVideo()
-	progress.SetProgressStr(task.Progress)
-	response["progress"] = progress.Progress
-	response["seconds"] = strconv.Itoa(fixedDuration)
-	requestedUpscale := task.MiniMaxH3RequestedShortEdge() == service.MiniMaxH3UpscaleShortEdge
-	upscaleCompleted := requestedUpscale &&
-		strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" &&
-		strings.EqualFold(task.PrivateData.MiniMaxH3UpscaleStatus, "completed") &&
-		strings.TrimSpace(task.PrivateData.ResultURL) != ""
-	if requestedUpscale {
-		// AutoDL's source workflow is also fixed at 768P. Keep the requested
-		// target visible while upscale is running, without exposing its source.
-		response["size"] = "1536P"
-	}
-	if _, ok := response["size"]; !ok {
-		response["size"] = "768P"
-	}
-	if task.CreatedAt > 0 {
-		response["created_at"] = task.CreatedAt
-	} else {
-		response["created_at"] = task.SubmitTime
-	}
-
-	delete(response, "code")
-	delete(response, "data")
-	delete(response, "msg")
-	delete(response, "request_id")
-
-	resultURL := strings.TrimSpace(task.GetResultURL())
-	if requestedUpscale && !upscaleCompleted {
-		resultURL = ""
-		response["status"] = dto.VideoStatusInProgress
-		response["completed_at"] = nil
-		response["error"] = nil
-		delete(response, "metadata")
-	}
-	if task.Status == model.TaskStatusFailure {
-		message := task.FailReason
-		if message == "" {
-			message = "AutoDL video generation failed"
-		}
-		response["completed_at"] = task.FinishTime
-		response["error"] = &dto.OpenAIVideoError{Code: "video_generation_failed", Message: message}
-		delete(response, "metadata")
-	} else if task.Status == model.TaskStatusSuccess && !requestedUpscale {
-		completedAt := task.FinishTime
-		if completedAt == 0 {
-			completedAt = task.UpdatedAt
-		}
-		response["completed_at"] = completedAt
-		response["error"] = nil
-		if resultURL != "" {
-			response["metadata"] = map[string]any{"url": resultURL}
-		}
-	} else {
-		response["completed_at"] = nil
-		response["error"] = nil
-		delete(response, "metadata")
-	}
-	if requestedUpscale && upscaleCompleted {
-		response["status"] = dto.VideoStatusCompleted
-		response["size"] = "1536P"
-		response["quality"] = "high"
-		response["completed_at"] = task.FinishTime
-		response["error"] = nil
-		if resultURL != "" {
-			response["metadata"] = map[string]any{"url": resultURL}
-		}
-	}
-	return common.Marshal(response)
 }
