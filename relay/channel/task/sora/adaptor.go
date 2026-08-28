@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -115,6 +116,15 @@ type responseTask struct {
 		Message string `json:"message"`
 		Code    string `json:"code"`
 	} `json:"error,omitempty"`
+	Metadata *struct {
+		URL string `json:"url"`
+	} `json:"metadata,omitempty"`
+	Content *struct {
+		URL string `json:"url"`
+	} `json:"content,omitempty"`
+	URL       string   `json:"url,omitempty"`
+	FilePath  string   `json:"file_path,omitempty"`
+	FilePaths []string `json:"file_paths,omitempty"`
 }
 
 // ============================
@@ -127,6 +137,9 @@ type TaskAdaptor struct {
 	apiKey      string
 	baseURL     string
 	proxy       string
+	// publicBaseURL 为提交请求时记录的公开域名，轮询时由 FetchTask
+	// 从 public_base_url 参数刷新，用于把上游 file_path 拼成公开媒体地址。
+	publicBaseURL string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -861,6 +874,9 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 // FetchTask fetch task status
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	a.proxy = proxy
+	if publicBaseURL, ok := body["public_base_url"].(string); ok {
+		a.publicBaseURL = strings.TrimSpace(publicBaseURL)
+	}
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
@@ -952,7 +968,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusInProgress
 	case "completed":
 		taskResult.Status = model.TaskStatusSuccess
-		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
+		taskResult.Url = a.publicResultURL(resTask)
 	case "failed", "cancelled":
 		taskResult.Status = model.TaskStatusFailure
 		if resTask.Error != nil {
@@ -967,6 +983,58 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	}
 
 	return &taskResult, nil
+}
+
+func (r responseTask) MetadataURL() string {
+	if r.Metadata == nil {
+		return ""
+	}
+	return r.Metadata.URL
+}
+
+func (r responseTask) ContentURL() string {
+	if r.Content == nil {
+		return ""
+	}
+	return r.Content.URL
+}
+
+// publicResultURL resolves the public media URL for a completed task.
+// SGLang 上游以 file_path（容器内路径）上报结果，优先拼成
+// {公开域名}/sglang/{截取路径} 的媒体直链；没有 file_path 时透传上游
+// http(s) 地址，但跳过其他网关的 /v1/videos/{id}/content 代理路由 ——
+// 该地址对最终客户端不可用（任务归属别的实例/用户）。
+func (a *TaskAdaptor) publicResultURL(res responseTask) string {
+	filePathCandidates := make([]string, 0, 2)
+	if strings.TrimSpace(res.FilePath) != "" {
+		filePathCandidates = append(filePathCandidates, res.FilePath)
+	} else if len(res.FilePaths) > 0 && strings.TrimSpace(res.FilePaths[0]) != "" {
+		filePathCandidates = append(filePathCandidates, res.FilePaths[0])
+	}
+	for _, candidate := range filePathCandidates {
+		if mediaURL := service.BuildSGLangMediaURL(a.publicBaseURL, candidate); mediaURL != "" {
+			return mediaURL
+		}
+	}
+	for _, candidate := range []string{res.MetadataURL(), res.ContentURL(), res.URL} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" || isVideoProxyRoute(candidate) {
+			continue
+		}
+		return candidate
+	}
+	return ""
+}
+
+// isVideoProxyRoute reports whether the URL points at a gateway video-proxy
+// route (…/v1/videos/{task_id}/content) instead of a directly downloadable
+// media file.
+func isVideoProxyRoute(rawURL string) bool {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(parsed.Path, "/v1/videos/") && strings.HasSuffix(parsed.Path, "/content")
 }
 
 // ProcessTaskResultBeforePersist chains a configured 1536P upscale task after

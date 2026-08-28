@@ -920,7 +920,7 @@ func rewriteVideoFileResponse(c *gin.Context, data []byte) ([]byte, error) {
 	}
 
 	filePath, ok := response["file_path"].(string)
-	filePath = normalizeSGLangFilePath(filePath)
+	filePath = service.NormalizeSGLangFilePath(filePath)
 	if !ok || filePath == "" {
 		return data, nil
 	}
@@ -940,12 +940,6 @@ func rewriteVideoFileResponse(c *gin.Context, data []byte) ([]byte, error) {
 	}
 
 	return common.Marshal(response)
-}
-
-func normalizeSGLangFilePath(filePath string) string {
-	filePath = strings.TrimLeft(strings.TrimSpace(filePath), "/")
-	filePath = strings.TrimPrefix(filePath, "sgl-workspace/sglang/")
-	return strings.TrimPrefix(filePath, "sglang/")
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。
