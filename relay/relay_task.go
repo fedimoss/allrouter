@@ -339,6 +339,29 @@ func resolveTaskSubmissionPlatform(c *gin.Context, info *relaycommon.RelayInfo) 
 	return platform
 }
 
+func validateMiniMaxH3OutputBilling(c *gin.Context, modelName string) *dto.TaskError {
+	if c == nil || !constant.IsMiniMaxH3Model(modelName) {
+		return nil
+	}
+	outputShortEdge := c.GetInt("minimax_h3_output_short_edge")
+	if outputShortEdge <= 0 {
+		if req, err := relaycommon.GetTaskRequest(c); err == nil {
+			outputShortEdge, _ = service.MiniMaxH3RequestedShortEdge(req.ShortEdge)
+		}
+	}
+	if outputShortEdge != service.MiniMaxH3UpscaleShortEdge {
+		return nil
+	}
+	if billing_setting.SupportsPerSecondResolution(modelName, "1536P") {
+		return nil
+	}
+	return service.TaskErrorWrapperLocal(
+		fmt.Errorf("1536P output is not supported for model %s because its 1536P per-second billing price is not configured", modelName),
+		"minimax_h3_1536p_not_supported",
+		http.StatusBadRequest,
+	)
+}
+
 func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitResult, *dto.TaskError) {
 	info.InitChannelMeta(c)
 	if !service.IsChannelTypeCompatibleWithModel(info.OriginModelName, info.ChannelType) {
@@ -371,6 +394,9 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	info.UpstreamModelName = modelName
 	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
 		return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+	}
+	if taskErr := validateMiniMaxH3OutputBilling(c, modelName); taskErr != nil {
+		return nil, taskErr
 	}
 
 	// 3. 预生成公开 task ID（仅首次）

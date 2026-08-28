@@ -531,9 +531,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		task.Status = model.TaskStatusSuccess
 		task.Action = constant.TaskActionMiniMaxH3Upscale
 		if taskResult.Progress != "" {
-			task.Progress = taskResult.Progress
+			task.Progress = minimaxH3UpscalePublicProgress(taskResult.Progress)
 		} else {
-			task.Progress = "95%"
+			task.Progress = "90%"
 		}
 		if !snap.Equal(task.Snapshot()) {
 			won, updateErr := task.UpdateWithStatus(snap.Status)
@@ -671,6 +671,22 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	return nil
+}
+
+// minimaxH3UpscalePublicProgress reserves 90-99% for the second stage so the
+// public progress never moves backwards to the upscale service's raw 0-100%.
+func minimaxH3UpscalePublicProgress(raw string) string {
+	value, err := strconv.Atoi(strings.TrimSuffix(strings.TrimSpace(raw), "%"))
+	if err != nil || value < 0 {
+		return "90%"
+	}
+	if value > 100 {
+		value = 100
+	}
+	if value >= 100 {
+		return "99%"
+	}
+	return fmt.Sprintf("%d%%", 90+value/10)
 }
 
 func redactVideoResponseBody(body []byte) []byte {

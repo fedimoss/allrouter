@@ -1055,8 +1055,13 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 		strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" &&
 		strings.EqualFold(task.PrivateData.MiniMaxH3UpscaleStatus, "completed") &&
 		strings.TrimSpace(task.PrivateData.ResultURL) != ""
-	if upscaleCompleted {
+	if requestedUpscale {
+		// The source service always produces 768P. Keep the public target size
+		// stable during both generation and upscale; only the status and content
+		// URL change when the second stage is actually complete.
 		response["size"] = miniMaxH3UpscaledSize(response["size"])
+	}
+	if upscaleCompleted {
 		response["quality"] = "high"
 		delete(response, "file_path")
 		delete(response, "file_paths")

@@ -392,9 +392,15 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 // can move a source row into the recoverable upscale sentinel state.
 func ClaimMiniMaxH3UpscaleRecoveryTask(cutoffUnix int64) (*Task, error) {
 	const candidateLimit = 1000
+	sourceActions := []string{
+		constant.TaskActionMiniMaxH3Generate,
+		constant.TaskActionTextGenerate,
+		constant.TaskActionFirstTailGenerate,
+		constant.TaskActionReferenceGenerate,
+	}
 	var candidates []*Task
-	if err := DB.Where("action = ? AND status = ? AND created_at >= ?",
-		constant.TaskActionMiniMaxH3Generate, TaskStatusSuccess, cutoffUnix).
+	if err := DB.Where("action IN ? AND status = ? AND created_at >= ?",
+		sourceActions, TaskStatusSuccess, cutoffUnix).
 		Order("id DESC").
 		Limit(candidateLimit).
 		Find(&candidates).Error; err != nil {
@@ -403,17 +409,31 @@ func ClaimMiniMaxH3UpscaleRecoveryTask(cutoffUnix int64) (*Task, error) {
 
 	for _, task := range candidates {
 		if !constant.IsMiniMaxH3Model(task.Properties.OriginModelName) ||
-			task.MiniMaxH3RequestedShortEdge() != 1536 ||
 			strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" {
 			continue
 		}
+		requestedShortEdge := task.MiniMaxH3RequestedShortEdge()
+		// Older AutoDL instances persisted the dedicated field as 768 even when
+		// the authoritative billing snapshot was 1536P. Limit this compatibility
+		// override to AutoDL source actions so explicit modern values retain their
+		// normal precedence everywhere else.
+		if task.Action != constant.TaskActionMiniMaxH3Generate &&
+			task.PrivateData.BillingContext != nil &&
+			strings.EqualFold(strings.TrimSpace(task.PrivateData.BillingContext.Resolution), "1536P") {
+			requestedShortEdge = 1536
+		}
+		if requestedShortEdge != 1536 {
+			continue
+		}
 
+		sourceAction := task.Action
 		task.Action = constant.TaskActionMiniMaxH3Upscale
 		task.Progress = "90%"
 		task.FinishTime = 0
+		task.PrivateData.MiniMaxH3OutputShortEdge = 1536
 		task.PrivateData.MiniMaxH3UpscaleStatus = "recovering_source"
 		result := DB.Model(&Task{}).
-			Where("id = ? AND action = ? AND status = ?", task.ID, constant.TaskActionMiniMaxH3Generate, TaskStatusSuccess).
+			Where("id = ? AND action = ? AND status = ?", task.ID, sourceAction, TaskStatusSuccess).
 			Updates(map[string]any{
 				"action":       task.Action,
 				"progress":     task.Progress,
