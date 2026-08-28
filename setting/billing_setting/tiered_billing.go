@@ -122,6 +122,21 @@ func GetVideoResolutionPricesCopy() map[string]VideoResolutionPricing {
 	return result
 }
 
+// SupportsPerSecondResolution reports whether the model's active billing mode
+// has an exact, valid price entry for the requested resolution. A zero price
+// is still a configured price and therefore supported.
+func SupportsPerSecondResolution(model, resolution string) bool {
+	if GetBillingMode(model) != BillingModePerSecond {
+		return false
+	}
+	pricing, ok := GetVideoResolutionPricing(model)
+	if !ok {
+		return false
+	}
+	_, ok = pricing.Prices[NormalizeResolution(resolution)]
+	return ok
+}
+
 func ResolvePerSecondPrice(model, resolution string) (string, float64, error) {
 	pricing, ok := GetVideoResolutionPricing(model)
 	if !ok {

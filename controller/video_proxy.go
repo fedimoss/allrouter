@@ -48,6 +48,14 @@ func VideoProxy(c *gin.Context) {
 		videoProxyError(c, http.StatusNotFound, "invalid_request_error", "Task not found")
 		return
 	}
+	if constant.IsMiniMaxH3Model(task.Properties.OriginModelName) &&
+		task.MiniMaxH3RequestedShortEdge() == service.MiniMaxH3UpscaleShortEdge &&
+		(strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) == "" ||
+			!strings.EqualFold(task.PrivateData.MiniMaxH3UpscaleStatus, "completed") ||
+			strings.TrimSpace(task.PrivateData.ResultURL) == "") {
+		videoProxyError(c, http.StatusBadRequest, "invalid_request_error", "Task is not completed yet, current stage: upscale")
+		return
+	}
 
 	if task.Status != model.TaskStatusSuccess {
 		videoProxyError(c, http.StatusBadRequest, "invalid_request_error",

@@ -127,6 +127,12 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if err := service.ValidateMiniMaxH3UpscaleConfig(shortEdge); err != nil {
 		return service.TaskErrorWrapperLocal(err, "upscale_service_not_configured", http.StatusServiceUnavailable)
 	}
+	// Persist the requested target and task type through the same context keys
+	// used by the Sora adaptor. The controller otherwise defaults the dedicated
+	// field to 768P, which would make a 1536P AutoDL task look like a source task
+	// during polling and response conversion.
+	c.Set("minimax_h3_output_short_edge", shortEdge)
+	c.Set("minimax_h3_task_type", task)
 	info.Action = actionForTask(task)
 	return nil
 }
@@ -595,17 +601,18 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 	if task == nil || result == nil || result.Status != model.TaskStatusSuccess {
 		return nil
 	}
-	if task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure {
-		return nil
-	}
 	if result.Stage == "minimax_h3_upscale" {
 		service.PersistMiniMaxH3UpscaleResult(ctx, task, result)
 		return nil
 	}
-	if billing := task.PrivateData.BillingContext; billing != nil && strings.EqualFold(strings.TrimSpace(billing.Resolution), "1536P") {
+	recoveringSource := strings.EqualFold(strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleStatus), "recovering_source")
+	if (task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure) && !recoveringSource {
+		return nil
+	}
+	if task.MiniMaxH3RequestedShortEdge() == service.MiniMaxH3UpscaleShortEdge {
 		if strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" {
 			result.Status = model.TaskStatusInProgress
-			result.Progress = "95%"
+			result.Progress = "90%"
 			result.Url = ""
 			return nil
 		}
@@ -624,8 +631,17 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 		task.PrivateData.MiniMaxH3UpscaleTaskID = upscaleID
 		task.PrivateData.MiniMaxH3UpscaleStatus = "queued"
 		task.Action = constant.TaskActionMiniMaxH3Upscale
+		if task.ID > 0 {
+			persisted, persistErr := task.PersistMiniMaxH3UpscaleSubmission()
+			if persistErr != nil {
+				return fmt.Errorf("persist MiniMax-H3 upscale submission: %w", persistErr)
+			}
+			if !persisted {
+				return fmt.Errorf("persist MiniMax-H3 upscale submission: task is already terminal")
+			}
+		}
 		result.Status = model.TaskStatusInProgress
-		result.Progress = "95%"
+		result.Progress = "90%"
 		result.Url = ""
 		logger.LogInfo(ctx, fmt.Sprintf("MiniMax-H3 upscale submitted: task=%s upscale_task=%s", task.TaskID, upscaleID))
 		return nil
@@ -685,6 +701,16 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	progress.SetProgressStr(task.Progress)
 	response["progress"] = progress.Progress
 	response["seconds"] = strconv.Itoa(fixedDuration)
+	requestedUpscale := task.MiniMaxH3RequestedShortEdge() == service.MiniMaxH3UpscaleShortEdge
+	upscaleCompleted := requestedUpscale &&
+		strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" &&
+		strings.EqualFold(task.PrivateData.MiniMaxH3UpscaleStatus, "completed") &&
+		strings.TrimSpace(task.PrivateData.ResultURL) != ""
+	if requestedUpscale {
+		// AutoDL's source workflow is also fixed at 768P. Keep the requested
+		// target visible while upscale is running, without exposing its source.
+		response["size"] = "1536P"
+	}
 	if _, ok := response["size"]; !ok {
 		response["size"] = "768P"
 	}
@@ -700,6 +726,13 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	delete(response, "request_id")
 
 	resultURL := strings.TrimSpace(task.GetResultURL())
+	if requestedUpscale && !upscaleCompleted {
+		resultURL = ""
+		response["status"] = dto.VideoStatusInProgress
+		response["completed_at"] = nil
+		response["error"] = nil
+		delete(response, "metadata")
+	}
 	if task.Status == model.TaskStatusFailure {
 		message := task.FailReason
 		if message == "" {
@@ -708,7 +741,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 		response["completed_at"] = task.FinishTime
 		response["error"] = &dto.OpenAIVideoError{Code: "video_generation_failed", Message: message}
 		delete(response, "metadata")
-	} else if task.Status == model.TaskStatusSuccess {
+	} else if task.Status == model.TaskStatusSuccess && !requestedUpscale {
 		completedAt := task.FinishTime
 		if completedAt == 0 {
 			completedAt = task.UpdatedAt
@@ -722,6 +755,16 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 		response["completed_at"] = nil
 		response["error"] = nil
 		delete(response, "metadata")
+	}
+	if requestedUpscale && upscaleCompleted {
+		response["status"] = dto.VideoStatusCompleted
+		response["size"] = "1536P"
+		response["quality"] = "high"
+		response["completed_at"] = task.FinishTime
+		response["error"] = nil
+		if resultURL != "" {
+			response["metadata"] = map[string]any{"url": resultURL}
+		}
 	}
 	return common.Marshal(response)
 }

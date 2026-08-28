@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
@@ -461,12 +462,14 @@ func buildMiniMaxH3UpstreamRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 	c.Set("task_request", relaycommon.TaskSubmitReq{
 		Prompt:              req.Prompt,
 		Model:               req.Model,
+		Task:                taskType,
 		AspectRatio:         upstreamRequest.Target.AspectRatio,
 		Size:                fmt.Sprintf("%dP", outputShortEdge),
 		Seconds:             upstreamRequest.Seconds,
 		NumOutputsPerPrompt: &outputCount,
 	})
 	c.Set(miniMaxH3RequestBodyKey, upstreamRequest)
+	c.Set("minimax_h3_task_type", taskType)
 	if outputShortEdge == 1536 {
 		c.Set("minimax_h3_output_short_edge", outputShortEdge)
 	}
@@ -973,12 +976,15 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 	if task == nil || result == nil || !constant.IsMiniMaxH3Model(task.Properties.OriginModelName) || result.Status != model.TaskStatusSuccess {
 		return nil
 	}
-	bc := task.PrivateData.BillingContext
 	if result.Stage == "minimax_h3_upscale" {
+		logger.LogInfo(ctx, fmt.Sprintf("MiniMax-H3 upscale completed, persisting result: task=%s", task.TaskID))
 		service.PersistMiniMaxH3UpscaleResult(ctx, task, result)
 		return nil
 	}
-	if bc == nil || strings.ToUpper(strings.TrimSpace(bc.Resolution)) != "1536P" || strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" {
+	requestedShortEdge := task.MiniMaxH3RequestedShortEdge()
+	logger.LogInfo(ctx, fmt.Sprintf("MiniMax-H3 source completed: task=%s requested_short_edge=%d upscale_task_id_present=%t",
+		task.TaskID, requestedShortEdge, strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != ""))
+	if requestedShortEdge != service.MiniMaxH3UpscaleShortEdge || strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" {
 		if strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" {
 			result.Status = model.TaskStatusInProgress
 			result.Progress = "95%"
@@ -995,6 +1001,7 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 	}
 	upscaleID, err := service.SubmitMiniMaxH3Upscale(ctx, sourceURL, sourceKey, a.proxy, task.TaskID)
 	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("MiniMax-H3 upscale submission failed: task=%s error=%v", task.TaskID, err))
 		task.PrivateData.MiniMaxH3UpscaleStatus = "failed"
 		result.Status = model.TaskStatusFailure
 		result.Progress = "100%"
@@ -1005,6 +1012,16 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 	task.PrivateData.MiniMaxH3UpscaleTaskID = upscaleID
 	task.PrivateData.MiniMaxH3UpscaleStatus = "queued"
 	task.Action = constant.TaskActionMiniMaxH3Upscale
+	if task.ID > 0 {
+		persisted, persistErr := task.PersistMiniMaxH3UpscaleSubmission()
+		if persistErr != nil {
+			return fmt.Errorf("persist MiniMax-H3 upscale submission: %w", persistErr)
+		}
+		if !persisted {
+			return fmt.Errorf("persist MiniMax-H3 upscale submission: task is already terminal")
+		}
+	}
+	logger.LogInfo(ctx, fmt.Sprintf("MiniMax-H3 upscale submitted: task=%s upscale_task=%s", task.TaskID, upscaleID))
 	result.Status = model.TaskStatusInProgress
 	result.Progress = "90%"
 	return nil
@@ -1033,6 +1050,23 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	progress := dto.NewOpenAIVideo()
 	progress.SetProgressStr(task.Progress)
 	response["progress"] = progress.Progress
+	requestedUpscale := task.MiniMaxH3RequestedShortEdge() == service.MiniMaxH3UpscaleShortEdge
+	upscaleCompleted := requestedUpscale &&
+		strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" &&
+		strings.EqualFold(task.PrivateData.MiniMaxH3UpscaleStatus, "completed") &&
+		strings.TrimSpace(task.PrivateData.ResultURL) != ""
+	if requestedUpscale {
+		// The source service always produces 768P. Keep the public target size
+		// stable during both generation and upscale; only the status and content
+		// URL change when the second stage is actually complete.
+		response["size"] = miniMaxH3UpscaledSize(response["size"])
+	}
+	if upscaleCompleted {
+		response["quality"] = "high"
+		delete(response, "file_path")
+		delete(response, "file_paths")
+		response["content"] = map[string]any{"url": task.PrivateData.ResultURL}
+	}
 	if task.CreatedAt > 0 {
 		response["created_at"] = task.CreatedAt
 	} else if task.SubmitTime > 0 {
@@ -1062,6 +1096,30 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 			response["completed_at"] = nil
 		}
 	}
+	if requestedUpscale && !upscaleCompleted &&
+		task.Status != model.TaskStatusFailure {
+		response["status"] = dto.VideoStatusInProgress
+		response["completed_at"] = nil
+		delete(response, "file_path")
+		delete(response, "file_paths")
+		delete(response, "content")
+	}
 
 	return common.Marshal(response)
+}
+
+func miniMaxH3UpscaledSize(raw any) string {
+	size, _ := raw.(string)
+	parts := strings.Split(strings.ToLower(strings.TrimSpace(size)), "x")
+	if len(parts) == 2 {
+		width, widthErr := strconv.Atoi(parts[0])
+		height, heightErr := strconv.Atoi(parts[1])
+		if widthErr == nil && heightErr == nil && width > 0 && height > 0 {
+			if width >= height {
+				return "2688x1536"
+			}
+			return "1536x2688"
+		}
+	}
+	return "1536P"
 }

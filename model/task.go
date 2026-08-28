@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -115,6 +116,8 @@ type TaskPrivateData struct {
 	MiniMaxH3UpscaleStatus     string `json:"minimax_h3_upscale_status,omitempty"`
 	MiniMaxH3UpscaleURL        string `json:"minimax_h3_upscale_url,omitempty"`
 	MiniMaxH3PersistFailures   int    `json:"minimax_h3_persist_failures,omitempty"`
+	MiniMaxH3OutputShortEdge   int    `json:"minimax_h3_output_short_edge,omitempty"`
+	MiniMaxH3TaskType          string `json:"minimax_h3_task_type,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource     string              `json:"billing_source,omitempty"` // "wallet" 或 "subscription"
 	TokenUsageSettled bool                `json:"token_usage_settled,omitempty"`
@@ -128,6 +131,20 @@ type TaskPrivateData struct {
 	WalletPaidUsed               int  `json:"wallet_paid_used,omitempty"`
 	ConsumeRebateSettled         bool `json:"consume_rebate_settled,omitempty"`
 	ProviderProfitSettled        bool `json:"provider_profit_settled,omitempty"`
+}
+
+// MiniMaxH3RequestedShortEdge returns the requested final output resolution.
+// BillingContext is retained as a fallback for tasks created before the
+// dedicated field was introduced.
+func (t *Task) MiniMaxH3RequestedShortEdge() int {
+	if t != nil && t.PrivateData.MiniMaxH3OutputShortEdge > 0 {
+		return t.PrivateData.MiniMaxH3OutputShortEdge
+	}
+	if t != nil && t.PrivateData.BillingContext != nil &&
+		strings.EqualFold(strings.TrimSpace(t.PrivateData.BillingContext.Resolution), "1536P") {
+		return 1536
+	}
+	return 768
 }
 
 const miniMaxH3QueueLockKey int64 = 0x4d4d4833
@@ -353,7 +370,10 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 	var err error
 	// get all tasks progress is not 100%
 	err = DB.Where("progress != ?", "100%").
-		Where("status NOT IN ?", []TaskStatus{TaskStatusFailure, TaskStatusSuccess}).
+		Where("(status NOT IN ? OR (action = ? AND status = ?))",
+			[]TaskStatus{TaskStatusFailure, TaskStatusSuccess},
+			constant.TaskActionMiniMaxH3Upscale,
+			TaskStatusSuccess).
 		Where("(action IS NULL OR action != ? OR status NOT IN ?)",
 			constant.TaskActionMiniMaxH3Generate,
 			[]TaskStatus{TaskStatusNotStart, TaskStatusDispatching}).
@@ -364,6 +384,70 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 		return nil
 	}
 	return tasks
+}
+
+// ClaimMiniMaxH3UpscaleRecoveryTask finds a recently completed 1536P source
+// task that an older gateway instance finalized before chaining its upscale.
+// The action transition is a cross-instance claim: only one current instance
+// can move a source row into the recoverable upscale sentinel state.
+func ClaimMiniMaxH3UpscaleRecoveryTask(cutoffUnix int64) (*Task, error) {
+	const candidateLimit = 1000
+	sourceActions := []string{
+		constant.TaskActionMiniMaxH3Generate,
+		constant.TaskActionTextGenerate,
+		constant.TaskActionFirstTailGenerate,
+		constant.TaskActionReferenceGenerate,
+	}
+	var candidates []*Task
+	if err := DB.Where("action IN ? AND status = ? AND created_at >= ?",
+		sourceActions, TaskStatusSuccess, cutoffUnix).
+		Order("id DESC").
+		Limit(candidateLimit).
+		Find(&candidates).Error; err != nil {
+		return nil, err
+	}
+
+	for _, task := range candidates {
+		if !constant.IsMiniMaxH3Model(task.Properties.OriginModelName) ||
+			strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" {
+			continue
+		}
+		requestedShortEdge := task.MiniMaxH3RequestedShortEdge()
+		// Older AutoDL instances persisted the dedicated field as 768 even when
+		// the authoritative billing snapshot was 1536P. Limit this compatibility
+		// override to AutoDL source actions so explicit modern values retain their
+		// normal precedence everywhere else.
+		if task.Action != constant.TaskActionMiniMaxH3Generate &&
+			task.PrivateData.BillingContext != nil &&
+			strings.EqualFold(strings.TrimSpace(task.PrivateData.BillingContext.Resolution), "1536P") {
+			requestedShortEdge = 1536
+		}
+		if requestedShortEdge != 1536 {
+			continue
+		}
+
+		sourceAction := task.Action
+		task.Action = constant.TaskActionMiniMaxH3Upscale
+		task.Progress = "90%"
+		task.FinishTime = 0
+		task.PrivateData.MiniMaxH3OutputShortEdge = 1536
+		task.PrivateData.MiniMaxH3UpscaleStatus = "recovering_source"
+		result := DB.Model(&Task{}).
+			Where("id = ? AND action = ? AND status = ?", task.ID, sourceAction, TaskStatusSuccess).
+			Updates(map[string]any{
+				"action":       task.Action,
+				"progress":     task.Progress,
+				"finish_time":  task.FinishTime,
+				"private_data": task.PrivateData,
+			})
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		if result.RowsAffected > 0 {
+			return task, nil
+		}
+	}
+	return nil, nil
 }
 
 // ClaimMiniMaxH3Tasks atomically reserves available MiniMax-H3 execution slots.
@@ -588,6 +672,38 @@ func (Task *Task) Update() error {
 // zero rows, which silently bypasses the CAS guard.
 func (t *Task) UpdateWithStatus(fromStatus TaskStatus) (bool, error) {
 	result := DB.Model(t).Where("status = ?", fromStatus).Select("*").Updates(t)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+// PersistMiniMaxH3UpscaleSubmission durably records the chained task before
+// the generic polling write runs. SUCCESS acts as a compatibility sentinel:
+// old instances stop polling it, while current instances explicitly include
+// incomplete minimaxH3Upscale actions in GetAllUnFinishSyncTasks.
+func (t *Task) PersistMiniMaxH3UpscaleSubmission() (bool, error) {
+	if t == nil || t.ID <= 0 || strings.TrimSpace(t.PrivateData.MiniMaxH3UpscaleTaskID) == "" {
+		return false, errors.New("MiniMax-H3 upscale task is incomplete")
+	}
+	allowedStatuses := []TaskStatus{
+		TaskStatusNotStart,
+		TaskStatusDispatching,
+		TaskStatusSubmitted,
+		TaskStatusQueued,
+		TaskStatusInProgress,
+		TaskStatusSuccess,
+	}
+	result := DB.Model(&Task{}).
+		Where("id = ?", t.ID).
+		Where("status IN ?", allowedStatuses).
+		Updates(map[string]any{
+			"action":       constant.TaskActionMiniMaxH3Upscale,
+			"status":       TaskStatusSuccess,
+			"progress":     "90%",
+			"finish_time":  0,
+			"private_data": t.PrivateData,
+		})
 	if result.Error != nil {
 		return false, result.Error
 	}
