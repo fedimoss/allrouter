@@ -754,6 +754,13 @@ func RelayTask(c *gin.Context) {
 			ProviderUserQuota:   common.GetContextKeyInt(c, constant.ContextKeyProviderUserQuota),
 			ProviderOwnerUserId: common.GetContextKeyInt(c, constant.ContextKeyProviderOwnerUserId),
 		}
+		if constant.IsMiniMaxH3Model(task.Properties.OriginModelName) {
+			task.PrivateData.MiniMaxH3OutputShortEdge = service.MiniMaxH3SourceShortEdge
+			task.PrivateData.MiniMaxH3TaskType = c.GetString("minimax_h3_task_type")
+			if outputShortEdge := c.GetInt("minimax_h3_output_short_edge"); outputShortEdge > 0 {
+				task.PrivateData.MiniMaxH3OutputShortEdge = outputShortEdge
+			}
+		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action

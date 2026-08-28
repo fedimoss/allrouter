@@ -99,6 +99,18 @@ func TaskPollingLoop() {
 		ctx := context.TODO()
 		sweepTimedOutTasks(ctx)
 		allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
+		// During a rolling deployment, an older instance can persist the 768P
+		// source as terminal before a current instance sees it. Reclaim one recent
+		// 1536P source per cycle and feed it through the normal polling pipeline.
+		recoveryCutoff := time.Now().Add(-time.Hour).Unix()
+		recoveryTask, recoveryErr := model.ClaimMiniMaxH3UpscaleRecoveryTask(recoveryCutoff)
+		if recoveryErr != nil {
+			logger.LogError(ctx, fmt.Sprintf("claim MiniMax-H3 upscale recovery task: %v", recoveryErr))
+		} else if recoveryTask != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("recovering MiniMax-H3 1536P upscale after source was finalized early: task=%s type=%s",
+				recoveryTask.TaskID, recoveryTask.PrivateData.MiniMaxH3TaskType))
+			allTasks = append(allTasks, recoveryTask)
+		}
 		platformTask := make(map[constant.TaskPlatform][]*model.Task)
 		for _, t := range allTasks {
 			platformTask[t.Platform] = append(platformTask[t.Platform], t)
@@ -510,6 +522,30 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			task.PrivateData.MiniMaxH3UpscaleStatus = "running"
 		}
 	}
+	if taskResult.Stage == "minimax_h3_upscale" &&
+		taskResult.Status != model.TaskStatusSuccess &&
+		taskResult.Status != model.TaskStatusFailure {
+		// Keep a terminal sentinel in storage while the chained service is still
+		// running. Older gateway instances sharing this database will ignore the
+		// row instead of overwriting private_data with the 768P source result.
+		task.Status = model.TaskStatusSuccess
+		task.Action = constant.TaskActionMiniMaxH3Upscale
+		if taskResult.Progress != "" {
+			task.Progress = taskResult.Progress
+		} else {
+			task.Progress = "95%"
+		}
+		if !snap.Equal(task.Snapshot()) {
+			won, updateErr := task.UpdateWithStatus(snap.Status)
+			if updateErr != nil {
+				return fmt.Errorf("persist MiniMax-H3 upscale progress for task %s: %w", task.TaskID, updateErr)
+			}
+			if !won {
+				logger.LogWarn(ctx, fmt.Sprintf("Task %s changed concurrently, skip stale upscale progress", task.TaskID))
+			}
+		}
+		return nil
+	}
 
 	preserveTaskData := constant.IsMiniMaxH3Model(task.Properties.OriginModelName)
 	if policy, ok := adaptor.(interface{ PreserveTaskDataOnPoll() bool }); ok && policy.PreserveTaskDataOnPoll() {
@@ -613,8 +649,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			shouldSettle = false
 		}
 	} else if !snap.Equal(task.Snapshot()) {
-		if _, err := task.UpdateWithStatus(snap.Status); err != nil {
+		won, err := task.UpdateWithStatus(snap.Status)
+		if err != nil {
 			logger.LogError(ctx, fmt.Sprintf("Failed to update task %s: %s", task.TaskID, err.Error()))
+		} else if !won {
+			logger.LogWarn(ctx, fmt.Sprintf("Task %s changed concurrently, skip stale non-terminal update", task.TaskID))
 		}
 	} else {
 		// No changes, skip update
