@@ -21,9 +21,9 @@ import HeaderBar from './headerbar';
 import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import App from '../../App';
-import FooterBar from './Footer';
 import AuthModal from '../auth/AuthModal';
 import FloatingSupport from '../common/FloatingSupport';
+import SiteFooter from '../common/SiteFooter';
 import { ToastContainer } from 'react-toastify';
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
@@ -52,32 +52,6 @@ const PageLayout = () => {
   const { i18n } = useTranslation();
   const location = useLocation();
 
-  const cardProPages = [
-    '/',
-    '/console/channel',
-    '/console/log',
-    '/console/redemption',
-    '/console/user',
-    '/console/token',
-    '/console/midjourney',
-    '/console/task',
-    '/console/models',
-    '/console/provider',
-    '/console/provider/reward',
-    '/console/provider/reward-report',
-    '/console/provider/redemption',
-    '/console/provider/users',
-    // 服务商订阅管理页纳入布局白名单（决定是否渲染完整 PageLayout 框架），新增特性页需在此登记。
-    '/console/provider/subscription',
-    '/console/provider/profits',
-    '/console/provider/logs',
-    '/pricing',
-    '/login',
-    '/register',
-    '/reset',
-    '/user/reset',
-  ];
-
   const selfContainedPages = [
     '/agent-partner',
     '/about',
@@ -85,10 +59,6 @@ const PageLayout = () => {
     '/payment/lakala/qrcode',
     '/userQuestion',
   ];
-  const shouldHideFooter =
-    cardProPages.includes(location.pathname) ||
-    selfContainedPages.includes(location.pathname);
-
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
     !location.pathname.startsWith('/console/chat') &&
@@ -267,16 +237,8 @@ const PageLayout = () => {
               >
                 <App />
               </div>
-              {!shouldHideFooter && (
-                <div
-                  style={{
-                    width: '100%',
-                    marginTop: 'auto',
-                  }}
-                >
-                  <FooterBar />
-                </div>
-              )}
+              {/* 全站统一页脚：所有页面展示；CTA 卡片仅首页显示 */}
+              <SiteFooter showCta={location.pathname === '/'} />
             </div>
           </Content>
         </Layout>
@@ -397,16 +359,8 @@ const PageLayout = () => {
               >
                 <App />
               </div>
-              {!shouldHideFooter && (
-                <div
-                  style={{
-                    width: '100%',
-                    marginTop: 'auto',
-                  }}
-                >
-                  <FooterBar />
-                </div>
-              )}
+              {/* 全站统一页脚：所有页面展示；CTA 卡片仅首页显示 */}
+              <SiteFooter showCta={location.pathname === '/'} />
             </div>
           </Content>
         </Layout>

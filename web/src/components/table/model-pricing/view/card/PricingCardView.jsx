@@ -48,6 +48,23 @@ import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 const getModelKey = (model) => model.key ?? model.model_name ?? model.id;
 
+// 模型名前缀 -> LobeHub 图标兜底：模型未挂 vendor_id（如 GLM 系列）时也能显示品牌 logo
+const MODEL_ICON_FALLBACKS = [
+  [/^glm|^chatglm|^zhipu/i, 'Zhipu.Color'],
+  [/^gpt|^o\d|^davinci/i, 'OpenAI'],
+  [/^deepseek/i, 'DeepSeek.Color'],
+  [/^gemini/i, 'Gemini.Color'],
+  [/^kimi|^moonshot/i, 'Moonshot'],
+  [/^minimax/i, 'Minimax.Color'],
+  [/^claude/i, 'Claude.Color'],
+  [/^qwen/i, 'Qwen.Color'],
+  [/^grok/i, 'XAI'],
+  [/^doubao/i, 'Doubao.Color'],
+];
+
+const getModelIconFallback = (modelName = '') =>
+  MODEL_ICON_FALLBACKS.find(([pattern]) => pattern.test(String(modelName)))?.[1];
+
 const buildPrimaryPriceItems = (priceData, t, quotaDisplayType) => {
   if (priceData?.isDynamicPricing) {
     return [
@@ -143,6 +160,11 @@ const PricingCardView = ({
     }
     if (model.vendor_icon) {
       return <div className='pricing-market-model-logo'>{getLobeHubIcon(model.vendor_icon, 28)}</div>;
+    }
+    // 未挂供应商的模型：按模型名前缀匹配品牌 logo（GLM -> 智谱等）
+    const fallbackIcon = getModelIconFallback(model.model_name);
+    if (fallbackIcon) {
+      return <div className='pricing-market-model-logo'>{getLobeHubIcon(fallbackIcon, 28)}</div>;
     }
     return (
       <div className='pricing-market-model-logo'>
@@ -295,11 +317,8 @@ const PricingCardView = ({
 
           return (
             <Card key={modelKey || index} className={`pricing-market-desktop-card${isSelected ? ' is-selected' : ''}`} bodyStyle={{ padding: 0, height: '100%' }}>
-              <div
-                className='pricing-market-desktop-card-inner'
-                onClick={() => handleOpenModelDetail(model)}
-                style={{ cursor: openModelDetail ? 'pointer' : 'default' }}
-              >
+              {/* 整卡不再跳转详情，入口统一在价格行右侧的 ↗ 按钮 */}
+              <div className='pricing-market-desktop-card-inner'>
                 {/* 静态页 LLM.html 的 model-card 结构 */}
                 <div className='llm-model-card__head'>
                   {getModelIcon(model)}
@@ -330,7 +349,7 @@ const PricingCardView = ({
                           ? formatDynamicPriceCompactSummary(priceData.billingExpr, t)
                           : item.value}
                       </b>
-                      <span>{item.isDynamic ? t('点击查看详情') : item.suffix}</span>
+                      <span>{item.suffix}</span>
                     </div>
                   ))}
                   <div className='llm-price-cell llm-price-cell--detail'>

@@ -152,7 +152,7 @@ const PricingVendorIntro = memo(
               <b>
                 {t('共 {{count}} 个模型', { count: models.length })}
               </b>
-              <span>{systemName}</span>
+              {/* <span>{systemName}</span> */}
             </div>
           </>
         )}

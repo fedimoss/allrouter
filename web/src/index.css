@@ -18,7 +18,7 @@
   position: fixed;
   inset: 0 0 auto;
   z-index: 100;
-  height: 64px;
+  height: 84px;
   border-bottom: 1px solid var(--semi-color-border);
   background: color-mix(in srgb, var(--semi-color-bg-0) 92%, transparent);
   backdrop-filter: blur(14px);
@@ -1530,9 +1530,9 @@ html.dark .with-pastel-balls::before {
 
 /* ==================== 模型定价页面布局 ==================== */
 .pricing-layout {
-  height: calc(100vh - 60px);
+  height: calc(100vh - 30px);
   overflow: hidden;
-  margin-top: 60px;
+  margin-top: 30px;
 }
 
 .pricing-sidebar {

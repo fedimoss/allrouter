@@ -1,0 +1,102 @@
+/* ==========================================================================
+   全站页脚 SiteFooter（从首页主题三抽出的公共组件）
+   暗色为基础样式，html:not(.dark) 为亮色覆盖；品牌色走 --theme-* 动态变量
+   ========================================================================== */
+
+.app-site-footer {
+  box-sizing: border-box;
+  background: #050a08;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 72px 24px 36px;
+}
+.app-site-footer *,
+.app-site-footer *::before,
+.app-site-footer *::after { box-sizing: border-box; }
+.app-site-footer a { text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent; }
+.app-site-footer button:focus-visible,
+.app-site-footer a:focus-visible { outline: 2px solid var(--theme-primary, #5ed29c); outline-offset: 4px; }
+
+.app-site-footer .footer-cta {
+  position: relative;
+  overflow: hidden;
+  max-width: 1100px;
+  margin: 0 auto 72px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background:
+    radial-gradient(circle at 50% 120%, rgba(50, 254, 165, 0.14), transparent 55%),
+    linear-gradient(135deg, #0e1a15, #0a110d);
+  padding: 76px 32px;
+  text-align: center;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+.app-site-footer .footer-cta h2 { color: #fff; margin: 0 0 16px; font-size: 36px; font-weight: 700; line-height: 1.25; letter-spacing: 0; }
+.app-site-footer .footer-cta p { color: rgba(255, 255, 255, 0.62); margin: 0 0 34px; font-size: 16px; line-height: 1.7; }
+.app-site-footer .footer-cta__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+  padding: 0 30px;
+  border-radius: 999px;
+  background: var(--theme-gradient-135, linear-gradient(135deg, var(--theme-primary, #5ed29c), var(--theme-secondary, #68e4de)));
+  color: var(--theme-primary-btn-color, #fff);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 10px 30px rgba(var(--theme-primary-rgb, 94, 210, 156), 0.2);
+  transition: filter 0.18s, transform 0.18s;
+}
+.app-site-footer .footer-cta__btn:hover { filter: brightness(1.08) saturate(1.05); transform: translateY(-2px); }
+
+.app-site-footer .footer-main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding-bottom: 52px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 48px;
+}
+.app-site-footer .brand-lockup {
+  color: #fff;
+  letter-spacing: 0;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-flex;
+}
+.app-site-footer .brand-lockup img { object-fit: contain; width: 31px; height: 31px; display: block; }
+.app-site-footer .footer-brand p { color: rgba(255, 255, 255, 0.5); max-width: 280px; margin: 18px 0 0; font-size: 14px; line-height: 1.8; }
+.app-site-footer .footer-col b { display: block; color: #fff; margin: 6px 0 18px; font-size: 14px; font-weight: 600; }
+.app-site-footer .footer-col a { display: block; color: rgba(255, 255, 255, 0.5); margin-bottom: 12px; font-size: 14px; text-decoration: none; transition: color 0.18s; }
+.app-site-footer .footer-col a:hover { color: var(--theme-primary, #5ed29c); }
+.app-site-footer .footer-bottom { max-width: 1100px; margin: 0 auto; padding-top: 26px; color: rgba(255, 255, 255, 0.38); font-size: 12px; }
+
+/* ---- 亮色（跟随站点主题） ---- */
+html:not(.dark) .app-site-footer { background: #fff; border-top-color: rgba(12, 25, 20, 0.1); }
+html:not(.dark) .app-site-footer .footer-cta { border-color: rgba(12, 25, 20, 0.1); }
+html:not(.dark) .app-site-footer .footer-main { border-bottom-color: rgba(12, 25, 20, 0.12); }
+html:not(.dark) .app-site-footer .brand-lockup { color: #0e1915; }
+html:not(.dark) .app-site-footer .footer-brand p { color: rgba(14, 25, 21, 0.62); }
+html:not(.dark) .app-site-footer .footer-col b { color: #0e1915; }
+html:not(.dark) .app-site-footer .footer-col a { color: rgba(14, 25, 21, 0.6); }
+html:not(.dark) .app-site-footer .footer-bottom { color: rgba(14, 25, 21, 0.45); }
+
+/* ---- 响应式 ---- */
+@media (width >= 900px) {
+  .app-site-footer { padding: 88px 5vw 40px; }
+}
+@media (width < 900px) {
+  .app-site-footer .footer-main { grid-template-columns: 1fr 1fr; gap: 36px; }
+  .app-site-footer .footer-brand { grid-column: 1 / -1; }
+}
+@media (width < 640px) {
+  .app-site-footer { padding: 56px 20px 30px; }
+  .app-site-footer .footer-cta { margin-bottom: 56px; padding: 52px 22px; border-radius: 20px; }
+  .app-site-footer .footer-cta h2 { font-size: 28px; }
+  .app-site-footer .footer-cta p { font-size: 14px; margin-bottom: 28px; }
+  .app-site-footer .footer-main { grid-template-columns: 1fr 1fr; gap: 30px 20px; padding-bottom: 40px; }
+}
