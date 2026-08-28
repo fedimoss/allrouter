@@ -92,3 +92,30 @@ func DeleteUserQuestionnaire(id int, providerId int) error {
 	query := DB.Where("id = ? AND provider_id = ?", id, providerId)
 	return query.Delete(&UserQuestionnaire{}).Error
 }
+
+// IterateUserQuestionnaireSurveyData 按 id 升序游标分页遍历全部问卷的 survey_data 文本，
+// 供后台 GC 任务扫描截图引用，避免整表载入内存。
+func IterateUserQuestionnaireSurveyData(batchSize int, handle func(surveyData string)) error {
+	if batchSize <= 0 {
+		batchSize = 1000
+	}
+	lastId := 0
+	for {
+		var rows []UserQuestionnaire
+		if err := DB.
+			Select("id", "survey_data").
+			Where("id > ?", lastId).
+			Order("id ASC").
+			Limit(batchSize).
+			Find(&rows).Error; err != nil {
+			return err
+		}
+		for _, r := range rows {
+			handle(r.SurveyData)
+			lastId = r.Id
+		}
+		if len(rows) < batchSize {
+			return nil
+		}
+	}
+}

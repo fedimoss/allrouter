@@ -130,10 +130,13 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
 			}
 
-			// 问卷提交：公开接口（登录可选），未登录用户可通过域名归属服务商提交
-			userRoute.POST("/questionnaire", middleware.TryUserAuth(), middleware.AnonymousRequestBodyLimit(), controller.SubmitUserQuestionnaire)
-			// 问卷截图上传：公开接口（登录可选），大小/类型白名单在控制器内校验
-			userRoute.POST("/questionnaire/upload", middleware.TryUserAuth(), middleware.CriticalRateLimit(), controller.UploadQuestionnaireImage)
+			// 问卷提交：公开接口（登录可选），未登录用户可通过域名归属服务商提交；
+			// QuestionnaireSubmitRateLimit 独立限流（10 次/10 分钟/IP），防止匿名刷库
+			userRoute.POST("/questionnaire", middleware.TryUserAuth(), middleware.QuestionnaireSubmitRateLimit(), middleware.AnonymousRequestBodyLimit(), controller.SubmitUserQuestionnaire)
+			// 问卷截图上传：公开接口（登录可选）。请求体在 multipart 解析前按 6MB 截断，
+			// 魔数/大小/类型白名单在控制器内校验；UploadRateLimit 独立限流（10 次/60 秒/IP），
+			// 不与注册等 CriticalRateLimit 关键接口共用配额
+			userRoute.POST("/questionnaire/upload", middleware.TryUserAuth(), middleware.RequestBodyLimit(controller.QuestionnaireUploadBodyLimit), middleware.UploadRateLimit(), controller.UploadQuestionnaireImage)
 
 			adminRoute := userRoute.Group("/")
 			adminRoute.Use(middleware.AdminAuth())

@@ -116,6 +116,12 @@ func UploadRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(common.UploadRateLimitNum, common.UploadRateLimitDuration, "UP")
 }
 
+// QuestionnaireSubmitRateLimit 问卷提交限流（公开接口、匿名可写库，按 IP 独立桶，
+// 不与注册等 CriticalRateLimit 关键接口共用配额）
+func QuestionnaireSubmitRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(common.QuestionnaireSubmitRateLimitNum, common.QuestionnaireSubmitRateLimitDuration, "QS")
+}
+
 // userRateLimitFactory creates a rate limiter keyed by authenticated user ID
 // instead of client IP, making it resistant to proxy rotation attacks.
 // Must be used AFTER authentication middleware (UserAuth).

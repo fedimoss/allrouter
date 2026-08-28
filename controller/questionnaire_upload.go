@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,6 +16,11 @@ import (
 
 // 问卷截图上传限制
 const questionnaireImageMaxSize = 5 << 20 // 5MB
+
+// QuestionnaireUploadBodyLimit 上传请求体大小上限（5MB 文件 + multipart 边界开销余量）。
+// 供路由层在 multipart 解析前直接拒绝超大 body——gin 的 FormFile 会先读完整个请求体
+// （超 32MB 溢写临时文件）才轮到控制器的大小检查，提前截断可避免白白消耗带宽/磁盘。
+const QuestionnaireUploadBodyLimit = questionnaireImageMaxSize + 1<<20
 
 // 类型白名单 → 统一扩展名（不收 SVG：匿名可传的 SVG 经 /static 同源直出构成存储型 XSS 通道）
 var questionnaireImageExts = map[string]string{
@@ -41,7 +47,8 @@ func UploadQuestionnaireImage(c *gin.Context) {
 		common.ApiErrorMsg(c, "图片大小不能超过 5MB")
 		return
 	}
-	ext, ok := questionnaireImageExts[file.Header.Get("Content-Type")]
+	contentType := file.Header.Get("Content-Type")
+	ext, ok := questionnaireImageExts[contentType]
 	if !ok {
 		common.ApiErrorMsg(c, "仅支持 JPG、PNG、GIF、WebP 格式图片")
 		return
@@ -69,6 +76,19 @@ func UploadQuestionnaireImage(c *gin.Context) {
 	}
 	defer src.Close()
 
+	// 魔数校验：multipart 头由客户端声明、可伪造，嗅探首块内容确保确实是声明的图片格式，
+	// 防止任意文件伪装成图片落盘
+	head := make([]byte, 512)
+	headLen, err := io.ReadFull(src, head)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		common.ApiError(c, err)
+		return
+	}
+	if http.DetectContentType(head[:headLen]) != contentType {
+		common.ApiErrorMsg(c, "仅支持 JPG、PNG、GIF、WebP 格式图片")
+		return
+	}
+
 	// 临时文件落盘 + 同步计算内容哈希（与客服二维码上传同一模式）
 	hasher := sha256.New()
 	tmpDir := filepath.Join(baseDir, "tmp")
@@ -79,12 +99,19 @@ func UploadQuestionnaireImage(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if _, err := io.Copy(io.MultiWriter(dst, hasher), src); err != nil {
-		dst.Close()
+	sink := io.MultiWriter(dst, hasher)
+	if _, err := sink.Write(head[:headLen]); err != nil {
+		cleanupTmpFile(dst, tmpPath)
+		common.ApiError(c, err)
+		return
+	}
+	if _, err := io.Copy(sink, src); err != nil {
+		cleanupTmpFile(dst, tmpPath)
 		common.ApiError(c, err)
 		return
 	}
 	if err := dst.Close(); err != nil {
+		cleanupTmpFile(nil, tmpPath)
 		common.ApiError(c, err)
 		return
 	}
@@ -93,6 +120,7 @@ func UploadQuestionnaireImage(c *gin.Context) {
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	finalPath := filepath.Join(baseDir, hash+ext)
 	if err := os.Rename(tmpPath, finalPath); err != nil {
+		cleanupTmpFile(nil, tmpPath)
 		common.ApiError(c, err)
 		return
 	}
@@ -100,4 +128,12 @@ func UploadQuestionnaireImage(c *gin.Context) {
 	imageURL := "/static/questionnaire/" + strconv.Itoa(providerId) + "/" +
 		strconv.Itoa(userId) + "/" + hash + ext
 	common.ApiSuccess(c, gin.H{"url": imageURL})
+}
+
+// cleanupTmpFile 落盘/重命名失败时关闭并移除临时文件，避免 tmp 目录被失败残留填满
+func cleanupTmpFile(dst *os.File, tmpPath string) {
+	if dst != nil {
+		_ = dst.Close()
+	}
+	_ = os.Remove(tmpPath)
 }

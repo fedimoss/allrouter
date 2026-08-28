@@ -126,6 +126,9 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
+	// 问卷截图孤儿文件清理（未提交表单的截图、删记录后的遗留、tmp 残留）
+	service.StartQuestionnaireImageGCTask()
+
 	// WeChat trade bill download + reconcile task
 	service.StartWechatTradeBillTask()
 

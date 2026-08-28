@@ -268,6 +268,10 @@ var (
 	DownloadRateLimitNum            = 10
 	DownloadRateLimitDuration int64 = 60
 
+	// 问卷提交限流（匿名可写库，独立桶防刷）
+	QuestionnaireSubmitRateLimitNum            = 10
+	QuestionnaireSubmitRateLimitDuration int64 = 10 * 60
+
 	// Per-user search rate limit (applies after authentication, keyed by user ID)
 	SearchRateLimitEnable         = true
 	SearchRateLimitNum            = 10
