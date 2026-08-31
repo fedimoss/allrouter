@@ -5466,6 +5466,11 @@
     "Worker地址": "Adresse du Worker",
     "Worker密钥": "Clé du Worker",
     "Workspace": "Espace de travail",
-    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X peut aussi être inférieur à 1 pour appliquer une remise. Pour augmenter uniquement le prix de sortie ou ajouter des frais fixes, écrivez directement la formule de facturation complète."
+    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X peut aussi être inférieur à 1 pour appliquer une remise. Pour augmenter uniquement le prix de sortie ou ajouter des frais fixes, écrivez directement la formule de facturation complète.",
+    "充值方式": "Mode de paiement",
+    "实际到账": "Crédit réel",
+    "选择充值方式与额度，大额档位可享赠送。": "Choisissez un mode de paiement et un montant ; les paliers élevés offrent des bonus.",
+    "微信 / Stripe 通常 1-3 分钟内到账；加密货币需 1 个网络确认，约 10 分钟。": "WeChat / Stripe arrivent généralement en 1-3 minutes ; la crypto-monnaie nécessite 1 confirmation réseau, environ 10 minutes.",
+    "大额档位可享赠送，建议按月统一充值更划算。": "Les paliers élevés offrent des bonus ; regrouper vos recharges chaque mois est plus avantageux."
   }
 }

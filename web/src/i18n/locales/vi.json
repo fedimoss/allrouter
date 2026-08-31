@@ -5950,6 +5950,11 @@
     "Worker地址": "Địa chỉ Worker",
     "Worker密钥": "Khóa Worker",
     "Workspace": "Không gian làm việc",
-    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X cũng có thể nhỏ hơn 1 để dùng làm mức giảm giá. Nếu muốn chỉ tăng giá đầu ra hoặc thêm phí cố định, hãy nhập trực tiếp công thức tính phí đầy đủ."
+    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X cũng có thể nhỏ hơn 1 để dùng làm mức giảm giá. Nếu muốn chỉ tăng giá đầu ra hoặc thêm phí cố định, hãy nhập trực tiếp công thức tính phí đầy đủ.",
+    "充值方式": "Phương thức thanh toán",
+    "实际到账": "Số tiền thực nhận",
+    "选择充值方式与额度，大额档位可享赠送。": "Chọn phương thức thanh toán và số tiền; các mức lớn được tặng thêm.",
+    "微信 / Stripe 通常 1-3 分钟内到账；加密货币需 1 个网络确认，约 10 分钟。": "WeChat / Stripe thường đến trong 1-3 phút; tiền mã hóa cần 1 lần xác nhận mạng, khoảng 10 phút.",
+    "大额档位可享赠送，建议按月统一充值更划算。": "Các mức lớn được tặng thêm; gom nạp tiền theo tháng sẽ lợi hơn."
   }
 }

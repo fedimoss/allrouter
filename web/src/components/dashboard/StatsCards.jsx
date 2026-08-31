@@ -22,8 +22,7 @@ import { Card, Skeleton, Tag, Tooltip } from '@douyinfe/semi-ui';
 import { useNavigate } from 'react-router-dom';
 import { Hourglass, DollarSign, Hash, Info, Orbit } from 'lucide-react';
 import i18next from 'i18next';
-
-const COMPACT_NUMBER_THRESHOLD = 10_000;
+import { formatCompactValue } from '../../helpers/compactNumber';
 
 const formatAverageDuration = (minutes) => {
   const roundedMinutes = Math.max(0, Math.round(Number(minutes) || 0));
@@ -49,71 +48,6 @@ const formatAverageDuration = (minutes) => {
   } catch {
     return `${value} ${unit}`;
   }
-};
-
-const formatCompactValue = (value) => {
-  const fullValue = String(value);
-  const normalizedValue = fullValue.trim().replaceAll(',', '');
-  const valueParts = normalizedValue.match(
-    /^([^0-9+-]*)([+-]?\d+(?:\.\d+)?)(.*)$/,
-  );
-
-  if (!valueParts) {
-    return {
-      displayValue: value,
-      compactUnit: '',
-      trailingValue: '',
-      fullValue,
-      isCompact: false,
-    };
-  }
-
-  const numericValue = Number(valueParts[2]);
-  if (
-    !Number.isFinite(numericValue) ||
-    Math.abs(numericValue) < COMPACT_NUMBER_THRESHOLD
-  ) {
-    return {
-      displayValue: value,
-      compactUnit: '',
-      trailingValue: '',
-      fullValue,
-      isCompact: false,
-    };
-  }
-
-  const locale = i18next.resolvedLanguage || i18next.language || 'zh-CN';
-  let compactParts;
-  try {
-    compactParts = new Intl.NumberFormat(locale, {
-      notation: 'compact',
-      compactDisplay: 'short',
-      maximumFractionDigits: 2,
-    }).formatToParts(numericValue);
-  } catch {
-    compactParts = new Intl.NumberFormat('zh-CN', {
-      notation: 'compact',
-      compactDisplay: 'short',
-      maximumFractionDigits: 2,
-    }).formatToParts(numericValue);
-  }
-
-  const compactUnit = compactParts
-    .filter((part) => part.type === 'compact')
-    .map((part) => part.value)
-    .join('');
-  const compactNumber = compactParts
-    .filter((part) => part.type !== 'compact')
-    .map((part) => part.value)
-    .join('');
-
-  return {
-    displayValue: `${valueParts[1]}${compactNumber}`,
-    compactUnit,
-    trailingValue: valueParts[3],
-    fullValue,
-    isCompact: true,
-  };
 };
 
 const StatsCards = ({
