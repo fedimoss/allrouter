@@ -317,8 +317,7 @@ func resolutionFor(req relaycommon.TaskSubmitReq) string {
 	return "768p\u7ad6"
 }
 
-// resolveMiniMaxH3Seed preserves the same stable user/token seed semantics as
-// the Sora adaptor. An explicitly supplied seed always takes precedence.
+// resolveMiniMaxH3Seed provides the seed required by the AutoDL ref2va workflow.
 func resolveMiniMaxH3Seed(req relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (int64, error) {
 	if rawSeed := strings.TrimSpace(req.Seed); rawSeed != "" {
 		seed, err := strconv.ParseInt(rawSeed, 10, 64)
@@ -347,10 +346,6 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	seed, err := resolveMiniMaxH3Seed(req, info)
-	if err != nil {
-		return nil, fmt.Errorf("resolve MiniMax-H3 seed: %w", err)
-	}
 	task := normalizeTask(req.Task)
 	publicBaseURL := common.GetRequestBaseURL(c, system_setting.ServerAddress)
 	fields := requestRawFields(c)
@@ -358,7 +353,6 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		"prompt":     req.Prompt,
 		"duration":   fixedDuration,
 		"resolution": resolutionFor(req),
-		"seed":       seed,
 	}
 	if task == "ref2va" {
 		videoValue := req.InputReference
@@ -383,8 +377,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err != nil {
 			return nil, fmt.Errorf("upload blank reference image: %w", err)
 		}
+		seed, err := resolveMiniMaxH3Seed(req, info)
+		if err != nil {
+			return nil, fmt.Errorf("resolve MiniMax-H3 seed: %w", err)
+		}
 		body["ref_audio_0"] = videoURL
 		body["ref_image_0"] = imageURL
+		body["seed"] = seed
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf(
 			"AutoDL ref2va request: duration=%d resolution=%s seed=%d ref_audio_0=%s ref_image_0=%s",
 			fixedDuration,
@@ -637,6 +636,7 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 		if err := service.ValidateMiniMaxH3UpscaleConfig(service.MiniMaxH3UpscaleShortEdge); err != nil {
 			return err
 		}
+		result.Url = strings.Replace(result.Url, "http://192.168.0.228:3000", "https://allrouter.ai", 1) // 临时替换超分源视频内网地址，上线后删除
 		upscaleID, err := service.SubmitMiniMaxH3Upscale(ctx, result.Url, "", a.proxy, task.TaskID)
 		if err != nil {
 			task.PrivateData.MiniMaxH3UpscaleStatus = "failed"

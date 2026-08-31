@@ -521,7 +521,6 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
     firstPreview,
     lastPreview,
     submitting,
-    isActive,
     handleSubmit,
   } = controller;
 
@@ -539,7 +538,7 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
           <select
             className='playground-v2-text-input'
             value={taskType}
-            disabled={isActive}
+            disabled={submitting}
             onChange={(event) => setTaskType(event.target.value)}
           >
             <option value='t2va'>t2va</option>
@@ -552,7 +551,7 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
         <select
           className='playground-v2-text-input'
           value={aspectRatio}
-          disabled={isActive}
+          disabled={submitting}
           onChange={(event) => setAspectRatio(event.target.value)}
         >
           <option value='16:9'>16:9</option>
@@ -568,7 +567,7 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
         <select
           className='playground-v2-text-input'
           value={shortEdge}
-          disabled={isActive}
+          disabled={submitting}
           onChange={(event) => setShortEdge(event.target.value)}
         >
           <option value='768'>768P</option>
@@ -580,7 +579,7 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
         <input
           className='playground-v2-text-input'
           value={seed}
-          disabled={isActive}
+          disabled={submitting}
           placeholder='default'
           onChange={(event) => setSeed(event.target.value)}
         />
@@ -591,7 +590,7 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
           className='playground-v2-video-prompt'
           rows={5}
           value={prompt}
-          disabled={isActive}
+          disabled={submitting}
           placeholder={t('描述希望生成的视频内容和运动过程...')}
           onChange={(event) => setPrompt(event.target.value)}
         />
@@ -603,7 +602,7 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
             label={t('首帧（可选）')}
             file={firstFrame}
             previewUrl={firstPreview}
-            disabled={isActive}
+            disabled={submitting}
             onChange={setFirstFrame}
             onClear={() => setFirstFrame(null)}
           />
@@ -611,7 +610,7 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
             label={t('尾帧（可选）')}
             file={lastFrame}
             previewUrl={lastPreview}
-            disabled={isActive}
+            disabled={submitting}
             onChange={setLastFrame}
             onClear={() => setLastFrame(null)}
           />
@@ -633,7 +632,7 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
             <input
               type='file'
               accept='video/mp4'
-              disabled={isActive}
+              disabled={submitting}
               onChange={(event) =>
                 setReferenceVideo(event.target.files?.[0] || null)
               }
@@ -648,7 +647,7 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
             min='0'
             step='0.1'
             value={startTimeSeconds}
-            disabled={isActive}
+            disabled={submitting}
             onChange={(event) => setStartTimeSeconds(event.target.value)}
           />
         </div>
@@ -658,7 +657,9 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
         <button
           type='button'
           className='playground-v2-primary-command'
-          disabled={!prompt.trim() || (isRef2va && !referenceVideo) || isActive}
+          disabled={
+            !prompt.trim() || (isRef2va && !referenceVideo) || submitting
+          }
           onClick={handleSubmit}
         >
           {submitting ? (
