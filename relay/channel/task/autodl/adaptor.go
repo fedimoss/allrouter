@@ -316,10 +316,40 @@ func resolutionFor(req relaycommon.TaskSubmitReq) string {
 	}
 	return "768p\u7ad6"
 }
+
+// resolveMiniMaxH3Seed preserves the same stable user/token seed semantics as
+// the Sora adaptor. An explicitly supplied seed always takes precedence.
+func resolveMiniMaxH3Seed(req relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (int64, error) {
+	if rawSeed := strings.TrimSpace(req.Seed); rawSeed != "" {
+		seed, err := strconv.ParseInt(rawSeed, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("seed must be an integer")
+		}
+		return seed, nil
+	}
+	if info == nil {
+		return 0, fmt.Errorf("relay info is required to generate a stable seed")
+	}
+	if info.IsPlayground {
+		if info.UserId <= 0 {
+			return 0, fmt.Errorf("playground user is required to generate a stable seed")
+		}
+		return model.GetOrCreateUserMiniMaxH3Seed(info.UserId)
+	}
+	if info.TokenId <= 0 {
+		return 0, fmt.Errorf("token is required to generate a stable seed")
+	}
+	return model.GetOrCreateTokenMiniMaxH3Seed(info.TokenId)
+}
+
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil, err
+	}
+	seed, err := resolveMiniMaxH3Seed(req, info)
+	if err != nil {
+		return nil, fmt.Errorf("resolve MiniMax-H3 seed: %w", err)
 	}
 	task := normalizeTask(req.Task)
 	publicBaseURL := common.GetRequestBaseURL(c, system_setting.ServerAddress)
@@ -328,6 +358,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		"prompt":     req.Prompt,
 		"duration":   fixedDuration,
 		"resolution": resolutionFor(req),
+		"seed":       seed,
 	}
 	if task == "ref2va" {
 		videoValue := req.InputReference
@@ -354,18 +385,11 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 		body["ref_audio_0"] = videoURL
 		body["ref_image_0"] = imageURL
-		if strings.TrimSpace(req.Seed) != "" {
-			seed, err := strconv.ParseInt(strings.TrimSpace(req.Seed), 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("seed must be an integer")
-			}
-			body["seed"] = seed
-		}
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf(
-			"AutoDL ref2va request: duration=%d resolution=%s seed=%s ref_audio_0=%s ref_image_0=%s",
+			"AutoDL ref2va request: duration=%d resolution=%s seed=%d ref_audio_0=%s ref_image_0=%s",
 			fixedDuration,
 			body["resolution"],
-			strings.TrimSpace(req.Seed),
+			seed,
 			videoURL,
 			imageURL,
 		))

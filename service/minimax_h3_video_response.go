@@ -64,6 +64,7 @@ func NormalizeMiniMaxH3VideoResponse(task *model.Task, passthrough map[string]an
 	response["object"] = "video"
 	response["model"] = task.Properties.OriginModelName
 	response["seconds"] = MiniMaxH3VideoSeconds
+	response["url"] = nil
 
 	requestedUpscale := task.MiniMaxH3RequestedShortEdge() == MiniMaxH3UpscaleShortEdge
 	upscaleCompleted := requestedUpscale &&
@@ -122,7 +123,7 @@ func NormalizeMiniMaxH3VideoResponse(task *model.Task, passthrough map[string]an
 			response["quality"] = "high"
 		}
 		if resultURL != "" {
-			response["content"] = map[string]any{"url": resultURL}
+			response["url"] = resultURL
 		}
 	default:
 		response["completed_at"] = nil

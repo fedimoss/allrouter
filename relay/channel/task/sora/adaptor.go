@@ -1005,6 +1005,17 @@ func (r responseTask) ContentURL() string {
 // http(s) 地址，但跳过其他网关的 /v1/videos/{id}/content 代理路由 ——
 // 该地址对最终客户端不可用（任务归属别的实例/用户）。
 func (a *TaskAdaptor) publicResultURL(res responseTask) string {
+	if candidate := strings.TrimSpace(res.URL); candidate != "" {
+		return candidate
+	}
+	for _, candidate := range []string{res.MetadataURL(), res.ContentURL()} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" || isVideoProxyRoute(candidate) {
+			continue
+		}
+		return candidate
+	}
+
 	filePathCandidates := make([]string, 0, 2)
 	if strings.TrimSpace(res.FilePath) != "" {
 		filePathCandidates = append(filePathCandidates, res.FilePath)
@@ -1015,13 +1026,6 @@ func (a *TaskAdaptor) publicResultURL(res responseTask) string {
 		if mediaURL := service.BuildSGLangMediaURL(a.publicBaseURL, candidate); mediaURL != "" {
 			return mediaURL
 		}
-	}
-	for _, candidate := range []string{res.MetadataURL(), res.ContentURL(), res.URL} {
-		candidate = strings.TrimSpace(candidate)
-		if candidate == "" || isVideoProxyRoute(candidate) {
-			continue
-		}
-		return candidate
 	}
 	return ""
 }
@@ -1062,7 +1066,10 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 	if strings.TrimSpace(constant.MiniMaxH3UpscaleURL) == "" {
 		return fmt.Errorf("MINIMAX_H3_UPSCALE_URL is required for 1536P output")
 	}
-	sourceURL := fmt.Sprintf("%s/v1/videos/%s/content", strings.TrimRight(a.baseURL, "/"), task.PrivateData.UpstreamTaskID)
+	sourceURL := strings.TrimSpace(task.PrivateData.ResultURL)
+	if sourceURL == "" {
+		return fmt.Errorf("MiniMax-H3 1536P upscale requires the task top-level result URL")
+	}
 	sourceKey := task.PrivateData.Key
 	if sourceKey == "" {
 		sourceKey = a.apiKey

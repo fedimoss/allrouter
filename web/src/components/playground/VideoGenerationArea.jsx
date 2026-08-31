@@ -66,8 +66,8 @@ const normalizeVideoTask = (source) => {
   if (!taskID) return null;
 
   const model = source.model || source.properties?.origin_model_name || '';
-  const contentURL =
-    (typeof source.content?.url === 'string' && source.content.url.trim()) ||
+  const publicURL =
+    (typeof source.url === 'string' && source.url.trim()) ||
     (typeof source.result_url === 'string' && source.result_url.trim()) ||
     '';
 
@@ -96,14 +96,7 @@ const normalizeVideoTask = (source) => {
     id: taskID,
     task_id: taskID,
     model,
-    content: contentURL
-      ? {
-          ...(source.content && typeof source.content === 'object'
-            ? source.content
-            : {}),
-          url: contentURL,
-        }
-      : source.content,
+    url: publicURL,
     status,
     progress: Number.isFinite(progressValue) ? progressValue : 0,
     error:
@@ -435,7 +428,7 @@ export const useMiniMaxH3VideoGeneration = ({
   const isActive = submitting || (task && !terminalStatuses.has(task.status));
   const minimaxH3VideoURL =
     MINIMAX_H3_MODELS.includes(task?.model) &&
-    ((typeof task?.content?.url === 'string' && task.content.url.trim()) ||
+    ((typeof task?.url === 'string' && task.url.trim()) ||
       (typeof task?.result_url === 'string' && task.result_url.trim()) ||
       '');
   const videoContentURL =

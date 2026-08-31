@@ -131,8 +131,6 @@ func VideoProxy(c *gin.Context) {
 			}
 		case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
 			if constant.IsMiniMaxH3Model(task.Properties.OriginModelName) &&
-				strings.TrimSpace(task.PrivateData.MiniMaxH3UpscaleTaskID) != "" &&
-				strings.EqualFold(task.PrivateData.MiniMaxH3UpscaleStatus, "completed") &&
 				strings.TrimSpace(task.PrivateData.ResultURL) != "" {
 				videoURL = task.PrivateData.ResultURL
 			} else {
