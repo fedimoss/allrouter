@@ -636,7 +636,7 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 		if err := service.ValidateMiniMaxH3UpscaleConfig(service.MiniMaxH3UpscaleShortEdge); err != nil {
 			return err
 		}
-		result.Url = strings.Replace(result.Url, "http://192.168.0.228:3000", "https://allrouter.ai", 1) // 临时替换超分源视频内网地址，上线后删除
+		//result.Url = strings.Replace(result.Url, "http://192.168.0.228:3000", "https://allrouter.ai", 1) // 临时替换超分源视频内网地址，上线后删除
 		upscaleID, err := service.SubmitMiniMaxH3Upscale(ctx, result.Url, "", a.proxy, task.TaskID)
 		if err != nil {
 			task.PrivateData.MiniMaxH3UpscaleStatus = "failed"

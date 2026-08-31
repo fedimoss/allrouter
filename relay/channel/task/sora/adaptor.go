@@ -1072,7 +1072,7 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 	if sourceURL == "" {
 		return fmt.Errorf("MiniMax-H3 1536P upscale requires the task top-level result URL")
 	}
-	sourceURL = strings.Replace(sourceURL, "http://192.168.0.228:3000", "https://allrouter.ai", 1) // 临时替换超分源视频内网地址，上线后删除
+	//sourceURL = strings.Replace(sourceURL, "http://192.168.0.228:3000", "https://allrouter.ai", 1) // 临时替换超分源视频内网地址，上线后删除
 	task.PrivateData.ResultURL = sourceURL
 	sourceKey := task.PrivateData.Key
 	if sourceKey == "" {
