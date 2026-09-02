@@ -209,6 +209,9 @@ const ProviderProfitsPage = () => {
     };
   };
 
+  const operatingProfitQuota =
+    Number(summary.profit_quota || 0) - Number(summary.owner_cost_quota || 0);
+
   const summaryCards = [
     { key: 'provider_user_quota', label: t('用户收费') },
     { key: 'base_cost_quota', label: t('基础成本') },
@@ -216,7 +219,8 @@ const ProviderProfitsPage = () => {
     { key: 'owner_cost_quota', label: t('服务商承担') },
     { key: 'gross_profit_quota', label: t('毛利润') },
     { key: 'rebate_quota', label: t('分佣') },
-    { key: 'profit_quota', label: t('净利润') },
+    { key: 'profit_quota', label: t('结算净利润') },
+    { key: 'operating_profit_quota', label: t('经营净利润') },
   ];
 
   const columns = useMemo(
@@ -270,7 +274,7 @@ const ProviderProfitsPage = () => {
         render: (_, record) => quotaText(getRebateQuota(record)),
       },
       {
-        title: t('净利润'),
+        title: t('结算净利润'),
         dataIndex: 'profit_quota',
         render: (value) => <Text strong>{quotaText(value)}</Text>,
       },
@@ -410,7 +414,11 @@ const ProviderProfitsPage = () => {
                       </div>
                     </div>
                     <div className='text-lg font-bold text-[var(--lg-text)] tracking-tight'>
-                      {quotaText(summary[item.key])}
+                      {quotaText(
+                        item.key === 'operating_profit_quota'
+                          ? operatingProfitQuota
+                          : summary[item.key],
+                      )}
                     </div>
                   </div>
                 ))}
@@ -712,9 +720,9 @@ const ProviderProfitsPage = () => {
                 'cost',
               )}
               {renderMoneyRow(
-                t('净利润'),
+                t('结算净利润'),
                 netProfit,
-                t('服务商最终入账金额。净利润 = 毛利润 - 一级/二级分佣。'),
+                t('服务商最终入账金额。结算净利润 = 毛利润 - 一级/二级分佣。'),
                 'profit',
               )}
             </div>
@@ -777,7 +785,7 @@ const ProviderProfitsPage = () => {
                   <Text strong>{quotaText(rebateQuota)}</Text>
                 </Text>
                 <Text>
-                  {t('净利润')} = {t('毛利润')} - {t('分佣')} ={' '}
+                  {t('结算净利润')} = {t('毛利润')} - {t('分佣')} ={' '}
                   <Text strong>{quotaText(netProfit)}</Text>
                 </Text>
                 <Text>
