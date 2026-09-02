@@ -348,6 +348,13 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/provider',
         className: isAdmin() ? '' : 'tableHiddle',
       },
+      // 服务商利润入口，仅管理员可见
+      {
+        text: t('服务商利润'),
+        itemKey: 'providerProfits',
+        to: '/provider/profits',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
       {
         text: t('提现审核'),
         itemKey: 'providerWithdraw',

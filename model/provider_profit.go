@@ -47,6 +47,40 @@ type ProviderProfitSummary struct {
 	RebateQuota       int64 `json:"rebate_quota"`
 }
 
+// ProviderProfitOverviewRow 是单个服务商的管理员视角汇总行。
+type ProviderProfitOverviewRow struct {
+	ProviderId        int    `json:"provider_id"`
+	ProviderName      string `json:"provider_name"`
+	ProviderUserQuota int64  `json:"provider_user_quota"`
+	BaseCostQuota     int64  `json:"base_cost_quota"`
+	PaidQuota         int64  `json:"paid_quota"`
+	RewardCreditQuota int64  `json:"reward_credit_quota"`
+	CoveredCostQuota  int64  `json:"covered_cost_quota"`
+	OwnerCostQuota    int64  `json:"owner_cost_quota"`
+	GrossProfitQuota  int64  `json:"gross_profit_quota"`
+	RebateQuota       int64  `json:"rebate_quota"`
+	NetProfitQuota    int64  `json:"net_profit_quota"`
+	IncomeQuota       int64  `json:"income_quota"`
+	ExpenseQuota      int64  `json:"expense_quota"`
+	ProfitQuota       int64  `json:"profit_quota"`
+}
+
+// ProviderProfitOverviewSummary 是所有服务商在指定时间段内的汇总合计。
+type ProviderProfitOverviewSummary struct {
+	ProviderUserQuota int64 `json:"provider_user_quota"`
+	BaseCostQuota     int64 `json:"base_cost_quota"`
+	PaidQuota         int64 `json:"paid_quota"`
+	RewardCreditQuota int64 `json:"reward_credit_quota"`
+	CoveredCostQuota  int64 `json:"covered_cost_quota"`
+	OwnerCostQuota    int64 `json:"owner_cost_quota"`
+	GrossProfitQuota  int64 `json:"gross_profit_quota"`
+	RebateQuota       int64 `json:"rebate_quota"`
+	NetProfitQuota    int64 `json:"net_profit_quota"`
+	IncomeQuota       int64 `json:"income_quota"`
+	ExpenseQuota      int64 `json:"expense_quota"`
+	ProfitQuota       int64 `json:"profit_quota"`
+}
+
 type ProviderProfitApplyResult struct {
 	Applied          bool
 	GrossProfitQuota int
@@ -111,6 +145,73 @@ func GetProviderProfits(providerId int, startTimestamp int64, endTimestamp int64
 		Offset(startIdx).
 		Find(&records).Error
 	return records, total, summary, err
+}
+
+// GetProviderProfitOverview 汇总指定时间段内每个服务商的已结算收入与主站承担成本。
+// 没有任何记录的服务商也会返回，便于管理员区分"确实没有数据"与"数据缺失"。
+func GetProviderProfitOverview(startTimestamp int64, endTimestamp int64, startIdx int, num int) ([]ProviderProfitOverviewRow, ProviderProfitOverviewSummary, int64, error) {
+	rows := make([]ProviderProfitOverviewRow, 0)
+	// 按时间范围构造 LEFT JOIN 条件，保证无记录的服务商也能出现在结果中
+	join := "LEFT JOIN provider_profits AS pp ON pp.provider_id = p.id"
+	joinArgs := make([]interface{}, 0, 2)
+	if startTimestamp != 0 {
+		join += " AND pp.created_at >= ?"
+		joinArgs = append(joinArgs, startTimestamp)
+	}
+	if endTimestamp != 0 {
+		join += " AND pp.created_at <= ?"
+		joinArgs = append(joinArgs, endTimestamp)
+	}
+	// 聚合各金额字段，COALESCE 保证无记录时按 0 计算
+	query := DB.Table("providers AS p").
+		Select("p.id AS provider_id, p.name AS provider_name, COALESCE(SUM(pp.provider_user_quota), 0) AS provider_user_quota, COALESCE(SUM(pp.base_cost_quota), 0) AS base_cost_quota, COALESCE(SUM(pp.paid_quota), 0) AS paid_quota, COALESCE(SUM(pp.provider_user_quota - pp.paid_quota), 0) AS reward_credit_quota, COALESCE(SUM(pp.covered_cost_quota), 0) AS covered_cost_quota, COALESCE(SUM(pp.owner_cost_quota), 0) AS owner_cost_quota, COALESCE(SUM(COALESCE(pp.profit_quota, 0) + COALESCE(pp.rebate_quota, 0)), 0) AS gross_profit_quota, COALESCE(SUM(pp.rebate_quota), 0) AS rebate_quota, COALESCE(SUM(pp.profit_quota), 0) AS net_profit_quota, COALESCE(SUM(pp.profit_quota), 0) AS income_quota, COALESCE(SUM(pp.owner_cost_quota), 0) AS expense_quota").
+		Joins(join, joinArgs...)
+	// 统计服务商总数（含无记录的服务商），用于分页
+	var total int64
+	if err := DB.Table("providers AS p").Count(&total).Error; err != nil {
+		return nil, ProviderProfitOverviewSummary{}, 0, err
+	}
+
+	// 按服务商分组聚合，ID 倒序排列
+	var allRows []ProviderProfitOverviewRow
+	if err := query.Group("p.id, p.name").Order("p.id desc").Scan(&allRows).Error; err != nil {
+		return nil, ProviderProfitOverviewSummary{}, 0, err
+	}
+
+	// 累加得到全站汇总，并派生收入/支出/利润字段
+	var summary ProviderProfitOverviewSummary
+	for i := range allRows {
+		allRows[i].ProfitQuota = allRows[i].IncomeQuota - allRows[i].ExpenseQuota
+		allRows[i].NetProfitQuota = allRows[i].IncomeQuota
+		summary.ProviderUserQuota += allRows[i].ProviderUserQuota
+		summary.BaseCostQuota += allRows[i].BaseCostQuota
+		summary.PaidQuota += allRows[i].PaidQuota
+		summary.RewardCreditQuota += allRows[i].RewardCreditQuota
+		summary.CoveredCostQuota += allRows[i].CoveredCostQuota
+		summary.OwnerCostQuota += allRows[i].OwnerCostQuota
+		summary.GrossProfitQuota += allRows[i].GrossProfitQuota
+		summary.RebateQuota += allRows[i].RebateQuota
+		summary.NetProfitQuota += allRows[i].NetProfitQuota
+		summary.IncomeQuota += allRows[i].IncomeQuota
+		summary.ExpenseQuota += allRows[i].ExpenseQuota
+		summary.ProfitQuota += allRows[i].ProfitQuota
+	}
+
+	// 内存分页
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	if num <= 0 {
+		num = 20
+	}
+	if startIdx < len(allRows) {
+		endIdx := startIdx + num
+		if endIdx > len(allRows) {
+			endIdx = len(allRows)
+		}
+		rows = allRows[startIdx:endIdx]
+	}
+	return rows, summary, total, nil
 }
 
 func applyProviderProfitRebatesTx(tx *gorm.DB, record *ProviderProfit, grossProfitQuota int) (int, map[int]int, []providerProfitRebateLog, error) {

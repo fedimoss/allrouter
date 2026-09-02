@@ -459,6 +459,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			providerAdminRoute.GET("", controller.AdminListProviders)
 			providerAdminRoute.GET("/", controller.AdminListProviders)
+			providerAdminRoute.GET("/profits", controller.AdminGetProviderProfitOverview) // 服务商利润汇总（管理员）
 			providerAdminRoute.GET("/owner_candidates", controller.AdminListProviderOwnerCandidates)
 			providerAdminRoute.POST("", controller.AdminCreateProvider)
 			providerAdminRoute.POST("/", controller.AdminCreateProvider)

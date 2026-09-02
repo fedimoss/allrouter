@@ -75,6 +75,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       deployment: true,
       callLog: true,
       provider: true,
+      providerProfits: true, // 服务商利润
       providerWithdraw: true,
       billing: true,
       operational: true,
@@ -153,6 +154,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         deployment: true,
         callLog: true,
         provider: true,
+        providerProfits: true, // 服务商利润
         providerWithdraw: true,
         billing: true,
         operational: true,
@@ -208,7 +210,15 @@ export default function SettingsSidebarModulesAdmin(props) {
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
         const modules = JSON.parse(props.options.SidebarModulesAdmin);
-        setSidebarModulesAdmin(modules);
+        // 与已保存配置合并而非整体覆盖，保证新增模块（如服务商利润）在旧配置下默认开启
+        setSidebarModulesAdmin((current) => ({
+          ...current,
+          ...modules,
+          admin: {
+            ...current.admin,
+            ...(modules.admin || {}),
+          },
+        }));
       } catch (error) {
         // 使用默认配置
         const defaultModules = {
@@ -235,6 +245,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             deployment: true,
             callLog: true,
             provider: true,
+            providerProfits: true, // 服务商利润
             providerWithdraw: true,
             billing: true,
             operational: true,
@@ -341,6 +352,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           key: 'provider',
           title: t('服务商管理'),
           description: t('服务商、域名、页面配置和模型定价管理'),
+        },
+        {
+          key: 'providerProfits',
+          title: t('服务商利润'),
+          description: t('查看所有服务商在指定时间范围内的收入、支出和利润。'),
         },
         {
           key: 'subscription',

@@ -44,3 +44,22 @@ func AdminGetProviderProfits(c *gin.Context) {
 	}
 	listProviderProfits(c, id)
 }
+
+// AdminGetProviderProfitOverview 管理员查看所有服务商的利润汇总，
+// 支持分页与时间范围过滤，无记录的服务商也会返回。
+func AdminGetProviderProfitOverview(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	rows, summary, total, err := model.GetProviderProfitOverview(startTimestamp, endTimestamp, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(rows)
+	common.ApiSuccess(c, gin.H{
+		"page":    pageInfo,
+		"summary": summary,
+	})
+}

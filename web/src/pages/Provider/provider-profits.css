@@ -1,0 +1,91 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+.provider-profit-filter-form {
+  padding: 14px 20px;
+}
+
+.provider-profit-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.provider-profit-filter-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-right: auto;
+}
+
+.provider-profit-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lg-text);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.provider-profit-filter-hint {
+  color: var(--lg-text-soft);
+  font-size: 12px;
+}
+
+.provider-profit-filter-picker {
+  flex: 0 1 420px;
+  width: auto;
+  min-width: 340px;
+}
+
+.provider-profit-filter-button {
+  min-height: 40px !important;
+  border-radius: 8px !important;
+}
+
+/* 整页贴合视口：与 /console/user 一致，页面不可滚动，表格卡片填满剩余高度 */
+.provider-profit-page .log-v2-shell {
+  display: flex;
+  flex-direction: column;
+}
+
+.provider-profit-page .log-v2-stack {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.provider-profit-table-card.table-scroll-card {
+  flex: 1 1 auto;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+}
+
+@media (max-width: 768px) {
+  .provider-profit-filter-form {
+    padding: 12px 16px;
+  }
+
+  .provider-profit-filter-picker {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}

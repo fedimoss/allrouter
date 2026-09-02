@@ -18,10 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { lazy, Suspense, useContext, useMemo } from 'react';
-import { Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
-import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
+import { AuthRedirect, PrivateRoute, AdminRoute, isAdmin } from './helpers';
 import LoginPage from './pages/Login';
 import RegisterPage from './pages/Login/register';
 import NotFound from './pages/NotFound';
@@ -61,6 +61,7 @@ import ProviderRewardPage from './pages/Provider/Reward';
 import ProviderRewardReportPage from './pages/Provider/RewardReport';
 import ProviderRedemptionPage from './pages/Provider/Redemption';
 import ProviderProfitsPage from './pages/Provider/Profits';
+import AdminProviderProfitsPage from './pages/Provider/AdminProfits';
 import ProviderLogsPage from './pages/Provider/Logs';
 import ProviderUsersPage from './pages/Provider/Users';
 import ProviderWithdrawPage from './pages/Provider/Withdraw';
@@ -104,6 +105,13 @@ const HomeRoute = () => {
       <HomeComp />
     </Suspense>
   );
+};
+
+// 服务商利润路由：管理员查看全站汇总，服务商（或 URL 携带 provider_id 时）查看自己的利润明细
+const ProviderProfitsRoute = () => {
+  const [searchParams] = useSearchParams();
+  const providerId = Number(searchParams.get('provider_id') || 0);
+  return isAdmin() && providerId <= 0 ? <AdminProviderProfitsPage /> : <ProviderProfitsPage />;
 };
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
@@ -234,7 +242,7 @@ function App() {
           path='/console/provider/profits'
           element={
             <PrivateRoute>
-              <ProviderProfitsPage />
+              <ProviderProfitsRoute />
             </PrivateRoute>
           }
         />

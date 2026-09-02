@@ -64,6 +64,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     deployment: true,
     callLog: true,
     provider: true,
+    providerProfits: true, // 服务商利润
     providerWithdraw: true,
     billing: true,
     operational: true,
