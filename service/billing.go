@@ -36,11 +36,24 @@ func claimWalletConsumeBreakdown(billing relaycommon.BillingSettler) (reward int
 // PreConsumeBilling 根据用户计费偏好创建 BillingSession 并执行预扣费。
 // 会话存储在 relayInfo.Billing 上，供后续 Settle / Refund 使用。
 func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
+	estimatePromptTokens := 0
+	modelName := ""
+	if relayInfo != nil {
+		estimatePromptTokens = relayInfo.GetEstimatePromptTokens()
+		modelName = relayInfo.OriginModelName
+	}
+	logger.LogDebug(c,
+		"token_probe stage=billing_preconsume_request model=%q estimate_prompt_tokens=%d requested_quota=%d",
+		modelName, estimatePromptTokens, preConsumedQuota)
 	session, apiErr := NewBillingSession(c, relayInfo, preConsumedQuota)
 	if apiErr != nil {
+		logger.LogDebug(c, "token_probe stage=billing_preconsume_result status=error requested_quota=%d", preConsumedQuota)
 		return apiErr
 	}
 	relayInfo.Billing = session
+	logger.LogDebug(c,
+		"token_probe stage=billing_preconsume_result status=ok final_pre_consumed_quota=%d billing_source=%q",
+		relayInfo.FinalPreConsumedQuota, relayInfo.BillingSource)
 	return nil
 }
 
@@ -53,6 +66,9 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int) error {
 	if relayInfo.Billing != nil {
 		preConsumed := relayInfo.Billing.GetPreConsumedQuota()
+		logger.LogDebug(ctx,
+			"token_probe stage=billing_settle_request estimate_prompt_tokens=%d actual_quota=%d pre_consumed_quota=%d delta=%d billing_source=%q",
+			relayInfo.GetEstimatePromptTokens(), actualQuota, preConsumed, actualQuota-preConsumed, relayInfo.BillingSource)
 		// 订阅计费保护：当 relay 成功但上游渠道返回的 actualQuota 为 0 时，
 		// 保留预扣额度不退还（防止因上游计费统计不准确导致订阅配额被错误返还）。
 		//
@@ -89,8 +105,14 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 		}
 
 		if err := relayInfo.Billing.Settle(actualQuota); err != nil {
+			logger.LogDebug(ctx,
+				"token_probe stage=billing_settle_result status=error actual_quota=%d pre_consumed_quota=%d",
+				actualQuota, preConsumed)
 			return err
 		}
+		logger.LogDebug(ctx,
+			"token_probe stage=billing_settle_result status=ok actual_quota=%d pre_consumed_quota=%d final_pre_consumed_quota=%d",
+			actualQuota, preConsumed, relayInfo.FinalPreConsumedQuota)
 		// 提取钱包消费的奖励/充值明细，记录到 relayInfo 供异步任务持久化。
 		// 异步任务的消费返利延迟到任务 SUCCESS 后才触发，这里只记录快照。
 		rewardQuota, paidQuota := claimWalletConsumeBreakdown(relayInfo.Billing)

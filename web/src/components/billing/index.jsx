@@ -691,10 +691,27 @@ const Billing = () => {
 
     if (userIsAdmin) {
       baseColumns.splice(1, 0, {
-        title: t('用户昵称'),
-        dataIndex: 'display_name',
-        key: 'display_name',
-        render: (text) => text || '-',
+        title: t('用户名'),
+        dataIndex: 'username',
+        key: 'username',
+        render: (text, record) => {
+          const username = String(text || '').trim();
+          const displayName = String(record?.display_name || '').trim();
+          const primary = username || displayName;
+          if (!primary) {
+            return '-';
+          }
+          return (
+            <div className='flex min-w-0 flex-col'>
+              <span>{primary}</span>
+              {username && displayName && username !== displayName ? (
+                <span className='text-xs text-slate-400' title={t('用户昵称')}>
+                  {displayName}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
       });
     }
 
