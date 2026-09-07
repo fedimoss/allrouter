@@ -50,7 +50,9 @@ const WithdrawPage = () => {
   const { t } = useTranslation();
   // 被授予 providerWithdraw 模块权限的用户与属主/管理员同等访问对应模式的提现功能
   const grantedWithdrawModule = hasUserPermission('providerWithdraw') && !isAdmin();
-  const adminMode = isAdmin() || (getProviderId() === 0 && grantedWithdrawModule);
+  // 管理员视角仅在主站域名生效；服务商域名下属主即使身兼主站管理员也走属主模式
+  const adminMode =
+    getProviderId() === 0 && (isAdmin() || grantedWithdrawModule);
   const ownerMode = !adminMode && (isProviderOwner() || grantedWithdrawModule);
   const canAccessWithdraw = adminMode || ownerMode;
 

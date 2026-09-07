@@ -424,7 +424,9 @@ const ProviderPage = () => {
   // 被授予 provider 模块权限的用户：主站普通用户按管理员模式管理全站服务商，
   // 服务商成员按属主模式管理本服务商（敏感操作仍有属主专属校验）
   const grantedProviderModule = hasUserPermission('provider') && !isAdmin();
-  const adminMode = isAdmin() || (getProviderId() === 0 && grantedProviderModule);
+  // 管理员视角仅在主站域名生效；服务商域名下属主即使身兼主站管理员也走属主模式
+  const adminMode =
+    getProviderId() === 0 && (isAdmin() || grantedProviderModule);
   const providerOwner = isProviderOwner();
   const ownerMode = !adminMode && (providerOwner || grantedProviderModule);
   const smtpAdminMode = adminMode && !providerOwner;

@@ -70,8 +70,8 @@ const ProviderProfitsPage = () => {
   // 管理员或被授予"服务商利润"模块的主站用户：按管理员接口查看指定服务商的利润明细；
   // 服务商属主（无 provider_id 参数时）走属主接口查看自己的利润。
   const adminProviderMode =
-    (isAdmin() ||
-      (getProviderId() === 0 && hasUserPermission('providerProfits'))) &&
+    getProviderId() === 0 &&
+    (isAdmin() || hasUserPermission('providerProfits')) &&
     providerId > 0;
   const [formApi, setFormApi] = useState(null);
   const [loading, setLoading] = useState(false);

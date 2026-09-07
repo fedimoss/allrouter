@@ -264,7 +264,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   // 服务商分组：属主可见全部；被授予服务商模块权限的普通用户按授权过滤；
   // 管理员不显示该分组（走"管理员"分组）。
   const providerOwnerItems = (() => {
-    if (isAdmin()) return [];
+    // 服务商域名：属主（无论其主站角色如何）或被授权成员可见；
+    // 主站域名：仅属主且非管理员可见（管理员走"管理员"分组）
+    if (isMainSiteUser()) {
+      if (isAdmin() || !isProviderOwner()) return [];
+    }
     const items = [
       {
         text: t('服务商管理'),
@@ -809,7 +813,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             </>
           )}
 
-          {(isAdmin() || mainGrantedPerms.length > 0) &&
+          {isMainSiteUser() &&
+            (isAdmin() || mainGrantedPerms.length > 0) &&
             hasVisible(adminItems) && (
               <>
                 <Divider className='sidebar-divider' />

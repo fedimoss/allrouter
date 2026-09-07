@@ -121,7 +121,8 @@ const ProviderProfitsRoute = () => {
   const providerId = Number(searchParams.get('provider_id') || 0);
   // 被授予 providerProfits 模块权限的主站普通用户与管理员一样查看全站汇总
   const adminView =
-    (isAdmin() || (getProviderId() === 0 && hasUserPermission('providerProfits'))) &&
+    getProviderId() === 0 &&
+    (isAdmin() || hasUserPermission('providerProfits')) &&
     providerId <= 0;
   return adminView ? <AdminProviderProfitsPage /> : <ProviderProfitsPage />;
 };
