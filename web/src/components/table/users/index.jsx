@@ -69,6 +69,7 @@ const UsersPage = ({ apiPrefix = '/api/user', providerMode = false }) => {
         visible={showAddUser}
         handleClose={closeAddUser}
         apiPrefix={usersData.apiPrefix}
+        providerMode={providerMode}
       />
 
       <EditUserModal

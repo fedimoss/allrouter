@@ -178,7 +178,7 @@ func DeleteUserQuestionnaire(c *gin.Context) {
 // GetProviderUserQuestionnaires 服务商 owner 分页查询本站问卷提交记录
 // 接口：GET /api/provider/questionnaires?p=1&page_size=10（UserAuth，需为服务商 owner）
 func GetProviderUserQuestionnaires(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerQuestionSurvey")
 	if !ok {
 		return
 	}
@@ -204,7 +204,7 @@ func DeleteProviderUserQuestionnaire(c *gin.Context) {
 		common.ApiErrorMsg(c, "invalid id")
 		return
 	}
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerQuestionSurvey")
 	if !ok {
 		return
 	}

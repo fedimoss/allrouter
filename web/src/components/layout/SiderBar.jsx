@@ -28,7 +28,11 @@ import { getLucideIcon } from '../../helpers/render';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { getLogo, getSystemName, isAdmin, isProviderOwner, isRoot, showError } from '../../helpers';
+import { getLogo, getSystemName, isAdmin, isMainSiteUser, isProviderOwner, isRoot, showError } from '../../helpers';
+import {
+  MAIN_PERMISSION_KEYS,
+  PROVIDER_PERMISSION_KEYS,
+} from '../../helpers/permissionModules';
 import SkeletonWrapper from './components/SkeletonWrapper';
 import SidebarUserPanel from './components/SidebarUserPanel';
 
@@ -82,7 +86,21 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     isModuleVisible,
     hasSectionVisibleModules,
     loading: sidebarLoading,
+    modulePermissions,
   } = useSidebar();
+
+  // 普通用户被授予的模块权限（管理员/超管走角色判断，不使用该列表）：
+  // 主站用户只保留主站模块 key，服务商用户只保留服务商模块 key。
+  // 主站与服务商模块存在同名 key（provider/providerWithdraw/providerProfits），
+  // 主站用户的授权不参与"服务商"分组，服务商用户的授权同样不参与"管理员"分组。
+  const mainGrantedPerms =
+    isAdmin() || !isMainSiteUser()
+      ? []
+      : modulePermissions.filter((k) => MAIN_PERMISSION_KEYS.includes(k));
+  const providerGrantedPerms =
+    isAdmin() || isMainSiteUser()
+      ? []
+      : modulePermissions.filter((k) => PROVIDER_PERMISSION_KEYS.includes(k));
 
   const showSkeleton = useMinimumLoadingTime(sidebarLoading, 200);
   const location = useLocation();
@@ -243,170 +261,169 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     return items.filter((item) => isModuleVisible('marketing', item.itemKey));
   }, [isAdmin(), t, isModuleVisible]);
 
-  const providerOwnerItems =
-    isProviderOwner() && !isAdmin()
-      ? [
-          {
-            text: t('服务商管理'),
-            itemKey: 'provider',
-            to: '/provider',
-          },
-          {
-            text: t('运营数据'),
-            itemKey: 'providerOperational',
-            to: '/provider/operational',
-          },
-          {
-            text: t('提现管理'),
-            itemKey: 'providerWithdraw',
-            to: '/provider/withdraw',
-          },
-          {
-            text: t('奖励设置'),
-            itemKey: 'providerReward',
-            to: '/provider/reward',
-          },
-          {
-            text: t('奖励报表'),
-            itemKey: 'providerRewardReport',
-            to: '/provider/reward-report',
-          },
-          {
-            text: t('兑换码管理'),
-            itemKey: 'providerRedemption',
-            to: '/provider/redemption',
-          },
-          {
-            text: t('用户管理'),
-            itemKey: 'providerUsers',
-            to: '/provider/users',
-          },
-          // 服务商侧边栏新增"订阅管理"入口，跳转到服务商私有套餐管理页。
-          {
-            text: t('订阅管理'),
-            itemKey: 'providerSubscription',
-            to: '/provider/subscription',
-          },
-          {
-            text: t('服务商利润'),
-            itemKey: 'providerProfits',
-            to: '/provider/profits',
-          },
-          {
-            text: t('服务商使用日志'),
-            itemKey: 'providerLogs',
-            to: '/provider/logs',
-          },
-          {
-            text: t('问卷调查'),
-            itemKey: 'providerQuestionSurvey',
-            to: '/provider/questionSurvey',
-          },
-          {
-            text: t('系统设置'),
-            itemKey: 'providerSetting',
-            to: '/provider/setting',
-          },
-        ]
-      : [];
+  // 服务商分组：属主可见全部；被授予服务商模块权限的普通用户按授权过滤；
+  // 管理员不显示该分组（走"管理员"分组）。
+  const providerOwnerItems = (() => {
+    if (isAdmin()) return [];
+    const items = [
+      {
+        text: t('服务商管理'),
+        itemKey: 'provider',
+        to: '/provider',
+      },
+      {
+        text: t('运营数据'),
+        itemKey: 'providerOperational',
+        to: '/provider/operational',
+      },
+      {
+        text: t('提现管理'),
+        itemKey: 'providerWithdraw',
+        to: '/provider/withdraw',
+      },
+      {
+        text: t('奖励设置'),
+        itemKey: 'providerReward',
+        to: '/provider/reward',
+      },
+      {
+        text: t('奖励报表'),
+        itemKey: 'providerRewardReport',
+        to: '/provider/reward-report',
+      },
+      {
+        text: t('兑换码管理'),
+        itemKey: 'providerRedemption',
+        to: '/provider/redemption',
+      },
+      {
+        text: t('用户管理'),
+        itemKey: 'providerUsers',
+        to: '/provider/users',
+      },
+      // 服务商侧边栏新增"订阅管理"入口，跳转到服务商私有套餐管理页。
+      {
+        text: t('订阅管理'),
+        itemKey: 'providerSubscription',
+        to: '/provider/subscription',
+      },
+      {
+        text: t('服务商利润'),
+        itemKey: 'providerProfits',
+        to: '/provider/profits',
+      },
+      {
+        text: t('服务商使用日志'),
+        itemKey: 'providerLogs',
+        to: '/provider/logs',
+      },
+      {
+        text: t('问卷调查'),
+        itemKey: 'providerQuestionSurvey',
+        to: '/provider/questionSurvey',
+      },
+      {
+        text: t('系统设置'),
+        itemKey: 'providerSetting',
+        to: '/provider/setting',
+      },
+    ];
+    if (isProviderOwner()) return items;
+    return items.filter((item) => providerGrantedPerms.includes(item.itemKey));
+  })();
 
   const adminItems = useMemo(() => {
+    const adminUser = isAdmin();
     const items = [
       {
         text: t('渠道管理'),
         itemKey: 'channel',
         to: '/channel',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('订阅管理'),
         itemKey: 'subscription',
         to: '/subscription',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('模型管理'),
         itemKey: 'models',
         to: '/console/models',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('模型部署'),
         itemKey: 'deployment',
         to: '/deployment',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('调用日志'),
         itemKey: 'callLog',
         to: '/call-log',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('服务商管理'),
         itemKey: 'provider',
         to: '/provider',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       // 服务商利润入口，仅管理员可见
       {
         text: t('服务商利润'),
         itemKey: 'providerProfits',
         to: '/provider/profits',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('提现审核'),
         itemKey: 'providerWithdraw',
         to: '/provider/withdraw',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('账单中心'),
         itemKey: 'billing',
         to: '/billing',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('运营数据'),
         itemKey: 'operational',
         to: '/operational',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('支付对账'),
         itemKey: 'reconciliation',
         to: '/reconciliation',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('兑换码管理'),
         itemKey: 'redemption',
         to: '/redemption',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('问卷调查'),
         itemKey: 'questionSurvey',
         to: '/questionSurvey',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('用户管理'),
         itemKey: 'user',
         to: '/user',
-        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('系统设置'),
         itemKey: 'setting',
         to: '/setting',
-        className: isRoot() ? '' : 'tableHiddle',
       },
     ];
 
-    return items.filter((item) => isModuleVisible('admin', item.itemKey));
-  }, [isAdmin(), isRoot(), t, isModuleVisible]);
+    return (
+      items
+        // 系统设置仅超管可见；普通用户按授权过滤，管理员全量可见
+        .filter((item) => {
+          if (item.itemKey === 'setting') return isRoot();
+          if (adminUser) return true;
+          return mainGrantedPerms.includes(item.itemKey);
+        })
+        .filter((item) => isModuleVisible('admin', item.itemKey))
+    );
+  }, [isAdmin(), isRoot(), t, isModuleVisible, mainGrantedPerms]);
 
   const chatMenuItems = useMemo(() => {
     const items = [
@@ -792,26 +809,27 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             </>
           )}
 
-          {isAdmin() && hasVisible(adminItems) && (
-            <>
-              <Divider className='sidebar-divider' />
-              <div className='sidebar-section'>
-                {!collapsed && (
-                  <div className='sidebar-group-label'>
-                    {t('Administrator')}
-                  </div>
-                )}
-                {hasVisible(adminItems) &&
-                  renderSubItem({
-                    itemKey: 'admin',
-                    text: t('管理员'),
-                    iconKey: 'user',
-                    items: adminItems,
-                  })}
-                {/* {adminItems.map((item) => renderNavItem(item))} */}
-              </div>
-            </>
-          )}
+          {(isAdmin() || mainGrantedPerms.length > 0) &&
+            hasVisible(adminItems) && (
+              <>
+                <Divider className='sidebar-divider' />
+                <div className='sidebar-section'>
+                  {!collapsed && (
+                    <div className='sidebar-group-label'>
+                      {t('Administrator')}
+                    </div>
+                  )}
+                  {hasVisible(adminItems) &&
+                    renderSubItem({
+                      itemKey: 'admin',
+                      text: t('管理员'),
+                      iconKey: 'user',
+                      items: adminItems,
+                    })}
+                  {/* {adminItems.map((item) => renderNavItem(item))} */}
+                </div>
+              </>
+            )}
         </Nav>
       </SkeletonWrapper>
 

@@ -9,7 +9,8 @@ import (
 )
 
 func GetProviderRewardConfig(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	// 奖励报表页也会读取奖励配置，故同时放行 providerRewardReport
+	provider, _, ok := getPermittedProvider(c, "providerReward", "providerRewardReport")
 	if !ok {
 		return
 	}
@@ -22,7 +23,7 @@ func GetProviderRewardConfig(c *gin.Context) {
 }
 
 func UpsertProviderRewardConfig(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerReward")
 	if !ok {
 		return
 	}
@@ -71,7 +72,7 @@ func AdminUpsertProviderRewardConfig(c *gin.Context) {
 }
 
 func GetProviderRewardSummary(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerReward", "providerRewardReport")
 	if !ok {
 		return
 	}

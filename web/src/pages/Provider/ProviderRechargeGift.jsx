@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   InputNumber,
@@ -44,8 +44,8 @@ const ENABLED_KEY = 'topup_gift.enabled';
 const TIMED_KEY = 'topup_gift.timed';
 
 // 服务商维度的"充值赠送"配置模块。规则、开关和倒计时均读写 provider_options，
-// 供 /console/provider/reward 页面使用。逻辑与主站 SettingsRechargeGift 对称，仅数据源/API 不同。
-export default function ProviderRechargeGift({ provider }) {
+// 供 /console/provider/reward 页面及管理员奖励配置弹窗使用。逻辑与主站 SettingsRechargeGift 对称，仅数据源/API 不同。
+export default function ProviderRechargeGift({ provider, adminMode }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -64,12 +64,21 @@ export default function ProviderRechargeGift({ provider }) {
 
   const providerId = provider?.id;
 
+  // 管理员从 /console/provider 打开时无 owner 身份，必须走 admin 端点，
+  // 否则后端 canManageProviderOptions 会以"无权访问该服务商配置"拒绝。
+  const optionsUrl = useMemo(() => {
+    if (!providerId) return '';
+    return adminMode
+      ? `/api/provider/admin/${providerId}/options`
+      : `/api/provider/options/${providerId}`;
+  }, [adminMode, providerId]);
+
   // 三项配置都来自当前服务商的 provider_options，不读取或继承主站 options。
   const loadConfig = async () => {
     if (!providerId) return;
     setLoading(true);
     try {
-      const res = await API.get(`/api/provider/options/${providerId}`);
+      const res = await API.get(optionsUrl);
       if (res.data?.success) {
         const list = res.data.data || [];
         const rulesOpt = list.find((o) => o.key === RULES_KEY);
@@ -102,7 +111,7 @@ export default function ProviderRechargeGift({ provider }) {
   useEffect(() => {
     loadConfig();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [providerId]);
+  }, [optionsUrl]);
 
   const updateRule = (id, field, value) =>
     setRules((rs) => rs.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -116,7 +125,7 @@ export default function ProviderRechargeGift({ provider }) {
     const queue = [];
     if (rulesJson !== original.rulesJson) {
       queue.push(
-        API.put(`/api/provider/options/${providerId}`, {
+        API.put(optionsUrl, {
           key: RULES_KEY,
           value: rulesJson,
         }),
@@ -124,7 +133,7 @@ export default function ProviderRechargeGift({ provider }) {
     }
     if (enabled !== original.enabled) {
       queue.push(
-        API.put(`/api/provider/options/${providerId}`, {
+        API.put(optionsUrl, {
           key: ENABLED_KEY,
           value: String(enabled),
         }),
@@ -166,7 +175,7 @@ export default function ProviderRechargeGift({ provider }) {
 
     setTimedSaving(true);
     try {
-      const res = await API.put(`/api/provider/options/${providerId}`, {
+      const res = await API.put(optionsUrl, {
         key: TIMED_KEY,
         value: timedJson,
       });

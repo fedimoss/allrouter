@@ -139,12 +139,9 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.POST("/questionnaire/upload", middleware.TryUserAuth(), middleware.RequestBodyLimit(controller.QuestionnaireUploadBodyLimit), middleware.UploadRateLimit(), controller.UploadQuestionnaireImage)
 
 			adminRoute := userRoute.Group("/")
-			adminRoute.Use(middleware.AdminAuth())
+			adminRoute.Use(middleware.AdminOrModuleAuth("user"))
 			{
 				adminRoute.GET("/", controller.GetAllUsers)
-				adminRoute.GET("/topup", controller.GetAllTopUps)
-				adminRoute.POST("/topup/detail", controller.GetUserTopupDetails)
-				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
 				adminRoute.GET("/search", controller.SearchUsers)
 				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
 				adminRoute.DELETE("/:id/oauth/bindings/:provider_id", controller.UnbindCustomOAuthByAdmin)
@@ -160,6 +157,15 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+			}
+
+			// 充值记录管理：账单中心(billing)与用户管理(user)页面共用，两个模块任一即可访问
+			userBillingRoute := userRoute.Group("/")
+			userBillingRoute.Use(middleware.AdminOrModuleAuth("billing", "user"))
+			{
+				userBillingRoute.GET("/topup", controller.GetAllTopUps)
+				userBillingRoute.POST("/topup/detail", controller.GetUserTopupDetails)
+				userBillingRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
 			}
 		}
 
@@ -178,7 +184,7 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.GET("/lakala/status", controller.GetSubscriptionLakalaStatus)                                // 拉卡拉订阅订单状态轮询
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
-		subscriptionAdminRoute.Use(middleware.AdminAuth())
+		subscriptionAdminRoute.Use(middleware.AdminOrModuleAuth("subscription"))
 		{
 			subscriptionAdminRoute.GET("/plans", controller.AdminListSubscriptionPlans)
 			subscriptionAdminRoute.POST("/plans", controller.AdminCreateSubscriptionPlan)
@@ -187,12 +193,16 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.POST("/bind", controller.AdminBindSubscription)
 			// 空投订阅：管理员向指定用户授予全局配置的空投套餐
 			subscriptionAdminRoute.POST("/airdrop", controller.AdminGrantAirdropSubscription)
+		}
 
-			// User subscription management (admin)
-			subscriptionAdminRoute.GET("/users/:id/subscriptions", controller.AdminListUserSubscriptions)
-			subscriptionAdminRoute.POST("/users/:id/subscriptions", controller.AdminCreateUserSubscription)
-			subscriptionAdminRoute.POST("/user_subscriptions/:id/invalidate", controller.AdminInvalidateUserSubscription)
-			subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
+		// User subscription management (admin)：订阅管理与用户管理页的订阅弹窗共用，两个模块任一即可访问
+		subscriptionUserAdminRoute := apiRouter.Group("/subscription/admin")
+		subscriptionUserAdminRoute.Use(middleware.AdminOrModuleAuth("subscription", "user"))
+		{
+			subscriptionUserAdminRoute.GET("/users/:id/subscriptions", controller.AdminListUserSubscriptions)
+			subscriptionUserAdminRoute.POST("/users/:id/subscriptions", controller.AdminCreateUserSubscription)
+			subscriptionUserAdminRoute.POST("/user_subscriptions/:id/invalidate", controller.AdminInvalidateUserSubscription)
+			subscriptionUserAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
 		}
 
 		// Subscription payment callbacks (no auth)
@@ -279,7 +289,7 @@ func SetApiRouter(router *gin.Engine) {
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
 		}
 		channelRoute := apiRouter.Group("/channel")
-		channelRoute.Use(middleware.AdminAuth())
+		channelRoute.Use(middleware.AdminOrModuleAuth("channel"))
 		{
 			channelRoute.GET("/", controller.GetAllChannels)
 			channelRoute.GET("/search", controller.SearchChannels)
@@ -346,7 +356,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		redemptionRoute := apiRouter.Group("/redemption")
-		redemptionRoute.Use(middleware.AdminAuth())
+		redemptionRoute.Use(middleware.AdminOrModuleAuth("redemption"))
 		{
 			redemptionRoute.GET("/", controller.GetAllRedemptions)
 			redemptionRoute.GET("/search", controller.SearchRedemptions)
@@ -358,36 +368,36 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
 		questionnaireAdminRoute := apiRouter.Group("/questionnaire") // 问卷管理（主站管理员）
-		questionnaireAdminRoute.Use(middleware.AdminAuth())
+		questionnaireAdminRoute.Use(middleware.AdminOrModuleAuth("questionSurvey"))
 		{
 			questionnaireAdminRoute.GET("", controller.GetUserQuestionnairesAdmin)
 			questionnaireAdminRoute.GET("/", controller.GetUserQuestionnairesAdmin)
 			questionnaireAdminRoute.DELETE("/:id", controller.DeleteUserQuestionnaire)
 		}
 		logRoute := apiRouter.Group("/log")
-		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs) // 使用日志(管理员)
-		logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)
-		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
-		logRoute.GET("/calls", middleware.AdminAuth(), controller.GetAdminCallLogs)
-		logRoute.GET("/calls/stat", middleware.AdminAuth(), controller.GetAdminCallLogsStat)
+		logRoute.GET("/", middleware.AdminOrModuleAuth("callLog"), controller.GetAllLogs) // 使用日志(管理员)
+		logRoute.DELETE("/", middleware.AdminOrModuleAuth("callLog"), controller.DeleteHistoryLogs)
+		logRoute.GET("/stat", middleware.AdminOrModuleAuth("callLog"), controller.GetLogsStat)
+		logRoute.GET("/calls", middleware.AdminOrModuleAuth("callLog"), controller.GetAdminCallLogs)
+		logRoute.GET("/calls/stat", middleware.AdminOrModuleAuth("callLog"), controller.GetAdminCallLogsStat)
 		logRoute.GET("/self/stat", middleware.UserAuth(), controller.GetLogsSelfStat)
-		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminAuth(), controller.GetChannelAffinityUsageCacheStats)
-		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
+		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminOrModuleAuth("callLog"), controller.GetChannelAffinityUsageCacheStats)
+		logRoute.GET("/search", middleware.AdminOrModuleAuth("callLog"), controller.SearchAllLogs)
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs) // 使用日志(用户)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
 		dataRoute := apiRouter.Group("/data")
-		dataRoute.GET("/users", middleware.AdminAuth(), controller.GetQuotaDatesByUser)
-		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)                        // 消耗与请求趋势(用户)
-		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)                            // 消耗与请求趋势(管理员)
-		dataRoute.GET("/modelPopularRank", middleware.AdminAuth(), controller.GetAllModelPopularRank)      // 模型热度排行(管理员)
-		dataRoute.GET("/self/modelPopularRank", middleware.UserAuth(), controller.GetUserModelPopularRank) // 模型热度排行(用户)
-		dataRoute.GET("/modelQuotaRadio", middleware.AdminAuth(), controller.GetAllModelQuotaRadio)        // 模型额度占比(管理员)
-		dataRoute.GET("/self/modelQuotaRadio", middleware.UserAuth(), controller.GetUserModelQuotaRadio)   // 模型额度占比(用户)
+		dataRoute.GET("/users", middleware.AdminOrModuleAuth("operational"), controller.GetQuotaDatesByUser)
+		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)                                        // 消耗与请求趋势(用户)
+		dataRoute.GET("/", middleware.AdminOrModuleAuth("operational"), controller.GetAllQuotaDates)                       // 消耗与请求趋势(管理员)
+		dataRoute.GET("/modelPopularRank", middleware.AdminOrModuleAuth("operational"), controller.GetAllModelPopularRank) // 模型热度排行(管理员)
+		dataRoute.GET("/self/modelPopularRank", middleware.UserAuth(), controller.GetUserModelPopularRank)                 // 模型热度排行(用户)
+		dataRoute.GET("/modelQuotaRadio", middleware.AdminOrModuleAuth("operational"), controller.GetAllModelQuotaRadio)   // 模型额度占比(管理员)
+		dataRoute.GET("/self/modelQuotaRadio", middleware.UserAuth(), controller.GetUserModelQuotaRadio)                   // 模型额度占比(用户)
 
 		billRoute := apiRouter.Group("/bill")
-		billRoute.GET("/", middleware.AdminAuth(), controller.GetAllBill)     // 账单中心数据概览
-		billRoute.GET("/self", middleware.UserAuth(), controller.GetSelfBill) // 账单中心数据概览
+		billRoute.GET("/", middleware.AdminOrModuleAuth("billing"), controller.GetAllBill) // 账单中心数据概览
+		billRoute.GET("/self", middleware.UserAuth(), controller.GetSelfBill)              // 账单中心数据概览
 
 		billRoute.GET("/distributor", middleware.UserAuth(), controller.GetDistributorBill) // 账单中心数据概览(分销商)
 
@@ -455,11 +465,10 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.DELETE("/questionnaires/:id", controller.DeleteProviderUserQuestionnaire)
 		}
 		providerAdminRoute := apiRouter.Group("/provider/admin") //服务商管理
-		providerAdminRoute.Use(middleware.AdminAuth())
+		providerAdminRoute.Use(middleware.AdminOrModuleAuth("provider"))
 		{
 			providerAdminRoute.GET("", controller.AdminListProviders)
 			providerAdminRoute.GET("/", controller.AdminListProviders)
-			providerAdminRoute.GET("/profits", controller.AdminGetProviderProfitOverview) // 服务商利润汇总（管理员）
 			providerAdminRoute.GET("/owner_candidates", controller.AdminListProviderOwnerCandidates)
 			providerAdminRoute.POST("", controller.AdminCreateProvider)
 			providerAdminRoute.POST("/", controller.AdminCreateProvider)
@@ -481,7 +490,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.PUT("/:id/domains/:domain_id", controller.AdminUpdateProviderDomain)
 			providerAdminRoute.DELETE("/:id/domains/:domain_id", controller.AdminDeleteProviderDomain)
 			providerAdminRoute.GET("/base_models", controller.AdminListProviderBaseModels)
-			// 模型定价自动同步（管理员）：读取/保存开关、手动立即同步
+			// 模型定价自动同步（管理员）：读取/保存开关、手动同步
 			providerAdminRoute.GET("/:id/model_pricing/sync_config", controller.AdminGetProviderModelPricingSyncConfig)
 			providerAdminRoute.PUT("/:id/model_pricing/sync_config", controller.AdminUpdateProviderModelPricingSyncConfig)
 			providerAdminRoute.POST("/:id/model_pricing/sync", controller.AdminSyncProviderModelPricing)
@@ -489,17 +498,30 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.POST("/:id/model_pricing", controller.AdminUpsertProviderModelPricing)
 			providerAdminRoute.PUT("/:id/model_pricing", controller.AdminUpsertProviderModelPricing)
 			providerAdminRoute.DELETE("/:id/model_pricing/:pricing_id", controller.AdminDeleteProviderModelPricing)
-			providerAdminRoute.GET("/withdraw/list", controller.AdminGetProviderWithdrawList)            // 提现申请列表
-			providerAdminRoute.GET("/withdraw/dashboard", controller.AdminGetProviderWithdrawDashboard)  // 提现申请数据概览
-			providerAdminRoute.POST("/withdraw/approve", controller.AdminApproveProviderWithdrawRequest) // 提现申请审核
+		}
+
+		// 服务商利润汇总（管理员）：独立于"服务商管理"页面，单独授权
+		providerAdminProfitsRoute := apiRouter.Group("/provider/admin")
+		providerAdminProfitsRoute.Use(middleware.AdminOrModuleAuth("providerProfits"))
+		{
+			providerAdminProfitsRoute.GET("/profits", controller.AdminGetProviderProfitOverview)
+		}
+
+		// 提现审核（管理员）：独立于"服务商管理"页面，单独授权
+		providerAdminWithdrawRoute := apiRouter.Group("/provider/admin")
+		providerAdminWithdrawRoute.Use(middleware.AdminOrModuleAuth("providerWithdraw"))
+		{
+			providerAdminWithdrawRoute.GET("/withdraw/list", controller.AdminGetProviderWithdrawList)            // 提现申请列表
+			providerAdminWithdrawRoute.GET("/withdraw/dashboard", controller.AdminGetProviderWithdrawDashboard)  // 提现申请数据概览
+			providerAdminWithdrawRoute.POST("/withdraw/approve", controller.AdminApproveProviderWithdrawRequest) // 提现申请审核
 		}
 
 		// 运营数据模块接口
 		operationRoute := apiRouter.Group("/operation")
 		{
-			operationRoute.GET("/providers", middleware.AdminAuth(), controller.GetProviders)        // 服务商列表
-			operationRoute.GET("/dashboard", middleware.UserAuth(), controller.GetDashboardByPeriod) // 看板数据
-			operationRoute.GET("/records", middleware.UserAuth(), controller.GetRecords)             // 列表数据
+			operationRoute.GET("/providers", middleware.AdminOrModuleAuth("operational"), controller.GetProviders) // 服务商列表
+			operationRoute.GET("/dashboard", middleware.UserAuth(), controller.GetDashboardByPeriod)               // 看板数据
+			operationRoute.GET("/records", middleware.UserAuth(), controller.GetRecords)                           // 列表数据
 		}
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
@@ -507,13 +529,13 @@ func SetApiRouter(router *gin.Engine) {
 			logRoute.GET("/token", middleware.TokenAuthReadOnly(), controller.GetLogByKey)
 		}
 		groupRoute := apiRouter.Group("/group")
-		groupRoute.Use(middleware.AdminAuth())
+		groupRoute.Use(middleware.AdminOrAnyModuleAuth()) // 分组列表为管理页面共享查询，持有任意主站模块权限即可
 		{
 			groupRoute.GET("/", controller.GetGroups)
 		}
 
 		prefillGroupRoute := apiRouter.Group("/prefill_group")
-		prefillGroupRoute.Use(middleware.AdminAuth())
+		prefillGroupRoute.Use(middleware.AdminOrModuleAuth("models", "channel")) // 渠道与模型编辑弹窗共用
 		{
 			prefillGroupRoute.GET("/", controller.GetPrefillGroups)
 			prefillGroupRoute.POST("/", controller.CreatePrefillGroup)
@@ -523,16 +545,16 @@ func SetApiRouter(router *gin.Engine) {
 
 		mjRoute := apiRouter.Group("/mj")
 		mjRoute.GET("/self", middleware.UserAuth(), controller.GetUserMidjourney)
-		mjRoute.GET("/", middleware.AdminAuth(), controller.GetAllMidjourney)
+		mjRoute.GET("/", middleware.AdminOrModuleAuth("callLog"), controller.GetAllMidjourney)
 
 		taskRoute := apiRouter.Group("/task")
 		{
 			taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserTask)
-			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
+			taskRoute.GET("/", middleware.AdminOrModuleAuth("callLog"), controller.GetAllTask)
 		}
 
 		vendorRoute := apiRouter.Group("/vendors")
-		vendorRoute.Use(middleware.AdminAuth())
+		vendorRoute.Use(middleware.AdminOrModuleAuth("models"))
 		{
 			vendorRoute.GET("/", controller.GetAllVendors)
 			vendorRoute.GET("/search", controller.SearchVendors)
@@ -543,7 +565,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		modelsRoute := apiRouter.Group("/models")
-		modelsRoute.Use(middleware.AdminAuth())
+		modelsRoute.Use(middleware.AdminOrModuleAuth("models"))
 		{
 			modelsRoute.GET("/sync_upstream/preview", controller.SyncUpstreamPreview)
 			modelsRoute.POST("/sync_upstream", controller.SyncUpstreamModels)
@@ -559,7 +581,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		// Deployments (model deployment management)
 		deploymentsRoute := apiRouter.Group("/deployments")
-		deploymentsRoute.Use(middleware.AdminAuth())
+		deploymentsRoute.Use(middleware.AdminOrModuleAuth("deployment"))
 		{
 			deploymentsRoute.GET("/settings", controller.GetModelDeploymentSettings)
 			deploymentsRoute.POST("/settings/test-connection", controller.TestIoNetConnection)
@@ -585,7 +607,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		// 支付对账
 		wechatTradeBillRoute := apiRouter.Group("/wechat_trade_bill")
-		wechatTradeBillRoute.Use(middleware.AdminAuth())
+		wechatTradeBillRoute.Use(middleware.AdminOrModuleAuth("reconciliation"))
 		{
 			wechatTradeBillRoute.GET("/stat", controller.GetWechatTradeBillStat)
 			wechatTradeBillRoute.GET("/list", controller.GetWechatTradeBillList)

@@ -56,6 +56,8 @@ import {
   DEFAULT_THEME_SECONDARY_COLOR,
   getUserIdFromLocalStorage,
   isAdmin,
+  hasUserPermission,
+  getProviderId,
   isProviderAgentPartnerEnabled,
   isProviderOwner,
   showError,
@@ -419,9 +421,12 @@ const getOwnerLabel = (user) => {
 const ProviderPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const adminMode = isAdmin();
+  // 被授予 provider 模块权限的用户：主站普通用户按管理员模式管理全站服务商，
+  // 服务商成员按属主模式管理本服务商（敏感操作仍有属主专属校验）
+  const grantedProviderModule = hasUserPermission('provider') && !isAdmin();
+  const adminMode = isAdmin() || (getProviderId() === 0 && grantedProviderModule);
   const providerOwner = isProviderOwner();
-  const ownerMode = !adminMode && providerOwner;
+  const ownerMode = !adminMode && (providerOwner || grantedProviderModule);
   const smtpAdminMode = adminMode && !providerOwner;
   const currentUserId = getUserIdFromLocalStorage();
   const canManageProviderSmtp = useCallback(
@@ -1749,6 +1754,7 @@ const ProviderPage = () => {
                     content={t(
                       '禁用后该域名不会再解析成服务商站点，历史数据会保留。',
                     )}
+                    position='left'
                     onConfirm={() => disableProvider(record)}
                   >
                     <Button
@@ -1763,6 +1769,7 @@ const ProviderPage = () => {
                   <Popconfirm
                     title={t('确认启用该服务商？')}
                     content={t('启用后该服务商域名会恢复访问。')}
+                    position='left'
                     onConfirm={() => enableProvider(record)}
                   >
                     <Button size='small'>{t('启用')}</Button>
@@ -1775,6 +1782,7 @@ const ProviderPage = () => {
                   content={t(
                     '删除后会移除服务商、域名、页面配置、模型定价和奖励配置。已有服务商用户时不能删除。',
                   )}
+                  position='left'
                   onConfirm={() => deleteProvider(record)}
                 >
                   <Button

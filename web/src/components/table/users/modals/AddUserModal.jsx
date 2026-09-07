@@ -35,6 +35,8 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconSave, IconClose, IconUserAdd } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
+import PermissionModulesCard from './PermissionModulesCard';
+import { canSetUserPermissions } from '../../../../helpers';
 
 const { Text, Title } = Typography;
 
@@ -43,6 +45,9 @@ const AddUserModal = (props) => {
   const formApiRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const isMobile = useIsMobile();
+  // 新建用户恒为普通用户，可直接授予模块权限（仅授权人可见该卡片）
+  const [permissions, setPermissions] = useState([]);
+  const showPermissionCard = canSetUserPermissions(props.providerMode);
 
   const getInitValues = () => ({
     username: '',
@@ -55,11 +60,15 @@ const AddUserModal = (props) => {
     setLoading(true);
     const apiPrefix = (props.apiPrefix || '/api/user').replace(/\/$/, '');
     const url = apiPrefix === '/api/user' ? `${apiPrefix}/` : apiPrefix;
+    if (showPermissionCard) {
+      values.permissions = permissions;
+    }
     const res = await API.post(url, values);
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('用户账户创建成功！'));
       formApiRef.current?.setValues(getInitValues());
+      setPermissions([]);
       props.refresh();
       props.handleClose();
     } else {
@@ -177,6 +186,16 @@ const AddUserModal = (props) => {
                   </Col>
                 </Row>
               </Card>
+
+              {showPermissionCard && (
+                <div className='mt-3'>
+                  <PermissionModulesCard
+                    providerMode={props.providerMode}
+                    value={permissions}
+                    onChange={setPermissions}
+                  />
+                </div>
+              )}
             </div>
           </Form>
         </Spin>

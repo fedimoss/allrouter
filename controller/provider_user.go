@@ -69,7 +69,7 @@ func searchProviderUsers(providerId int, keyword string, group string, startIdx 
 }
 
 func GetProviderUsers(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerUsers")
 	if !ok {
 		return
 	}
@@ -116,7 +116,7 @@ func GetTreeProviderUsers(c *gin.Context) {
 }
 
 func SearchProviderUsers(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerUsers")
 	if !ok {
 		return
 	}
@@ -132,7 +132,7 @@ func SearchProviderUsers(c *gin.Context) {
 }
 
 func GetProviderUser(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerUsers")
 	if !ok {
 		return
 	}
@@ -150,7 +150,7 @@ func GetProviderUser(c *gin.Context) {
 }
 
 func GetProviderUserInvitees(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerUsers")
 	if !ok {
 		return
 	}
@@ -188,7 +188,7 @@ func GetProviderUserInvitees(c *gin.Context) {
 }
 
 func CreateProviderUser(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, isOwner, ok := getPermittedProvider(c, "providerUsers")
 	if !ok {
 		return
 	}
@@ -229,6 +229,10 @@ func CreateProviderUser(c *gin.Context) {
 	if cleanUser.Group == "" {
 		cleanUser.Group = "default"
 	}
+	// 模块权限仅属主可写，且仅对普通用户生效（此处创建的目标恒为普通用户）
+	if isOwner && user.Permissions != nil {
+		cleanUser.Permissions = model.SanitizePermissionModules(provider.Id, user.Permissions)
+	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
 		return
@@ -237,7 +241,7 @@ func CreateProviderUser(c *gin.Context) {
 }
 
 func UpdateProviderUser(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, isOwner, ok := getPermittedProvider(c, "providerUsers")
 	if !ok {
 		return
 	}
@@ -300,6 +304,13 @@ func UpdateProviderUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 模块权限仅属主可写：nil 表示未提交（保持不变），空数组表示清空全部授权
+	if isOwner && req.Permissions != nil {
+		if err := model.UpdateUserPermissions(req.Id, model.SanitizePermissionModules(provider.Id, req.Permissions)); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	if updateEmail {
 		if err := model.UpdateUserProfile(req.Id, map[string]interface{}{"email": req.Email}); err != nil {
 			common.ApiError(c, err)
@@ -310,7 +321,7 @@ func UpdateProviderUser(c *gin.Context) {
 }
 
 func ManageProviderUser(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerUsers")
 	if !ok {
 		return
 	}
@@ -353,7 +364,7 @@ func ManageProviderUser(c *gin.Context) {
 }
 
 func DeleteProviderUser(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerUsers")
 	if !ok {
 		return
 	}

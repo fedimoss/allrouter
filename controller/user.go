@@ -143,6 +143,7 @@ func setupLogin(user *model.User, c *gin.Context, rememberMe bool) {
 			"status":            user.Status,
 			"group":             user.Group,
 			"is_provider_owner": model.IsProviderOwner(user.Id),
+			"permissions":       user.Permissions,
 		},
 	})
 }
@@ -188,8 +189,14 @@ func clearLegacySessionCookies(c *gin.Context) {
 	}
 }
 
-func canManageTargetRole(myRole int, targetRole int) bool {
-	return myRole == common.RoleRootUser || myRole > targetRole
+func canManageTargetRole(c *gin.Context, targetRole int) bool {
+	myRole := c.GetInt("role")
+	if myRole == common.RoleRootUser || myRole > targetRole {
+		return true
+	}
+	// 委托管理员（被授权 user 模块的普通用户）可管理普通用户；
+	// 路由层 AdminOrModuleAuth 已确保其持有 user 模块权限
+	return isDelegatedAdmin(c) && targetRole == common.RoleCommonUser
 }
 
 func ensureGlobalUserIdentityAvailable(c *gin.Context, excludeUserId int, username string, email string) bool {
@@ -311,6 +318,30 @@ func Register(c *gin.Context) {
 	return
 }
 
+// isDelegatedAdmin 判断当前请求是否来自"通过模块授权进入管理接口的普通用户"。
+// 路由层的 AdminOrModuleAuth 中间件已确保此类用户持有对应模块权限。
+func isDelegatedAdmin(c *gin.Context) bool {
+	return c.GetInt("role") < common.RoleAdminUser
+}
+
+// delegatedHasModule 判断当前请求者是否为持有指定模块权限的主站(provider_id=0)普通用户，
+// 用于控制器内部兜底校验（防止路由中间件放行后仍被硬编码角色判断拒绝）。
+func delegatedHasModule(c *gin.Context, modules ...string) bool {
+	if c.GetInt("role") >= common.RoleAdminUser {
+		return false
+	}
+	userCache, err := model.GetUserCache(c.GetInt("id"))
+	if err != nil {
+		return false
+	}
+	return userCache.ProviderId == 0 && userCache.GetPermissionList().HasAny(modules...)
+}
+
+// delegatedCanManageTarget 模块授权的普通用户仅可管理主站(provider_id=0)的普通用户。
+func delegatedCanManageTarget(target *model.User) bool {
+	return target.Role == common.RoleCommonUser && target.ProviderId == 0
+}
+
 func GetAllUsers(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	users, total, err := model.GetAllUsers(pageInfo)
@@ -355,8 +386,10 @@ func GetUser(c *gin.Context) {
 	}
 	myRole := c.GetInt("role")
 	if myRole <= user.Role && myRole != common.RoleRootUser {
-		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
-		return
+		if !isDelegatedAdmin(c) || !delegatedCanManageTarget(user) {
+			common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
+			return
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -804,6 +837,7 @@ func GetSelf(c *gin.Context) {
 		"timezone":                  user.Timezone,
 		"sidebar_modules":           userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":               permissions,                // 新增权限字段
+		"module_permissions":        user.Permissions,           // 授予普通用户的页面级模块权限
 	}
 	if userRole == common.RoleRootUser || userRole == common.RoleAdminUser {
 		responseData["all_users_total_token_used"] = allUsersTotalTokenUsed
@@ -968,12 +1002,18 @@ func UpdateUser(c *gin.Context) {
 	updatedUser.Username = strings.TrimSpace(updatedUser.Username)
 	myRole := c.GetInt("role")
 	if myRole <= originUser.Role && myRole != common.RoleRootUser {
-		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
-		return
+		if !isDelegatedAdmin(c) || !delegatedCanManageTarget(originUser) {
+			common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
+			return
+		}
+		// 委托管理员（被授权 user 模块的普通用户）不可变更目标角色
+		updatedUser.Role = originUser.Role
 	}
 	if myRole <= updatedUser.Role && myRole != common.RoleRootUser {
-		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
-		return
+		if !isDelegatedAdmin(c) || updatedUser.Role != originUser.Role {
+			common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
+			return
+		}
 	}
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be
@@ -991,9 +1031,19 @@ func UpdateUser(c *gin.Context) {
 	}
 	updateEmail := updatedUser.Email != "" && updatedUser.Email != originUser.Email
 	updatePassword := updatedUser.Password != ""
+	// Edit() 是指针接收者方法，内部会用数据库旧值回写整个结构体，
+	// 必须先捕获请求提交的模块权限，否则保存的是旧值
+	requestPermissions := updatedUser.Permissions
 	if err := updatedUser.Edit(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	// 模块权限仅超管可写：nil 表示请求未提交该字段（保持不变），空数组表示清空全部授权
+	if myRole == common.RoleRootUser && originUser.Role == common.RoleCommonUser && requestPermissions != nil {
+		if err := model.UpdateUserPermissions(originUser.Id, model.SanitizePermissionModules(originUser.ProviderId, requestPermissions)); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	if updateEmail {
 		if err := model.UpdateUserProfile(updatedUser.Id, map[string]interface{}{"email": updatedUser.Email}); err != nil {
@@ -1029,8 +1079,10 @@ func AdminClearUserBinding(c *gin.Context) {
 
 	myRole := c.GetInt("role")
 	if myRole <= user.Role && myRole != common.RoleRootUser {
-		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
-		return
+		if !isDelegatedAdmin(c) || !delegatedCanManageTarget(user) {
+			common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
+			return
+		}
 	}
 
 	if err := user.ClearBinding(bindingType); err != nil {
@@ -1289,7 +1341,7 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 	myRole := c.GetInt("role")
-	if myRole <= originUser.Role {
+	if myRole <= originUser.Role && !(isDelegatedAdmin(c) && delegatedCanManageTarget(originUser)) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
 		return
 	}
@@ -1344,7 +1396,11 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 	myRole := c.GetInt("role")
-	if user.Role >= myRole {
+	// 委托管理员（被授权 user 模块的普通用户）只能创建普通用户
+	if isDelegatedAdmin(c) {
+		user.Role = common.RoleCommonUser
+	}
+	if user.Role >= myRole && !(isDelegatedAdmin(c) && user.Role == common.RoleCommonUser) {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
 	}
@@ -1356,6 +1412,10 @@ func CreateUser(c *gin.Context) {
 		DisplayName: user.DisplayName,
 		Role:        user.Role, // 保持管理员设置的角色
 		RegisterIp:  getRegistrationIP(c),
+	}
+	// 模块权限仅超管可写，且仅对普通用户生效（新建弹窗不提交 role 时默认创建普通用户）
+	if myRole == common.RoleRootUser && user.Permissions != nil && cleanUser.Role <= common.RoleCommonUser {
+		cleanUser.Permissions = model.SanitizePermissionModules(cleanUser.ProviderId, user.Permissions)
 	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
@@ -1396,8 +1456,10 @@ func ManageUser(c *gin.Context) {
 	}
 	myRole := c.GetInt("role")
 	if myRole <= user.Role && myRole != common.RoleRootUser {
-		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
-		return
+		if !isDelegatedAdmin(c) || !delegatedCanManageTarget(&user) {
+			common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
+			return
+		}
 	}
 	switch req.Action {
 	case "disable":

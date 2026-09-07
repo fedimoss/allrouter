@@ -33,7 +33,7 @@ import {
 import { IconPlus } from '@douyinfe/semi-icons';
 import { ArrowUpCircle, Calendar, Info, Wallet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { API, timestamp2string, isAdmin, isProviderOwner, showError, showSuccess } from '../../helpers';
+import { API, timestamp2string, isAdmin, isProviderOwner, hasUserPermission, getProviderId, showError, showSuccess } from '../../helpers';
 
 const { Text } = Typography;
 
@@ -48,8 +48,10 @@ const STATUS_CONFIG = {
 
 const WithdrawPage = () => {
   const { t } = useTranslation();
-  const adminMode = isAdmin();
-  const ownerMode = !adminMode && isProviderOwner();
+  // 被授予 providerWithdraw 模块权限的用户与属主/管理员同等访问对应模式的提现功能
+  const grantedWithdrawModule = hasUserPermission('providerWithdraw') && !isAdmin();
+  const adminMode = isAdmin() || (getProviderId() === 0 && grantedWithdrawModule);
+  const ownerMode = !adminMode && (isProviderOwner() || grantedWithdrawModule);
   const canAccessWithdraw = adminMode || ownerMode;
 
   // --- dashboard ---

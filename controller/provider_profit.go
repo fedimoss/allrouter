@@ -30,7 +30,7 @@ func listProviderProfits(c *gin.Context, providerId int) {
 }
 
 func GetProviderProfits(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerProfits")
 	if !ok {
 		return
 	}

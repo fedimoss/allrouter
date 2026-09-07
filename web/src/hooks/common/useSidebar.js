@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState, useEffect, useMemo, useContext, useRef } from 'react';
 import { StatusContext } from '../../context/Status';
-import { API } from '../../helpers';
+import { API, getUserPermissions } from '../../helpers';
 
 // 创建一个全局事件系统来同步所有useSidebar实例
 const sidebarEventTarget = new EventTarget();
@@ -100,6 +100,11 @@ export const mergeAdminConfig = (savedConfig) => {
 export const useSidebar = () => {
   const [statusState] = useContext(StatusContext);
   const [userConfig, setUserConfig] = useState(null);
+  // 当前用户被授予的页面级模块权限：先用登录时写入 localStorage 的值即时渲染，
+  // /api/user/self 加载完成后用最新值覆盖（授权变更后无需重新登录）。
+  const [modulePermissions, setModulePermissions] = useState(() =>
+    getUserPermissions(),
+  );
   const [loading, setLoading] = useState(true);
   const instanceIdRef = useRef(null);
   const hasLoadedOnceRef = useRef(false);
@@ -135,6 +140,15 @@ export const useSidebar = () => {
       }
 
       const res = await API.get('/api/user/self');
+      if (res.data.success) {
+        const selfData = res.data.data || {};
+        const perms = selfData.module_permissions;
+        if (Array.isArray(perms)) {
+          setModulePermissions(perms);
+        } else if (perms === null || perms === undefined) {
+          setModulePermissions([]);
+        }
+      }
       if (res.data.success && res.data.data.sidebar_modules) {
         let config;
         // 检查sidebar_modules是字符串还是对象
@@ -318,5 +332,6 @@ export const useSidebar = () => {
     hasSectionVisibleModules,
     getVisibleModules,
     refreshUserConfig,
+    modulePermissions,
   };
 };

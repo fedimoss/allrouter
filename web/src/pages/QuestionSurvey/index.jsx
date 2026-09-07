@@ -43,6 +43,7 @@ import {
   createCardProPagination,
   isProviderOwner,
   isAdmin,
+  hasUserPermission,
 } from '../../helpers';
 import CardPro from '../../components/common/ui/CardPro';
 
@@ -73,7 +74,10 @@ const QuestionSurvey = () => {
   const [total, setTotal] = useState(0);
 
   // 服务商 owner 模式：使用 /api/provider/ 接口，只操作本站问卷；主站管理员使用 /api/user/questionnaire/admin/
-  const providerMode = isProviderOwner() && !isAdmin();
+  // 服务商域名下，被授予 providerQuestionSurvey 模块权限的普通用户也按服务商模式查看本站问卷
+  const providerMode =
+    (isProviderOwner() || hasUserPermission('providerQuestionSurvey')) &&
+    !isAdmin();
 
   // 主站管理员筛选：站点选项 + 当前选中（0=主站，>0=分站，-1=全部）
   const [providerFilter, setProviderFilter] = useState(0);

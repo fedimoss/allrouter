@@ -363,9 +363,10 @@ func mergeProviderMailPassword(providerId int, submitted string) (string, error)
 
 // authorizeAdminProviderOptions applies a stricter boundary than the generic
 // AdminAuth middleware because these options may contain SMTP credentials. The
-// caller must be a current (not merely session-cached) main-site administrator.
+// caller must be a current (not merely session-cached) main-site administrator,
+// or a main-site regular user granted the "provider" module permission.
 func authorizeAdminProviderOptions(c *gin.Context) bool {
-	if common.GetContextKeyInt(c, constant.ContextKeyProviderId) != 0 || c.GetInt("role") < common.RoleAdminUser {
+	if common.GetContextKeyInt(c, constant.ContextKeyProviderId) != 0 {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
 			"message": "该配置仅限主站系统管理员操作",
@@ -378,7 +379,14 @@ func authorizeAdminProviderOptions(c *gin.Context) bool {
 		common.ApiError(c, err)
 		return false
 	}
-	if user.ProviderId != 0 || user.Role < common.RoleAdminUser || user.Status != common.UserStatusEnabled {
+	if user.ProviderId != 0 || user.Status != common.UserStatusEnabled {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "该配置仅限主站系统管理员操作",
+		})
+		return false
+	}
+	if user.Role < common.RoleAdminUser && !delegatedHasModule(c, "provider") {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
 			"message": "该配置仅限主站系统管理员操作",
@@ -400,23 +408,30 @@ func authorizeAdminProviderOptions(c *gin.Context) bool {
 	return true
 }
 
+// canManageProviderOptions 仅做权限判定，不写任何响应，由调用方负责拒绝输出，
+// 以便调用方在拒绝前追加额外的放行分支（如本站成员只读放行）。
 func canManageProviderOptions(c *gin.Context, providerId int, adminRequest bool) bool {
 	provider, err := model.GetProviderById(providerId)
 	if err != nil {
-		common.ApiError(c, err)
 		return false
 	}
-	if adminRequest && c.GetInt("role") >= common.RoleAdminUser {
+	if adminRequest && (c.GetInt("role") >= common.RoleAdminUser || delegatedHasModule(c, "provider")) {
 		return true
 	}
-	if provider.OwnerUserId == c.GetInt("id") {
-		return true
+	return provider.OwnerUserId == c.GetInt("id")
+}
+
+// providerMemberCanReadOptions 判断当前请求者是否为该服务商站点内、
+// 持有任意本站模块权限的普通用户（用于只读配置接口的成员放行）。
+func providerMemberCanReadOptions(c *gin.Context, providerId int) bool {
+	if providerId <= 0 {
+		return false
 	}
-	c.JSON(http.StatusForbidden, gin.H{
-		"success": false,
-		"message": "无权访问该服务商配置",
-	})
-	return false
+	userCache, err := model.GetUserCache(c.GetInt("id"))
+	if err != nil {
+		return false
+	}
+	return userCache.ProviderId == providerId && len(userCache.GetPermissionList()) > 0
 }
 
 func getProviderOptions(c *gin.Context, adminRequest bool) {
@@ -432,7 +447,15 @@ func getProviderOptions(c *gin.Context, adminRequest bool) {
 		return
 	}
 	if !canManageProviderOptions(c, providerId, adminRequest) {
-		return
+		// 服务商站点成员：持有任意本站模块权限即可读取本站配置。
+		// 非管理员视图本身就只返回属主可见的键，且邮件配置已脱敏。
+		if adminRequest || !providerMemberCanReadOptions(c, providerId) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "无权访问该服务商配置",
+			})
+			return
+		}
 	}
 
 	// 获取服务商配置
@@ -488,6 +511,11 @@ func updateProviderOption(c *gin.Context, adminRequest bool) {
 		return
 	}
 	if !canManageProviderOptions(c, providerId, adminRequest) {
+		// 写入路径不允许本站成员回退放行，仅属主/管理员可写
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "无权访问该服务商配置",
+		})
 		return
 	}
 

@@ -21,7 +21,15 @@ import React, { lazy, Suspense, useContext, useMemo } from 'react';
 import { Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
-import { AuthRedirect, PrivateRoute, AdminRoute, isAdmin } from './helpers';
+import {
+  AuthRedirect,
+  PrivateRoute,
+  AdminRoute,
+  AdminOrPermissionRoute,
+  isAdmin,
+  hasUserPermission,
+  getProviderId,
+} from './helpers';
 import LoginPage from './pages/Login';
 import RegisterPage from './pages/Login/register';
 import NotFound from './pages/NotFound';
@@ -111,7 +119,11 @@ const HomeRoute = () => {
 const ProviderProfitsRoute = () => {
   const [searchParams] = useSearchParams();
   const providerId = Number(searchParams.get('provider_id') || 0);
-  return isAdmin() && providerId <= 0 ? <AdminProviderProfitsPage /> : <ProviderProfitsPage />;
+  // 被授予 providerProfits 模块权限的主站普通用户与管理员一样查看全站汇总
+  const adminView =
+    (isAdmin() || (getProviderId() === 0 && hasUserPermission('providerProfits'))) &&
+    providerId <= 0;
+  return adminView ? <AdminProviderProfitsPage /> : <ProviderProfitsPage />;
 };
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
@@ -177,25 +189,25 @@ function App() {
         <Route
           path='/console/models'
           element={
-            <AdminRoute>
+            <AdminOrPermissionRoute module='models'>
               <ModelPage />
-            </AdminRoute>
+            </AdminOrPermissionRoute>
           }
         />
         <Route
           path='/console/deployment'
           element={
-            <AdminRoute>
+            <AdminOrPermissionRoute module='deployment'>
               <ModelDeploymentPage />
-            </AdminRoute>
+            </AdminOrPermissionRoute>
           }
         />
         <Route
           path='/console/call-log'
           element={
-            <AdminRoute>
+            <AdminOrPermissionRoute module='callLog'>
               <CallLog />
-            </AdminRoute>
+            </AdminOrPermissionRoute>
           }
         />
         <Route
@@ -300,17 +312,17 @@ function App() {
         <Route
           path='/console/subscription'
           element={
-            <AdminRoute>
+            <AdminOrPermissionRoute module='subscription'>
               <Subscription />
-            </AdminRoute>
+            </AdminOrPermissionRoute>
           }
         />
         <Route
           path='/console/channel'
           element={
-            <AdminRoute>
+            <AdminOrPermissionRoute module='channel'>
               <Channel />
-            </AdminRoute>
+            </AdminOrPermissionRoute>
           }
         />
         <Route
@@ -332,17 +344,17 @@ function App() {
         <Route
           path='/console/redemption'
           element={
-            <AdminRoute>
+            <AdminOrPermissionRoute module='redemption'>
               <Redemption />
-            </AdminRoute>
+            </AdminOrPermissionRoute>
           }
         />
         <Route
           path='/console/questionSurvey'
           element={
-            <AdminRoute>
+            <AdminOrPermissionRoute module='questionSurvey'>
               <QuestionSurvey />
-            </AdminRoute>
+            </AdminOrPermissionRoute>
           }
         />
         <Route
@@ -372,9 +384,9 @@ function App() {
         <Route
           path='/console/user'
           element={
-            <AdminRoute>
+            <AdminOrPermissionRoute module='user'>
               <User />
-            </AdminRoute>
+            </AdminOrPermissionRoute>
           }
         />
         <Route

@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -27,7 +46,9 @@ import CardTable from '../../components/common/ui/CardTable';
 import { DATE_RANGE_PRESETS } from '../../constants/console.constants';
 import {
   API,
+  getProviderId,
   getTodayStartTimestamp,
+  hasUserPermission,
   isAdmin,
   renderQuota,
   showError,
@@ -46,7 +67,12 @@ const ProviderProfitsPage = () => {
   const [searchParams] = useSearchParams();
   const providerId = Number(searchParams.get('provider_id') || 0);
   const providerName = searchParams.get('provider_name') || '';
-  const adminProviderMode = isAdmin() && providerId > 0;
+  // 管理员或被授予"服务商利润"模块的主站用户：按管理员接口查看指定服务商的利润明细；
+  // 服务商属主（无 provider_id 参数时）走属主接口查看自己的利润。
+  const adminProviderMode =
+    (isAdmin() ||
+      (getProviderId() === 0 && hasUserPermission('providerProfits'))) &&
+    providerId > 0;
   const [formApi, setFormApi] = useState(null);
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
