@@ -17,12 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useContext } from 'react';
 import { SideSheet,Button } from '@douyinfe/semi-ui';
 import {IconBookStroked} from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { Copy, Check, Download, X } from 'lucide-react';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
+import { StatusContext } from '../../../context/Status';
+import { withBrowserBaseUrl } from '../../../helpers';
+import { normalizeLanguage } from '../../../i18n/language';
 
 const TAB_ITEMS = [
   {
@@ -323,10 +326,15 @@ function ClaudeCodePanel() {
 // ──────────── Panel: Codex CLI ────────────
 
 function CodexCLIPanel() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [copied, onCopy] = useCopy();
   const [osTab, setOsTab] = useState('macos');
   const baseUrl = getBaseUrl();
+  const [statusState] = useContext(StatusContext);
+  const docsLink = statusState?.status?.docs_link || '';
+  const currentLang = normalizeLanguage(i18n.language);
+  const docsLangPrefix = currentLang.startsWith('zh') ? 'zh' : 'en';
+  const docsHref = docsLink || withBrowserBaseUrl(`/${docsLangPrefix}/docs`);
 
   const configToml = `# ~/.codex/config.toml
 model_provider = "packycode"
@@ -482,7 +490,7 @@ env_key = "PACKYCODE_API_KEY"`;
         <button
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition"
           type="button"
-          onClick={() => window.open('https://developers.openai.com/codex')}
+          onClick={() => window.open(docsHref, '_blank')}
           rel="_blank"
           target="_blank"
         >
