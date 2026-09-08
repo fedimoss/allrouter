@@ -714,6 +714,14 @@ func RelayTask(c *gin.Context) {
 		}
 
 		task := model.InitTask(result.Platform, relayInfo)
+		// Keep the original video prompt in the public task metadata so the
+		// playground can render it when a historical task is selected. The
+		// upstream response does not consistently include the request prompt.
+		if constant.IsMiniMaxH3Model(task.Properties.OriginModelName) {
+			if request, requestErr := relaycommon.GetTaskRequest(c); requestErr == nil {
+				task.Properties.Input = request.Prompt
+			}
+		}
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 		task.PrivateData.PublicBaseURL = common.GetRequestBaseURL(c, system_setting.ServerAddress)
 		if result.Queued {

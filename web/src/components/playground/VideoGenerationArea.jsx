@@ -32,6 +32,8 @@ import {
   ListVideo,
   ImagePlus,
   LoaderCircle,
+  Maximize2,
+  Minimize2,
   Play,
   RefreshCw,
   RotateCcw,
@@ -72,6 +74,26 @@ const normalizeVideoTask = (source) => {
     '';
 
   const rawStatus = String(source.status || '').toLowerCase();
+  let dataPrompt = '';
+  if (source.data && typeof source.data === 'object') {
+    dataPrompt = source.data.prompt || '';
+  } else if (typeof source.data === 'string') {
+    try {
+      dataPrompt = JSON.parse(source.data)?.prompt || '';
+    } catch {
+      dataPrompt = '';
+    }
+  }
+  const promptCandidates = [
+    source.prompt,
+    source.properties?.input,
+    source.properties?.prompt,
+    dataPrompt,
+  ];
+  const prompt =
+    promptCandidates.find(
+      (value) => typeof value === 'string' && value.trim(),
+    ) || '';
   const status =
     {
       not_start: 'queued',
@@ -96,6 +118,7 @@ const normalizeVideoTask = (source) => {
     id: taskID,
     task_id: taskID,
     model,
+    prompt,
     url: publicURL,
     status,
     progress: Number.isFinite(progressValue) ? progressValue : 0,
@@ -453,6 +476,14 @@ export const useMiniMaxH3VideoGeneration = ({
     }
     Toast.error(t('复制失败，请手动复制'));
   };
+  const handleCopyVideoPrompt = async () => {
+    if (!task?.prompt) return;
+    if (await copy(task.prompt)) {
+      Toast.success(t('复制成功'));
+      return;
+    }
+    Toast.error(t('复制失败，请手动复制'));
+  };
 
   return {
     task,
@@ -493,11 +524,14 @@ export const useMiniMaxH3VideoGeneration = ({
     handleSubmit,
     handleNewTask,
     handleCopyVideoURL,
+    handleCopyVideoPrompt,
   };
 };
 
 export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
   const { t } = useTranslation();
+  const [promptExpanded, setPromptExpanded] = useState(false);
+  const promptRef = useRef(null);
   const {
     prompt,
     setPrompt,
@@ -523,6 +557,21 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
     submitting,
     handleSubmit,
   } = controller;
+
+  useEffect(() => {
+    if (!promptExpanded) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    promptRef.current?.focus();
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setPromptExpanded(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [promptExpanded]);
 
   return (
     <div
@@ -586,14 +635,29 @@ export const MiniMaxH3VideoForm = ({ controller, compact = false }) => {
       </div>
       <div className='playground-v2-field'>
         <label className='playground-v2-field-label'>{t('视频描述')}</label>
-        <textarea
-          className='playground-v2-video-prompt'
-          rows={5}
-          value={prompt}
-          disabled={submitting}
-          placeholder={t('描述希望生成的视频内容和运动过程...')}
-          onChange={(event) => setPrompt(event.target.value)}
-        />
+        <div
+          className='playground-v2-video-prompt-wrap'
+          data-expanded={promptExpanded}
+        >
+          <textarea
+            ref={promptRef}
+            className='playground-v2-video-prompt'
+            rows={5}
+            value={prompt}
+            disabled={submitting}
+            placeholder={t('描述希望生成的视频内容和运动过程...')}
+            onChange={(event) => setPrompt(event.target.value)}
+          />
+          <button
+            type='button'
+            className='playground-v2-video-prompt-expand'
+            onClick={() => setPromptExpanded((expanded) => !expanded)}
+            aria-label={promptExpanded ? t('收起') : t('展开')}
+            title={promptExpanded ? t('收起') : t('展开')}
+          >
+            {promptExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </button>
+        </div>
       </div>
 
       {!isRef2va && taskType === 'fl2va' && (
@@ -761,6 +825,7 @@ const VideoGenerationArea = ({ controller, styleState, onToggleSettings }) => {
     videoShareURL,
     handleNewTask,
     handleCopyVideoURL,
+    handleCopyVideoPrompt,
     tasks,
     selectedTaskID,
     historyLoading,
@@ -853,6 +918,25 @@ const VideoGenerationArea = ({ controller, styleState, onToggleSettings }) => {
           {task?.status === 'failed' && (
             <div className='playground-v2-video-error'>
               {task.error?.message || t('视频生成失败')}
+            </div>
+          )}
+
+          {task?.prompt && (
+            <div className='playground-v2-video-prompt-display'>
+              <div className='playground-v2-video-prompt-header'>
+                <span className='playground-v2-field-label'>
+                  {t('视频描述')}
+                </span>
+                <button
+                  type='button'
+                  className='playground-v2-secondary-command'
+                  onClick={handleCopyVideoPrompt}
+                >
+                  <Copy size={14} />
+                  {t('复制提示词')}
+                </button>
+              </div>
+              <div>{task.prompt}</div>
             </div>
           )}
 
