@@ -2567,6 +2567,207 @@ export function parseTiersFromExpr(exprStr) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 档位时间窗口解析：提取表达式中 hour/minute/weekday/month/day 条件
+// ---------------------------------------------------------------------------
+
+const TIME_WINDOW_FUNCS = ['hour', 'minute', 'weekday', 'month', 'day'];
+// 展示顺序：日期粒度在前，时间粒度在后
+const TIME_WINDOW_FUNC_ORDER = {
+  month: 0,
+  day: 1,
+  weekday: 2,
+  hour: 3,
+  minute: 4,
+};
+const TIER_CALL_START_REGEX = /tier\s*\(\s*"([^"]*)"\s*,/g;
+const TIME_CMP_TOKEN_REGEX = new RegExp(
+  `\\b(${TIME_WINDOW_FUNCS.join('|')})\\s*\\(\\s*(['"])([^'"]+)\\2\\s*\\)\\s*(==|!=|>=|<=|>|<)\\s*(-?\\d+(?:\\.\\d+)?)`,
+  'g',
+);
+
+function findTierCallEnd(body, callStart) {
+  const openIdx = body.indexOf('(', callStart);
+  if (openIdx < 0) return -1;
+  let depth = 0;
+  for (let i = openIdx; i < body.length; i++) {
+    if (body[i] === '(') depth += 1;
+    else if (body[i] === ')') {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function classifyBoolConnector(text) {
+  if (!text) return null;
+  const andIdx = text.indexOf('&&');
+  const orIdx = text.indexOf('||');
+  if (andIdx === -1 && orIdx === -1) return null;
+  if (orIdx === -1) return 'and';
+  if (andIdx === -1) return 'or';
+  return andIdx < orIdx ? 'and' : 'or';
+}
+
+// 把条件串中的时间比较原子归纳为按 (函数, 时区) 分组的区间/点位/单边条件
+function collectTimeWindowGroups(condStr) {
+  const tokens = [];
+  const re = new RegExp(TIME_CMP_TOKEN_REGEX.source, 'g');
+  let m;
+  while ((m = re.exec(condStr)) !== null) {
+    tokens.push({
+      timeFunc: m[1],
+      timezone: m[3],
+      op: m[4],
+      value: Number(m[5]),
+      start: m.index,
+      end: re.lastIndex,
+    });
+  }
+  if (tokens.length === 0) return [];
+
+  const groups = [];
+  const groupByKey = new Map();
+  const groupFor = (token) => {
+    const key = `${token.timeFunc}|${token.timezone}`;
+    let group = groupByKey.get(key);
+    if (!group) {
+      group = {
+        timeFunc: token.timeFunc,
+        timezone: token.timezone,
+        ranges: [],
+        points: [],
+        bounds: [],
+      };
+      groupByKey.set(key, group);
+      groups.push(group);
+    }
+    return group;
+  };
+
+  const isLower = (op) => op === '>=' || op === '>';
+  const isUpper = (op) => op === '<=' || op === '<';
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const group = groupFor(token);
+    const next = tokens[i + 1];
+    const connector = next
+      ? classifyBoolConnector(condStr.slice(token.end, next.start))
+      : null;
+
+    if (
+      next &&
+      next.timeFunc === token.timeFunc &&
+      next.timezone === token.timezone &&
+      connector
+    ) {
+      const isRangePair =
+        (isLower(token.op) && isUpper(next.op)) ||
+        (isUpper(token.op) && isLower(next.op));
+      // 同函数 && 连接的下界+上界 => 区间
+      if (isRangePair && connector === 'and') {
+        const lower = isLower(token.op) ? token : next;
+        const upper = isLower(token.op) ? next : token;
+        group.ranges.push({
+          from: lower.value,
+          fromInclusive: lower.op === '>=',
+          to: upper.value,
+          toInclusive: upper.op === '<=',
+        });
+        i += 1;
+        continue;
+      }
+      // 跨夜区间：hour("tz") >= 21 || hour("tz") < 6
+      if (
+        isRangePair &&
+        connector === 'or' &&
+        (token.timeFunc === 'hour' || token.timeFunc === 'minute') &&
+        isLower(token.op) &&
+        isUpper(next.op) &&
+        token.value >= next.value
+      ) {
+        group.ranges.push({
+          from: token.value,
+          fromInclusive: token.op === '>=',
+          to: next.value,
+          toInclusive: next.op === '<=',
+          wraps: true,
+        });
+        i += 1;
+        continue;
+      }
+    }
+
+    if (token.op === '==') group.points.push(token.value);
+    else if (token.op === '!=')
+      group.bounds.push({ op: '!=', value: token.value });
+    else group.bounds.push({ op: token.op, value: token.value });
+  }
+
+  groups.sort(
+    (a, b) =>
+      (TIME_WINDOW_FUNC_ORDER[a.timeFunc] ?? 9) -
+      (TIME_WINDOW_FUNC_ORDER[b.timeFunc] ?? 9),
+  );
+  return groups;
+}
+
+/**
+ * 解析动态计费表达式中每个档位的时间条件。
+ *
+ * 三元链 `COND1 ? tier("a", ...) : COND2 ? tier("b", ...) : tier("c", ...)`
+ * 中，每个 tier 会关联它前面紧邻的条件；没有自身条件的档位（else 分支）
+ * 标记 isElse。
+ *
+ * 返回 [{ label, isElse, timeGroups }]，timeGroups 为
+ * [{ timeFunc, timezone, ranges, points, bounds }]；没有任何时间条件时返回空数组。
+ */
+export function parseTierTimeWindows(exprStr) {
+  if (!exprStr) return [];
+  try {
+    const { billingExpr: body } = extractBillingDisplayScale(exprStr);
+    const tierCalls = [];
+    const re = new RegExp(TIER_CALL_START_REGEX.source, 'g');
+    let m;
+    while ((m = re.exec(body)) !== null) {
+      tierCalls.push({ label: m[1], start: m.index });
+    }
+    if (tierCalls.length === 0) return [];
+
+    const result = [];
+    for (let i = 0; i < tierCalls.length; i++) {
+      const call = tierCalls[i];
+      let condStr = '';
+      let isElse = false;
+      if (i === 0) {
+        const before = body.slice(0, call.start);
+        const qIdx = before.lastIndexOf('?');
+        if (qIdx >= 0) condStr = before.slice(0, qIdx);
+      } else {
+        const prev = tierCalls[i - 1];
+        const prevEnd = findTierCallEnd(body, prev.start);
+        if (prevEnd < 0) break;
+        const between = body.slice(prevEnd + 1, call.start);
+        const qIdx = between.lastIndexOf('?');
+        if (qIdx >= 0) {
+          const colonIdx = between.indexOf(':');
+          condStr = between.slice(colonIdx + 1, qIdx);
+        } else if (/^\s*:\s*$/.test(between)) {
+          // 三元 else 分支，无自身条件
+          isElse = true;
+        }
+      }
+      const timeGroups = collectTimeWindowGroups(condStr);
+      result.push({ label: call.label, isElse, timeGroups });
+    }
+    return result;
+  } catch {
+    return [];
+  }
+}
+
 export const decodeFromBase64 = (base64) => {
   if (!base64) return '';
 
