@@ -562,7 +562,7 @@ func GetSelfAffRecords(c *gin.Context) {
 	displayInfo := getDisplayCurrencyForUser(c)
 
 	// 获取用户邀请记录
-	records, total, err := model.GetSelfAffRecords(userId, pageInfo)
+	records, total, err := model.GetSelfAffRecords(userId, strings.TrimSpace(c.Query("keyword")), pageInfo)
 	if err != nil {
 		common.ApiError(c, err)
 		return

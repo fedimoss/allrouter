@@ -76,15 +76,20 @@ func GetUserAffRecords(pageInfo *common.PageInfo) (records []*InviteRecord, tota
 }
 
 // GetSelfAffRecords 获取用户自己的邀请记录
-func GetSelfAffRecords(userId int, pageInfo *common.PageInfo) (records []*InviteRecord, total int64, err error) {
-	query := DB.Model(&InviteRecord{}).Where("inviter_id = ?", userId)
+func GetSelfAffRecords(userId int, keyword string, pageInfo *common.PageInfo) (records []*InviteRecord, total int64, err error) {
+	buildQuery := func() *gorm.DB {
+		query := getInviteRecordBaseQuery().Where("invite_records.inviter_id = ?", userId)
+		if keyword != "" {
+			query = query.Where("users.username LIKE ?", "%"+keyword+"%")
+		}
+		return query
+	}
 
-	if err = query.Count(&total).Error; err != nil {
+	if err = buildQuery().Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	err = getInviteRecordBaseQuery().
-		Where("invite_records.inviter_id = ?", userId).
+	err = buildQuery().
 		Order("register_time desc").
 		Order("id desc").
 		Limit(pageInfo.GetPageSize()).

@@ -34,6 +34,9 @@ export const FORM_FIELD_PROPS = {
 export const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
 export const FLEX_CENTER_GAP2 = 'flex items-center gap-2';
 
+// 「查询邀请用户」弹窗每页条数（DashboardHeader 与 useDashboardData 共用）
+export const INVITEE_PAGE_SIZE = 10;
+
 export const ILLUSTRATION_SIZE = { width: 96, height: 96 };
 
 // ========== 时间相关常量 ==========

@@ -387,6 +387,7 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
 		dataRoute := apiRouter.Group("/data")
+		dataRoute.GET("/self/invitee", middleware.UserAuth(), controller.GetSelfInviteeDashboardData)
 		dataRoute.GET("/users", middleware.AdminOrModuleAuth("operational"), controller.GetQuotaDatesByUser)
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)                                        // 消耗与请求趋势(用户)
 		dataRoute.GET("/", middleware.AdminOrModuleAuth("operational"), controller.GetAllQuotaDates)                       // 消耗与请求趋势(管理员)
