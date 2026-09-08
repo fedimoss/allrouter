@@ -64,18 +64,20 @@ type User struct {
 	SignupSource               string         `json:"signup_source" gorm:"type:varchar(64);column:signup_source" validate:"max=64"`           // 注册来源
 	RegisterIp                 string         `json:"register_ip" gorm:"type:varchar(45);column:register_ip;default:'';<-:create"`            // 注册 IP（仅创建时写入）
 	MiniMaxH3Seed              *int64         `json:"-" gorm:"column:minimax_h3_seed;type:bigint"`
+	Permissions                PermissionList `json:"permissions" gorm:"type:text;column:permissions"` // 授予普通用户的页面级模块权限（JSON 数组，仅 role=1 生效）
 }
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:         user.Id,
-		ProviderId: user.ProviderId,
-		Group:      user.Group,
-		Quota:      user.Quota,
-		Status:     user.Status,
-		Username:   user.Username,
-		Setting:    user.Setting,
-		Email:      user.Email,
+		Id:          user.Id,
+		ProviderId:  user.ProviderId,
+		Group:       user.Group,
+		Quota:       user.Quota,
+		Status:      user.Status,
+		Username:    user.Username,
+		Setting:     user.Setting,
+		Email:       user.Email,
+		Permissions: user.Permissions.JSONString(),
 	}
 	return cache
 }

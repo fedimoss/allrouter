@@ -3379,10 +3379,14 @@ CREATE TABLE users (
     provider_id bigint DEFAULT 0,
     total_token_used bigint DEFAULT 0 NOT NULL,
     invite_consume_rebate_enabled bigint DEFAULT 0,
-    register_ip character varying(45) NOT NULL DEFAULT ''::character varying
+    register_ip character varying(45) NOT NULL DEFAULT ''::character varying,
+    permissions text DEFAULT '[]'::text
 );
 
 COMMENT ON COLUMN users.phone_country_code IS '手机号国家区号（E.164），如 +86';
+
+COMMENT ON COLUMN users.permissions
+    IS '授予普通用户(role=1)的页面级模块权限，JSON 数组，key 与前端侧边栏 itemKey 一致；管理员/超管天然拥有全部权限';
 
 
 --

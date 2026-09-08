@@ -11,6 +11,75 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetSelfInviteeDashboardData returns dashboard card data for a user invited
+// by the current user. The relation check prevents arbitrary account lookup.
+func GetSelfInviteeDashboardData(c *gin.Context) {
+	inviterID := c.GetInt("id")
+	inviteeID, err := strconv.Atoi(c.Query("user_id"))
+	if inviterID <= 0 || inviteeID <= 0 {
+		common.ApiErrorMsg(c, "invalid user_id")
+		return
+	}
+
+	var relationCount int64
+	if err := model.DB.Model(&model.InviteRecord{}).
+		Where("inviter_id = ? AND invitee_id = ?", inviterID, inviteeID).
+		Count(&relationCount).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if relationCount == 0 {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "no permission"})
+		return
+	}
+
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if endTimestamp-startTimestamp > 2592000 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "time range cannot exceed 30 days",
+		})
+		return
+	}
+
+	invitee, err := model.GetUserById(inviteeID, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	quotaData, err := model.GetQuotaDataByUserId(inviteeID, startTimestamp, endTimestamp)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	requestResult, _ := model.CountRequestLogs(startTimestamp, endTimestamp, inviteeID)
+	totalRequestResult, _ := model.CountRequestLogs(0, 0, inviteeID)
+	displayInfo := getDisplayCurrencyForUser(c)
+
+	userData := gin.H{
+		"id":               invitee.Id,
+		"username":         invitee.Username,
+		"display_name":     invitee.DisplayName,
+		"quota":            invitee.Quota,
+		"used_quota":       invitee.UsedQuota,
+		"total_token_used": invitee.TotalTokenUsed,
+		"display_symbol":   displayInfo.Symbol,
+		"display_currency": displayInfo.Currency,
+		"display_rate":     displayInfo.Rate,
+		"request_count":    requestResult.SuccessCount + requestResult.ErrorCount,
+		"total_count":      totalRequestResult.SuccessCount + totalRequestResult.ErrorCount,
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"user":    userData,
+		"data":    quotaData,
+	})
+}
+
 func GetAllQuotaDates(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)

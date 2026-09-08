@@ -28,6 +28,7 @@ export * from './data';
 export * from './token';
 export * from './boolean';
 export * from './dashboard';
+export * from './permissionModules';
 export * from './passkey';
 export * from './statusCodeRules';
 export * from './currency';

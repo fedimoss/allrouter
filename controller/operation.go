@@ -64,6 +64,18 @@ func getOperationProviderID(c *gin.Context) (int, bool) {
 		return ownedProviderID, true
 	}
 
+	// 被授予模块权限的普通用户: 主站用户(operational)看主站范围，
+	// 服务商成员(providerOperational)在自己站点看本服务商范围。
+	if userCache, err := model.GetUserCache(c.GetInt("id")); err == nil {
+		permissions := userCache.GetPermissionList()
+		if providerID > 0 && userCache.ProviderId == providerID && permissions.HasAny("providerOperational") {
+			return providerID, true
+		}
+		if providerID == 0 && userCache.ProviderId == 0 && permissions.HasAny("operational") {
+			return 0, true
+		}
+	}
+
 	common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
 	return 0, false
 }

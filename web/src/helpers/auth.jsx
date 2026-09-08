@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { history } from './history';
+import { hasUserPermission } from './utils';
 
 export function authHeader() {
   // return authorization header with jwt token
@@ -57,6 +58,22 @@ export function AdminRoute({ children }) {
   try {
     const user = JSON.parse(raw);
     if (user && typeof user.role === 'number' && user.role >= 10) {
+      return children;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return <Navigate to='/forbidden' replace />;
+}
+
+// 管理页面路由守卫：管理员/超管放行，普通用户需被授予对应模块权限
+export function AdminOrPermissionRoute({ module, children }) {
+  const raw = localStorage.getItem('user');
+  if (!raw) {
+    return <Navigate to='/login' state={{ from: history.location }} />;
+  }
+  try {
+    if (hasUserPermission(module)) {
       return children;
     }
   } catch (e) {

@@ -31,6 +31,10 @@ import {
 } from '../constants/playground.constants';
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
+import {
+  MAIN_PERMISSION_KEYS,
+  PROVIDER_PERMISSION_KEYS,
+} from './permissionModules';
 
 const DEFAULT_PUBLIC_BASE_URL = 'https://allrouter.ai';
 const DEFAULT_DOCS_BRAND_NAME_PATTERN = /AllRouter(?:\.AI)?/g;
@@ -58,6 +62,36 @@ export function isProviderOwner() {
   if (!user) return false;
   user = JSON.parse(user);
   return user.is_provider_owner === true;
+}
+
+// 当前登录用户被授予的页面级模块权限（仅普通用户会被授权；管理员/超管天然全量）
+export function getUserPermissions() {
+  let user = localStorage.getItem('user');
+  if (!user) return [];
+  try {
+    user = JSON.parse(user);
+    const perms = user.module_permissions ?? user.permissions;
+    return Array.isArray(perms) ? perms : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// 是否主站用户（provider_id=0）。模块权限按站点隔离：主站用户只能持有主站模块，
+// 服务商用户只能持有服务商模块。
+export function isMainSiteUser() {
+  return getProviderId() === 0;
+}
+
+// 判断当前用户是否可访问某个模块页面：管理员/超管直接放行，
+// 普通用户按所属站点的模块目录校验授权。
+export function hasUserPermission(module) {
+  if (isAdmin()) return true;
+  const perms = getUserPermissions();
+  if (!perms.includes(module)) return false;
+  return isMainSiteUser()
+    ? MAIN_PERMISSION_KEYS.includes(module)
+    : PROVIDER_PERMISSION_KEYS.includes(module);
 }
 
 export function getProviderId() {

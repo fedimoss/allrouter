@@ -78,7 +78,7 @@ func GetUserLogs(c *gin.Context) {
 }
 
 func GetProviderUserLogs(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerLogs")
 	if !ok {
 		return
 	}
@@ -221,7 +221,7 @@ func GetLogsSelfStat(c *gin.Context) {
 }
 
 func GetProviderUserLogsStat(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerLogs")
 	if !ok {
 		return
 	}

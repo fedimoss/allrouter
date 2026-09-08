@@ -22,7 +22,10 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API, isAdmin, showError, timestamp2string } from '../../helpers';
 import { getDefaultTime, getInitialTimestamp } from '../../helpers/dashboard';
-import { TIME_OPTIONS } from '../../constants/dashboard.constants';
+import {
+  TIME_OPTIONS,
+  INVITEE_PAGE_SIZE,
+} from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
 
@@ -67,6 +70,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   });
   const [modelPopularRank, setModelPopularRank] = useState([]);
   const [modelQuotaRadio, setModelQuotaRadio] = useState([]);
+  const [invitees, setInvitees] = useState([]);
+  const [inviteesLoading, setInviteesLoading] = useState(false);
+  const [inviteesTotal, setInviteesTotal] = useState(0);
+  const [selectedInvitee, setSelectedInvitee] = useState(null);
+  const [selectedCardUser, setSelectedCardUser] = useState(null);
+  const [selectedCardStats, setSelectedCardStats] = useState(null);
+  const [selectedCardLoading, setSelectedCardLoading] = useState(false);
 
   // ========== 图表状态 ==========
   const [activeChartTab, setActiveChartTab] = useState('1');
@@ -125,6 +135,29 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
     return { avgRPM, avgTPM, timeDiff };
   }, [times, consumeTokens, inputs.start_timestamp, inputs.end_timestamp]);
+
+  const cardPerformanceMetrics = useMemo(() => {
+    const cardTimes = selectedCardStats?.times ?? times;
+    const cardTokens = selectedCardStats?.consumeTokens ?? consumeTokens;
+    const timeDiff =
+      (Date.parse(inputs.end_timestamp) - Date.parse(inputs.start_timestamp)) /
+      60000;
+    return {
+      avgRPM: isNaN(cardTimes / timeDiff)
+        ? '0'
+        : (cardTimes / timeDiff).toFixed(3),
+      avgTPM: isNaN(cardTokens / timeDiff)
+        ? '0'
+        : (cardTokens / timeDiff).toFixed(3),
+      timeDiff,
+    };
+  }, [
+    selectedCardStats,
+    times,
+    consumeTokens,
+    inputs.start_timestamp,
+    inputs.end_timestamp,
+  ]);
 
   const getGreeting = useMemo(() => {
     const hours = new Date().getHours();
@@ -265,6 +298,95 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     [loadModelPopularRank, loadModelQuotaRadio],
   );
 
+  const loadInvitees = useCallback(
+    async ({ page = 1, keyword = '' } = {}) => {
+      setInviteesLoading(true);
+      try {
+        const response = await API.get(
+          `/api/user/self/aff/records?p=${page}&page_size=${INVITEE_PAGE_SIZE}&keyword=${encodeURIComponent(keyword.trim())}`,
+        );
+        const result = response.data;
+        if (!result.success) {
+          showError(result.message);
+          return [];
+        }
+
+        const records = result.data?.items || [];
+        const nextInvitees = records
+          .filter((record) => record?.invitee_id)
+          .map((record) => ({
+            id: record.invitee_id,
+            username: record.invitee_name || String(record.invitee_id),
+            registerTime: record.register_time,
+          }));
+        setInvitees(nextInvitees);
+        setInviteesTotal(Number(result.data?.total || 0));
+        return nextInvitees;
+      } catch (err) {
+        console.error(err);
+        showError(t('加载失败'));
+        return [];
+      } finally {
+        setInviteesLoading(false);
+      }
+    },
+    [t],
+  );
+
+  const loadInviteeCardData = useCallback(
+    async (inviteeId, override) => {
+      setSelectedCardLoading(true);
+      try {
+        const query = getDataQuery({ ...(override || {}), username: '' });
+        const res = await API.get(
+          `/api/data/self/invitee?user_id=${encodeURIComponent(inviteeId)}&${query}`,
+        );
+        const { success, message, user, data } = res.data;
+        if (!success) {
+          showError(message);
+          return false;
+        }
+        const totals = (data || []).reduce(
+          (result, item) => ({
+            consumeQuota: result.consumeQuota + (Number(item.quota) || 0),
+            consumeTokens:
+              result.consumeTokens + (Number(item.token_used) || 0),
+            times: result.times + (Number(item.count) || 0),
+          }),
+          { consumeQuota: 0, consumeTokens: 0, times: 0 },
+        );
+        setSelectedCardUser(user);
+        setSelectedCardStats(totals);
+        return true;
+      } catch (err) {
+        console.error(err);
+        showError(t('加载失败'));
+        return false;
+      } finally {
+        setSelectedCardLoading(false);
+      }
+    },
+    [getDataQuery, t],
+  );
+
+  const selectInvitee = useCallback(
+    async (invitee) => {
+      if (!invitee?.id) return false;
+      const loaded = await loadInviteeCardData(invitee.id);
+      if (loaded) {
+        setSelectedInvitee(invitee);
+      }
+      return loaded;
+    },
+    [loadInviteeCardData],
+  );
+
+  const clearInvitee = useCallback(() => {
+    setSelectedInvitee(null);
+    setSelectedCardUser(null);
+    setSelectedCardStats(null);
+  }, []);
+
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);
     try {
@@ -322,8 +444,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const refresh = useCallback(async () => {
     const data = await loadQuotaData();
     await loadUptimeData();
+    if (selectedInvitee?.id) {
+      await loadInviteeCardData(selectedInvitee.id);
+    }
     return data;
-  }, [loadQuotaData, loadUptimeData]);
+  }, [loadQuotaData, loadUptimeData, selectedInvitee, loadInviteeCardData]);
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
@@ -334,9 +459,12 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       if (data && updateChartDataCallback) {
         updateChartDataCallback(data, { updateStats: false });
       }
+      if (selectedInvitee?.id) {
+        await loadInviteeCardData(selectedInvitee.id);
+      }
       setSearchModalVisible(false);
     },
-    [loadQuotaData, loadModelData],
+    [loadQuotaData, loadModelData, selectedInvitee, loadInviteeCardData],
   );
 
   // ========== 快捷时间区间筛选 ==========
@@ -386,11 +514,14 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         loadQuotaData({ updateStats: false, override }),
         loadModelData(override),
       ]);
+      if (selectedInvitee?.id) {
+        await loadInviteeCardData(selectedInvitee.id, override);
+      }
       if (data && updateChartDataCallback) {
         updateChartDataCallback(data, { updateStats: false, defaultTime });
       }
     },
-    [loadQuotaData, loadModelData],
+    [loadQuotaData, loadModelData, selectedInvitee, loadInviteeCardData],
   );
 
   // ========== Effects ==========
@@ -435,6 +566,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     displayCurrency,
     modelPopularRank,
     modelQuotaRadio,
+    invitees,
+    inviteesLoading,
+    inviteesTotal,
+    selectedInvitee,
+    selectedCardUser,
+    selectedCardStats,
+    selectedCardLoading,
 
     // 图表状态
     activeChartTab,
@@ -453,6 +591,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     // 计算值
     timeOptions,
     performanceMetrics,
+    cardPerformanceMetrics,
     getGreeting,
     isAdminUser,
     hasApiInfoPanel,
@@ -474,6 +613,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     refresh,
     handleSearchConfirm,
     handleDateRangeChange,
+    loadInvitees,
+    selectInvitee,
+    clearInvitee,
 
     // 导航和翻译
     navigate,

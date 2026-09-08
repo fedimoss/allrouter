@@ -276,7 +276,7 @@ func UpdateRedemptionSent(c *gin.Context) {
 
 // UpdateProviderRedemptionSent 服务商端：批量标记/取消本服务商名下兑换码的发放状态，可选发送兑换码邮件
 func UpdateProviderRedemptionSent(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerRedemption")
 	if !ok {
 		return
 	}
@@ -346,7 +346,7 @@ func redemptionsKey(redemptions []*model.Redemption) string {
 }
 
 func GetProviderRedemptions(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerRedemption")
 	if !ok {
 		return
 	}
@@ -383,7 +383,7 @@ func GetProviderRedemptions(c *gin.Context) {
 }
 
 func SearchProviderRedemptions(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerRedemption")
 	if !ok {
 		return
 	}
@@ -402,7 +402,7 @@ func SearchProviderRedemptions(c *gin.Context) {
 }
 
 func GetProviderRedemption(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerRedemption")
 	if !ok {
 		return
 	}
@@ -424,7 +424,7 @@ func GetProviderRedemption(c *gin.Context) {
 }
 
 func AddProviderRedemption(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerRedemption")
 	if !ok {
 		return
 	}
@@ -482,7 +482,7 @@ func AddProviderRedemption(c *gin.Context) {
 }
 
 func UpdateProviderRedemption(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerRedemption")
 	if !ok {
 		return
 	}
@@ -523,7 +523,7 @@ func UpdateProviderRedemption(c *gin.Context) {
 }
 
 func DeleteProviderRedemption(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerRedemption")
 	if !ok {
 		return
 	}
@@ -540,7 +540,7 @@ func DeleteProviderRedemption(c *gin.Context) {
 }
 
 func DeleteInvalidProviderRedemption(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerRedemption")
 	if !ok {
 		return
 	}

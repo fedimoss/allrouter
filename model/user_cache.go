@@ -16,14 +16,20 @@ import (
 
 // UserBase struct remains the same as it represents the cached data structure
 type UserBase struct {
-	Id         int    `json:"id"`
-	ProviderId int    `json:"provider_id"`
-	Group      string `json:"group"`
-	Email      string `json:"email"`
-	Quota      int    `json:"quota"`
-	Status     int    `json:"status"`
-	Username   string `json:"username"`
-	Setting    string `json:"setting"`
+	Id          int    `json:"id"`
+	ProviderId  int    `json:"provider_id"`
+	Group       string `json:"group"`
+	Email       string `json:"email"`
+	Quota       int    `json:"quota"`
+	Status      int    `json:"status"`
+	Username    string `json:"username"`
+	Setting     string `json:"setting"`
+	Permissions string `json:"permissions"` // 页面级模块权限（JSON 数组文本），供中间件对普通用户做模块鉴权
+}
+
+// GetPermissionList 解析缓存中的模块权限 JSON 文本。
+func (user *UserBase) GetPermissionList() PermissionList {
+	return ParsePermissionList(user.Permissions)
 }
 
 // UserAccessTokenCache 是基于访问令牌（Access Token）的用户缓存结构体。
@@ -272,14 +278,15 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 
 	// Create cache object from user data
 	userCache = &UserBase{
-		Id:         user.Id,
-		ProviderId: user.ProviderId,
-		Group:      user.Group,
-		Quota:      user.Quota,
-		Status:     user.Status,
-		Username:   user.Username,
-		Setting:    user.Setting,
-		Email:      user.Email,
+		Id:          user.Id,
+		ProviderId:  user.ProviderId,
+		Group:       user.Group,
+		Quota:       user.Quota,
+		Status:      user.Status,
+		Username:    user.Username,
+		Setting:     user.Setting,
+		Email:       user.Email,
+		Permissions: user.Permissions.JSONString(),
 	}
 
 	return userCache, nil

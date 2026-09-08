@@ -63,6 +63,9 @@ func NormalizeMiniMaxH3VideoResponse(task *model.Task, passthrough map[string]an
 	response["task_id"] = task.TaskID
 	response["object"] = "video"
 	response["model"] = task.Properties.OriginModelName
+	if _, ok := response["prompt"]; !ok && strings.TrimSpace(task.Properties.Input) != "" {
+		response["prompt"] = task.Properties.Input
+	}
 	response["seconds"] = MiniMaxH3VideoSeconds
 	response["url"] = nil
 

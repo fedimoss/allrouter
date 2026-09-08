@@ -192,6 +192,20 @@ func marshalAutoDLMiniMaxH3SubmitResponse(taskID, modelName, seconds, size strin
 	return common.Marshal(video)
 }
 
+// withMiniMaxH3Prompt adds the original request prompt to the queued create
+// response. This response is persisted as task.Data and is also returned to
+// the playground before the asynchronous upstream task starts.
+func withMiniMaxH3Prompt(data []byte, prompt string) ([]byte, error) {
+	var response map[string]any
+	if err := common.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(prompt) != "" {
+		response["prompt"] = prompt
+	}
+	return common.Marshal(response)
+}
+
 func SubmitQueuedMiniMaxH3Task(ctx context.Context, task *model.Task) (*service.MiniMaxH3SubmitResult, error) {
 	if task == nil {
 		return nil, errors.New("task is required")
@@ -643,6 +657,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 			if err != nil {
 				return nil, service.TaskErrorWrapper(err, "marshal_minimax_h3_queued_response_failed", http.StatusInternalServerError)
 			}
+			prompt, _ := queued.Body["prompt"].(string)
+			queuedData, err = withMiniMaxH3Prompt(queuedData, prompt)
+			if err != nil {
+				return nil, service.TaskErrorWrapper(err, "marshal_minimax_h3_prompt_response_failed", http.StatusInternalServerError)
+			}
 			return &TaskSubmitResult{
 				TaskData:       queuedData,
 				PendingRequest: pendingJSON,
@@ -672,6 +691,10 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 			info.PublicTaskID, info.OriginModelName, pending.Seconds, size, time.Now().Unix())
 		if err != nil {
 			return nil, service.TaskErrorWrapper(err, "marshal_minimax_h3_queued_response_failed", http.StatusInternalServerError)
+		}
+		queuedData, err = withMiniMaxH3Prompt(queuedData, pending.Prompt)
+		if err != nil {
+			return nil, service.TaskErrorWrapper(err, "marshal_minimax_h3_prompt_response_failed", http.StatusInternalServerError)
 		}
 		return &TaskSubmitResult{
 			TaskData:       queuedData,

@@ -423,7 +423,7 @@ func AdminSyncProviderModelPricing(c *gin.Context) {
 }
 
 func GetProviderModelPricingSyncConfig(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -431,7 +431,7 @@ func GetProviderModelPricingSyncConfig(c *gin.Context) {
 }
 
 func UpdateProviderModelPricingSyncConfig(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -439,7 +439,7 @@ func UpdateProviderModelPricingSyncConfig(c *gin.Context) {
 }
 
 func SyncProviderModelPricing(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}

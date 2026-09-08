@@ -48,6 +48,8 @@ import {
   IconUserGroup,
 } from '@douyinfe/semi-icons';
 import UserBindingManagementModal from './UserBindingManagementModal';
+import PermissionModulesCard from './PermissionModulesCard';
+import { canSetUserPermissions } from '../../../../helpers';
 
 const { Text, Title } = Typography;
 
@@ -62,6 +64,7 @@ const EditUserModal = (props) => {
   const formApiRef = useRef(null);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
   const [inputs, setInputs] = useState(null);
+  const [permissions, setPermissions] = useState([]);
 
   const isEdit = Boolean(userId);
   // displayedUser: 编辑模式下优先使用表单当前值（inputs），以确保最新修改后的
@@ -73,6 +76,11 @@ const EditUserModal = (props) => {
   // 主站模式下，根据用户的 provider_id > 0 判断是否为服务商子站用户。
   const isProviderUser =
     props.providerMode || Number(displayedUser?.provider_id ?? 0) > 0;
+  // 模块权限卡片：仅目标用户为普通用户(role=1)且操作者可授权（主站超管/服务商属主）时显示
+  const showPermissionCard =
+    isEdit &&
+    canSetUserPermissions(props.providerMode) &&
+    Number(displayedUser?.role) === 1;
 
   const getInitValues = () => ({
     username: '',
@@ -118,6 +126,7 @@ const EditUserModal = (props) => {
       data.quota_amount = Number(
         quotaToDisplayAmount(data.quota || 0).toFixed(6),
       );
+      setPermissions(Array.isArray(data.permissions) ? data.permissions : []);
       setInputs({
         ...getInitValues(),
         ...data,
@@ -174,6 +183,10 @@ const EditUserModal = (props) => {
     }
     if (userId) {
       payload.id = parseInt(userId);
+    }
+    // 模块权限：卡片可见时以勾选状态为准（空数组=清空），否则透传已加载值
+    if (showPermissionCard) {
+      payload.permissions = permissions;
     }
     const url = userId
       ? apiPrefix === '/api/user'
@@ -397,6 +410,15 @@ const EditUserModal = (props) => {
                       )}
                     </Row>
                   </Card>
+                )}
+
+                {/* 模块权限：授予普通用户访问指定管理页面 */}
+                {showPermissionCard && (
+                  <PermissionModulesCard
+                    providerMode={props.providerMode}
+                    value={permissions}
+                    onChange={setPermissions}
+                  />
                 )}
 
                 {/* 绑定信息入口 */}

@@ -387,7 +387,9 @@ const ProviderRewardModal = ({
           </div>
 
           {/* 复用服务商自助页模块；仅在弹窗打开时挂载，避免后台列表预加载无关配置。 */}
-          {isOpen && <ProviderRechargeGift provider={provider} />}
+          {isOpen && (
+            <ProviderRechargeGift provider={provider} adminMode={adminMode} />
+          )}
 
           <Text type='secondary' size='small'>
             {t('金额输入会按当前额度显示设置换算为系统原始 quota。')}

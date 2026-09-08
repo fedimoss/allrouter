@@ -164,7 +164,7 @@ func UpdateSubscriptionPreference(c *gin.Context) {
 
 // ProviderListSubscriptionPlans 列出当前服务商所有者名下的全部套餐（含未启用）。
 func ProviderListSubscriptionPlans(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerSubscription")
 	if !ok {
 		return
 	}
@@ -180,7 +180,7 @@ func ProviderListSubscriptionPlans(c *gin.Context) {
 // 数据源是该服务商在"模型广场"(provider_model_pricing)中已启用的 public_model_name，去重并按字母序返回。
 // 前端用于在新增/编辑套餐弹窗中提供模型多选下拉。
 func ProviderListSubscriptionPlanModels(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerSubscription")
 	if !ok {
 		return
 	}
@@ -196,7 +196,7 @@ func ProviderListSubscriptionPlanModels(c *gin.Context) {
 // 与 AdminCreateSubscriptionPlan 的差异：provider_id 被强制为当前服务商，
 // 并额外校验套餐模型白名单必须来自该服务商模型广场。
 func ProviderCreateSubscriptionPlan(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerSubscription")
 	if !ok {
 		return
 	}
@@ -257,7 +257,7 @@ func ProviderCreateSubscriptionPlan(c *gin.Context) {
 // ProviderUpdateSubscriptionPlan 服务商所有者更新自己名下的套餐全量字段。
 // 通过 id + provider_id 双重条件查询，保证服务商只能改自己的套餐，越权改他人套餐会因查不到记录而报错。
 func ProviderUpdateSubscriptionPlan(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerSubscription")
 	if !ok {
 		return
 	}
@@ -329,7 +329,7 @@ func ProviderUpdateSubscriptionPlan(c *gin.Context) {
 // ProviderUpdateSubscriptionPlanStatus 服务商所有者单独切换套餐启用状态（enabled）。
 // 用 RowsAffected 判断：若受影响行数为 0，说明该 id 不属于当前服务商，返回"套餐不存在"以隐藏存在性。
 func ProviderUpdateSubscriptionPlanStatus(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerSubscription")
 	if !ok {
 		return
 	}
@@ -845,7 +845,7 @@ func AdminGrantAirdropSubscription(c *gin.Context) {
 // ProviderGrantAirdropSubscription 允许服务商所有者向其自有用户空投已配置的订阅套餐。
 // POST /api/provider/subscription/airdrop
 func ProviderGrantAirdropSubscription(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerSubscription")
 	if !ok {
 		return
 	}

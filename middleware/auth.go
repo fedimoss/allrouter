@@ -33,7 +33,18 @@ func validUserInfo(username string, role int) bool {
 	return true
 }
 
+// authHelper 校验通过后放行后续处理链。
 func authHelper(c *gin.Context, minRole int) {
+	if !authCheck(c, minRole) {
+		return
+	}
+	c.Next()
+}
+
+// authCheck 执行会话/令牌鉴权并写入上下文，但**不调用 c.Next()**，
+// 供需要在放行前追加额外校验的组合中间件（如 AdminOrModuleAuth）复用。
+// 返回 false 表示校验失败且已写入错误响应（调用方应直接 return，由 Abort 拦截请求）。
+func authCheck(c *gin.Context, minRole int) bool {
 	session := sessions.Default(c)
 	currentProviderId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	username := session.Get("username")
@@ -50,7 +61,7 @@ func authHelper(c *gin.Context, minRole int) {
 				"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
 			})
 			c.Abort()
-			return
+			return false
 		}
 		user, authErr := model.ValidateAccessTokenInProvider(accessToken, currentProviderId)
 		if authErr != nil {
@@ -67,7 +78,7 @@ func authHelper(c *gin.Context, minRole int) {
 				})
 			}
 			c.Abort()
-			return
+			return false
 		}
 		if user != nil && user.Username != "" {
 			if !validUserInfo(user.Username, user.Role) {
@@ -76,7 +87,7 @@ func authHelper(c *gin.Context, minRole int) {
 					"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
 				})
 				c.Abort()
-				return
+				return false
 			}
 			// Token is valid
 			username = user.Username
@@ -90,7 +101,7 @@ func authHelper(c *gin.Context, minRole int) {
 				"message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid),
 			})
 			c.Abort()
-			return
+			return false
 		}
 	}
 	if username != nil && !useAccessToken {
@@ -106,7 +117,7 @@ func authHelper(c *gin.Context, minRole int) {
 				"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
 			})
 			c.Abort()
-			return
+			return false
 		}
 	}
 	// get header New-Api-User
@@ -117,7 +128,7 @@ func authHelper(c *gin.Context, minRole int) {
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserIdNotProvided),
 		})
 		c.Abort()
-		return
+		return false
 	}
 	apiUserId, err := strconv.Atoi(apiUserIdStr)
 	if err != nil {
@@ -126,7 +137,7 @@ func authHelper(c *gin.Context, minRole int) {
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserIdFormatError),
 		})
 		c.Abort()
-		return
+		return false
 
 	}
 	if id != apiUserId {
@@ -135,7 +146,7 @@ func authHelper(c *gin.Context, minRole int) {
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserIdMismatch),
 		})
 		c.Abort()
-		return
+		return false
 	}
 	if status.(int) == common.UserStatusDisabled {
 		c.JSON(http.StatusOK, gin.H{
@@ -143,7 +154,7 @@ func authHelper(c *gin.Context, minRole int) {
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
 		})
 		c.Abort()
-		return
+		return false
 	}
 	if role.(int) < minRole {
 		c.JSON(http.StatusOK, gin.H{
@@ -151,7 +162,7 @@ func authHelper(c *gin.Context, minRole int) {
 			"message": common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege),
 		})
 		c.Abort()
-		return
+		return false
 	}
 	if !validUserInfo(username.(string), role.(int)) {
 		c.JSON(http.StatusOK, gin.H{
@@ -159,7 +170,7 @@ func authHelper(c *gin.Context, minRole int) {
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
 		})
 		c.Abort()
-		return
+		return false
 	}
 	// 防止不同newapi版本冲突，导致数据不通用
 	c.Header("Auth-Version", "864b7076dbcd0a3c01b5520316720ebf")
@@ -171,7 +182,7 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("user_group", session.Get("group"))
 	c.Set("use_access_token", useAccessToken)
 
-	c.Next()
+	return true
 }
 
 func TryUserAuth() func(c *gin.Context) {

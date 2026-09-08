@@ -582,7 +582,13 @@ func AdminUpdateProvider(c *gin.Context) {
 		common.ApiErrorMsg(c, "provider name and owner user id are required")
 		return
 	}
-	if !validateProviderOwnerCandidate(req.OwnerUserId, id) {
+	provider, err := model.GetProviderById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// 仅在更换属主时校验候选资格；现任属主（即使角色后来被提升为管理员）保持有效
+	if req.OwnerUserId != provider.OwnerUserId && !validateProviderOwnerCandidate(req.OwnerUserId, id) {
 		common.ApiErrorMsg(c, "owner user is not eligible")
 		return
 	}
@@ -711,7 +717,7 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 	}
 	req.ThemeColor = themeColor
 	req.SecondaryColor = secondaryColor
-	if c.GetInt("role") < common.RoleAdminUser {
+	if c.GetInt("role") < common.RoleAdminUser && !delegatedHasModule(c, "provider") {
 		req.HomePageTheme = ""
 	}
 	// 三渠道多二维码：新格式 list 优先，回退旧标量字段（兼容旧前端提交，描述字段已废弃）
@@ -731,7 +737,7 @@ func upsertProviderConfig(c *gin.Context, providerId int) {
 		"qq_support_qrcode": resolveSupportQRCodes(req.QQSupportList, req.QQSupportQrcode),       // QQ客服二维码（JSON 数组）
 		"telegram_support":  resolveSupportQRCodes(req.TelegramSupportList, req.TelegramSupport), // Telegram客服（JSON 数组）
 	}
-	if c.GetInt("role") >= common.RoleAdminUser {
+	if c.GetInt("role") >= common.RoleAdminUser || delegatedHasModule(c, "provider") {
 		updates["theme_color"] = req.ThemeColor
 		updates["secondary_color"] = req.SecondaryColor
 	}
@@ -1491,8 +1497,50 @@ func getOwnedProvider(c *gin.Context) (*model.Provider, bool) {
 	return provider, true
 }
 
+// getPermittedProvider 在 getOwnedProvider 的基础上，放行"被属主授予对应模块权限的本站普通用户"。
+// 返回值 isOwner 指示操作者是否为属主（仅属主可写入成员的模块权限等敏感配置）。
+// 被授权成员仅在服务商域名下生效：要求域名租户上下文的服务商与该成员用户归属一致。
+func getPermittedProvider(c *gin.Context, modules ...string) (*model.Provider, bool, bool) {
+	userId := c.GetInt("id")
+	provider, err := model.GetProviderByOwnerUserId(userId)
+	if err == nil {
+		return provider, true, true
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		common.ApiError(c, err)
+		return nil, false, false
+	}
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	if providerId <= 0 {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "current user is not a provider owner"})
+		return nil, false, false
+	}
+	userCache, cacheErr := model.GetUserCache(userId)
+	if cacheErr != nil {
+		common.ApiError(c, cacheErr)
+		return nil, false, false
+	}
+	if userCache.ProviderId != providerId || !userCache.GetPermissionList().HasAny(modules...) {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "no permission for this provider module"})
+		return nil, false, false
+	}
+	provider, err = model.GetProviderById(providerId)
+	if err != nil {
+		common.ApiError(c, err)
+		return nil, false, false
+	}
+	if provider.Status != model.ProviderStatusEnabled {
+		// 与属主语义一致：禁用的服务商不视为有效归属
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "provider is disabled"})
+		return nil, false, false
+	}
+	return provider, false, true
+}
+
 func GetProviderSelf(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	// 本服务商基本信息是所有成员页面的数据锚点：
+	// 属主或持有任意本站模块权限的成员均可读取
+	provider, _, ok := getPermittedProvider(c, model.ProviderSitePermissionModules...)
 	if !ok {
 		return
 	}
@@ -1509,7 +1557,7 @@ func GetProviderSelf(c *gin.Context) {
 }
 
 func UpdateProviderSelf(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1536,7 +1584,7 @@ func UpdateProviderSelf(c *gin.Context) {
 }
 
 func CreateProviderSelfDomain(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1544,7 +1592,7 @@ func CreateProviderSelfDomain(c *gin.Context) {
 }
 
 func SaveProviderSelfDomains(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1552,7 +1600,7 @@ func SaveProviderSelfDomains(c *gin.Context) {
 }
 
 func UpdateProviderSelfDomain(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1560,7 +1608,7 @@ func UpdateProviderSelfDomain(c *gin.Context) {
 }
 
 func DeleteProviderSelfDomain(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1568,7 +1616,7 @@ func DeleteProviderSelfDomain(c *gin.Context) {
 }
 
 func GetProviderSelfConfig(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1585,7 +1633,7 @@ func GetProviderSelfConfig(c *gin.Context) {
 }
 
 func UpsertProviderSelfConfig(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1593,7 +1641,7 @@ func UpsertProviderSelfConfig(c *gin.Context) {
 }
 
 func UploadProviderLogo(c *gin.Context) {
-	if _, ok := getOwnedProvider(c); !ok {
+	if _, _, ok := getPermittedProvider(c, "provider"); !ok {
 		return
 	}
 	logoURL, ok := saveUploadedLogo(c)
@@ -1604,7 +1652,7 @@ func UploadProviderLogo(c *gin.Context) {
 }
 
 func ListProviderModelPricing(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1612,7 +1660,7 @@ func ListProviderModelPricing(c *gin.Context) {
 }
 
 func ListProviderBaseModels(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1620,7 +1668,7 @@ func ListProviderBaseModels(c *gin.Context) {
 }
 
 func UpsertProviderModelPricing(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1628,7 +1676,7 @@ func UpsertProviderModelPricing(c *gin.Context) {
 }
 
 func DeleteProviderModelPricing(c *gin.Context) {
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1645,7 +1693,7 @@ func AddProviderWithdrawRequest(c *gin.Context) {
 	}
 
 	// 根据用户ID获取Provider信息
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerWithdraw")
 	if !ok {
 		return
 	}
@@ -1717,7 +1765,7 @@ func AddProviderWithdrawRequest(c *gin.Context) {
 // 提现申请列表
 func GetProviderWithdrawList(c *gin.Context) {
 	// 根据用户ID获取Provider信息
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerWithdraw")
 	if !ok {
 		return
 	}
@@ -1743,7 +1791,7 @@ func GetProviderWithdrawList(c *gin.Context) {
 
 // 提现申请数据概览
 func GetProviderWithdrawDashboard(c *gin.Context) {
-	if _, ok := getOwnedProvider(c); !ok {
+	if _, _, ok := getPermittedProvider(c, "providerWithdraw"); !ok {
 		return
 	}
 
@@ -1881,7 +1929,7 @@ func CancelProviderWithdrawRequest(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Query("id"))
 
 	// 2. 获取当前登录服务商，校验身份
-	provider, ok := getOwnedProvider(c)
+	provider, _, ok := getPermittedProvider(c, "providerWithdraw")
 	if !ok {
 		return
 	}
