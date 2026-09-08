@@ -319,6 +319,26 @@ const Invitation = () => {
       ),
     },
     {
+      title: t('余额'),
+      dataIndex: 'invitee_quota',
+      key: 'invitee_quota',
+      render: (quota) => (
+        <div className='text-[14px] font-bold'>
+          {formatDisplayMoney(quota ?? 0, inviteDisplaySymbol || '$')}
+        </div>
+      ),
+    },
+    {
+      title: t('消耗'),
+      dataIndex: 'invitee_used_quota',
+      key: 'invitee_used_quota',
+      render: (usedQuota) => (
+        <div className='text-[14px] font-bold'>
+          {formatDisplayMoney(usedQuota ?? 0, inviteDisplaySymbol || '$')}
+        </div>
+      ),
+    },
+    {
       title: t('消费返利'),
       dataIndex: 'status',
       key: 'status',

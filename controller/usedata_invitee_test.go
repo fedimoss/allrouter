@@ -94,7 +94,7 @@ func TestGetSelfAffRecordsFiltersAndPaginatesInvitees(t *testing.T) {
 	setupInviteeDashboardTestDB(t)
 
 	require.NoError(t, model.DB.Create(&model.User{Id: 2, Username: "alice-one", AffCode: "aff-2"}).Error)
-	require.NoError(t, model.DB.Create(&model.User{Id: 3, Username: "alice-two", AffCode: "aff-3"}).Error)
+	require.NoError(t, model.DB.Create(&model.User{Id: 3, Username: "alice-two", AffCode: "aff-3", Quota: 2500000, UsedQuota: 1250000}).Error)
 	require.NoError(t, model.DB.Create(&model.User{Id: 4, Username: "bob", AffCode: "aff-4"}).Error)
 	require.NoError(t, model.DB.Create(&model.User{Id: 5, Username: "alice-other-inviter", AffCode: "aff-5"}).Error)
 	require.NoError(t, model.DB.Create([]model.InviteRecord{
@@ -113,4 +113,7 @@ func TestGetSelfAffRecordsFiltersAndPaginatesInvitees(t *testing.T) {
 	require.Equal(t, int64(2), total)
 	require.Len(t, records, 1)
 	require.Equal(t, "alice-two", records[0].InviteeName)
+	// 被邀请人余额/消耗来自 JOIN users 表
+	require.Equal(t, 2500000, records[0].InviteeQuota)
+	require.Equal(t, 1250000, records[0].InviteeUsedQuota)
 }
