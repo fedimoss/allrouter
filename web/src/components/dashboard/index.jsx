@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect,useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getRelativeTime } from '../../helpers';
 import { UserContext } from '../../context/User';
@@ -85,12 +85,15 @@ const Dashboard = () => {
 
   // ========== 统计数据 ==========
   const { groupedStatsData } = useDashboardStats(
-    userState,
-    dashboardData.consumeQuota,
-    dashboardData.consumeTokens,
+    dashboardData.selectedCardUser
+      ? { user: dashboardData.selectedCardUser }
+      : userState,
+    dashboardData.selectedCardStats?.consumeQuota ?? dashboardData.consumeQuota,
+    dashboardData.selectedCardStats?.consumeTokens ??
+      dashboardData.consumeTokens,
     dashboardData.times,
     dashboardData.trendData,
-    dashboardData.performanceMetrics,
+    dashboardData.cardPerformanceMetrics,
     dashboardData.displayCurrency,
     dashboardData.isAdminUser,
     dashboardData.navigate,
@@ -177,6 +180,13 @@ const Dashboard = () => {
         refresh={handleRefresh}
         loading={dashboardData.loading}
         dataExportDefaultTime={dashboardData.dataExportDefaultTime}
+        invitees={dashboardData.invitees}
+        inviteesLoading={dashboardData.inviteesLoading}
+        inviteesTotal={dashboardData.inviteesTotal}
+        selectedInvitee={dashboardData.selectedInvitee}
+        loadInvitees={dashboardData.loadInvitees}
+        selectInvitee={dashboardData.selectInvitee}
+        clearInvitee={dashboardData.clearInvitee}
         t={dashboardData.t}
       />
 
@@ -199,7 +209,7 @@ const Dashboard = () => {
       {/* 面板数据统计 */}
       <StatsCards
         groupedStatsData={groupedStatsData}
-        loading={dashboardData.loading}
+        loading={dashboardData.loading || dashboardData.selectedCardLoading}
         getTrendSpec={getTrendSpec}
         CARD_PROPS={CARD_PROPS}
         CHART_CONFIG={CHART_CONFIG}
@@ -208,14 +218,19 @@ const Dashboard = () => {
       />
 
       <section className='dashboard-dataAnalys'>
-        <div className="dashboard-dataAnalys-header">
+        <div className='dashboard-dataAnalys-header'>
           <div className='dataAnalys-header-left'>
             <p>{t('数据分析')}</p>
             <span>{t('统一按筛选周期查看消耗、请求与模型表现')}</span>
           </div>
           <div className='dataAnalys-header-right'>
-            <Button theme='outline' type='tertiary' onClick={() => setShowScreenModal(true)}>
-              <CalendarDays size={14} />&nbsp;{t('自定义')}
+            <Button
+              theme='outline'
+              type='tertiary'
+              onClick={() => setShowScreenModal(true)}
+            >
+              <CalendarDays size={14} />
+              &nbsp;{t('自定义')}
             </Button>
             <Select
               value={dateRangeValue}
@@ -228,8 +243,8 @@ const Dashboard = () => {
             />
           </div>
         </div>
-        <div className="dashboard-dataAnalys-content">
-          <div className="dashboard-dataAnalys-content-top">
+        <div className='dashboard-dataAnalys-content'>
+          <div className='dashboard-dataAnalys-content-top'>
             <ChartsPanel
               activeChartTab={dashboardData.activeChartTab}
               setActiveChartTab={dashboardData.setActiveChartTab}
@@ -250,7 +265,7 @@ const Dashboard = () => {
               className='h-full'
             />
           </div>
-          <div className="dashboard-dataAnalys-content-bottom">
+          <div className='dashboard-dataAnalys-content-bottom'>
             <ModelDataAnalysisPanel
               t={dashboardData.t}
               quotaRadioData={dashboardData.modelQuotaRadio}
@@ -262,7 +277,7 @@ const Dashboard = () => {
           </div>
         </div>
       </section>
-      
+
       {/* {dashboardData.hasApiInfoPanel && (
         <div className='dashboard-v2-overview-side-item dashboard-v2-overview-side-item--api'>
           <ApiInfoPanel

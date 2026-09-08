@@ -494,13 +494,15 @@ func GetUserAffRecords(c *gin.Context) {
 	displayRecords := make([]gin.H, 0, len(records))
 	for _, record := range records {
 		displayRecords = append(displayRecords, gin.H{
-			"id":            record.Id,
-			"inviter_id":    record.InviterId,
-			"invitee_id":    record.InviteeId,
-			"invitee_name":  record.InviteeName,
-			"register_time": record.RegisterTime,
-			"reward_quota":  convertQuotaToDisplay(record.RewardQuota, displayInfo),
-			"created_at":    record.CreatedAt,
+			"id":                 record.Id,
+			"inviter_id":         record.InviterId,
+			"invitee_id":         record.InviteeId,
+			"invitee_name":       record.InviteeName,
+			"register_time":      record.RegisterTime,
+			"reward_quota":       convertQuotaToDisplay(record.RewardQuota, displayInfo),
+			"invitee_quota":      convertQuotaToDisplay(record.InviteeQuota, displayInfo),     // 被邀请人余额
+			"invitee_used_quota": convertQuotaToDisplay(record.InviteeUsedQuota, displayInfo), // 被邀请人消耗
+			"created_at":         record.CreatedAt,
 		})
 	}
 
@@ -562,7 +564,7 @@ func GetSelfAffRecords(c *gin.Context) {
 	displayInfo := getDisplayCurrencyForUser(c)
 
 	// 获取用户邀请记录
-	records, total, err := model.GetSelfAffRecords(userId, pageInfo)
+	records, total, err := model.GetSelfAffRecords(userId, strings.TrimSpace(c.Query("keyword")), pageInfo)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -572,13 +574,15 @@ func GetSelfAffRecords(c *gin.Context) {
 	displayRecords := make([]gin.H, 0, len(records))
 	for _, record := range records {
 		displayRecords = append(displayRecords, gin.H{
-			"id":            record.Id,
-			"inviter_id":    record.InviterId,
-			"invitee_id":    record.InviteeId,
-			"invitee_name":  record.InviteeName,
-			"register_time": record.RegisterTime,
-			"reward_quota":  convertQuotaToDisplay(record.RewardQuota, displayInfo),
-			"created_at":    record.CreatedAt,
+			"id":                 record.Id,
+			"inviter_id":         record.InviterId,
+			"invitee_id":         record.InviteeId,
+			"invitee_name":       record.InviteeName,
+			"register_time":      record.RegisterTime,
+			"reward_quota":       convertQuotaToDisplay(record.RewardQuota, displayInfo),
+			"invitee_quota":      convertQuotaToDisplay(record.InviteeQuota, displayInfo),     // 被邀请人余额
+			"invitee_used_quota": convertQuotaToDisplay(record.InviteeUsedQuota, displayInfo), // 被邀请人消耗
+			"created_at":         record.CreatedAt,
 		})
 	}
 
