@@ -595,9 +595,9 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	providerQuota, importCostQuota, applied := 0, 0, false
 	if info.PriceData.BillingMode == billing_setting.BillingModePerSecond {
-		providerQuota, importCostQuota, applied = service.ApplyProviderPerUnitPricingQuota(c, info.PriceData.Quota, info.PriceData.GroupRatioInfo.GroupRatio, providerUnitCount)
+		providerQuota, importCostQuota, applied = service.ApplyProviderPerUnitPricingQuota(c, info.PriceData.Quota, decimal.Zero, info.PriceData.GroupRatioInfo.GroupRatio, providerUnitCount)
 	} else {
-		providerQuota, importCostQuota, applied = service.ApplyProviderPricingQuota(c, info.PriceData.Quota, info.PriceData.UsePrice, info.PriceData.GroupRatioInfo.GroupRatio, int(providerUnitCount.IntPart()))
+		providerQuota, importCostQuota, applied = service.ApplyProviderPricingQuota(c, info.PriceData.Quota, decimal.Zero, info.PriceData.UsePrice, info.PriceData.GroupRatioInfo.GroupRatio, int(providerUnitCount.IntPart()), int(providerUnitCount.IntPart()))
 	}
 	if applied {
 		info.PriceData.ProviderBaseQuota = importCostQuota
@@ -774,7 +774,7 @@ func recalcQuotaFromRatios(c *gin.Context, info *relaycommon.RelayInfo, ratios m
 	}
 	mainSiteQuota := int(result)
 	info.PriceData.BaseQuota = mainSiteQuota
-	if providerQuota, importCostQuota, applied := service.ApplyProviderPricingQuota(c, mainSiteQuota, info.PriceData.UsePrice, info.PriceData.GroupRatioInfo.GroupRatio, info.GetEstimatePromptTokens()); applied {
+	if providerQuota, importCostQuota, applied := service.ApplyProviderPricingQuota(c, mainSiteQuota, decimal.Zero, info.PriceData.UsePrice, info.PriceData.GroupRatioInfo.GroupRatio, info.GetEstimatePromptTokens(), info.GetEstimatePromptTokens()); applied {
 		info.PriceData.ProviderBaseQuota = importCostQuota
 		common.SetContextKey(c, constant.ContextKeyProviderBaseQuota, importCostQuota)
 		common.SetContextKey(c, constant.ContextKeyProviderUserQuota, providerQuota)

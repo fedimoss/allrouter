@@ -223,7 +223,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
 	providerOwnerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
 	if totalTokens != 0 {
-		if providerQuota, importCostQuota, applied := ApplyProviderPricingQuota(ctx, baseQuota, usePrice, groupRatio, totalTokens); applied {
+		if providerQuota, importCostQuota, applied := ApplyProviderPricingQuota(ctx, baseQuota, decimal.Zero, usePrice, groupRatio, totalTokens, totalTokens); applied {
 			quota = providerQuota
 			common.SetContextKey(ctx, constant.ContextKeyProviderBaseQuota, importCostQuota)
 			common.SetContextKey(ctx, constant.ContextKeyProviderUserQuota, quota)
@@ -384,7 +384,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
 	providerOwnerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
 	if totalTokens != 0 {
-		if providerQuota, importCostQuota, applied := ApplyProviderPricingQuota(ctx, baseQuota, usePrice, groupRatio, totalTokens); applied {
+		if providerQuota, importCostQuota, applied := ApplyProviderPricingQuota(ctx, baseQuota, decimal.Zero, usePrice, groupRatio, totalTokens, totalTokens); applied {
 			quota = providerQuota
 			common.SetContextKey(ctx, constant.ContextKeyProviderBaseQuota, importCostQuota)
 			common.SetContextKey(ctx, constant.ContextKeyProviderUserQuota, quota)

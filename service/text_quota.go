@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -20,13 +21,15 @@ import (
 )
 
 type textQuotaSummary struct {
-	PromptTokens             int
-	CompletionTokens         int
-	TotalTokens              int
-	CacheTokens              int
-	CacheCreationTokens      int
-	CacheCreationTokens5m    int
-	CacheCreationTokens1h    int
+	PromptTokens          int
+	CompletionTokens      int
+	TotalTokens           int
+	CacheTokens           int
+	CacheCreationTokens   int
+	CacheCreationTokens5m int
+	CacheCreationTokens1h int
+	// NonCacheTokens 非缓存 token 数（总数−缓存读−缓存写），供服务商差价加价只作用于非缓存部分
+	NonCacheTokens           int
 	ImageTokens              int
 	AudioTokens              int
 	ModelName                string
@@ -53,6 +56,9 @@ type textQuotaSummary struct {
 	AudioInputPrice          float64
 	ImageGenerationCallPrice float64
 	ToolCallSurchargeQuota   decimal.Decimal
+	// CacheQuotaComponent 倍率计费下缓存部分（缓存读+缓存写，含5m/1h分档）
+	// 在最终 Quota 中占用的额度小计；按次计费（UsePrice）与阶梯表达式计费下为 0
+	CacheQuotaComponent decimal.Decimal
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -66,15 +72,42 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 	return summary.CacheCreationTokens
 }
 
-func ApplyProviderPricingQuota(ctx *gin.Context, baseQuota int, usePrice bool, groupRatio float64, unitCount int) (providerQuota int, importCostQuota int, applied bool) {
-	return applyProviderPricingQuota(ctx, baseQuota, usePrice, groupRatio, decimal.NewFromInt(int64(unitCount)), false)
+func ApplyProviderPricingQuota(ctx *gin.Context, baseQuota int, cacheQuota decimal.Decimal, usePrice bool, groupRatio float64, unitCount int, nonCacheUnitCount int) (providerQuota int, importCostQuota int, applied bool) {
+	return applyProviderPricingQuota(ctx, baseQuota, cacheQuota, usePrice, groupRatio, decimal.NewFromInt(int64(unitCount)), decimal.NewFromInt(int64(nonCacheUnitCount)), false)
 }
 
-func ApplyProviderPerUnitPricingQuota(ctx *gin.Context, baseQuota int, groupRatio float64, unitCount decimal.Decimal) (providerQuota int, importCostQuota int, applied bool) {
-	return applyProviderPricingQuota(ctx, baseQuota, true, groupRatio, unitCount, true)
+func ApplyProviderPerUnitPricingQuota(ctx *gin.Context, baseQuota int, cacheQuota decimal.Decimal, groupRatio float64, unitCount decimal.Decimal) (providerQuota int, importCostQuota int, applied bool) {
+	// 按秒/按次计费无缓存概念，非缓存部分即全部
+	return applyProviderPricingQuota(ctx, baseQuota, cacheQuota, true, groupRatio, unitCount, unitCount, true)
 }
 
-func applyProviderPricingQuota(ctx *gin.Context, baseQuota int, usePrice bool, groupRatio float64, unitCount decimal.Decimal, multiplyFixedPriceByUnits bool) (providerQuota int, importCostQuota int, applied bool) {
+// providerEffectiveCacheImportRatio 返回缓存部分实际使用的成本折扣：
+// 未单独配置（<=0）时按主站原价（1）计费，不跟随输入输出折扣
+func providerEffectiveCacheImportRatio(ctx *gin.Context) float64 {
+	cacheRatio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderImportCachePriceRatio)
+	if cacheRatio <= 0 {
+		return 1
+	}
+	return cacheRatio
+}
+
+// ProviderDisplayCacheFactor 计算展示用缓存倍率的反算因子。
+// 模型广场与账单明细均按 展示模型倍率 × 缓存倍率 计算缓存单价，而缓存价
+// 不含服务商加价、只按 缓存折扣 计费，因此：
+// 因子 = cacheImportRatio × 主站原始倍率 / 展示模型倍率
+// 无法安全反算（非正倍率或结果异常）时返回 1，保持原值展示。
+func ProviderDisplayCacheFactor(originalModelRatio, displayModelRatio, cacheImportRatio float64) float64 {
+	if originalModelRatio <= 0 || displayModelRatio <= 0 || cacheImportRatio <= 0 {
+		return 1
+	}
+	factor := cacheImportRatio * originalModelRatio / displayModelRatio
+	if math.IsNaN(factor) || math.IsInf(factor, 0) || factor <= 0 {
+		return 1
+	}
+	return factor
+}
+
+func applyProviderPricingQuota(ctx *gin.Context, baseQuota int, cacheQuota decimal.Decimal, usePrice bool, groupRatio float64, unitCount decimal.Decimal, nonCacheUnitCount decimal.Decimal, multiplyFixedPriceByUnits bool) (providerQuota int, importCostQuota int, applied bool) {
 	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
 	providerPublicModel := common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel)
 	if providerId <= 0 || providerPublicModel == "" {
@@ -84,13 +117,27 @@ func applyProviderPricingQuota(ctx *gin.Context, baseQuota int, usePrice bool, g
 	if importPriceRatio <= 0 {
 		importPriceRatio = 1
 	}
-	importCostQuota = common.QuotaFromDecimal(decimal.NewFromInt(int64(baseQuota)).Mul(decimal.NewFromFloat(importPriceRatio)))
+	cacheImportRatio := providerEffectiveCacheImportRatio(ctx)
+	// 缓存小计不能超过总额（防御性钳制，正常结算不会触发）
+	if cacheQuota.IsNegative() || cacheQuota.GreaterThan(decimal.NewFromInt(int64(baseQuota))) {
+		cacheQuota = decimal.Zero
+	}
+	// 平台口径成本：非缓存部分按 import price ratio 折扣，缓存部分按缓存折扣
+	// （未单独配置时缓存按原价 1 计费）
+	nonCacheQuota := decimal.NewFromInt(int64(baseQuota)).Sub(cacheQuota)
+	cacheCostQuota := cacheQuota.Mul(decimal.NewFromFloat(cacheImportRatio))
+	importCostQuota = common.QuotaFromDecimal(nonCacheQuota.
+		Mul(decimal.NewFromFloat(importPriceRatio)).
+		Add(cacheCostQuota))
 	if baseQuota > 0 && importCostQuota == 0 {
 		importCostQuota = 1
 	}
-	providerQuota = importCostQuota
+	if nonCacheUnitCount.IsNegative() || nonCacheUnitCount.GreaterThan(unitCount) {
+		nonCacheUnitCount = unitCount
+	}
 	pricingType := common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
 	if pricingType == model.ProviderPricingTypeDelta {
+		// 差价模式：固定差价只加在非缓存 token 上，缓存部分原样透传
 		if usePrice {
 			delta := decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaPrice)).
 				Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
@@ -98,18 +145,29 @@ func applyProviderPricingQuota(ctx *gin.Context, baseQuota int, usePrice bool, g
 			if multiplyFixedPriceByUnits {
 				delta = delta.Mul(unitCount)
 			}
-			providerQuota += common.QuotaFromDecimal(delta)
+			providerQuota = common.QuotaFromDecimal(nonCacheQuota.
+				Mul(decimal.NewFromFloat(importPriceRatio)).
+				Add(cacheCostQuota).
+				Add(delta))
 		} else {
-			providerQuota += common.QuotaFromDecimal(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaRatio)).
-				Mul(unitCount).
-				Mul(decimal.NewFromFloat(groupRatio)))
+			delta := decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaRatio)).
+				Mul(nonCacheUnitCount).
+				Mul(decimal.NewFromFloat(groupRatio))
+			providerQuota = common.QuotaFromDecimal(nonCacheQuota.
+				Mul(decimal.NewFromFloat(importPriceRatio)).
+				Add(cacheCostQuota).
+				Add(delta))
 		}
 	} else {
+		// 比例模式：加价倍率只作用于非缓存部分，缓存按 缓存折扣 原样计费
 		ratio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderPricingRatio)
 		if ratio == 0 {
 			ratio = 1
 		}
-		providerQuota = common.QuotaFromDecimal(decimal.NewFromInt(int64(importCostQuota)).Mul(decimal.NewFromFloat(ratio)))
+		providerQuota = common.QuotaFromDecimal(nonCacheQuota.
+			Mul(decimal.NewFromFloat(importPriceRatio)).
+			Mul(decimal.NewFromFloat(ratio)).
+			Add(cacheCostQuota))
 	}
 	if providerQuota < 0 {
 		providerQuota = 0
@@ -281,6 +339,11 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.CacheCreationTokens1h = usage.ClaudeCacheCreation1hTokens
 	summary.ImageTokens = usage.PromptTokensDetails.ImageTokens
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
+	// 非缓存 token = 总数 − 缓存读 − 缓存写（写含 5m/1h 分档，分档是 CacheCreationTokens 的子集）
+	summary.NonCacheTokens = summary.TotalTokens - summary.CacheTokens - summary.CacheCreationTokens
+	if summary.NonCacheTokens < 0 {
+		summary.NonCacheTokens = 0
+	}
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
 	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
 		relayInfo.ChannelType == constant.ChannelTypeOpenRouter &&
@@ -414,6 +477,10 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio).Add(cachedCreationTokensWithRatio)
 		completionQuota := dCompletionTokens.Mul(dCompletionRatio)
 		quotaCalculateDecimal := promptQuota.Add(completionQuota).Mul(ratio)
+		// 缓存部分（读+写）的额度小计：与总额使用相同的倍率（模型倍率×分组倍率）
+		// 与 OtherRatios，供服务商"缓存单独折扣"拆分使用
+		cacheQuotaComponent := cachedTokensWithRatio.Add(cachedCreationTokensWithRatio).Mul(ratio)
+		cacheQuotaComponent = relayInfo.PriceData.ApplyOtherRatiosToDecimal(cacheQuotaComponent)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dWebSearchQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dClaudeWebSearchQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dFileSearchQuota)
@@ -427,6 +494,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		}
 		quota, clamp := common.QuotaFromDecimalChecked(quotaCalculateDecimal)
 		summary.Quota = quota
+		summary.CacheQuotaComponent = cacheQuotaComponent
 		noteQuotaClamp(relayInfo, clamp)
 	} else {
 		quotaCalculateDecimal := dModelPrice.Mul(dQuotaPerUnit).Mul(dGroupRatio)
@@ -480,7 +548,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	providerOwnerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
 	providerPublicModel := common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel)
 	if providerId > 0 && providerPublicModel != "" {
-		providerQuota, importCostQuota, _ := ApplyProviderPricingQuota(ctx, baseQuota, relayInfo.PriceData.UsePrice, summary.GroupRatio, summary.TotalTokens)
+		// 阶梯表达式计费结果是一个整体总额，无法拆出缓存部分，保持统一折扣
+		cacheQuotaComponent := summary.CacheQuotaComponent
+		if tieredBillingApplied {
+			cacheQuotaComponent = decimal.Zero
+		}
+		providerQuota, importCostQuota, _ := ApplyProviderPricingQuota(ctx, baseQuota, cacheQuotaComponent, relayInfo.PriceData.UsePrice, summary.GroupRatio, summary.TotalTokens, summary.NonCacheTokens)
 		summary.Quota = providerQuota
 		if summary.Quota < 0 {
 			summary.Quota = 0
@@ -543,21 +616,32 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	logContent := strings.Join(extraContent, ", ")
 	displayModelRatio := summary.ModelRatio
 	displayModelPrice := summary.ModelPrice
+	// 账单明细弹窗按 展示模型倍率×缓存倍率 计算缓存单价；缓存不含服务商加价、
+	// 按缓存折扣计费，因此缓存倍率需与模型广场一致地反算，避免明细与实扣不符
+	displayCacheRatio := summary.CacheRatio
+	displayCacheCreationRatio := summary.CacheCreationRatio
+	displayCacheCreationRatio5m := summary.CacheCreationRatio5m
+	displayCacheCreationRatio1h := summary.CacheCreationRatio1h
 	if providerId > 0 && providerPublicModel != "" {
 		displayModelRatio, displayModelPrice, _ = ApplyProviderPricingDisplay(ctx, summary.ModelRatio, summary.ModelPrice)
+		cacheFactor := ProviderDisplayCacheFactor(summary.ModelRatio, displayModelRatio, providerEffectiveCacheImportRatio(ctx))
+		displayCacheRatio *= cacheFactor
+		displayCacheCreationRatio *= cacheFactor
+		displayCacheCreationRatio5m *= cacheFactor
+		displayCacheCreationRatio1h *= cacheFactor
 	}
 	var other map[string]interface{}
 	if summary.IsClaudeUsageSemantic {
 		other = GenerateClaudeOtherInfo(ctx, relayInfo,
 			displayModelRatio, summary.GroupRatio, summary.CompletionRatio,
-			summary.CacheTokens, summary.CacheRatio,
-			summary.CacheCreationTokens, summary.CacheCreationRatio,
-			summary.CacheCreationTokens5m, summary.CacheCreationRatio5m,
-			summary.CacheCreationTokens1h, summary.CacheCreationRatio1h,
+			summary.CacheTokens, displayCacheRatio,
+			summary.CacheCreationTokens, displayCacheCreationRatio,
+			summary.CacheCreationTokens5m, displayCacheCreationRatio5m,
+			summary.CacheCreationTokens1h, displayCacheCreationRatio1h,
 			displayModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 		other["usage_semantic"] = "anthropic"
 	} else {
-		other = GenerateTextOtherInfo(ctx, relayInfo, displayModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, displayModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+		other = GenerateTextOtherInfo(ctx, relayInfo, displayModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, displayCacheRatio, displayModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason
@@ -570,6 +654,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["provider_base_quota"] = providerBaseQuota
 		other["provider_user_quota"] = summary.Quota
 		other["provider_import_price_ratio"] = common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderImportPriceRatio)
+		// 记录实际生效的缓存折扣（未配置时为 1，即缓存按主站原价）
+		other["provider_import_cache_price_ratio"] = providerEffectiveCacheImportRatio(ctx)
+		if summary.CacheQuotaComponent.IsPositive() {
+			other["provider_cache_quota_component"] = summary.CacheQuotaComponent.IntPart()
+		}
 		other["provider_pricing_type"] = common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
 		other["provider_base_model_ratio"] = summary.ModelRatio
 		other["provider_base_model_price"] = summary.ModelPrice

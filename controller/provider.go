@@ -35,6 +35,9 @@ type providerAdminRequest struct {
 	Name             string   `json:"name"`
 	Status           int      `json:"status"`
 	ImportPriceRatio *float64 `json:"import_price_ratio"`
+	// ImportCachePriceRatio 缓存成本折扣：nil 或 0 表示缓存按主站原价（不跟随 import_price_ratio）；
+	// 取值 (0,1]，1 表示缓存按主站原价（输入输出打折、缓存不打折）
+	ImportCachePriceRatio *float64 `json:"import_cache_price_ratio"`
 }
 
 type providerDomainsSaveRequest struct {
@@ -114,28 +117,30 @@ type providerOwnerCandidatePage struct {
 }
 
 type providerBaseModelChannelPrice struct {
-	ModelName            string             `json:"model_name"`
-	ChannelId            int                `json:"channel_id"`
-	ChannelName          string             `json:"channel_name"`
-	ChannelType          int                `json:"channel_type"`
-	Group                string             `json:"group"`
-	QuotaType            int                `json:"quota_type"`
-	ModelRatio           float64            `json:"model_ratio"`
-	ModelPrice           float64            `json:"model_price"`
-	CompletionRatio      float64            `json:"completion_ratio"`
-	GroupRatio           float64            `json:"group_ratio"`
-	ImportPriceRatio     float64            `json:"import_price_ratio"`
-	OriginalPrice        float64            `json:"original_price"`
-	CompletionPrice      float64            `json:"completion_price"`
-	CachePrice           *float64           `json:"cache_price,omitempty"`
-	CostPrice            float64            `json:"cost_price"`
-	CostCompletion       float64            `json:"cost_completion_price"`
-	CostCache            *float64           `json:"cost_cache_price,omitempty"`
-	BillingMode          string             `json:"billing_mode,omitempty"`
-	BillingExpr          string             `json:"billing_expr,omitempty"`
-	DefaultResolution    string             `json:"default_resolution,omitempty"`
-	ResolutionPrices     map[string]float64 `json:"resolution_prices,omitempty"`
-	CostResolutionPrices map[string]float64 `json:"cost_resolution_prices,omitempty"`
+	ModelName        string  `json:"model_name"`
+	ChannelId        int     `json:"channel_id"`
+	ChannelName      string  `json:"channel_name"`
+	ChannelType      int     `json:"channel_type"`
+	Group            string  `json:"group"`
+	QuotaType        int     `json:"quota_type"`
+	ModelRatio       float64 `json:"model_ratio"`
+	ModelPrice       float64 `json:"model_price"`
+	CompletionRatio  float64 `json:"completion_ratio"`
+	GroupRatio       float64 `json:"group_ratio"`
+	ImportPriceRatio float64 `json:"import_price_ratio"`
+	// ImportCachePriceRatio 缓存部分实际使用的成本折扣（未单独配置时等于 import_price_ratio）
+	ImportCachePriceRatio float64            `json:"import_cache_price_ratio"`
+	OriginalPrice         float64            `json:"original_price"`
+	CompletionPrice       float64            `json:"completion_price"`
+	CachePrice            *float64           `json:"cache_price,omitempty"`
+	CostPrice             float64            `json:"cost_price"`
+	CostCompletion        float64            `json:"cost_completion_price"`
+	CostCache             *float64           `json:"cost_cache_price,omitempty"`
+	BillingMode           string             `json:"billing_mode,omitempty"`
+	BillingExpr           string             `json:"billing_expr,omitempty"`
+	DefaultResolution     string             `json:"default_resolution,omitempty"`
+	ResolutionPrices      map[string]float64 `json:"resolution_prices,omitempty"`
+	CostResolutionPrices  map[string]float64 `json:"cost_resolution_prices,omitempty"`
 }
 
 type providerBaseModelPriceAbility struct {
@@ -250,7 +255,20 @@ func providerImportPriceRatioOrDefault(ratio *float64) (float64, bool) {
 	return *ratio, true
 }
 
-func upsertProviderImportPriceRatio(providerId int, ratio float64) error {
+// providerImportCachePriceRatioOrDefault 校验缓存成本折扣：
+// nil 或 0 表示"缓存按主站原价"；有效值为 (0,1]
+func providerImportCachePriceRatioOrDefault(ratio *float64) (float64, bool) {
+	if ratio == nil || *ratio == 0 {
+		return 0, true
+	}
+	if !validateProviderImportPriceRatio(*ratio) {
+		return 0, false
+	}
+	return *ratio, true
+}
+
+// upsertProviderImportPriceRatio 写入服务商成本折扣；cacheRatio 为 nil 时保持缓存折扣原值不变
+func upsertProviderImportPriceRatio(providerId int, ratio float64, cacheRatio *float64) error {
 	var cfg model.ProviderConfig
 	err := model.DB.Where("provider_id = ?", providerId).First(&cfg).Error
 	now := common.GetTimestamp()
@@ -261,15 +279,22 @@ func upsertProviderImportPriceRatio(providerId int, ratio float64) error {
 			CreatedAt:        now,
 			UpdatedAt:        now,
 		}
+		if cacheRatio != nil {
+			cfg.ImportCachePriceRatio = *cacheRatio
+		}
 		return model.DB.Create(&cfg).Error
 	}
 	if err != nil {
 		return err
 	}
-	return model.DB.Model(&cfg).Updates(map[string]interface{}{
+	updates := map[string]interface{}{
 		"import_price_ratio": ratio,
 		"updated_at":         now,
-	}).Error
+	}
+	if cacheRatio != nil {
+		updates["import_cache_price_ratio"] = *cacheRatio
+	}
+	return model.DB.Model(&cfg).Updates(updates).Error
 }
 
 func createDefaultProviderModelPricing(tx *gorm.DB, providerId int, models []string) error {
@@ -538,6 +563,11 @@ func AdminCreateProvider(c *gin.Context) {
 		common.ApiErrorMsg(c, "import price ratio must be greater than 0 and less than or equal to 1")
 		return
 	}
+	importCachePriceRatio, ok := providerImportCachePriceRatioOrDefault(req.ImportCachePriceRatio)
+	if !ok {
+		common.ApiErrorMsg(c, "import cache price ratio must be 0 (follow) or greater than 0 and less than or equal to 1")
+		return
+	}
 	now := common.GetTimestamp()
 	provider := model.Provider{
 		OwnerUserId: req.OwnerUserId,
@@ -551,10 +581,11 @@ func AdminCreateProvider(c *gin.Context) {
 			return err
 		}
 		cfg := model.ProviderConfig{
-			ProviderId:       provider.Id,
-			ImportPriceRatio: importPriceRatio,
-			CreatedAt:        now,
-			UpdatedAt:        now,
+			ProviderId:            provider.Id,
+			ImportPriceRatio:      importPriceRatio,
+			ImportCachePriceRatio: importCachePriceRatio,
+			CreatedAt:             now,
+			UpdatedAt:             now,
 		}
 		if err := tx.Create(&cfg).Error; err != nil {
 			return err
@@ -597,6 +628,10 @@ func AdminUpdateProvider(c *gin.Context) {
 		common.ApiErrorMsg(c, "import price ratio must be greater than 0 and less than or equal to 1")
 		return
 	}
+	if _, ok := providerImportCachePriceRatioOrDefault(req.ImportCachePriceRatio); !ok {
+		common.ApiErrorMsg(c, "import cache price ratio must be 0 (follow) or greater than 0 and less than or equal to 1")
+		return
+	}
 	if err := model.DB.Model(&model.Provider{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"owner_user_id": req.OwnerUserId,
 		"name":          req.Name,
@@ -606,7 +641,8 @@ func AdminUpdateProvider(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if err := upsertProviderImportPriceRatio(id, importPriceRatio); err != nil {
+	// 缓存折扣未传（nil）时保持原值，避免老客户端更新时意外重置
+	if err := upsertProviderImportPriceRatio(id, importPriceRatio, req.ImportCachePriceRatio); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -1165,6 +1201,19 @@ func getProviderImportPriceRatio(providerId int) float64 {
 	return 1
 }
 
+// getProviderImportCachePriceRatio 返回缓存部分实际使用的成本折扣：
+// 未单独配置（<=0）时按主站原价（1）计费，不跟随 import price ratio
+func getProviderImportCachePriceRatio(providerId int) float64 {
+	if providerId <= 0 {
+		return 1
+	}
+	var cfg model.ProviderConfig
+	if err := model.DB.Select("import_cache_price_ratio").Where("provider_id = ?", providerId).First(&cfg).Error; err == nil && cfg.ImportCachePriceRatio > 0 {
+		return cfg.ImportCachePriceRatio
+	}
+	return 1
+}
+
 func getPricingByModelName() map[string]model.Pricing {
 	pricing := model.GetPricing()
 	pricingMap := make(map[string]model.Pricing, len(pricing))
@@ -1230,6 +1279,7 @@ func getMarketplaceVisibleModelNames(c *gin.Context) []string {
 
 func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelChannelPrice, error) {
 	importPriceRatio := getProviderImportPriceRatio(providerId)
+	cacheImportRatio := getProviderImportCachePriceRatio(providerId)
 	pricingMap := getPricingByModelName()
 	var abilities []providerBaseModelPriceAbility
 	if err := model.DB.Table("abilities").
@@ -1288,7 +1338,8 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 			completionPrice = originalPrice * completionRatio
 			if cacheRatio, ok := ratio_setting.GetCacheRatio(modelName); ok {
 				price := originalPrice * cacheRatio
-				cost := price * importPriceRatio
+				// 缓存成本价使用缓存折扣（未单独配置时等于 import price ratio）
+				cost := price * cacheImportRatio
 				cachePrice = &price
 				costCache = &cost
 			}
@@ -1301,28 +1352,29 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 			}
 		}
 		result = append(result, providerBaseModelChannelPrice{
-			ModelName:            modelName,
-			ChannelId:            ability.ChannelId,
-			ChannelName:          ability.ChannelName,
-			ChannelType:          ability.ChannelType,
-			Group:                ability.Group,
-			QuotaType:            quotaType,
-			ModelRatio:           modelRatio,
-			ModelPrice:           modelPrice,
-			CompletionRatio:      completionRatio,
-			GroupRatio:           groupRatio,
-			ImportPriceRatio:     importPriceRatio,
-			OriginalPrice:        originalPrice,
-			CompletionPrice:      completionPrice,
-			CachePrice:           cachePrice,
-			CostPrice:            originalPrice * importPriceRatio,
-			CostCompletion:       completionPrice * importPriceRatio,
-			CostCache:            costCache,
-			BillingMode:          billingMode,
-			BillingExpr:          billingExpr,
-			DefaultResolution:    defaultResolution,
-			ResolutionPrices:     resolutionPrices,
-			CostResolutionPrices: costResolutionPrices,
+			ModelName:             modelName,
+			ChannelId:             ability.ChannelId,
+			ChannelName:           ability.ChannelName,
+			ChannelType:           ability.ChannelType,
+			Group:                 ability.Group,
+			QuotaType:             quotaType,
+			ModelRatio:            modelRatio,
+			ModelPrice:            modelPrice,
+			CompletionRatio:       completionRatio,
+			GroupRatio:            groupRatio,
+			ImportPriceRatio:      importPriceRatio,
+			ImportCachePriceRatio: cacheImportRatio,
+			OriginalPrice:         originalPrice,
+			CompletionPrice:       completionPrice,
+			CachePrice:            cachePrice,
+			CostPrice:             originalPrice * importPriceRatio,
+			CostCompletion:        completionPrice * importPriceRatio,
+			CostCache:             costCache,
+			BillingMode:           billingMode,
+			BillingExpr:           billingExpr,
+			DefaultResolution:     defaultResolution,
+			ResolutionPrices:      resolutionPrices,
+			CostResolutionPrices:  costResolutionPrices,
 		})
 	}
 	return result, nil

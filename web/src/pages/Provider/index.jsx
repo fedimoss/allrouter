@@ -114,6 +114,8 @@ const emptyProvider = {
   name: '',
   status: 1,
   import_price_ratio: 10,
+  // 缓存成本折扣：空或 10 = 缓存按主站原价；1-10（缓存也可享受折扣）
+  import_cache_price_ratio: '',
 };
 
 const emptyConfig = {
@@ -400,6 +402,10 @@ const getProviderFormValues = (provider) => ({
   import_price_ratio: ratioToDiscount(
     provider?.config?.import_price_ratio || 1,
   ),
+  import_cache_price_ratio:
+    provider?.config?.import_cache_price_ratio > 0
+      ? ratioToDiscount(provider.config.import_cache_price_ratio)
+      : '',
 });
 
 const getPricingFormValues = (pricing) => {
@@ -1279,12 +1285,34 @@ const ProviderPage = () => {
       showError(t('折扣必须在 1 到 10 之间'));
       return;
     }
+    // 缓存折扣：空 = 0（缓存按主站原价，不跟随成本折扣）；1-10（10 = 缓存原价）
+    const cacheDiscountRaw = values.import_cache_price_ratio;
+    const cacheDiscountValue =
+      cacheDiscountRaw === undefined ||
+      cacheDiscountRaw === null ||
+      cacheDiscountRaw === ''
+        ? 0
+        : Number(cacheDiscountRaw);
+    if (
+      adminMode &&
+      cacheDiscountValue !== 0 &&
+      (Number.isNaN(cacheDiscountValue) ||
+        cacheDiscountValue < 1 ||
+        cacheDiscountValue > 10)
+    ) {
+      showError(t('缓存折扣必须在 1 到 10 之间'));
+      return;
+    }
     const payload = adminMode
       ? {
           ...values,
           owner_user_id: Number(values.owner_user_id),
           status: Number(values.status),
           import_price_ratio: discountToRatio(discountValue),
+          import_cache_price_ratio:
+            cacheDiscountValue === 0
+              ? 0
+              : discountToRatio(cacheDiscountValue),
         }
       : { name: values.name };
     const res =
@@ -1652,8 +1680,27 @@ const ProviderPage = () => {
           title: t('折扣'),
           dataIndex: 'config',
           width: 120,
-          render: (config) =>
-            formatProviderDiscount(config?.import_price_ratio, t),
+          render: (config) => {
+            const mainDiscount = formatProviderDiscount(
+              config?.import_price_ratio,
+              t,
+            );
+            if (config?.import_cache_price_ratio > 0) {
+              return (
+                <Space vertical align='start' spacing={1}>
+                  <Text>{mainDiscount}</Text>
+                  <Text type='tertiary' size='small'>
+                    {t('缓存')}
+                    {formatProviderDiscount(
+                      config.import_cache_price_ratio,
+                      t,
+                    )}
+                  </Text>
+                </Space>
+              );
+            }
+            return mainDiscount;
+          },
         },
         {
           title: t('域名'),
@@ -2155,7 +2202,21 @@ const ProviderPage = () => {
               />
               <Text type='tertiary' size='small'>
                 {t(
-                  '填 1 表示 1 折优惠，填 10 表示原价不优惠；折扣只能填写 1 到 10。服务商用户售价会在折扣价基础上继续按服务商模型定价加价。',
+                  '填 1 表示 1 折优惠，填 10 表示原价不优惠；折扣只能填写 1 到 10。服务商用户售价会在折扣价基础上继续按服务商模型定价加价；加价仅作用于输入和输出，缓存按主站设定的价格计费。',
+                )}
+              </Text>
+              <Form.InputNumber
+                field='import_cache_price_ratio'
+                label={t('缓存成本折扣')}
+                min={1}
+                max={10}
+                step={0.1}
+                precision={1}
+                suffix={t('折')}
+              />
+              <Text type='tertiary' size='small'>
+                {t(
+                  '留空或填 10 表示缓存按主站原价计费；填小于 10 的值时缓存也享受折扣。缓存价格不受服务商加价影响。',
                 )}
               </Text>
             </>

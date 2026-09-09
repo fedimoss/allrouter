@@ -61,6 +61,10 @@ type ProviderConfig struct {
 	FooterText       string  `json:"footer_text" gorm:"type:text"`
 	SupportUrl       string  `json:"support_url" gorm:"type:text"`
 	ImportPriceRatio float64 `json:"import_price_ratio" gorm:"type:decimal(10,6);not null;default:1"`
+	// 缓存成本折扣比例：0 表示缓存按主站原价计费（不跟随 import_price_ratio，默认）；
+	// 取值 (0,1]，例如 1 表示缓存部分（缓存读/缓存写）按主站原价计费，
+	// 即"输入输出打折、缓存不打折"。缓存价格不受服务商加价（比例/差价）影响
+	ImportCachePriceRatio float64 `json:"import_cache_price_ratio" gorm:"type:decimal(10,6);not null;default:0"`
 	// 模型定价自动同步开关：开启后，主站模型新增/下架/恢复时会自动同步该服务商
 	ModelPricingSyncEnabled bool `json:"model_pricing_sync_enabled" gorm:"default:false;index"`
 	// 上次自动同步的 Unix 时间戳
