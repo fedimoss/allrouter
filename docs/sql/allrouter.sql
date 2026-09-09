@@ -7298,3 +7298,6 @@ COMMENT ON COLUMN users.minimax_h3_seed IS
     'Stable MiniMax-H3 seed assigned when a user first generates from Playground';
 
 COMMIT;
+
+
+ALTER TABLE provider_configs ADD COLUMN import_cache_price_ratio DECIMAL(10,6) NOT NULL DEFAULT 0;
