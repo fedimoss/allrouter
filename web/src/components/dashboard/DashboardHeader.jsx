@@ -30,7 +30,6 @@ const DashboardHeader = ({
   showSearchModal,
   refresh,
   loading,
-  dataExportDefaultTime,
   invitees,
   inviteesLoading,
   inviteesTotal,
@@ -53,16 +52,9 @@ const DashboardHeader = ({
     return `${year} ${t('年')} ${month} ${t('月')} ${day} ${t('日')}`;
   };
 
-  const getDefaultRangeText = () => {
-    switch (dataExportDefaultTime) {
-      case 'week':
-        return t('最近 30 天');
-      case 'day':
-        return t('最近 7 天');
-      default:
-        return t('最近 24 小时');
-    }
-  };
+  // 提示文案固定为 24 小时:与"24H 使用统计"等卡片的统计口径一致,
+  // 不随时间筛选(7天/30天)变化
+  const getDefaultRangeText = () => t('最近 24 小时');
 
   const toPage = () => {
     navigate('/console/token');

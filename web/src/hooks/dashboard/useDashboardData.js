@@ -29,6 +29,23 @@ import {
 import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
 
+// 顶部统计卡片固定使用 24h 窗口的统计数据，不随"数据分析"时间筛选（7天/30天）联动
+const PERF_WINDOW_TOLERANCE = 3600; // 允许与 24h 相差 1 小时
+const DEFAULT_CARD_STATS = { consumeQuota: 0, consumeTokens: 0, times: 0 };
+
+const isAbout24h = (seconds) =>
+  Math.abs(seconds - 86400) <= PERF_WINDOW_TOLERANCE;
+
+const summarizeQuotaRecords = (data) =>
+  (data || []).reduce(
+    (result, item) => ({
+      consumeQuota: result.consumeQuota + (Number(item.quota) || 0),
+      consumeTokens: result.consumeTokens + (Number(item.token_used) || 0),
+      times: result.times + (Number(item.count) || 0),
+    }),
+    { consumeQuota: 0, consumeTokens: 0, times: 0 },
+  );
+
 export const useDashboardData = (userState, userDispatch, statusState) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -77,6 +94,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [selectedCardUser, setSelectedCardUser] = useState(null);
   const [selectedCardStats, setSelectedCardStats] = useState(null);
   const [selectedCardLoading, setSelectedCardLoading] = useState(false);
+  // self 视角 24h 卡片快照（邀请人视角使用 selectedCardStats，均为 24h 口径）
+  const [selfCardStats, setSelfCardStats] = useState(null);
 
   // ========== 图表状态 ==========
   const [activeChartTab, setActiveChartTab] = useState('1');
@@ -137,27 +156,21 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, [times, consumeTokens, inputs.start_timestamp, inputs.end_timestamp]);
 
   const cardPerformanceMetrics = useMemo(() => {
-    const cardTimes = selectedCardStats?.times ?? times;
-    const cardTokens = selectedCardStats?.consumeTokens ?? consumeTokens;
-    const timeDiff =
-      (Date.parse(inputs.end_timestamp) - Date.parse(inputs.start_timestamp)) /
-      60000;
+    // 性能指标卡固定展示 24h 窗口数据：卡片快照仅在挂载/点刷新时按 24h 口径更新，不随图表筛选联动
+    const snapshot = selectedCardUser
+      ? selectedCardStats ?? DEFAULT_CARD_STATS
+      : selfCardStats ?? DEFAULT_CARD_STATS;
+    const { times: snapTimes, consumeTokens: snapTokens } = snapshot;
     return {
-      avgRPM: isNaN(cardTimes / timeDiff)
+      avgRPM: isNaN(snapTimes / 1440)
         ? '0'
-        : (cardTimes / timeDiff).toFixed(3),
-      avgTPM: isNaN(cardTokens / timeDiff)
+        : (snapTimes / 1440).toFixed(3),
+      avgTPM: isNaN(snapTokens / 1440)
         ? '0'
-        : (cardTokens / timeDiff).toFixed(3),
-      timeDiff,
+        : (snapTokens / 1440).toFixed(3),
+      timeDiff: 1440,
     };
-  }, [
-    selectedCardStats,
-    times,
-    consumeTokens,
-    inputs.start_timestamp,
-    inputs.end_timestamp,
-  ]);
+  }, [selectedCardUser, selectedCardStats, selfCardStats]);
 
   const getGreeting = useMemo(() => {
     const hours = new Date().getHours();
@@ -333,11 +346,17 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     [t],
   );
 
+  // 邀请人卡片数据：固定按 24h 窗口加载（顶部卡片口径），与图表筛选窗口无关
   const loadInviteeCardData = useCallback(
-    async (inviteeId, override) => {
+    async (inviteeId) => {
       setSelectedCardLoading(true);
       try {
-        const query = getDataQuery({ ...(override || {}), username: '' });
+        const nowSec = Math.floor(new Date().getTime() / 1000);
+        const query = getDataQuery({
+          username: '',
+          start_timestamp: nowSec - 86400,
+          end_timestamp: nowSec,
+        });
         const res = await API.get(
           `/api/data/self/invitee?user_id=${encodeURIComponent(inviteeId)}&${query}`,
         );
@@ -346,15 +365,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
           showError(message);
           return false;
         }
-        const totals = (data || []).reduce(
-          (result, item) => ({
-            consumeQuota: result.consumeQuota + (Number(item.quota) || 0),
-            consumeTokens:
-              result.consumeTokens + (Number(item.token_used) || 0),
-            times: result.times + (Number(item.count) || 0),
-          }),
-          { consumeQuota: 0, consumeTokens: 0, times: 0 },
-        );
+        const totals = summarizeQuotaRecords(data);
         setSelectedCardUser(user);
         setSelectedCardStats(totals);
         return true;
@@ -369,10 +380,34 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     [getDataQuery, t],
   );
 
+  // self 视角卡片快照：由已取得的 24h 数据直接生成（挂载时复用初始加载，避免重复请求）
+  const applySelfCardData = useCallback((data) => {
+    setSelfCardStats(summarizeQuotaRecords(data));
+  }, []);
+
+  // self 视角卡片快照：当前图表窗口非 24h 时（如切到 7 天/30 天后点刷新），单独按 24h 拉取
+  const loadSelfCard24h = useCallback(async () => {
+    const nowSec = Math.floor(new Date().getTime() / 1000);
+    try {
+      const override = { start_timestamp: nowSec - 86400, end_timestamp: nowSec };
+      const url = isAdminUser
+        ? `/api/data/?${getDataQuery(override)}`
+        : `/api/data/self/?${getDataQuery(override)}`;
+      const res = await API.get(url);
+      const { success, data } = res.data;
+      if (success) {
+        setSelfCardStats(summarizeQuotaRecords(data));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, [getDataQuery, isAdminUser]);
+
   const selectInvitee = useCallback(
     async (invitee) => {
       // id='all' 为"全部邀请用户"虚拟选项,其余必须为具体被邀请人 ID
       if (invitee?.id !== 'all' && !invitee?.id) return false;
+      // loadInviteeCardData 固定按 24h 加载，与图表筛选窗口无关
       const loaded = await loadInviteeCardData(invitee.id);
       if (loaded) {
         setSelectedInvitee(invitee);
@@ -445,11 +480,25 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const refresh = useCallback(async () => {
     const data = await loadQuotaData();
     await loadUptimeData();
+    // 卡片数据固定按 24h 窗口重新拉取，与图表当前筛选窗口无关
     if (selectedInvitee?.id) {
       await loadInviteeCardData(selectedInvitee.id);
+    } else if (!isAbout24h(localEndTimestamp - localStartTimestamp)) {
+      await loadSelfCard24h();
+    } else if (data) {
+      applySelfCardData(data);
     }
     return data;
-  }, [loadQuotaData, loadUptimeData, selectedInvitee, loadInviteeCardData]);
+  }, [
+    loadQuotaData,
+    loadUptimeData,
+    selectedInvitee,
+    loadInviteeCardData,
+    loadSelfCard24h,
+    applySelfCardData,
+    localStartTimestamp,
+    localEndTimestamp,
+  ]);
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
@@ -460,12 +509,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       if (data && updateChartDataCallback) {
         updateChartDataCallback(data, { updateStats: false });
       }
-      if (selectedInvitee?.id) {
-        await loadInviteeCardData(selectedInvitee.id);
-      }
+      // 图表筛选不影响顶部卡片，卡片仅在挂载/刷新时按 24h 口径更新
       setSearchModalVisible(false);
     },
-    [loadQuotaData, loadModelData, selectedInvitee, loadInviteeCardData],
+    [loadQuotaData, loadModelData],
   );
 
   // ========== 快捷时间区间筛选 ==========
@@ -515,14 +562,12 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         loadQuotaData({ updateStats: false, override }),
         loadModelData(override),
       ]);
-      if (selectedInvitee?.id) {
-        await loadInviteeCardData(selectedInvitee.id, override);
-      }
       if (data && updateChartDataCallback) {
         updateChartDataCallback(data, { updateStats: false, defaultTime });
       }
+      // 图表筛选不影响顶部卡片，卡片仅在挂载/刷新时按 24h 口径更新
     },
-    [loadQuotaData, loadModelData, selectedInvitee, loadInviteeCardData],
+    [loadQuotaData, loadModelData],
   );
 
   // ========== Effects ==========
@@ -574,6 +619,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     selectedCardUser,
     selectedCardStats,
     selectedCardLoading,
+    selfCardStats,
 
     // 图表状态
     activeChartTab,
@@ -606,6 +652,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     handleInputChange,
     showSearchModal,
     handleCloseModal,
+    applySelfCardData,
     loadQuotaData,
     loadModelData,
     loadUserQuotaData,

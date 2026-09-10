@@ -84,14 +84,21 @@ const Dashboard = () => {
   );
 
   // ========== 统计数据 ==========
+  // 顶部卡片数据源：邀请人视角用 selectedCardStats，默认视角用 24h 快照 selfCardStats，
+  // 均不随"数据分析"时间筛选（consumeQuota/consumeTokens 等图表窗口统计）联动
   const { groupedStatsData } = useDashboardStats(
     dashboardData.selectedCardUser
       ? { user: dashboardData.selectedCardUser }
       : userState,
-    dashboardData.selectedCardStats?.consumeQuota ?? dashboardData.consumeQuota,
-    dashboardData.selectedCardStats?.consumeTokens ??
-      dashboardData.consumeTokens,
-    dashboardData.times,
+    dashboardData.selectedCardUser
+      ? dashboardData.selectedCardStats.consumeQuota
+      : dashboardData.selfCardStats?.consumeQuota,
+    dashboardData.selectedCardUser
+      ? dashboardData.selectedCardStats.consumeTokens
+      : dashboardData.selfCardStats?.consumeTokens,
+    dashboardData.selectedCardUser
+      ? dashboardData.selectedCardStats.times
+      : dashboardData.selfCardStats?.times,
     dashboardData.trendData,
     dashboardData.cardPerformanceMetrics,
     dashboardData.displayCurrency,
@@ -107,6 +114,8 @@ const Dashboard = () => {
       dashboardData.loadModelData(),
     ]);
     if (data) {
+      // 初始窗口恒为 24h，复用同一份数据生成顶部卡片快照，避免重复请求
+      dashboardData.applySelfCardData(data);
       dashboardCharts.updateChartData(data);
     }
     await dashboardData.loadUptimeData();
@@ -115,7 +124,8 @@ const Dashboard = () => {
   const handleRefresh = async () => {
     const data = await dashboardData.refresh();
     if (data) {
-      dashboardCharts.updateChartData(data);
+      // updateStats: false —— 顶部卡片统计/趋势使用 24h 快照，不随图表窗口统计覆盖
+      dashboardCharts.updateChartData(data, { updateStats: false });
     }
   };
 
@@ -179,7 +189,6 @@ const Dashboard = () => {
         showSearchModal={dashboardData.showSearchModal}
         refresh={handleRefresh}
         loading={dashboardData.loading}
-        dataExportDefaultTime={dashboardData.dataExportDefaultTime}
         invitees={dashboardData.invitees}
         inviteesLoading={dashboardData.inviteesLoading}
         inviteesTotal={dashboardData.inviteesTotal}
