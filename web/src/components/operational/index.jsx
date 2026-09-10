@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Dropdown, Modal, Pagination } from '@douyinfe/semi-ui';
 import { IconLoading } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
@@ -37,7 +37,14 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
-import { API, showError, isProviderOwner, getProviderId } from '../../helpers';
+import {
+  API,
+  showError,
+  isProviderOwner,
+  getProviderId,
+  hasUserPermission,
+} from '../../helpers';
+import { StatusContext } from '../../context/Status';
 import {
   DATE_RANGE_OPTIONS,
   OPERATIONAL_PERIOD_COPY,
@@ -95,7 +102,7 @@ function normalizeRow(recordType, item, index) {
     return {
       id: firstDefined(item, ['id', 'user_id', 'userId', 'uid'], `user-${index}`),
       userId: firstDefined(item, ['user_id', 'userId', 'uid', 'id'], ''),
-      nickname: firstDefined(item, ['nickname', 'username', 'name', 'display_name'], ''),
+      nickname: firstDefined(item, ['display_name', 'displayName', 'nickname', 'username', 'name'], ''),
       lastActiveTime: firstDefined(item, ['last_active_time', 'lastActiveTime'], ''),
       invited: firstDefined(item, ['invited'], false),
       retention: firstDefined(item, ['retention'], ''),
@@ -352,7 +359,9 @@ function ColumnMenu({ columns, visibleColumnKeys, onToggle }) {
 }
 
 function renderCell (column, row, displaySymbol, t) {
-  const displayName = row.userId || '--';
+  const displayName = column.renderName
+    ? row.nickname || row.userId || '--'
+    : row.userId || '--';
   const subTitle = row.nickname || '';
 
   switch (column.key) {
@@ -457,10 +466,13 @@ function DesktopTable({ columns, rows, sortState, displaySymbol, onSortChange })
 
 function MobileCards({ columns, rows, displaySymbol }) {
   const { t } = useTranslation();
+  const showUserName = columns.some((column) => column.key === 'user' && column.renderName);
   return (
     <div className='space-y-4'>
       {rows.map((row) => {
-        const displayName = row.userId || '--';
+        const displayName = showUserName
+          ? row.nickname || row.userId || '--'
+          : row.userId || '--';
         const subTitle = row.nickname || '';
 
         return (
@@ -572,6 +584,16 @@ export default function Operational () {
   const { t } = useTranslation();
   const isProvider = isProviderOwner();
   const providerId = getProviderId();
+  // 域名租户上下文:当前访问的是否服务商站点(与账号归属无关,属主账号注册在主站)。
+  // /api/status 的 site_provider_id 由后端按域名解析注入。
+  const [statusState] = useContext(StatusContext);
+  const siteProviderId = Number(statusState?.status?.site_provider_id) || 0;
+  const isProviderSite = siteProviderId > 0;
+  // "代理商/平台自营"切换面向主站域名的管理员与被授权 operational 的用户：
+  // 后端对这两类角色均支持 provider_id 查询参数切换；
+  // 服务商属主被排除——后端对其固定回落到自己名下的服务商,切换会导致数据错位。
+  const showTabSwitcher =
+    !isProviderSite && !isProvider && hasUserPermission('operational');
   const [activeTab, setActiveTab] = useState('selfHosted');
   const [activeRange, setActiveRange] = useState('day');
   const [dashboardLoading, setDashboardLoading] = useState(false);
@@ -918,13 +940,19 @@ export default function Operational () {
               {t('监控系统全局运营数据。')}
             </p>
           </div>
+          {/* 对齐与 tab 栏可见性保持同一条件：有 tab 栏时两端对齐，
+              否则只有日期选择器，靠右对齐 */}
           <div
             className={joinClasses(
               'mt-6 flex flex-col gap-4 xl:flex-row xl:items-center',
-              isProvider ? 'xl:justify-end' : 'xl:justify-between',
+              showTabSwitcher ? 'xl:justify-between' : 'xl:justify-end',
             )}
           >
-            {!isProvider && (
+            {/* tab 切换仅面向主站域名的管理员(role>=10)：
+                后端 provider_id 查询参数仅对管理员生效(getOperationProviderID)，
+                被授权的普通用户固定为主站范围，属主固定为自己服务商范围，
+                展示切换会导致所选服务商与实际数据不一致 */}
+            {showTabSwitcher && (
               <div className='inline-flex w-full flex-wrap items-center gap-1 rounded-2xl bg-white p-1 shadow-[0_6px_20px_rgba(148,163,184,0.12)] dark:bg-slate-900 xl:w-auto'>
                 {Object.entries(TAB_CONFIG)
                   .filter(([key]) => key === 'agent' || key === 'selfHosted')

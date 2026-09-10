@@ -152,6 +152,9 @@ func GetStatus(c *gin.Context) {
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             getStatusCheckinEnabled(c),
 		"topup_gift_timed":            topUpGiftTimed,
+		// 当前域名绑定的服务商 ID(域名租户上下文):0=主站,>0=服务商站点。
+		// 前端据此区分站点维度(注意与服务商属主的账号归属无关,属主账号注册在主站)。
+		"site_provider_id": providerId,
 	}
 
 	if providerId > 0 {

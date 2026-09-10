@@ -31,12 +31,30 @@ var lookupOwnedProviderID = func(userId int) (int, bool) {
 	return provider.Id, true
 }
 
+// lookupEnabledProviderID 校验服务商存在且启用,返回其 ID。
+// 与 lookupOwnedProviderID 同样拆分为变量便于单测替换。
+var lookupEnabledProviderID = func(providerID int) (int, bool) {
+	if providerID <= 0 {
+		return 0, false
+	}
+	provider, err := model.GetProviderById(providerID)
+	if err != nil || provider == nil || provider.Id <= 0 {
+		return 0, false
+	}
+	if provider.Status != model.ProviderStatusEnabled {
+		return 0, false
+	}
+	return provider.Id, true
+}
+
 // getOperationProviderID 统一解析运营数据的服务商范围：
 //   - 管理员可按查询参数 provider_id 切换(0 表示主站);
 //   - 服务商 owner 在自己站点时,直接采用域名租户上下文绑定的服务商;
 //   - 服务商 owner 在主站登录时,域名上下文为主站(provider_id=0),此时回落到
 //     其名下服务商,确保跨站点看到的数据一致(始终是自己的服务商);
-//   - 普通用户(非 owner)无权访问。
+//   - 被授予 operational 权限的主站普通用户:与管理员一致,可按查询参数
+//     provider_id 切换(>0 时校验服务商启用),默认主站范围;
+//   - 被授予 providerOperational 权限的服务商成员在自己站点看本服务商范围。
 func getOperationProviderID(c *gin.Context) (int, bool) {
 	if c.GetInt("role") >= common.RoleAdminUser {
 		rawProviderID := strings.TrimSpace(c.Query("provider_id"))
@@ -64,16 +82,38 @@ func getOperationProviderID(c *gin.Context) (int, bool) {
 		return ownedProviderID, true
 	}
 
-	// 被授予模块权限的普通用户: 主站用户(operational)看主站范围，
+	// 非属主:按域名上下文与账号归属校验模块权限。
+	userCache, err := model.GetUserCache(c.GetInt("id"))
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
+		return 0, false
+	}
+	permissions := userCache.GetPermissionList()
 	// 服务商成员(providerOperational)在自己站点看本服务商范围。
-	if userCache, err := model.GetUserCache(c.GetInt("id")); err == nil {
-		permissions := userCache.GetPermissionList()
-		if providerID > 0 && userCache.ProviderId == providerID && permissions.HasAny("providerOperational") {
-			return providerID, true
-		}
-		if providerID == 0 && userCache.ProviderId == 0 && permissions.HasAny("operational") {
+	if providerID > 0 && userCache.ProviderId == providerID && permissions.HasAny("providerOperational") {
+		return providerID, true
+	}
+	// 主站用户(operational)与管理员一致:可按查询参数切换服务商(校验启用),默认主站。
+	if providerID == 0 && userCache.ProviderId == 0 && permissions.HasAny("operational") {
+		rawProviderID := strings.TrimSpace(c.Query("provider_id"))
+		if rawProviderID == "" {
 			return 0, true
 		}
+
+		requestedID, err := strconv.Atoi(rawProviderID)
+		if err != nil || requestedID < 0 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return 0, false
+		}
+		if requestedID == 0 {
+			return 0, true
+		}
+		// 切换到具体服务商时校验其存在且启用,避免越权或脏数据。
+		if enabledID, ok := lookupEnabledProviderID(requestedID); ok {
+			return enabledID, true
+		}
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return 0, false
 	}
 
 	common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
@@ -226,6 +266,8 @@ func GetDashboardByPeriod(c *gin.Context) {
 // userRecordItem 用户列表记录项
 type userRecordItem struct {
 	UserId         int     `json:"user_id"`
+	Username       string  `json:"username"`     // 用户名
+	DisplayName    string  `json:"display_name"` // 显示名称
 	RequestCount   int64   `json:"request_count"`
 	UsedQuota      float64 `json:"used_quota"` // 消耗情况
 	Invited        bool    `json:"invited"`
@@ -295,8 +337,8 @@ func GetRecords(c *gin.Context) {
 		return
 	}
 
-	// 批量查询充值金额
-	topupMap, err := model.GetUsersTopupQuota(userIds)
+	// 批量查询充值实付金额(非加密=美元,加密=USDT)
+	topupMoneyMap, err := model.GetUsersTopupMoneySum(userIds)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -332,8 +374,15 @@ func GetRecords(c *gin.Context) {
 			}
 		}
 
+		// 充值金额: 非加密 money(美元) + 加密 money(USDT→美元),再按查看者时区币种换算,
+		// 与看板"入金金额"卡片同口径
+		topupSum := topupMoneyMap[u.Id]
+		topupUsd := topupSum.FiatMoney + cryptoUsdtToUsd(topupSum.CryptoMoney)
+
 		items = append(items, userRecordItem{
 			UserId:         u.Id,                                                      // 用户ID
+			Username:       u.Username,                                                // 用户名
+			DisplayName:    u.DisplayName,                                             // 显示名称
 			RequestCount:   countResult.SuccessCount + countResult.ErrorCount,         // 使用次数
 			UsedQuota:      convertQuotaToDisplay(u.UsedQuota, displayInfo),           // 消耗情况
 			Invited:        u.InviterId > 0,                                           // 注册来源(是否是邀请注册)
@@ -341,7 +390,7 @@ func GetRecords(c *gin.Context) {
 			LastActiveTime: lastActiveMap[u.Id],                                       // 最后活跃时间
 			Retention:      retention,                                                 // 留存状态
 			Quota:          convertQuotaToDisplay(u.Quota, displayInfo),               // 余额
-			TopupQuota:     convertQuotaToDisplay(int(topupMap[u.Id]), displayInfo),   // 充值金额
+			TopupQuota:     convertUsdToDisplay(topupUsd, displayInfo),                // 充值金额(按查看者币种)
 			WelfareQuota:   convertQuotaToDisplay(int(welfareMap[u.Id]), displayInfo), // 福利金额
 		})
 	}
