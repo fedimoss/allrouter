@@ -418,6 +418,18 @@ const getOwnerLabel = (user) => {
   return `${name}${email} (#${user.id})`;
 };
 
+const isProviderOwnedByUser = (provider, userId) => {
+  const ownerUserId = Number(provider?.owner_user_id);
+  const currentUserId = Number(userId);
+  return (
+    Number.isSafeInteger(ownerUserId) &&
+    ownerUserId > 0 &&
+    Number.isSafeInteger(currentUserId) &&
+    currentUserId > 0 &&
+    ownerUserId === currentUserId
+  );
+};
+
 const ProviderPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -427,17 +439,40 @@ const ProviderPage = () => {
   // 管理员视角仅在主站域名生效；服务商域名下属主即使身兼主站管理员也走属主模式
   const adminMode =
     getProviderId() === 0 && (isAdmin() || grantedProviderModule);
-  const providerOwner = isProviderOwner();
-  const ownerMode = !adminMode && (providerOwner || grantedProviderModule);
-  const smtpAdminMode = adminMode && !providerOwner;
-  const currentUserId = getUserIdFromLocalStorage();
+  // This cache flag is account-scoped and is only suitable for deciding
+  // whether the main-site owner fallback should load /api/provider/self.
+  const accountProviderOwner = isProviderOwner();
+  const ownerMode =
+    !adminMode && (accountProviderOwner || grantedProviderModule);
+  const currentUserId = Number(getUserIdFromLocalStorage());
+  const isCurrentProviderOwner = useCallback(
+    (provider) => isProviderOwnedByUser(provider, currentUserId),
+    [currentUserId],
+  );
+  const canManageProviderIdentity = useCallback(
+    (provider) => adminMode || isCurrentProviderOwner(provider),
+    [adminMode, isCurrentProviderOwner],
+  );
+  // 奖励配置是独立的服务商模块；成员即使能进入服务商管理页，
+  // 未勾选 providerReward 时也不应看到可跳转到该页面的入口。
+  const hasProviderRewardPermission =
+    !isAdmin() && hasUserPermission('providerReward');
+  const canAccessProviderReward = useCallback(
+    (provider) =>
+      (isAdmin() && getProviderId() === 0) ||
+      isCurrentProviderOwner(provider) ||
+      hasProviderRewardPermission,
+    [hasProviderRewardPermission, isCurrentProviderOwner],
+  );
+  const isProviderSmtpAdminMode = useCallback(
+    (provider) => adminMode && !isCurrentProviderOwner(provider),
+    [adminMode, isCurrentProviderOwner],
+  );
   const canManageProviderSmtp = useCallback(
     (provider) =>
       !!provider?.id &&
-      (smtpAdminMode ||
-        (providerOwner &&
-          Number(provider.owner_user_id) === Number(currentUserId))),
-    [currentUserId, providerOwner, smtpAdminMode],
+      (isProviderSmtpAdminMode(provider) || isCurrentProviderOwner(provider)),
+    [isCurrentProviderOwner, isProviderSmtpAdminMode],
   );
   const pageTitle = adminMode ? t('服务商管理') : t('服务商设置');
 
@@ -720,11 +755,18 @@ const ProviderPage = () => {
 
   useEffect(() => {
     if (providers.length === 0) return;
-    if (
-      currentProvider &&
-      providers.some((provider) => provider.id === currentProvider.id)
-    )
+    const refreshedProvider = currentProvider
+      ? providers.find((provider) => provider.id === currentProvider.id)
+      : null;
+    if (refreshedProvider) {
+      // fetchProviders returns new provider objects after a save. Keep the
+      // selected provider id, but replace its snapshot so reopening a modal
+      // reads the persisted config instead of the pre-save object.
+      if (refreshedProvider !== currentProvider) {
+        setCurrentProvider(refreshedProvider);
+      }
       return;
+    }
     setCurrentProvider(providers[0]);
   }, [providers, currentProvider]);
 
@@ -767,7 +809,7 @@ const ProviderPage = () => {
   }, [pricingModalVisible, editingPricing]);
 
   const openProviderModal = (provider = null) => {
-    if (!adminMode && !provider) return;
+    if (!canManageProviderIdentity(provider)) return;
     setEditingProvider(provider);
     setSelectedOwnerId(provider?.owner_user_id);
     setSelectedOwner(provider?.owner || null);
@@ -775,6 +817,7 @@ const ProviderPage = () => {
   };
 
   const openDomainModal = (provider) => {
+    if (!canManageProviderIdentity(provider)) return;
     setCurrentProvider(provider);
     const rows = getOrderedProviderDomains(provider?.domains).map(
       (domain, index) => createProviderDomainRow(domain, index),
@@ -818,7 +861,8 @@ const ProviderPage = () => {
     setSmtpLoading(true);
     setSmtpConfigLoaded(false);
     try {
-      const url = smtpAdminMode
+      const adminRequest = isProviderSmtpAdminMode(provider);
+      const url = adminRequest
         ? `/api/provider/admin/${provider.id}/options`
         : `/api/provider/options/${provider.id}`;
       const res = await API.get(url);
@@ -827,7 +871,7 @@ const ProviderPage = () => {
         const option = (res.data.data || []).find(
           (item) => item.key === PROVIDER_SMTP_OPTION_KEY,
         );
-        setSmtpConfig(parseProviderSmtpConfig(option?.value, smtpAdminMode));
+        setSmtpConfig(parseProviderSmtpConfig(option?.value, adminRequest));
         setSmtpConfigLoaded(true);
         setSmtpFormKey((key) => key + 1);
       } else {
@@ -880,6 +924,7 @@ const ProviderPage = () => {
   };
 
   const openRewardModal = (provider) => {
+    if (!canAccessProviderReward(provider)) return;
     setCurrentProvider(provider);
     if (adminMode) {
       setRewardModalVisible(true);
@@ -1257,6 +1302,7 @@ const ProviderPage = () => {
   };
 
   const submitProvider = async () => {
+    if (!canManageProviderIdentity(editingProvider)) return;
     const values = providerFormRef.current?.getValues?.() || {};
     if (!values.name) {
       showError(t('服务商名称不能为空'));
@@ -1303,6 +1349,7 @@ const ProviderPage = () => {
   };
 
   const submitDomains = async () => {
+    if (!canManageProviderIdentity(currentProvider)) return;
     const domains = domainRows.map((row) => ({
       id: Number(row.id || 0),
       domain: String(row.domain || '').trim(),
@@ -1353,12 +1400,33 @@ const ProviderPage = () => {
       (configSupportLists[key] || [])
         .filter((item) => item && (item.url || item.desc))
         .slice(0, SUPPORT_QRCODE_MAX_COUNT);
+    // Semi Form keeps unknown initValues in getValues().  The provider
+    // self-service form does not render administrator-only fields (homepage
+    // theme, homepage modules, navigation, pricing, announcements, etc.),
+    // so explicitly pick the fields shown in that form instead of sending a
+    // stale hidden snapshot back to the self-service endpoint.
+    const payloadValues = adminMode
+      ? values
+      : {
+          site_name: values.site_name,
+          logo: values.logo,
+          theme_color: values.theme_color,
+          secondary_color: values.secondary_color,
+          footer_text: values.footer_text,
+        };
     const payload = {
-      ...values,
+      ...payloadValues,
       wechat_support_list: cleanList('wechat'),
       telegram_support_list: cleanList('telegram'),
       qq_support_list: cleanList('qq'),
     };
+    // 首页主题由主站管理员维护。服务商站点的配置表单不会显示该字段，
+    // 但 Semi Form 的 initValues 仍可能把默认值（default）带进 getValues。
+    // 不要在服务商用户保存客服/颜色等其他字段时提交它，否则会覆盖管理员
+    // 已选择的首页主题。管理员模式仍保留该字段以支持显式修改。
+    if (!adminMode) {
+      delete payload.home_page_theme;
+    }
     // 旧标量字段不再随请求提交：二维码一律以 *_list 为准。
     // 若残留提交，后端 resolveSupportQRCodes 会在 list 为空时回退使用它们，导致删除不生效。
     delete payload.wechat_support;
@@ -1371,7 +1439,10 @@ const ProviderPage = () => {
     if (res.data.success) {
       showSuccess(t('保存成功'));
       setConfigModalVisible(false);
-      refreshAfterMutation();
+      // Wait for the authoritative provider snapshot before allowing the
+      // modal to be reopened; otherwise a quick reopen can still read the
+      // pre-save config object from local state.
+      await refreshAfterMutation();
     } else {
       showError(res.data.message);
     }
@@ -1424,7 +1495,8 @@ const ProviderPage = () => {
     }
     setSmtpSaving(true);
     try {
-      const url = smtpAdminMode
+      const adminRequest = isProviderSmtpAdminMode(currentProvider);
+      const url = adminRequest
         ? `/api/provider/admin/${currentProvider.id}/options`
         : `/api/provider/options/${currentProvider.id}`;
       const res = await API.put(
@@ -1713,16 +1785,20 @@ const ProviderPage = () => {
           width: 360,
           render: (_, record) => (
             <Space wrap>
-              <Button
-                size='small'
-                icon={<IconEdit />}
-                onClick={() => openProviderModal(record)}
-              >
-                {t('编辑')}
-              </Button>
-              <Button size='small' onClick={() => openDomainModal(record)}>
-                {t('域名管理')}
-              </Button>
+              {canManageProviderIdentity(record) ? (
+                <Button
+                  size='small'
+                  icon={<IconEdit />}
+                  onClick={() => openProviderModal(record)}
+                >
+                  {t('编辑')}
+                </Button>
+              ) : null}
+              {canManageProviderIdentity(record) ? (
+                <Button size='small' onClick={() => openDomainModal(record)}>
+                  {t('域名管理')}
+                </Button>
+              ) : null}
               <Button size='small' onClick={() => openConfigModal(record)}>
                 {t('页面配置')}
               </Button>
@@ -1742,13 +1818,15 @@ const ProviderPage = () => {
                   {t('利润')}
                 </Button>
               ) : null}
-              <Button
-                size='small'
-                icon={<IconGiftStroked />}
-                onClick={() => openRewardModal(record)}
-              >
-                {t('奖励配置')}
-              </Button>
+              {canAccessProviderReward(record) ? (
+                <Button
+                  size='small'
+                  icon={<IconGiftStroked />}
+                  onClick={() => openRewardModal(record)}
+                >
+                  {t('奖励配置')}
+                </Button>
+              ) : null}
               {adminMode ? (
                 record.status === 1 ? (
                   <Popconfirm
@@ -1800,7 +1878,14 @@ const ProviderPage = () => {
           ),
         },
       ].filter(Boolean),
-    [adminMode, canManageProviderSmtp, agentPartnerSwitchingIds, t],
+    [
+      adminMode,
+      canAccessProviderReward,
+      canManageProviderIdentity,
+      canManageProviderSmtp,
+      agentPartnerSwitchingIds,
+      t,
+    ],
   );
 
   const pricingColumns = [
@@ -2590,7 +2675,7 @@ const ProviderPage = () => {
               mode='password'
               autoComplete='new-password'
             />
-            {!smtpAdminMode ? (
+            {!isProviderSmtpAdminMode(currentProvider) ? (
               <Text type='warning' size='small'>
                 {t(
                   'SMTP 密码 / 授权码提交后将不再显示；留空会保留当前值。修改 SMTP 主机、端口、账号、加密方式或认证方式时，必须输入新的 SMTP 密码 / 授权码。',

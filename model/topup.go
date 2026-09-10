@@ -176,17 +176,39 @@ func withUserTopUpRecords(tx *gorm.DB, userId int) *gorm.DB {
 		Where(topUpRecordAlias+".user_id = ?", userId)
 }
 
-func withTopUpRecordKeyword(query *gorm.DB, keyword string) *gorm.DB {
-	if keyword == "" {
-		return query
+func withTopUpRecordKeyword(query *gorm.DB, keyword string, bizType, payMethod string) *gorm.DB {
+	//if keyword == "" {
+	//	return query
+	//}
+	//
+	//like := "%" + keyword + "%"
+	//return query.Where(
+	//	fmt.Sprintf("%s.trade_no LIKE ? OR COALESCE(%s.username, '') LIKE ? OR COALESCE(%s.display_name, '') LIKE ?", topUpRecordAlias, topUpRecordAlias, topUpRecordAlias),
+	//	like,
+	//	like,
+	//	like,
+	//)
+	query = query.Where(" 1=1 ")
+	if bizType != "" {
+		query = query.Where(fmt.Sprintf("  %s.biz_type = ? ", topUpRecordAlias), bizType)
 	}
-	like := "%" + keyword + "%"
-	return query.Where(
-		fmt.Sprintf("%s.trade_no LIKE ? OR COALESCE(%s.username, '') LIKE ? OR COALESCE(%s.display_name, '') LIKE ?", topUpRecordAlias, topUpRecordAlias, topUpRecordAlias),
-		like,
-		like,
-		like,
-	)
+	if payMethod != "" {
+		ps := strings.Split(payMethod, ",")
+		query = query.Where(fmt.Sprintf("  %s.payment_method IN (?)  ", topUpRecordAlias), ps)
+	}
+
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where(
+			fmt.Sprintf(" %s.trade_no LIKE ? OR COALESCE(%s.username, '') LIKE ? OR COALESCE(%s.display_name, '') LIKE ? ", topUpRecordAlias, topUpRecordAlias, topUpRecordAlias),
+			like,
+			like,
+			like,
+		)
+
+	}
+	return query
+
 }
 
 func withTopUpRecordOrder(query *gorm.DB) *gorm.DB {
@@ -832,14 +854,14 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 		}
 	}()
 
-	countQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword)
+	countQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword, "", "")
 
 	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	dataQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword)
+	dataQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword, "", "")
 	if err = withTopUpRecordOrder(dataQuery).
 		Limit(pageInfo.GetPageSize()).
 		Offset(pageInfo.GetStartIdx()).
@@ -856,7 +878,7 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 }
 
 // SearchAllTopUps 按订单号或用户昵称搜索全平台充值记录（管理员使用）
-func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func SearchAllTopUps(keyword string, bizType string, payMethod string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -867,14 +889,14 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 		}
 	}()
 
-	countQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword)
+	countQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword, bizType, payMethod)
 
 	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	dataQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword)
+	dataQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword, bizType, payMethod)
 	if err = withTopUpRecordOrder(dataQuery).
 		Limit(pageInfo.GetPageSize()).
 		Offset(pageInfo.GetStartIdx()).
@@ -1536,4 +1558,24 @@ func GetTopUpDetailsByTradeNo(tradeNo string) (*TopUpDetails, error) {
 	}
 
 	return getTopUpDetails(DB.Model(&TopUp{}).Where("top_ups.trade_no = ?", tradeNo))
+}
+
+// 检测paymethod类型是否合法
+func CheckPaymethod(paymethod string) string {
+	switch paymethod {
+	case "wxpay":
+		return "wxpay"
+	case "alipay":
+		return "alipay"
+	case "lakala":
+		return "lakala"
+	case "stripe":
+		return "stripe"
+	case "crypto":
+		return "crypto"
+	default:
+		return "unknown"
+
+	}
+
 }

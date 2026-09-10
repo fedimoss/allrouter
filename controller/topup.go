@@ -532,14 +532,22 @@ func GetUserTopUps(c *gin.Context) {
 func GetAllTopUps(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
+	//账单类型, redemption（兑换码）,payment（在线充值）
+	bizType := c.Query("biz_type")
+	if bizType != "" && (bizType != "redemption" && bizType != "payment") {
+		common.ApiError(c, errors.New("bill type error"))
+		return
+	}
+	//支付方式,
+	payMethod := c.Query("payment_method")
 
 	var (
 		topups []*model.TopUp
 		total  int64
 		err    error
 	)
-	if keyword != "" {
-		topups, total, err = model.SearchAllTopUps(keyword, pageInfo)
+	if keyword != "" || payMethod != "" || bizType != "" {
+		topups, total, err = model.SearchAllTopUps(keyword, bizType, payMethod, pageInfo)
 	} else {
 		topups, total, err = model.GetAllTopUps(pageInfo)
 	}

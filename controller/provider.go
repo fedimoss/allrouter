@@ -42,25 +42,28 @@ type providerDomainsSaveRequest struct {
 }
 
 type providerConfigRequest struct {
-	SiteName        string `json:"site_name"`
-	Logo            string `json:"logo"`
-	ThemeColor      string `json:"theme_color"`
-	SecondaryColor  string `json:"secondary_color"`
-	LoginBackground string `json:"login_background"`
-	HomePageTheme   string `json:"home_page_theme"`
-	HomeModules     string `json:"home_modules"`
-	NavModules      string `json:"nav_modules"`
-	PricingDisplay  string `json:"pricing_display"`
-	Announcement    string `json:"announcement"`
-	FooterText      string `json:"footer_text"`
-	SupportUrl      string `json:"support_url"`
-	WechatSupport   string `json:"wechat_support"`    // 旧格式：URL 或 JSON 数组字符串
-	QQSupportQrcode string `json:"qq_support_qrcode"` // 旧格式：URL 或 JSON 数组字符串
-	TelegramSupport string `json:"telegram_support"`  // 旧格式：URL 或 JSON 数组字符串
+	// Pointer fields preserve JSON presence. The provider page is also used by
+	// older/partial clients, so an omitted field must not be interpreted as an
+	// instruction to clear the stored value.
+	SiteName        *string `json:"site_name,omitempty"`
+	Logo            *string `json:"logo,omitempty"`
+	ThemeColor      *string `json:"theme_color,omitempty"`
+	SecondaryColor  *string `json:"secondary_color,omitempty"`
+	LoginBackground *string `json:"login_background,omitempty"`
+	HomePageTheme   *string `json:"home_page_theme,omitempty"`
+	HomeModules     *string `json:"home_modules,omitempty"`
+	NavModules      *string `json:"nav_modules,omitempty"`
+	PricingDisplay  *string `json:"pricing_display,omitempty"`
+	Announcement    *string `json:"announcement,omitempty"`
+	FooterText      *string `json:"footer_text,omitempty"`
+	SupportUrl      *string `json:"support_url,omitempty"`
+	WechatSupport   *string `json:"wechat_support,omitempty"`    // 旧格式：URL 或 JSON 数组字符串
+	QQSupportQrcode *string `json:"qq_support_qrcode,omitempty"` // 旧格式：URL 或 JSON 数组字符串
+	TelegramSupport *string `json:"telegram_support,omitempty"`  // 旧格式：URL 或 JSON 数组字符串
 	// 多二维码列表（新格式，优先于旧标量字段）
-	WechatSupportList   []common.SupportQRCode `json:"wechat_support_list"`
-	QQSupportList       []common.SupportQRCode `json:"qq_support_list"`
-	TelegramSupportList []common.SupportQRCode `json:"telegram_support_list"`
+	WechatSupportList   *[]common.SupportQRCode `json:"wechat_support_list,omitempty"`
+	QQSupportList       *[]common.SupportQRCode `json:"qq_support_list,omitempty"`
+	TelegramSupportList *[]common.SupportQRCode `json:"telegram_support_list,omitempty"`
 }
 
 type providerNavModulesRequest struct {
@@ -388,6 +391,62 @@ func buildProviderAdminResponses(providers []model.Provider, withPricing bool) (
 	return responses, nil
 }
 
+// providerSelfResponse strips administrator-only data from the provider
+// snapshot returned to delegated provider members. Owners retain the legacy
+// self-service response because they need domain verification material.
+func providerSelfResponse(response providerAdminResponse, isOwner bool) interface{} {
+	if isOwner {
+		return response
+	}
+	domains := make([]gin.H, 0, len(response.Domains))
+	for _, domain := range response.Domains {
+		domains = append(domains, gin.H{
+			"id":          domain.Id,
+			"provider_id": domain.ProviderId,
+			"domain":      domain.Domain,
+			"status":      domain.Status,
+			"created_at":  domain.CreatedAt,
+			"updated_at":  domain.UpdatedAt,
+		})
+	}
+	data := gin.H{
+		"id":            response.Id,
+		"owner_user_id": response.OwnerUserId,
+		"name":          response.Name,
+		"status":        response.Status,
+		"created_at":    response.CreatedAt,
+		"updated_at":    response.UpdatedAt,
+		"domains":       domains,
+	}
+	if response.Config != nil {
+		data["config"] = providerSelfConfigValue(response.Config)
+	}
+	return data
+}
+
+// providerSelfConfigValue contains only values rendered by the provider
+// self-service form. Homepage, pricing, and synchronization controls remain
+// administrator-owned and are not returned to delegated members.
+func providerSelfConfigValue(cfg *model.ProviderConfig) gin.H {
+	if cfg == nil {
+		return nil
+	}
+	return gin.H{
+		"provider_id":           cfg.ProviderId,
+		"site_name":             cfg.SiteName,
+		"logo":                  cfg.Logo,
+		"theme_color":           cfg.ThemeColor,
+		"secondary_color":       cfg.SecondaryColor,
+		"footer_text":           cfg.FooterText,
+		"wechat_support":        cfg.WechatSupport,
+		"qq_support_qrcode":     cfg.QQSupportQrcode,
+		"telegram_support":      cfg.TelegramSupport,
+		"wechat_support_list":   common.ParseSupportQRCodes(cfg.WechatSupport),
+		"qq_support_list":       common.ParseSupportQRCodes(cfg.QQSupportQrcode),
+		"telegram_support_list": common.ParseSupportQRCodes(cfg.TelegramSupport),
+	}
+}
+
 func AdminListProviders(c *gin.Context) {
 	var providers []model.Provider
 	if err := model.DB.Order("id desc").Find(&providers).Error; err != nil {
@@ -699,74 +758,193 @@ func AdminEnableProvider(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
-func upsertProviderConfig(c *gin.Context, providerId int) {
+// upsertProviderConfig persists the shared provider page form. Theme colors
+// are editable through both the administrator and the already-authorized
+// self-service routes. The administrator route may update every provider page
+// field; the self-service route is restricted to the fields rendered in the
+// provider form. In particular, administrator-owned homepage fields must not
+// be writable through a hand-crafted self-service request.
+func providerConfigTrimmed(value *string) (string, bool) {
+	if value == nil {
+		return "", false
+	}
+	return strings.TrimSpace(*value), true
+}
+
+func providerConfigRaw(value *string) (string, bool) {
+	if value == nil {
+		return "", false
+	}
+	return *value, true
+}
+
+// providerConfigSupportValue distinguishes an omitted QR field from an
+// explicitly empty list. The latter is a deliberate delete operation and must
+// not fall back to a stale legacy scalar value.
+func providerConfigSupportValue(list *[]common.SupportQRCode, legacy *string) (string, bool) {
+	if list != nil {
+		return resolveSupportQRCodes(*list, ""), true
+	}
+	if legacy != nil {
+		return resolveSupportQRCodes(nil, *legacy), true
+	}
+	return "", false
+}
+
+// providerConfigPatch builds a presence-aware update map. In particular, a
+// partial QR/color request cannot erase unrelated provider settings.
+func providerConfigPatch(req providerConfigRequest, adminMode bool) (map[string]interface{}, error) {
+	updates := make(map[string]interface{})
+	if value, ok := providerConfigTrimmed(req.SiteName); ok {
+		updates["site_name"] = value
+	}
+	if value, ok := providerConfigTrimmed(req.Logo); ok {
+		updates["logo"] = value
+	}
+	if req.ThemeColor != nil {
+		value, ok := normalizeProviderHexColor(*req.ThemeColor)
+		if !ok {
+			return nil, errors.New("invalid theme color")
+		}
+		updates["theme_color"] = value
+	}
+	if req.SecondaryColor != nil {
+		value, ok := normalizeProviderHexColor(*req.SecondaryColor)
+		if !ok {
+			return nil, errors.New("invalid secondary color")
+		}
+		updates["secondary_color"] = value
+	}
+	if adminMode {
+		if value, ok := providerConfigTrimmed(req.LoginBackground); ok {
+			updates["login_background"] = value
+		}
+		if value, ok := providerConfigTrimmed(req.HomePageTheme); ok {
+			updates["home_page_theme"] = value
+		}
+		if value, ok := providerConfigRaw(req.HomeModules); ok {
+			updates["home_modules"] = value
+		}
+		if value, ok := providerConfigRaw(req.NavModules); ok {
+			updates["nav_modules"] = value
+		}
+		if value, ok := providerConfigRaw(req.PricingDisplay); ok {
+			updates["pricing_display"] = value
+		}
+		if value, ok := providerConfigTrimmed(req.Announcement); ok {
+			updates["announcement"] = value
+		}
+		if value, ok := providerConfigTrimmed(req.SupportUrl); ok {
+			updates["support_url"] = value
+		}
+	}
+	if value, ok := providerConfigTrimmed(req.FooterText); ok {
+		updates["footer_text"] = value
+	}
+	if value, ok := providerConfigSupportValue(req.WechatSupportList, req.WechatSupport); ok {
+		updates["wechat_support"] = value
+	}
+	if value, ok := providerConfigSupportValue(req.QQSupportList, req.QQSupportQrcode); ok {
+		updates["qq_support_qrcode"] = value
+	}
+	if value, ok := providerConfigSupportValue(req.TelegramSupportList, req.TelegramSupport); ok {
+		updates["telegram_support"] = value
+	}
+	updates["updated_at"] = common.GetTimestamp()
+	return updates, nil
+}
+
+func applyProviderConfigPatch(cfg *model.ProviderConfig, updates map[string]interface{}) {
+	if value, ok := updates["site_name"].(string); ok {
+		cfg.SiteName = value
+	}
+	if value, ok := updates["logo"].(string); ok {
+		cfg.Logo = value
+	}
+	if value, ok := updates["theme_color"].(string); ok {
+		cfg.ThemeColor = value
+	}
+	if value, ok := updates["secondary_color"].(string); ok {
+		cfg.SecondaryColor = value
+	}
+	if value, ok := updates["login_background"].(string); ok {
+		cfg.LoginBackground = value
+	}
+	if value, ok := updates["home_page_theme"].(string); ok {
+		cfg.HomePageTheme = value
+	}
+	if value, ok := updates["home_modules"].(string); ok {
+		cfg.HomeModules = value
+	}
+	if value, ok := updates["nav_modules"].(string); ok {
+		cfg.NavModules = value
+	}
+	if value, ok := updates["pricing_display"].(string); ok {
+		cfg.PricingDisplay = value
+	}
+	if value, ok := updates["announcement"].(string); ok {
+		cfg.Announcement = value
+	}
+	if value, ok := updates["footer_text"].(string); ok {
+		cfg.FooterText = value
+	}
+	if value, ok := updates["support_url"].(string); ok {
+		cfg.SupportUrl = value
+	}
+	if value, ok := updates["wechat_support"].(string); ok {
+		cfg.WechatSupport = value
+	}
+	if value, ok := updates["qq_support_qrcode"].(string); ok {
+		cfg.QQSupportQrcode = value
+	}
+	if value, ok := updates["telegram_support"].(string); ok {
+		cfg.TelegramSupport = value
+	}
+}
+
+func upsertProviderConfig(c *gin.Context, providerId int, adminMode bool) {
 	var req providerConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	themeColor, ok := normalizeProviderHexColor(req.ThemeColor)
-	if !ok {
-		common.ApiErrorMsg(c, "invalid theme color")
+	updates, err := providerConfigPatch(req, adminMode)
+	if err != nil {
+		common.ApiError(c, err)
 		return
 	}
-	secondaryColor, ok := normalizeProviderHexColor(req.SecondaryColor)
-	if !ok {
-		common.ApiErrorMsg(c, "invalid secondary color")
+	if providerId <= 0 {
+		common.ApiErrorMsg(c, "provider not found")
 		return
 	}
-	req.ThemeColor = themeColor
-	req.SecondaryColor = secondaryColor
-	if c.GetInt("role") < common.RoleAdminUser && !delegatedHasModule(c, "provider") {
-		req.HomePageTheme = ""
-	}
-	// 三渠道多二维码：新格式 list 优先，回退旧标量字段（兼容旧前端提交，描述字段已废弃）
-	updates := map[string]interface{}{
-		"site_name":         strings.TrimSpace(req.SiteName),
-		"logo":              strings.TrimSpace(req.Logo),
-		"login_background":  strings.TrimSpace(req.LoginBackground),
-		"home_page_theme":   strings.TrimSpace(req.HomePageTheme),
-		"home_modules":      req.HomeModules,
-		"nav_modules":       req.NavModules,
-		"pricing_display":   req.PricingDisplay,
-		"announcement":      strings.TrimSpace(req.Announcement),
-		"footer_text":       strings.TrimSpace(req.FooterText),
-		"support_url":       strings.TrimSpace(req.SupportUrl),
-		"updated_at":        common.GetTimestamp(),
-		"wechat_support":    resolveSupportQRCodes(req.WechatSupportList, req.WechatSupport),     // 微信客服（JSON 数组）
-		"qq_support_qrcode": resolveSupportQRCodes(req.QQSupportList, req.QQSupportQrcode),       // QQ客服二维码（JSON 数组）
-		"telegram_support":  resolveSupportQRCodes(req.TelegramSupportList, req.TelegramSupport), // Telegram客服（JSON 数组）
-	}
-	if c.GetInt("role") >= common.RoleAdminUser || delegatedHasModule(c, "provider") {
-		updates["theme_color"] = req.ThemeColor
-		updates["secondary_color"] = req.SecondaryColor
+	// Do not create a provider_config row for a deleted/nonexistent provider.
+	var provider model.Provider
+	if err := model.DB.Select("id").Where("id = ?", providerId).First(&provider).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "provider not found")
+		} else {
+			common.ApiError(c, err)
+		}
+		return
 	}
 	var cfg model.ProviderConfig
-	err := model.DB.Where("provider_id = ?", providerId).First(&cfg).Error
+	err = model.DB.Where("provider_id = ?", providerId).First(&cfg).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		importPriceRatio := 1.0
+		// The base row starts with the model defaults; supplied fields are
+		// applied below according to JSON presence.
 		now := common.GetTimestamp()
 		cfg = model.ProviderConfig{
-			ProviderId:       providerId,
-			SiteName:         strings.TrimSpace(req.SiteName),
-			Logo:             strings.TrimSpace(req.Logo),
-			ThemeColor:       req.ThemeColor,
-			SecondaryColor:   req.SecondaryColor,
-			LoginBackground:  strings.TrimSpace(req.LoginBackground),
-			HomePageTheme:    strings.TrimSpace(req.HomePageTheme),
-			HomeModules:      req.HomeModules,
-			NavModules:       req.NavModules,
-			PricingDisplay:   req.PricingDisplay,
-			Announcement:     strings.TrimSpace(req.Announcement),
-			FooterText:       strings.TrimSpace(req.FooterText),
-			SupportUrl:       strings.TrimSpace(req.SupportUrl),
+			ProviderId: providerId,
+			// Optional fields are applied from the presence-aware patch below.
 			CreatedAt:        now,
 			UpdatedAt:        now,
-			WechatSupport:    resolveSupportQRCodes(req.WechatSupportList, req.WechatSupport),
-			QQSupportQrcode:  resolveSupportQRCodes(req.QQSupportList, req.QQSupportQrcode),
-			TelegramSupport:  resolveSupportQRCodes(req.TelegramSupportList, req.TelegramSupport),
-			ImportPriceRatio: importPriceRatio,
+			WechatSupport:    "",
+			QQSupportQrcode:  "",
+			TelegramSupport:  "",
+			ImportPriceRatio: 1,
 		}
+		applyProviderConfigPatch(&cfg, updates)
+		cfg.UpdatedAt = now
 		if err := model.DB.Create(&cfg).Error; err != nil {
 			common.ApiError(c, err)
 			return
@@ -792,7 +970,7 @@ func AdminUpsertProviderConfig(c *gin.Context) {
 	if !ok {
 		return
 	}
-	upsertProviderConfig(c, id)
+	upsertProviderConfig(c, id, true)
 }
 
 func AdminUpdateProviderNavModules(c *gin.Context) {
@@ -1494,6 +1672,10 @@ func getOwnedProvider(c *gin.Context) (*model.Provider, bool) {
 		common.ApiError(c, err)
 		return nil, false
 	}
+	if provider.Status != model.ProviderStatusEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "provider is disabled"})
+		return nil, false
+	}
 	return provider, true
 }
 
@@ -1502,15 +1684,45 @@ func getOwnedProvider(c *gin.Context) (*model.Provider, bool) {
 // 被授权成员仅在服务商域名下生效：要求域名租户上下文的服务商与该成员用户归属一致。
 func getPermittedProvider(c *gin.Context, modules ...string) (*model.Provider, bool, bool) {
 	userId := c.GetInt("id")
-	provider, err := model.GetProviderByOwnerUserId(userId)
-	if err == nil {
-		return provider, true, true
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		common.ApiError(c, err)
-		return nil, false, false
-	}
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	var provider *model.Provider
+	var err error
+	// On a provider domain, bind an owner to the provider resolved from that
+	// domain. Do not fall back to another provider owned by the same user.
+	if providerId > 0 {
+		provider, err = model.GetProviderById(providerId)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "provider not found"})
+			} else {
+				common.ApiError(c, err)
+			}
+			return nil, false, false
+		}
+		if provider.OwnerUserId == userId {
+			if provider.Status != model.ProviderStatusEnabled {
+				c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "provider is disabled"})
+				return nil, false, false
+			}
+			return provider, true, true
+		}
+	} else {
+		// On the main site, an owner may manage the enabled provider associated
+		// with their account. This is the intentional main-site fallback.
+		provider, err = model.GetProviderByOwnerUserId(userId)
+		if err == nil {
+			if provider.Status != model.ProviderStatusEnabled {
+				c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "provider is disabled"})
+				return nil, false, false
+			}
+			return provider, true, true
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiError(c, err)
+			return nil, false, false
+		}
+	}
+
 	if providerId <= 0 {
 		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "current user is not a provider owner"})
 		return nil, false, false
@@ -1540,7 +1752,7 @@ func getPermittedProvider(c *gin.Context, modules ...string) (*model.Provider, b
 func GetProviderSelf(c *gin.Context) {
 	// 本服务商基本信息是所有成员页面的数据锚点：
 	// 属主或持有任意本站模块权限的成员均可读取
-	provider, _, ok := getPermittedProvider(c, model.ProviderSitePermissionModules...)
+	provider, isOwner, ok := getPermittedProvider(c, model.ProviderSitePermissionModules...)
 	if !ok {
 		return
 	}
@@ -1553,12 +1765,16 @@ func GetProviderSelf(c *gin.Context) {
 		common.ApiErrorMsg(c, "provider not found")
 		return
 	}
-	common.ApiSuccess(c, responses[0])
+	common.ApiSuccess(c, providerSelfResponse(responses[0], isOwner))
 }
 
 func UpdateProviderSelf(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "provider")
+	provider, isOwner, ok := getPermittedProvider(c, "provider")
 	if !ok {
+		return
+	}
+	if !isOwner {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "only provider owner can edit provider identity"})
 		return
 	}
 	var req providerAdminRequest
@@ -1571,11 +1787,16 @@ func UpdateProviderSelf(c *gin.Context) {
 		common.ApiErrorMsg(c, "provider name is required")
 		return
 	}
-	if err := model.DB.Model(&model.Provider{}).Where("id = ? AND owner_user_id = ?", provider.Id, c.GetInt("id")).Updates(map[string]interface{}{
+	result := model.DB.Model(&model.Provider{}).Where("id = ? AND owner_user_id = ?", provider.Id, c.GetInt("id")).Updates(map[string]interface{}{
 		"name":       req.Name,
 		"updated_at": common.GetTimestamp(),
-	}).Error; err != nil {
-		common.ApiError(c, err)
+	})
+	if result.Error != nil {
+		common.ApiError(c, result.Error)
+		return
+	}
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "only provider owner can edit provider identity"})
 		return
 	}
 	model.InvalidateProviderDomainCache(provider.Id)
@@ -1584,39 +1805,55 @@ func UpdateProviderSelf(c *gin.Context) {
 }
 
 func CreateProviderSelfDomain(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "provider")
+	provider, isOwner, ok := getPermittedProvider(c, "provider")
 	if !ok {
+		return
+	}
+	if !isOwner {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "only provider owner can manage provider domains"})
 		return
 	}
 	createProviderDomain(c, provider.Id, true)
 }
 
 func SaveProviderSelfDomains(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "provider")
+	provider, isOwner, ok := getPermittedProvider(c, "provider")
 	if !ok {
+		return
+	}
+	if !isOwner {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "only provider owner can manage provider domains"})
 		return
 	}
 	saveProviderDomains(c, provider.Id, true)
 }
 
 func UpdateProviderSelfDomain(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "provider")
+	provider, isOwner, ok := getPermittedProvider(c, "provider")
 	if !ok {
+		return
+	}
+	if !isOwner {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "only provider owner can manage provider domains"})
 		return
 	}
 	updateProviderDomain(c, provider.Id, true)
 }
 
 func DeleteProviderSelfDomain(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "provider")
+	provider, isOwner, ok := getPermittedProvider(c, "provider")
 	if !ok {
+		return
+	}
+	if !isOwner {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "only provider owner can manage provider domains"})
 		return
 	}
 	deleteProviderDomain(c, provider.Id)
 }
 
 func GetProviderSelfConfig(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "provider")
+	provider, isOwner, ok := getPermittedProvider(c, "provider")
 	if !ok {
 		return
 	}
@@ -1629,7 +1866,11 @@ func GetProviderSelfConfig(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, cfg)
+	if isOwner {
+		common.ApiSuccess(c, cfg)
+		return
+	}
+	common.ApiSuccess(c, providerSelfConfigValue(&cfg))
 }
 
 func UpsertProviderSelfConfig(c *gin.Context) {
@@ -1637,7 +1878,7 @@ func UpsertProviderSelfConfig(c *gin.Context) {
 	if !ok {
 		return
 	}
-	upsertProviderConfig(c, provider.Id)
+	upsertProviderConfig(c, provider.Id, false)
 }
 
 func UploadProviderLogo(c *gin.Context) {

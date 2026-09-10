@@ -60,8 +60,10 @@ func getOperationProviderID(c *gin.Context) (int, bool) {
 	}
 
 	// 服务商 owner 在主站登录: 域名上下文为主站, 回落到其名下服务商。
-	if ownedProviderID, ok := lookupOwnedProviderID(c.GetInt("id")); ok {
-		return ownedProviderID, true
+	if providerID == 0 {
+		if ownedProviderID, ok := lookupOwnedProviderID(c.GetInt("id")); ok {
+			return ownedProviderID, true
+		}
 	}
 
 	// 被授予模块权限的普通用户: 主站用户(operational)看主站范围，
