@@ -16,6 +16,9 @@ import (
 )
 
 func SetRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
+	// Reject globally blacklisted source IPs after the top-level real-IP
+	// resolver (installed by main) has populated Gin's trusted client IP.
+	router.Use(middleware.ClientIPBlacklist())
 	router.Use(middleware.TenantResolver())
 	SetApiRouter(router)
 	SetDashboardRouter(router)
