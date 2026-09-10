@@ -371,7 +371,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   const selectInvitee = useCallback(
     async (invitee) => {
-      if (!invitee?.id) return false;
+      // id='all' 为"全部邀请用户"虚拟选项,其余必须为具体被邀请人 ID
+      if (invitee?.id !== 'all' && !invitee?.id) return false;
       const loaded = await loadInviteeCardData(invitee.id);
       if (loaded) {
         setSelectedInvitee(invitee);

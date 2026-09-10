@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Modal, Pagination, Spin } from '@douyinfe/semi-ui';
-import { RefreshCw, Search, Plus, X } from 'lucide-react';
+import { RefreshCw, Search, Plus, X, Users } from 'lucide-react';
 import { timestamp2string } from '../../helpers';
 import { INVITEE_PAGE_SIZE } from '../../constants/dashboard.constants';
 
@@ -212,6 +212,17 @@ const DashboardHeader = ({
             onClick={handleInviteeSearch}
           >
             {t('搜索')}
+          </Button>
+          {/* 全部邀请用户汇总入口:点击后卡片切换为名下全部被邀请人数据的总和 */}
+          <Button
+            type={selectedInvitee?.id === 'all' ? 'primary' : 'tertiary'}
+            theme={selectedInvitee?.id === 'all' ? 'light' : 'light'}
+            icon={<Users size={16} />}
+            onClick={() =>
+              handleInviteeSelect({ id: 'all', username: t('全部邀请用户') })
+            }
+          >
+            {t('全部汇总')}
           </Button>
         </div>
 

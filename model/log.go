@@ -898,6 +898,27 @@ func CountRequestLogs(startTimestamp int64, endTimestamp int64, userId int) (Req
 	return result, err
 }
 
+// CountRequestLogsByUserIds 统计一组用户在时间范围内的请求次数(成功+失败)。
+// userIds 为空时返回全零;时间参数为 0 时表示不限制,与 CountRequestLogs 语义一致。
+func CountRequestLogsByUserIds(startTimestamp int64, endTimestamp int64, userIds []int) (RequestCountResult, error) {
+	var result RequestCountResult
+	if len(userIds) == 0 {
+		return result, nil
+	}
+	tx := LOG_DB.Model(&Log{}).
+		Select("SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) as success_count, SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) as error_count",
+			LogTypeConsume, LogTypeError).
+		Where("user_id IN ?", userIds)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+	err := tx.Scan(&result).Error
+	return result, err
+}
+
 // CountInviteRewardsByUserId 统计指定用户在时间范围内的邀请奖励次数
 func CountInviteRewardsByUserId(userId int, startTimestamp, endTimestamp int64) (int64, error) {
 	var count int64
