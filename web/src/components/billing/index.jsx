@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import {
   Badge,
   Button,
@@ -45,7 +45,7 @@ import {
   Coins,
   Gift,
   Wallet,
-  BarChart3
+  BarChart3,
 } from 'lucide-react';
 import { IconSearch, IconCopy, IconEyeOpened } from '@douyinfe/semi-icons';
 import { API, timestamp2string, formatDisplayMoney } from '../../helpers';
@@ -55,7 +55,12 @@ import {
   isInviteRebateTopup,
   isSubscriptionTopup,
 } from '../../helpers/topup';
-import { hasUserPermission } from '../../helpers/utils';
+import {
+  hasUserPermission,
+  isAdmin,
+  isProviderOwner,
+} from '../../helpers/utils';
+import { StatusContext } from '../../context/Status';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 
 const { Text } = Typography;
@@ -219,7 +224,9 @@ const buildDetailSections = (orderInfo, commissionDetails, t) => {
   const statusConfig = getDetailStatusTag(orderInfo.status, t);
   const tradeNo = orderInfo.user_id || '--';
   const createTime = timestamp2string(orderInfo.create_time);
-  const payAmount = formatCurrency(orderInfo.money, { signed: Number(orderInfo.money) > 0 });
+  const payAmount = formatCurrency(orderInfo.money, {
+    signed: Number(orderInfo.money) > 0,
+  });
 
   return {
     mainInfo: [
@@ -249,33 +256,40 @@ const buildDetailSections = (orderInfo, commissionDetails, t) => {
       },
       { label: t('金额变动'), value: payAmount },
     ],
-    commissionGroups: commissionDetails.length>0 ? commissionDetails.map((item) => ({
-      title: t('一级分佣（供应商）'),
-      items: [
-        { label: t('接收账户'), value: item.inviter_id, copyValue: item.inviter_id },
-        { label: t('分佣比例'), value: formatPercent(item.rebate_ratio) },
-        { label: t('结算金额'), value: formatCurrency(item.money) },
-        {
-          label: t('状态'),
-          value: (
-            <span
-              className='inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm'
-              style={{
-                color: statusConfig.color,
-                background: statusConfig.background,
-                borderColor: statusConfig.borderColor,
-              }}
-            >
-              <span
-                className='h-2 w-2 rounded-full'
-                style={{ backgroundColor: statusConfig.color }}
-              />
-              {statusConfig.label}
-            </span>
-          ),
-        },
-      ],
-    }))  : [],
+    commissionGroups:
+      commissionDetails.length > 0
+        ? commissionDetails.map((item) => ({
+            title: t('一级分佣（供应商）'),
+            items: [
+              {
+                label: t('接收账户'),
+                value: item.inviter_id,
+                copyValue: item.inviter_id,
+              },
+              { label: t('分佣比例'), value: formatPercent(item.rebate_ratio) },
+              { label: t('结算金额'), value: formatCurrency(item.money) },
+              {
+                label: t('状态'),
+                value: (
+                  <span
+                    className='inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm'
+                    style={{
+                      color: statusConfig.color,
+                      background: statusConfig.background,
+                      borderColor: statusConfig.borderColor,
+                    }}
+                  >
+                    <span
+                      className='h-2 w-2 rounded-full'
+                      style={{ backgroundColor: statusConfig.color }}
+                    />
+                    {statusConfig.label}
+                  </span>
+                ),
+              },
+            ],
+          }))
+        : [],
   };
 };
 
@@ -309,7 +323,9 @@ const Billing = () => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [billingPeriod, setBillingPeriod] = useState('day');
-  const [billingSummary, setBillingSummary] = useState(BILLING_SUMMARY_DEFAULTS);
+  const [billingSummary, setBillingSummary] = useState(
+    BILLING_SUMMARY_DEFAULTS,
+  );
   const [billingSummaryLoading, setBillingSummaryLoading] = useState(false);
 
   const [activePage, setActivePage] = useState(1);
@@ -322,16 +338,35 @@ const Billing = () => {
   const [orderInfo, setOrderInfo] = useState(null);
   const [commissionDetails, setCommissionDetails] = useState([]);
 
+  // 站点维度用域名租户上下文判断（/api/status 的 site_provider_id），与运营数据页一致
+  const [statusState] = useContext(StatusContext);
+  const siteProviderId = Number(statusState?.status?.site_provider_id) || 0;
+
+  // 管理员优先按主站口径；站长（任意域名）与分站被授权成员（分站域名）看本站数据，
+  // 后端按登录身份解析范围，前端只决定接口选择与操作可见性
+  const providerMode =
+    !isAdmin() &&
+    (isProviderOwner() ||
+      (siteProviderId > 0 && hasUserPermission('providerBilling')));
   // 管理员或被授予 billing 模块权限的普通用户走平台级接口，
-  // 与后端 AdminOrModuleAuth("billing") 的放行口径一致
-  const canManageBilling = useMemo(() => hasUserPermission('billing'), []);
+  // 与后端 AdminOrModuleAuth("billing") 的放行口径一致；分站域名上不生效
+  const canManageBilling = useMemo(
+    () => !providerMode && siteProviderId === 0 && hasUserPermission('billing'),
+    [providerMode, siteProviderId],
+  );
+  // 平台级(管理员)或本站级(站长)共用同一组接口，仅普通用户回落到 /self
+  const canViewSiteBilling = providerMode || canManageBilling;
   const billingPageTitle = t('账单中心');
-  const billingPageDescription = t('查看全平台充值、充值返佣与用户账单状态。');
+  const billingPageDescription = providerMode
+    ? t('查看本站充值、充值返佣与用户账单状态。')
+    : t('查看全平台充值、充值返佣与用户账单状态。');
 
   const loadTopups = async (page, pageSize, keyword) => {
     setHistoryLoading(true);
     try {
-      const base = canManageBilling ? '/api/user/topup' : '/api/user/topup/self';
+      const base = canViewSiteBilling
+        ? '/api/user/topup'
+        : '/api/user/topup/self';
       const qs =
         `p=${page}&page_size=${pageSize}` +
         (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '');
@@ -353,7 +388,7 @@ const Billing = () => {
   useEffect(() => {
     let mounted = true;
     setBillingSummaryLoading(true);
-    let url = canManageBilling
+    let url = canViewSiteBilling
       ? `/api/bill?period=${billingPeriod}`
       : `/api/bill/self?period=${billingPeriod}`;
 
@@ -363,7 +398,9 @@ const Billing = () => {
 
         const payload = res.data || {};
         const source =
-          payload.data && typeof payload.data === 'object' ? payload.data : payload;
+          payload.data && typeof payload.data === 'object'
+            ? payload.data
+            : payload;
 
         if (payload.success === false) {
           Toast.error({ content: payload.message || t('加载失败') });
@@ -393,11 +430,11 @@ const Billing = () => {
     return () => {
       mounted = false;
     };
-  }, [billingPeriod, t]);
+  }, [billingPeriod, t, canViewSiteBilling]);
 
   useEffect(() => {
     loadTopups(activePage, historyPageSize, historyKeyword);
-  }, [activePage, historyPageSize, historyKeyword, canManageBilling]);
+  }, [activePage, historyPageSize, historyKeyword, canViewSiteBilling]);
 
   const handleAdminComplete = async (tradeNo) => {
     try {
@@ -446,7 +483,7 @@ const Billing = () => {
       const { success, message, data } = res.data;
       if (success) {
         setOrderInfo(data.topup || {});
-        setCommissionDetails(data.level1_rate? [data.level1_rate] : []);
+        setCommissionDetails(data.level1_rate ? [data.level1_rate] : []);
         setDetailVisible(true);
       } else {
         Toast.error({ content: message || t('加载失败') });
@@ -457,7 +494,11 @@ const Billing = () => {
   };
 
   const handleCopyDetailValue = async (value) => {
-    if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+    if (
+      !value ||
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard?.writeText
+    ) {
       Toast.error({ content: t('复制失败') });
       return;
     }
@@ -470,114 +511,128 @@ const Billing = () => {
   };
 
   const renderStatusBadge = (status, record) => {
-      if (isInviteRebateTopup(record)) {
-        return (
-          <span className='inline-flex items-center justify-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
-            <CheckCircle size={14} />
-            <span className='font-medium'>{t('已入账')}</span>
-          </span>
-        );
-      }
-      if (!status) {
-        return <Text type='tertiary'>-</Text>;
-      }
-      const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
+    if (isInviteRebateTopup(record)) {
       return (
-        <span className='flex items-center justify-center gap-2'>
-          <Badge dot type={config.type} />
-          <span>{t(config.key)}</span>
+        <span className='inline-flex items-center justify-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+          <CheckCircle size={14} />
+          <span className='font-medium'>{t('已入账')}</span>
         </span>
       );
-    };
+    }
+    if (!status) {
+      return <Text type='tertiary'>-</Text>;
+    }
+    const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
+    return (
+      <span className='flex items-center justify-center gap-2'>
+        <Badge dot type={config.type} />
+        <span>{t(config.key)}</span>
+      </span>
+    );
+  };
 
-    const renderPaymentMethod = (paymentMethod) => {
-      const displayName = PAYMENT_METHOD_MAP[paymentMethod];
-      return <Text>{displayName ? t(displayName) : paymentMethod || '-'}</Text>;
-    };
+  const renderPaymentMethod = (paymentMethod) => {
+    const displayName = PAYMENT_METHOD_MAP[paymentMethod];
+    return <Text>{displayName ? t(displayName) : paymentMethod || '-'}</Text>;
+  };
 
-    const renderBizTypeTag = (record) => {
-      const config = getTopupBizTypeConfig(record);
-      const inviteRebate = isInviteRebateTopup(record);
-      return (
-        <Tag color={config.color} shape='circle' size='small'>
+  const renderBizTypeTag = (record) => {
+    const config = getTopupBizTypeConfig(record);
+    const inviteRebate = isInviteRebateTopup(record);
+    return (
+      <Tag color={config.color} shape='circle' size='small'>
+        <span className='inline-flex items-center gap-1'>
+          {inviteRebate ? <Gift size={12} /> : null}
+          {t(config.label)}
+        </span>
+      </Tag>
+    );
+  };
+
+  const periodOptionList = useMemo(
+    () =>
+      BILL_PERIOD_OPTIONS.map((item) => ({
+        value: item.value,
+        label: t(item.label),
+      })),
+    [t],
+  );
+
+  const summaryCards = useMemo(
+    () => [
+      {
+        key: 'current_quota',
+        title: t('支出/消费'),
+        value: formatCurrency(billingSummary.expense, {
+          symbol: billingSummary.display_symbol,
+        }),
+        description: (
           <span className='inline-flex items-center gap-1'>
-            {inviteRebate ? <Gift size={12} /> : null}
-            {t(config.label)}
-          </span>
-        </Tag>
-      );
-    };
-
-    const periodOptionList = useMemo(
-      () => BILL_PERIOD_OPTIONS.map((item) => ({ value: item.value, label: t(item.label) })),
-      [t],
-    );
-
-    const summaryCards = useMemo(
-      () => [
-        {
-          key: 'current_quota',
-          title: t('支出/消费'),
-          value: formatCurrency(billingSummary.expense, { symbol: billingSummary.display_symbol }),
-          description: (
-            <span className='inline-flex items-center gap-1'>
-              <span className='text-slate-400'>{t('较上月')}</span>
-              <span className={getPercentToneClassName(billingSummary.expense_trend)}>
-                {formatPercent(billingSummary.expense_trend)}
-              </span>
+            <span className='text-slate-400'>{t('较上月')}</span>
+            <span
+              className={getPercentToneClassName(billingSummary.expense_trend)}
+            >
+              {formatPercent(billingSummary.expense_trend)}
             </span>
-          ),
-          icon: BadgeDollarSign,
-          iconClassName: 'text-slate-500',
-          iconWrapClassName: 'bg-slate-100',
-          valueClassName: 'text-slate-700',
-        },
-        {
-          key: 'topup_amount',
-          title: t('充值/本金'),
-          value: formatCurrency(billingSummary.topup, { symbol: billingSummary.display_symbol }),
-          description: t('实际支付充值的金额'),
-          icon: CalendarCheck2,
-          iconClassName: 'text-slate-500',
-          iconWrapClassName: 'bg-slate-100',
-          valueClassName: 'text-slate-700',
-        },
-        {
-          key: 'redemption_amount',
-          title: t('获赠/福利'),
-          value: formatCurrency(billingSummary.bonus, { symbol: billingSummary.display_symbol }),
-          description: t('获得的平台赠送或活动奖励'),
-          icon: Coins,
-          iconClassName: 'text-slate-500',
-          iconWrapClassName: 'bg-slate-100',
-          valueClassName: 'text-slate-700',
-        },
-        {
-          key: 'net_change',
-          title: t('净变动'),
-          value: formatCurrency(billingSummary.net_change, { signed: true, symbol: billingSummary.display_symbol }),
-          description: t('账户资金的净增减情况'),
-          icon: BarChart3,
-          iconClassName: 'text-slate-500',
-          iconWrapClassName: 'bg-slate-100',
-          valueClassName: 'text-slate-700',
-        },
-      ],
-      [billingSummary, t],
-    );
+          </span>
+        ),
+        icon: BadgeDollarSign,
+        iconClassName: 'text-slate-500',
+        iconWrapClassName: 'bg-slate-100',
+        valueClassName: 'text-slate-700',
+      },
+      {
+        key: 'topup_amount',
+        title: t('充值/本金'),
+        value: formatCurrency(billingSummary.topup, {
+          symbol: billingSummary.display_symbol,
+        }),
+        description: t('实际支付充值的金额'),
+        icon: CalendarCheck2,
+        iconClassName: 'text-slate-500',
+        iconWrapClassName: 'bg-slate-100',
+        valueClassName: 'text-slate-700',
+      },
+      {
+        key: 'redemption_amount',
+        title: t('获赠/福利'),
+        value: formatCurrency(billingSummary.bonus, {
+          symbol: billingSummary.display_symbol,
+        }),
+        description: t('获得的平台赠送或活动奖励'),
+        icon: Coins,
+        iconClassName: 'text-slate-500',
+        iconWrapClassName: 'bg-slate-100',
+        valueClassName: 'text-slate-700',
+      },
+      {
+        key: 'net_change',
+        title: t('净变动'),
+        value: formatCurrency(billingSummary.net_change, {
+          signed: true,
+          symbol: billingSummary.display_symbol,
+        }),
+        description: t('账户资金的净增减情况'),
+        icon: BarChart3,
+        iconClassName: 'text-slate-500',
+        iconWrapClassName: 'bg-slate-100',
+        valueClassName: 'text-slate-700',
+      },
+    ],
+    [billingSummary, t],
+  );
 
-    const startIndex =
-      historyTotal === 0 ? 0 : (activePage - 1) * historyPageSize + 1;
-    const endIndex = Math.min(activePage * historyPageSize, historyTotal);
-    const detailSections = useMemo(
-      () => buildDetailSections(orderInfo, commissionDetails, t),
-      [orderInfo, commissionDetails, t],
-  
-    );
-    const hasInviteRebateRecords = useMemo(
-      () => historyRows.some((record) => isInviteRebateTopup(record)),
-      [historyRows],
-    );
+  const startIndex =
+    historyTotal === 0 ? 0 : (activePage - 1) * historyPageSize + 1;
+  const endIndex = Math.min(activePage * historyPageSize, historyTotal);
+  const detailSections = useMemo(
+    () => buildDetailSections(orderInfo, commissionDetails, t),
+    [orderInfo, commissionDetails, t],
+  );
+  const hasInviteRebateRecords = useMemo(
+    () => historyRows.some((record) => isInviteRebateTopup(record)),
+    [historyRows],
+  );
   const columns = useMemo(() => {
     const baseColumns = [
       {
@@ -628,16 +683,14 @@ const Billing = () => {
         render: (money, record) => {
           const normalizedMoney = Number(money || 0);
           if (normalizedMoney <= 0) {
-            return <Text type="tertiary">-</Text>;
+            return <Text type='tertiary'>-</Text>;
           }
           // 优先使用后端返回的币种符号，Stripe 默认 $，其他默认 ¥
           const paySymbol =
             record.display_symbol ||
-            (record.payment_method === "stripe" ? "$" : "¥");
+            (record.payment_method === 'stripe' ? '$' : '¥');
           return (
-            <Text type="danger">
-              {formatDisplayMoney(money, paySymbol)}
-            </Text>
+            <Text type='danger'>{formatDisplayMoney(money, paySymbol)}</Text>
           );
         },
       },
@@ -691,7 +744,7 @@ const Billing = () => {
       },
     ];
 
-    if (canManageBilling) {
+    if (canViewSiteBilling) {
       baseColumns.splice(1, 0, {
         title: t('用户昵称'),
         dataIndex: 'display_name',
@@ -701,7 +754,7 @@ const Billing = () => {
     }
 
     return baseColumns;
-  }, [t, canManageBilling]);
+  }, [t, canViewSiteBilling]);
 
   return (
     <div className='billing-page flex flex-col gap-4 pb-4'>
@@ -722,25 +775,11 @@ const Billing = () => {
         </div>
       </div>
 
-      <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
-        <div className='inline-flex w-fit items-center rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-1 shadow-sm'>
-          <button
-            type='button'
-            className='rounded-xl bg-[#f3faf8] dark:bg-slate-400 px-6 py-3 text-sm font-semibold text-[#1f3b2d]'
-          >
-            {t('用户')}
-          </button>
-          <button
-            type='button'
-            disabled
-            className='rounded-xl px-6 py-3 text-sm font-semibold text-slate-400 opacity-70'
-          >
-            {t('代理商')}
-          </button>
-        </div>
-
+      <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-end'>
         <div className='flex w-full items-center justify-between dark:bg-slate-800 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 shadow-sm sm:w-auto sm:gap-4'>
-          <span className='text-sm font-medium text-slate-400'>{t('日期范围')}</span>
+          <span className='text-sm font-medium text-slate-400'>
+            {t('日期范围')}
+          </span>
           <Select
             value={billingPeriod}
             optionList={periodOptionList}
@@ -772,15 +811,22 @@ const Billing = () => {
                   <div
                     className={`icon-bg flex h-12 w-12 items-center justify-center dark:bg-slate-600 rounded-2xl ${item.iconWrapClassName}`}
                   >
-                    <Icon size={22} className={`icon-color ${item.iconClassName}`} />
+                    <Icon
+                      size={22}
+                      className={`icon-color ${item.iconClassName}`}
+                    />
                   </div>
                 </div>
 
                 <div className='space-y-4'>
-                  <div className={`text-val text-[24px] font-[900] md:text-[26px] ${item.valueClassName}`}>
+                  <div
+                    className={`text-val text-[24px] font-[900] md:text-[26px] ${item.valueClassName}`}
+                  >
                     {item.value}
                   </div>
-                  <div className='text-sm text-slate-500'>{item.description}</div>
+                  <div className='text-sm text-slate-500'>
+                    {item.description}
+                  </div>
                 </div>
               </div>
             </Card>
@@ -825,7 +871,7 @@ const Billing = () => {
             <Input
               prefix={<IconSearch />}
               placeholder={t(
-                canManageBilling ? '搜索订单号或用户昵称' : '搜索订单号',
+                canViewSiteBilling ? '搜索订单号或用户昵称' : '搜索订单号',
               )}
               value={historyKeyword}
               onChange={(value) => {
@@ -847,7 +893,9 @@ const Billing = () => {
           pagination={false}
           empty={
             <Empty
-              image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+              image={
+                <IllustrationNoResult style={{ width: 150, height: 150 }} />
+              }
               darkModeImage={
                 <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
               }
@@ -858,7 +906,6 @@ const Billing = () => {
         />
 
         <div className='billing-pagination flex flex-col gap-3 pt-3 lg:flex-row lg:items-center lg:justify-end'>
-          
           <div className='flex items-center gap-3'>
             <Pagination
               total={historyTotal}
@@ -873,7 +920,9 @@ const Billing = () => {
 
       <Modal
         title={
-          <span className='text-[18px] font-[700] text-[#334155]'>{t('详情')}</span>
+          <span className='text-[18px] font-[700] text-[#334155]'>
+            {t('详情')}
+          </span>
         }
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
@@ -915,7 +964,9 @@ const Billing = () => {
         centered={!isMobile}
         bodyStyle={{
           padding: isMobile ? '4px 16px 0' : '4px 0',
-          height: isMobile ? 'calc(100vh - 220px)' : DETAIL_MODAL_CONTENT_HEIGHT,
+          height: isMobile
+            ? 'calc(100vh - 220px)'
+            : DETAIL_MODAL_CONTENT_HEIGHT,
           overflow: 'hidden',
         }}
       >
@@ -952,32 +1003,38 @@ const Billing = () => {
             </div>
 
             <div className='space-y-7'>
-              {detailSections.commissionGroups.length>0 ? detailSections.commissionGroups.map((group) => (
-                <div key={group.title}>
-                  <div className='mb-3 text-sm font-semibold text-[#94A3B8]'>
-                    {group.title}
+              {detailSections.commissionGroups.length > 0 ? (
+                detailSections.commissionGroups.map((group) => (
+                  <div key={group.title}>
+                    <div className='mb-3 text-sm font-semibold text-[#94A3B8]'>
+                      {group.title}
+                    </div>
+                    <div className='space-y-2'>
+                      {group.items.map((item) => (
+                        <DetailField
+                          key={`${group.title}-${item.label}`}
+                          label={item.label}
+                          value={item.value}
+                          copyValue={item.copyValue}
+                          onCopy={handleCopyDetailValue}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className='space-y-2'>
-                    {group.items.map((item) => (
-                      <DetailField
-                        key={`${group.title}-${item.label}`}
-                        label={item.label}
-                        value={item.value}
-                        copyValue={item.copyValue}
-                        onCopy={handleCopyDetailValue}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )) :
+                ))
+              ) : (
                 <div className='text-center text-[#94A3B8] h-full flex items-center justify-center'>
                   <Empty
-                    image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+                    image={
+                      <IllustrationNoResult
+                        style={{ width: 150, height: 150 }}
+                      />
+                    }
                     description={t('暂无分佣明细')}
                     style={{ padding: 30 }}
                   />
                 </div>
-              }
+              )}
             </div>
           </div>
         </div>

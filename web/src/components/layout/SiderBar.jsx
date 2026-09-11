@@ -28,7 +28,14 @@ import { getLucideIcon } from '../../helpers/render';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { getLogo, getSystemName, isAdmin, isProviderOwner, isRoot, showError } from '../../helpers';
+import {
+  getLogo,
+  getSystemName,
+  isAdmin,
+  isProviderOwner,
+  isRoot,
+  showError,
+} from '../../helpers';
 import {
   MAIN_PERMISSION_KEYS,
   PROVIDER_PERMISSION_KEYS,
@@ -65,6 +72,7 @@ const routerMap = {
   providerLogs: '/console/provider/logs',
   providerWithdraw: '/console/provider/withdraw',
   providerOperational: '/console/provider/operational',
+  providerBilling: '/console/provider/billing',
   providerSetting: '/console/provider/setting',
   providerQuestionSurvey: '/console/provider/questionSurvey',
   playground: '/console/playground',
@@ -76,7 +84,7 @@ const routerMap = {
   reconciliation: '/console/reconciliation',
   invitation: '/console/invitation',
   exchange: '/console/exchange',
-  questionSurvey: '/console/questionSurvey'
+  questionSurvey: '/console/questionSurvey',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -157,9 +165,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       },
     ];
 
-    return items.filter((item) =>
-      isModuleVisible(item.section, item.itemKey),
-    );
+    return items.filter((item) => isModuleVisible(item.section, item.itemKey));
   }, [t, isAdmin(), isModuleVisible]);
 
   const logItems = useMemo(() => {
@@ -222,9 +228,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       // },
     ];
 
-    return items.filter((item) =>
-      isModuleVisible(item.section, item.itemKey),
-    );
+    return items.filter((item) => isModuleVisible(item.section, item.itemKey));
   }, [t, isModuleVisible]);
 
   const revenueMerchantItems = useMemo(() => {
@@ -283,6 +287,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('运营数据'),
         itemKey: 'providerOperational',
         to: '/provider/operational',
+      },
+      {
+        text: t('账单中心'),
+        itemKey: 'providerBilling',
+        to: '/provider/billing',
       },
       {
         text: t('提现管理'),
@@ -604,7 +613,15 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             <Nav.Item
               key={subItem.itemKey}
               itemKey={subItem.itemKey}
-              icon={<IconRadio size='14' style={{margin:'0 10px 0 24px',color: 'rgb(203 213 225 / 100%)'}} />}
+              icon={
+                <IconRadio
+                  size='14'
+                  style={{
+                    margin: '0 10px 0 24px',
+                    color: 'rgb(203 213 225 / 100%)',
+                  }}
+                />
+              }
               text={
                 <span
                   className='truncate font-medium text-sm'
@@ -648,7 +665,9 @@ const SiderBar = ({ onNavigate = () => {} }) => {
               </div>
             )}
           </div>
-          {!collapsed && <span className='sidebar-brand-text'>{systemName}</span>}
+          {!collapsed && (
+            <span className='sidebar-brand-text'>{systemName}</span>
+          )}
         </Link>
 
         <Button
@@ -716,25 +735,28 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             setOpenedKeys(data.openKeys);
           }}
         >
-          {hasSectionVisibleModules('console') && hasVisible(dashboardItems) && (
-            <>
+          {hasSectionVisibleModules('console') &&
+            hasVisible(dashboardItems) && (
+              <>
+                <div className='sidebar-section'>
+                  {!collapsed && (
+                    <div className='sidebar-group-label'>{t('Dashboard')}</div>
+                  )}
+                  {dashboardItems.map((item) => renderNavItem(item))}
+                </div>
+              </>
+            )}
+
+          {false &&
+            hasSectionVisibleModules('chat') &&
+            chatMenuItems.length > 0 && (
               <div className='sidebar-section'>
                 {!collapsed && (
-                  <div className='sidebar-group-label'>{t('Dashboard')}</div>
-                )}
-                {dashboardItems.map((item) => renderNavItem(item))}
-              </div>
-            </>
-          )}
-
-          {false && hasSectionVisibleModules('chat') && chatMenuItems.length > 0 && (
-            <div className='sidebar-section'>
-              {!collapsed && (
                   <div className='sidebar-group-label'>{t('聊天')}</div>
-              )}
-              {chatMenuItems.map((item) => renderSubItem(item))}
-            </div>
-          )}
+                )}
+                {chatMenuItems.map((item) => renderSubItem(item))}
+              </div>
+            )}
 
           {hasVisible(workspaceItems) && (
             <>
@@ -845,6 +867,6 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       <SidebarUserPanel collapsed={collapsed} />
     </div>
   );
-}
+};
 
 export default SiderBar;

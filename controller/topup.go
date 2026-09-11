@@ -528,8 +528,14 @@ func GetUserTopUps(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
-// GetAllTopUps 管理员获取全平台充值记录
+// GetAllTopUps 获取充值记录：主站管理员/被授权用户看全平台，
+// 服务商站长与被授权的分站成员看本站范围（provider_id>0）。
 func GetAllTopUps(c *gin.Context) {
+	providerId, ok := getBillingProviderID(c)
+	if !ok {
+		return
+	}
+
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
 
@@ -539,9 +545,17 @@ func GetAllTopUps(c *gin.Context) {
 		err    error
 	)
 	if keyword != "" {
-		topups, total, err = model.SearchAllTopUps(keyword, pageInfo)
+		if providerId > 0 {
+			topups, total, err = model.SearchProviderTopUps(providerId, keyword, pageInfo)
+		} else {
+			topups, total, err = model.SearchAllTopUps(keyword, pageInfo)
+		}
 	} else {
-		topups, total, err = model.GetAllTopUps(pageInfo)
+		if providerId > 0 {
+			topups, total, err = model.GetProviderTopUps(providerId, pageInfo)
+		} else {
+			topups, total, err = model.GetAllTopUps(pageInfo)
+		}
 	}
 	if err != nil {
 		common.ApiError(c, err)
@@ -579,8 +593,13 @@ func AdminCompleteTopUp(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
-// 管理员查看订单详情
+// 管理员/站长查看订单详情
 func GetUserTopupDetails(c *gin.Context) {
+	providerId, ok := getBillingProviderID(c)
+	if !ok {
+		return
+	}
+
 	var req struct {
 		TopUpID int    `json:"topup_id" form:"topup_id"`
 		TradeNo string `json:"trade_no" form:"trade_no"`
@@ -611,6 +630,12 @@ func GetUserTopupDetails(c *gin.Context) {
 		}
 		logger.LogError(c, "query topup detail failed: "+err.Error())
 		common.ApiErrorMsg(c, "查询充值详情失败")
+		return
+	}
+
+	// 站长/分站成员只能查看本站订单，防止跨站越权
+	if providerId > 0 && (topDetails.TopUp == nil || topDetails.TopUp.ProviderId != providerId) {
+		common.ApiErrorMsg(c, "无权查看该充值记录")
 		return
 	}
 

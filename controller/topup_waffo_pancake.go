@@ -385,6 +385,7 @@ func RequestWaffoPancakePay(c *gin.Context) {
 
 	tradeNo := fmt.Sprintf("WAFFO_PANCAKE-%d-%d-%s", id, time.Now().UnixMilli(), randstr.String(6))
 	topUp := &model.TopUp{
+		ProviderId:      c.GetInt("provider_id"), // 服务商ID（按支付时域名归属，供分站账单统计）
 		UserId:          id,
 		Amount:          normalizeWaffoPancakeTopUpAmount(req.Amount),
 		Money:           payMoney,

@@ -47,15 +47,17 @@ var lookupEnabledProviderID = func(providerID int) (int, bool) {
 	return provider.Id, true
 }
 
-// getOperationProviderID 统一解析运营数据的服务商范围：
+// getScopedProviderID 统一解析"主站模块页 + 服务商同款页"共用的服务商数据范围：
 //   - 管理员可按查询参数 provider_id 切换(0 表示主站);
 //   - 服务商 owner 在自己站点时,直接采用域名租户上下文绑定的服务商;
 //   - 服务商 owner 在主站登录时,域名上下文为主站(provider_id=0),此时回落到
 //     其名下服务商,确保跨站点看到的数据一致(始终是自己的服务商);
-//   - 被授予 operational 权限的主站普通用户:与管理员一致,可按查询参数
+//   - 被授予主站模块权限的普通用户:与管理员一致,可按查询参数
 //     provider_id 切换(>0 时校验服务商启用),默认主站范围;
-//   - 被授予 providerOperational 权限的服务商成员在自己站点看本服务商范围。
-func getOperationProviderID(c *gin.Context) (int, bool) {
+//   - 被授予服务商侧模块权限的成员在自己站点看本服务商范围。
+//
+// 返回 0 表示主站全平台，>0 表示限定对应服务商；无权限时已写入响应并返回 false。
+func getScopedProviderID(c *gin.Context, mainModule, providerModule string) (int, bool) {
 	if c.GetInt("role") >= common.RoleAdminUser {
 		rawProviderID := strings.TrimSpace(c.Query("provider_id"))
 		if rawProviderID == "" {
@@ -89,12 +91,12 @@ func getOperationProviderID(c *gin.Context) (int, bool) {
 		return 0, false
 	}
 	permissions := userCache.GetPermissionList()
-	// 服务商成员(providerOperational)在自己站点看本服务商范围。
-	if providerID > 0 && userCache.ProviderId == providerID && permissions.HasAny("providerOperational") {
+	// 服务商侧模块成员在自己站点看本服务商范围。
+	if providerID > 0 && userCache.ProviderId == providerID && permissions.HasAny(providerModule) {
 		return providerID, true
 	}
-	// 主站用户(operational)与管理员一致:可按查询参数切换服务商(校验启用),默认主站。
-	if providerID == 0 && userCache.ProviderId == 0 && permissions.HasAny("operational") {
+	// 主站模块用户与管理员一致:可按查询参数切换服务商(校验启用),默认主站。
+	if providerID == 0 && userCache.ProviderId == 0 && permissions.HasAny(mainModule) {
 		rawProviderID := strings.TrimSpace(c.Query("provider_id"))
 		if rawProviderID == "" {
 			return 0, true
@@ -118,6 +120,16 @@ func getOperationProviderID(c *gin.Context) (int, bool) {
 
 	common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
 	return 0, false
+}
+
+// getOperationProviderID 运营数据页(operational/providerOperational)的范围解析。
+func getOperationProviderID(c *gin.Context) (int, bool) {
+	return getScopedProviderID(c, "operational", "providerOperational")
+}
+
+// getBillingProviderID 账单中心(billing/providerBilling)的范围解析。
+func getBillingProviderID(c *gin.Context) (int, bool) {
+	return getScopedProviderID(c, "billing", "providerBilling")
 }
 
 // GetDashboardByPeriod 看板数据

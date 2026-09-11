@@ -159,13 +159,15 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
 			}
 
-			// 充值记录管理：账单中心(billing)与用户管理(user)页面共用，两个模块任一即可访问
+			// 充值记录管理：账单中心(billing)与用户管理(user)页面共用，两个模块任一即可访问；
+			// 服务商站长与被授予 providerBilling 的分站成员经 controller 内的范围解析只看本站记录
 			userBillingRoute := userRoute.Group("/")
-			userBillingRoute.Use(middleware.AdminOrModuleAuth("billing", "user"))
+			userBillingRoute.Use(middleware.UserAuth())
 			{
 				userBillingRoute.GET("/topup", controller.GetAllTopUps)
 				userBillingRoute.POST("/topup/detail", controller.GetUserTopupDetails)
-				userBillingRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
+				// 补单是资金入账操作，仅限主站管理员与被授权用户，不对分站开放
+				userBillingRoute.POST("/topup/complete", middleware.AdminOrModuleAuth("billing", "user"), controller.AdminCompleteTopUp)
 			}
 		}
 
@@ -397,8 +399,8 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/self/modelQuotaRadio", middleware.UserAuth(), controller.GetUserModelQuotaRadio)                   // 模型额度占比(用户)
 
 		billRoute := apiRouter.Group("/bill")
-		billRoute.GET("/", middleware.AdminOrModuleAuth("billing"), controller.GetAllBill) // 账单中心数据概览
-		billRoute.GET("/self", middleware.UserAuth(), controller.GetSelfBill)              // 账单中心数据概览
+		billRoute.GET("/", middleware.UserAuth(), controller.GetAllBill)      // 账单中心数据概览(管理员全平台/站长与分站成员本站)
+		billRoute.GET("/self", middleware.UserAuth(), controller.GetSelfBill) // 账单中心数据概览
 
 		billRoute.GET("/distributor", middleware.UserAuth(), controller.GetDistributorBill) // 账单中心数据概览(分销商)
 

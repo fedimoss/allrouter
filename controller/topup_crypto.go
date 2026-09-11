@@ -293,13 +293,14 @@ func RequestCryptoPay(c *gin.Context) {
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		// 创建充值订单记录
 		topUp = model.TopUp{
+			ProviderId:    c.GetInt("provider_id"),             // 服务商ID（按支付时域名归属，供分站账单统计）
 			UserId:        userId,                              // 用户 ID
 			Amount:        req.Amount,                          // 充值金额（本地币种单位）
 			Money:         usdAmount.Round(6).InexactFloat64(), // 折算后的美元金额
 			TradeNo:       tradeNo,                             // 订单号（唯一）
 			PaymentMethod: PaymentMethodCrypto,                 // 支付方式标识
 			BizType:       model.TopUpBizTypePayment,           // 业务类型
-			CreateTime:    now,                                 // 创建时间
+			CreateTime:    now,                                 // 订单创建时间
 			Status:        common.TopUpStatusPending,           // 订单状态：待支付
 			Currency:      symbol,                              // 展示币种符号
 			OriginalMoney: float64(req.Amount),                 // 原始本地币种金额

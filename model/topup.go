@@ -126,6 +126,7 @@ func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
 		SELECT
 			t.id,
 			t.user_id,
+			t.provider_id,
 			t.amount,
 			t.money,
 			t.trade_no,
@@ -146,6 +147,7 @@ func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
 		SELECT
 			tr.id,
 			tr.inviter_id AS user_id,
+			tr.provider_id AS provider_id,
 			tr.rebate_quota AS amount,
 			0 AS money,
 			tr.trade_no AS trade_no,
@@ -166,6 +168,15 @@ func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
 func withUserTopUpRecords(tx *gorm.DB, userId int) *gorm.DB {
 	return withAllTopUpRecords(tx).
 		Where(topUpRecordAlias+".user_id = ?", userId)
+}
+
+// withProviderTopUpRecords 服务商站长视角的账单记录范围：只保留本站记录。
+// 内部结算流水（分润/订阅收入，user_id 是站长本人）不是本站用户充值，
+// 与 SumTopUpMoneyByProvider 的排除口径一致，不进入站长账单列表。
+func withProviderTopUpRecords(tx *gorm.DB, providerId int) *gorm.DB {
+	return withAllTopUpRecords(tx).
+		Where(topUpRecordAlias+".provider_id = ?", providerId).
+		Where(topUpRecordAlias+".payment_method NOT IN ?", []string{TopUpPaymentMethodProviderProfit, TopUpPaymentMethodProviderSubscription})
 }
 
 func withTopUpRecordKeyword(query *gorm.DB, keyword string) *gorm.DB {
@@ -882,6 +893,75 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 	return topups, total, nil
 }
 
+// GetProviderTopUps 获取某服务商站点的充值记录（站长账单中心使用）
+func GetProviderTopUps(providerId int, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return nil, 0, tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	countQuery := withProviderTopUpRecords(tx, providerId)
+	if err = countQuery.Count(&total).Error; err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+
+	dataQuery := withProviderTopUpRecords(tx, providerId)
+	if err = withTopUpRecordOrder(dataQuery).
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&topups).Error; err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+	normalizeTopUps(topups)
+
+	if err = tx.Commit().Error; err != nil {
+		return nil, 0, err
+	}
+
+	return topups, total, nil
+}
+
+// SearchProviderTopUps 按订单号或用户昵称搜索某服务商站点的充值记录（站长账单中心使用）
+func SearchProviderTopUps(providerId int, keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return nil, 0, tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	countQuery := withTopUpRecordKeyword(withProviderTopUpRecords(tx, providerId), keyword)
+	if err = countQuery.Count(&total).Error; err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+
+	dataQuery := withTopUpRecordKeyword(withProviderTopUpRecords(tx, providerId), keyword)
+	if err = withTopUpRecordOrder(dataQuery).
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&topups).Error; err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+	normalizeTopUps(topups)
+
+	if err = tx.Commit().Error; err != nil {
+		return nil, 0, err
+	}
+	return topups, total, nil
+}
+
 // ManualCompleteTopUp 管理员手动完成订单并给用户充值
 func ManualCompleteTopUp(tradeNo string) error {
 	if tradeNo == "" {
@@ -1140,6 +1220,45 @@ func SumAllTopUp(startTimestamp, endTimestamp int64, bizType string) (int64, err
 	}
 	err := tx.Scan(&total).Error
 	return total, err
+}
+
+// SumTopUpByProvider 与 SumAllTopUp 同口径（按额度聚合），限定"用户所属服务商"范围。
+// 排除内部结算流水（provider_profit/provider_subscription）：它们的 user_id 是服务商
+// owner 本人，不是本站用户充值（与 SumTopUpMoneyByProvider 的排除规则一致）。
+func SumTopUpByProvider(providerId int, startTimestamp, endTimestamp int64, bizType string) (int64, error) {
+	var total int64
+	tx := DB.Model(&TopUp{}).
+		Select("COALESCE(SUM(amount), 0)").
+		Where("provider_id = ? AND status = ? AND biz_type = ?", providerId, common.TopUpStatusSuccess, bizType).
+		Where("payment_method NOT IN ?", []string{TopUpPaymentMethodProviderProfit, TopUpPaymentMethodProviderSubscription})
+	if startTimestamp != 0 {
+		tx = tx.Where("create_time >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("create_time < ?", endTimestamp)
+	}
+	err := tx.Scan(&total).Error
+	return total, err
+}
+
+// SumAllTopUpMoney 与 SumTopUpMoneyByProvider 同口径（按实付金额 money 聚合、
+// 排除内部结算流水），但不限服务商：主站全平台（含所有分站）的用户实付充值汇总。
+func SumAllTopUpMoney(startTimestamp, endTimestamp int64, bizTypes []string) (TopUpMoneySum, error) {
+	var sum TopUpMoneySum
+	tx := DB.Model(&TopUp{}).
+		Select("COALESCE(SUM(CASE WHEN payment_method = 'crypto' THEN 0 ELSE money END), 0) AS fiat_money, "+
+			"COALESCE(SUM(CASE WHEN payment_method = 'crypto' THEN money ELSE 0 END), 0) AS crypto_money").
+		Where("status = ?", common.TopUpStatusSuccess).
+		Where("biz_type IN ?", bizTypes).
+		Where("payment_method NOT IN ?", []string{TopUpPaymentMethodProviderProfit, TopUpPaymentMethodProviderSubscription})
+	if startTimestamp != 0 {
+		tx = tx.Where("create_time >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("create_time < ?", endTimestamp)
+	}
+	err := tx.Scan(&sum).Error
+	return sum, err
 }
 
 // TopUpMoneySum 充值实付金额汇总：按是否加密货币拆分

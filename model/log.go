@@ -1052,6 +1052,21 @@ func SumAllUsedQuota(startTimestamp, endTimestamp int64) (int, error) {
 	return quota, err
 }
 
+// SumUsedQuotaByProvider 查询某服务商站点用户在时间范围内的消费总额（与 SumAllUsedQuota 同口径）
+func SumUsedQuotaByProvider(providerId int, startTimestamp, endTimestamp int64) (int, error) {
+	var quota int
+	tx := LOG_DB.Table("logs").Select("COALESCE(SUM(quota), 0)").
+		Where("type = ? AND provider_id = ?", LogTypeConsume, providerId)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at < ?", endTimestamp)
+	}
+	err := tx.Scan(&quota).Error
+	return quota, err
+}
+
 // SumUsedQuotaByUserId 查询指定用户在时间范围内的消费总额
 func SumUsedQuotaByUserId(userId int, startTimestamp, endTimestamp int64) (int, error) {
 	var quota int

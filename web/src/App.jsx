@@ -18,7 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { lazy, Suspense, useContext, useMemo } from 'react';
-import { Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
+import {
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
 import {
@@ -298,6 +304,15 @@ function App() {
           element={
             <PrivateRoute>
               <Operational />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/provider/billing'
+          element={
+            // 与运营数据同款模式：同一 Billing 组件，站长/分站被授权成员看本站账单
+            <PrivateRoute>
+              <Billing />
             </PrivateRoute>
           }
         />
@@ -635,7 +650,7 @@ function App() {
             </Suspense>
           }
         />
-        
+
         <Route
           path='/service-clause'
           element={
