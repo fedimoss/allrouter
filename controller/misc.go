@@ -155,6 +155,10 @@ func GetStatus(c *gin.Context) {
 		// 当前域名绑定的服务商 ID(域名租户上下文):0=主站,>0=服务商站点。
 		// 前端据此区分站点维度(注意与服务商属主的账号归属无关,属主账号注册在主站)。
 		"site_provider_id": providerId,
+		// 纯域名解析的服务商 ID(无会话回退):site_provider_id 在域名未命中时会回退到
+		// 登录用户的归属服务商(属主/成员),因此站长在主站域名上也能拿到 >0;
+		// 侧边栏等"按访问站点隔离"的场景必须用本字段,否则主站会误判为服务商站点。
+		"domain_provider_id": common.GetContextKeyInt(c, constant.ContextKeyProviderId),
 	}
 
 	if providerId > 0 {

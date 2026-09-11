@@ -28,7 +28,7 @@ import { getLucideIcon } from '../../helpers/render';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { getLogo, getSystemName, isAdmin, isMainSiteUser, isProviderOwner, isRoot, showError } from '../../helpers';
+import { getLogo, getSystemName, isAdmin, isProviderOwner, isRoot, showError } from '../../helpers';
 import {
   MAIN_PERMISSION_KEYS,
   PROVIDER_PERMISSION_KEYS,
@@ -87,18 +87,24 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     hasSectionVisibleModules,
     loading: sidebarLoading,
     modulePermissions,
+    siteProviderId,
   } = useSidebar();
 
+  // 站点维度用域名租户上下文判断（/api/status 的 domain_provider_id，纯域名解析），
+  // 不用账号归属 provider_id：服务商属主的账号注册在主站，在服务商站点登录时账号归属仍是主站(0)，
+  // 若按账号归属判断会把主站授予的"管理员"菜单错误带到服务商站点。
+  const isMainSiteView = siteProviderId === 0;
+
   // 普通用户被授予的模块权限（管理员/超管走角色判断，不使用该列表）：
-  // 主站用户只保留主站模块 key，服务商用户只保留服务商模块 key。
+  // 主站域名只保留主站模块 key，服务商域名只保留服务商模块 key。
   // 主站与服务商模块存在同名 key（provider/providerWithdraw/providerProfits），
   // 主站用户的授权不参与"服务商"分组，服务商用户的授权同样不参与"管理员"分组。
   const mainGrantedPerms =
-    isAdmin() || !isMainSiteUser()
+    isAdmin() || !isMainSiteView
       ? []
       : modulePermissions.filter((k) => MAIN_PERMISSION_KEYS.includes(k));
   const providerGrantedPerms =
-    isAdmin() || isMainSiteUser()
+    isAdmin() || isMainSiteView
       ? []
       : modulePermissions.filter((k) => PROVIDER_PERMISSION_KEYS.includes(k));
 
@@ -261,14 +267,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     return items.filter((item) => isModuleVisible('marketing', item.itemKey));
   }, [isAdmin(), t, isModuleVisible]);
 
-  // 服务商分组：属主可见全部；被授予服务商模块权限的普通用户按授权过滤；
-  // 管理员不显示该分组（走"管理员"分组）。
+  // 服务商分组：站点严格隔离，仅在服务商域名展示——
+  // 属主可见全部，被授予服务商模块权限的普通用户按授权过滤；
+  // 主站域名一律不显示：站长在主站只看主站菜单，服务商管理从服务商站点进入
+  // （主站管理员对服务商平台级的管理入口在"管理员"分组内，不受影响）。
   const providerOwnerItems = (() => {
-    // 服务商域名：属主（无论其主站角色如何）或被授权成员可见；
-    // 主站域名：仅属主且非管理员可见（管理员走"管理员"分组）
-    if (isMainSiteUser()) {
-      if (isAdmin() || !isProviderOwner()) return [];
-    }
+    if (isMainSiteView) return [];
     const items = [
       {
         text: t('服务商管理'),
@@ -813,7 +817,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             </>
           )}
 
-          {isMainSiteUser() &&
+          {isMainSiteView &&
             (isAdmin() || mainGrantedPerms.length > 0) &&
             hasVisible(adminItems) && (
               <>

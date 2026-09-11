@@ -5622,6 +5622,9 @@
     "Worker地址": "Worker Address",
     "Worker密钥": "Worker Key",
     "Workspace": "Workspace",
-    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X can also be less than 1 to apply a discount. To increase only the output price or add a fixed fee, write the complete billing formula directly."
+    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X can also be less than 1 to apply a discount. To increase only the output price or add a fixed fee, write the complete billing formula directly.",
+    "被邀请人当前余额": "Invitees' current balance",
+    "被邀请人累计充值": "Invitees' total top-ups",
+    "被邀请人累计消耗": "Invitees' total usage"
   }
 }

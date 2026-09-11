@@ -323,6 +323,13 @@ export const useSidebar = () => {
     );
   };
 
+  // 域名租户上下文：当前访问的是否服务商站点。使用 /api/status 的 domain_provider_id
+  // （纯域名解析，无会话回退）：服务商属主的账号注册在主站，site_provider_id 对其
+  // 在主站域名上也会回退出 >0，不能用于"按访问站点"隔离菜单；
+  // 也不用 localStorage 用户记录的 provider_id（其值来自 /api/user/self，历史上曾是账号归属值）。
+  const siteProviderId =
+    Number(statusState?.status?.domain_provider_id) || 0;
+
   return {
     loading,
     adminConfig,
@@ -333,5 +340,6 @@ export const useSidebar = () => {
     getVisibleModules,
     refreshUserConfig,
     modulePermissions,
+    siteProviderId,
   };
 };

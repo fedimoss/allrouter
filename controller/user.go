@@ -476,6 +476,26 @@ func GetAffCode(c *gin.Context) {
 	return
 }
 
+func getInviteeFinancialSummary(inviterId *int, displayInfo model.DisplayCurrencyInfo) (gin.H, error) {
+	var (
+		summary *model.InviteeFinancialAggregation
+		err     error
+	)
+	if inviterId == nil {
+		summary, err = model.GetAllInviteeFinancialAggregation()
+	} else {
+		summary, err = model.GetInviteeFinancialAggregation(*inviterId)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return gin.H{
+		"topup_quota": convertUsdToDisplay(summary.TopupFiatMoney+cryptoUsdtToUsd(summary.TopupCryptoMoney), displayInfo),
+		"quota":       convertQuotaToDisplay(int(summary.QuotaSum), displayInfo),
+		"used_quota":  convertQuotaToDisplay(int(summary.UsedQuotaSum), displayInfo),
+	}, nil
+}
+
 // 邀请记录列表(管理员)
 func GetUserAffRecords(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c) // 分页信息
@@ -494,6 +514,11 @@ func GetUserAffRecords(c *gin.Context) {
 		inviteeIDs = append(inviteeIDs, record.InviteeId)
 	}
 	topupSums, err := model.GetUsersTopupMoneySum(inviteeIDs)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	inviteeSummary, err := getInviteeFinancialSummary(nil, displayInfo)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -519,11 +544,12 @@ func GetUserAffRecords(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(displayRecords)
 	common.ApiSuccess(c, gin.H{
-		"page":           pageInfo.Page,
-		"page_size":      pageInfo.PageSize,
-		"total":          pageInfo.Total,
-		"items":          pageInfo.Items,
-		"display_symbol": displayInfo.Symbol, // 展示币种符号
+		"page":            pageInfo.Page,
+		"page_size":       pageInfo.PageSize,
+		"total":           pageInfo.Total,
+		"items":           pageInfo.Items,
+		"display_symbol":  displayInfo.Symbol, // 展示币种符号
+		"invitee_summary": inviteeSummary,
 	})
 }
 
@@ -588,6 +614,11 @@ func GetSelfAffRecords(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	inviteeSummary, err := getInviteeFinancialSummary(&userId, displayInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	// 因为convertQuotaToDisplay后是小数, 用原有model必须转为整数, 影响精度
 	displayRecords := make([]gin.H, 0, len(records))
@@ -609,11 +640,12 @@ func GetSelfAffRecords(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(displayRecords)
 	common.ApiSuccess(c, gin.H{
-		"page":           pageInfo.Page,
-		"page_size":      pageInfo.PageSize,
-		"total":          pageInfo.Total,
-		"items":          pageInfo.Items,
-		"display_symbol": displayInfo.Symbol, // 展示币种符号
+		"page":            pageInfo.Page,
+		"page_size":       pageInfo.PageSize,
+		"total":           pageInfo.Total,
+		"items":           pageInfo.Items,
+		"display_symbol":  displayInfo.Symbol, // 展示币种符号
+		"invitee_summary": inviteeSummary,
 	})
 }
 
@@ -818,9 +850,12 @@ func GetSelf(c *gin.Context) {
 	}
 
 	// 构建响应数据，包含用户信息和权限
+	// provider_id 返回域名租户上下文（与 setupLogin 及 /api/status 的 site_provider_id 一致），
+	// 而非用户记录的归属站点：服务商属主的账号注册在主站(provider_id=0)，
+	// 若此处返回记录值，前端刷新用户信息后会把主站授权菜单（"管理员"分组）带到服务商站点。
 	responseData := map[string]interface{}{
 		"id":                        user.Id,
-		"provider_id":               user.ProviderId,
+		"provider_id":               common.GetContextKeyInt(c, constant.ContextKeyProviderId),
 		"username":                  user.Username,
 		"display_name":              user.DisplayName,
 		"avatar":                    user.Avatar,

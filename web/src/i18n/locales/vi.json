@@ -6067,6 +6067,9 @@
     "Worker地址": "Địa chỉ Worker",
     "Worker密钥": "Khóa Worker",
     "Workspace": "Không gian làm việc",
-    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X cũng có thể nhỏ hơn 1 để dùng làm mức giảm giá. Nếu muốn chỉ tăng giá đầu ra hoặc thêm phí cố định, hãy nhập trực tiếp công thức tính phí đầy đủ."
+    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X cũng có thể nhỏ hơn 1 để dùng làm mức giảm giá. Nếu muốn chỉ tăng giá đầu ra hoặc thêm phí cố định, hãy nhập trực tiếp công thức tính phí đầy đủ.",
+    "被邀请人当前余额": "Số dư hiện tại của người được mời",
+    "被邀请人累计充值": "Tổng tiền nạp của người được mời",
+    "被邀请人累计消耗": "Tổng mức sử dụng của người được mời"
   }
 }

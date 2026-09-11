@@ -65,6 +65,59 @@ type InviteeAggregation struct {
 	TokenUsedSum int64 `json:"token_used_sum"`
 }
 
+// InviteeFinancialAggregation 汇总被邀请用户的余额、消耗和实际充值金额。
+// Topup 金额按美元和 USDT 分开返回，由 controller 按查看者币种统一换算。
+type InviteeFinancialAggregation struct {
+	QuotaSum         int64   `json:"quota_sum"`
+	UsedQuotaSum     int64   `json:"used_quota_sum"`
+	TopupFiatMoney   float64 `json:"topup_fiat_money"`
+	TopupCryptoMoney float64 `json:"topup_crypto_money"`
+}
+
+func getInviteeFinancialAggregation(inviterId *int) (*InviteeFinancialAggregation, error) {
+	result := &InviteeFinancialAggregation{}
+	query := DB.Model(&InviteRecord{}).
+		Select("COALESCE(SUM(users.quota), 0) as quota_sum, COALESCE(SUM(users.used_quota), 0) as used_quota_sum").
+		Joins("LEFT JOIN users ON users.id = invite_records.invitee_id")
+	if inviterId != nil {
+		query = query.Where("invite_records.inviter_id = ?", *inviterId)
+	}
+	if err := query.Scan(result).Error; err != nil {
+		return nil, err
+	}
+
+	inviteeQuery := DB.Model(&InviteRecord{}).Select("invitee_id")
+	if inviterId != nil {
+		inviteeQuery = inviteeQuery.Where("inviter_id = ?", *inviterId)
+	}
+	var topup struct {
+		FiatMoney   float64 `gorm:"column:fiat_money"`
+		CryptoMoney float64 `gorm:"column:crypto_money"`
+	}
+	if err := DB.Model(&TopUp{}).
+		Select("COALESCE(SUM(CASE WHEN payment_method = 'crypto' THEN 0 ELSE money END), 0) AS fiat_money, "+
+			"COALESCE(SUM(CASE WHEN payment_method = 'crypto' THEN money ELSE 0 END), 0) AS crypto_money").
+		Where("user_id IN (?) AND status = ?", inviteeQuery, common.TopUpStatusSuccess).
+		Where("biz_type IN ?", []string{TopUpBizTypePayment, TopUpBizTypeSubscription}).
+		Where("payment_method NOT IN ?", []string{TopUpPaymentMethodProviderProfit, TopUpPaymentMethodProviderSubscription}).
+		Scan(&topup).Error; err != nil {
+		return nil, err
+	}
+	result.TopupFiatMoney = topup.FiatMoney
+	result.TopupCryptoMoney = topup.CryptoMoney
+	return result, nil
+}
+
+// GetInviteeFinancialAggregation 汇总指定邀请人名下全部被邀请用户。
+func GetInviteeFinancialAggregation(inviterId int) (*InviteeFinancialAggregation, error) {
+	return getInviteeFinancialAggregation(&inviterId)
+}
+
+// GetAllInviteeFinancialAggregation 汇总全平台邀请记录中的全部被邀请用户。
+func GetAllInviteeFinancialAggregation() (*InviteeFinancialAggregation, error) {
+	return getInviteeFinancialAggregation(nil)
+}
+
 // GetInviteeAggregation 汇总当前用户邀请的所有用户的账户数据:
 // 人数/余额合计/历史消耗合计/Token 消耗总量合计。
 func GetInviteeAggregation(inviterId int) (*InviteeAggregation, error) {

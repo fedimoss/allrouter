@@ -93,6 +93,11 @@ const Invitation = () => {
   const [invitePageSize] = useState(10);
   const [inviteTotal, setInviteTotal] = useState(0);
   const [inviteDisplaySymbol, setInviteDisplaySymbol] = useState('');
+  const [inviteeSummary, setInviteeSummary] = useState({
+    topup_quota: 0,
+    quota: 0,
+    used_quota: 0,
+  });
   const affFetchedRef = useRef(false);
 
   const getAffLink = async () => {
@@ -131,6 +136,7 @@ const Invitation = () => {
         setInviteList(data?.items || []);
         setInviteTotal(data?.total || 0);
         setInviteDisplaySymbol(data?.display_symbol || '');
+        setInviteeSummary(data?.invitee_summary || {});
       } else {
         showError(message || t('加载失败'));
       }
@@ -391,7 +397,7 @@ const Invitation = () => {
       {/* 顶部统计卡片 */}
       <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
         {/* 待提取收益 */}
-        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
+        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
           <img
             src={walletImg}
             alt='wallet'
@@ -428,7 +434,7 @@ const Invitation = () => {
         </div>
 
         {/* 累计总收益 */}
-        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
+        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
           <img
             src={houseImg}
             alt='house'
@@ -449,7 +455,7 @@ const Invitation = () => {
         </div>
 
         {/* 成功邀请人数 */}
-        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative'>
+        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
           <img
             src={invitePeopleImg}
             alt='invitePeople'
@@ -466,6 +472,44 @@ const Invitation = () => {
           {/* <Text type='tertiary' size='small'>
             {t('已注册并完成首充的好友')}
           </Text> */}
+        </div>
+      </div>
+
+      <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
+        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
+          <Wallet className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
+          <div className='flex items-start justify-between mb-3'>
+            <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
+              {t('被邀请人累计充值')}
+            </span>
+          </div>
+          <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
+            {formatDisplayMoney(inviteeSummary.topup_quota || 0, displaySymbol)}
+          </div>
+        </div>
+
+        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
+          <Gift className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
+          <div className='flex items-start justify-between mb-3'>
+            <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
+              {t('被邀请人当前余额')}
+            </span>
+          </div>
+          <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
+            {formatDisplayMoney(inviteeSummary.quota || 0, displaySymbol)}
+          </div>
+        </div>
+
+        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
+          <TrendingUp className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
+          <div className='flex items-start justify-between mb-3'>
+            <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
+              {t('被邀请人累计消耗')}
+            </span>
+          </div>
+          <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
+            {formatDisplayMoney(inviteeSummary.used_quota || 0, displaySymbol)}
+          </div>
         </div>
       </div>
 
