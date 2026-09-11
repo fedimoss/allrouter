@@ -55,7 +55,7 @@ import {
   isInviteRebateTopup,
   isSubscriptionTopup,
 } from '../../helpers/topup';
-import { isAdmin } from '../../helpers/utils';
+import { hasUserPermission } from '../../helpers/utils';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 
 const { Text } = Typography;
@@ -322,14 +322,16 @@ const Billing = () => {
   const [orderInfo, setOrderInfo] = useState(null);
   const [commissionDetails, setCommissionDetails] = useState([]);
 
-  const userIsAdmin = useMemo(() => isAdmin(), []);
+  // 管理员或被授予 billing 模块权限的普通用户走平台级接口，
+  // 与后端 AdminOrModuleAuth("billing") 的放行口径一致
+  const canManageBilling = useMemo(() => hasUserPermission('billing'), []);
   const billingPageTitle = t('账单中心');
   const billingPageDescription = t('查看全平台充值、充值返佣与用户账单状态。');
 
   const loadTopups = async (page, pageSize, keyword) => {
     setHistoryLoading(true);
     try {
-      const base = userIsAdmin ? '/api/user/topup' : '/api/user/topup/self';
+      const base = canManageBilling ? '/api/user/topup' : '/api/user/topup/self';
       const qs =
         `p=${page}&page_size=${pageSize}` +
         (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '');
@@ -351,7 +353,7 @@ const Billing = () => {
   useEffect(() => {
     let mounted = true;
     setBillingSummaryLoading(true);
-    let url = userIsAdmin
+    let url = canManageBilling
       ? `/api/bill?period=${billingPeriod}`
       : `/api/bill/self?period=${billingPeriod}`;
 
@@ -395,7 +397,7 @@ const Billing = () => {
 
   useEffect(() => {
     loadTopups(activePage, historyPageSize, historyKeyword);
-  }, [activePage, historyPageSize, historyKeyword, userIsAdmin]);
+  }, [activePage, historyPageSize, historyKeyword, canManageBilling]);
 
   const handleAdminComplete = async (tradeNo) => {
     try {
@@ -662,7 +664,7 @@ const Billing = () => {
         align: 'left',
         render: (_, record) => (
           <div className='flex items-center justify-start gap-2'>
-            {userIsAdmin && record.status === 'pending' ? (
+            {canManageBilling && record.status === 'pending' ? (
               <Tooltip content={t('补单')}>
                 <Button
                   size='small'
@@ -689,7 +691,7 @@ const Billing = () => {
       },
     ];
 
-    if (userIsAdmin) {
+    if (canManageBilling) {
       baseColumns.splice(1, 0, {
         title: t('用户昵称'),
         dataIndex: 'display_name',
@@ -699,7 +701,7 @@ const Billing = () => {
     }
 
     return baseColumns;
-  }, [t, userIsAdmin]);
+  }, [t, canManageBilling]);
 
   return (
     <div className='billing-page flex flex-col gap-4 pb-4'>
@@ -823,7 +825,7 @@ const Billing = () => {
             <Input
               prefix={<IconSearch />}
               placeholder={t(
-                userIsAdmin ? '搜索订单号或用户昵称' : '搜索订单号',
+                canManageBilling ? '搜索订单号或用户昵称' : '搜索订单号',
               )}
               value={historyKeyword}
               onChange={(value) => {
