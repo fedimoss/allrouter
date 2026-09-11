@@ -319,6 +319,16 @@ const Invitation = () => {
       ),
     },
     {
+      title: t('充值'),
+      dataIndex: 'topup_quota',
+      key: 'topup_quota',
+      render: (topupQuota) => (
+        <div className='text-[14px] font-bold'>
+          {formatDisplayMoney(topupQuota ?? 0, inviteDisplaySymbol || '$')}
+        </div>
+      ),
+    },
+    {
       title: t('余额'),
       dataIndex: 'invitee_quota',
       key: 'invitee_quota',

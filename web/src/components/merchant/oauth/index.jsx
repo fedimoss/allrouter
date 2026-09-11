@@ -30,6 +30,7 @@ const MODEL_TYPE_PROVIDER_KEY_MAP = {
   2: 'anthropic',
   3: 'qwen',
 };
+const HIDDEN_PROVIDER_KEYS = new Set(['iflow', 'qwen']);
 
 const OauthList = () => {
   const { t } = useTranslation();
@@ -144,6 +145,9 @@ const OauthList = () => {
     ],
     [t],
   );
+  const visibleProviderCount = providers.filter(
+    (provider) => !HIDDEN_PROVIDER_KEYS.has(provider.key),
+  ).length;
 
   // 获取已连接服务数量 请求接口获取已连接服务数量，更新 connectedCount 状态
   const getConnectNum = async () => { 
@@ -352,7 +356,7 @@ const OauthList = () => {
               <div className='text-[13px]' style={{ color: 'var(--semi-color-text-1)' }}>{t('已连接服务')}</div>
               <div className='text-[26px] font-semibold leading-none' style={{ color: 'var(--semi-color-text-0)' }}>
                 {connectedCount}
-                <span className='text-[18px]' style={{ color: 'var(--semi-color-text-2)' }}> / {providers.length}</span>
+                <span className='text-[18px]' style={{ color: 'var(--semi-color-text-2)' }}> / {visibleProviderCount}</span>
               </div>
             </div>
           </div>
@@ -369,7 +373,10 @@ const OauthList = () => {
           return (
             <div
               key={item.key}
-              className='flex min-h-[220px] flex-col rounded-2xl p-5 backdrop-blur' style={{ border: '1px solid var(--semi-color-border)', backgroundColor: 'color-mix(in srgb, var(--semi-color-bg-0) 88%, transparent)', boxShadow: '0 10px 30px rgba(15,23,42,0.08)' }}
+              className={`flex min-h-[220px] flex-col rounded-2xl p-5 backdrop-blur ${
+                HIDDEN_PROVIDER_KEYS.has(item.key) ? 'hidden' : ''
+              }`}
+              style={{ border: '1px solid var(--semi-color-border)', backgroundColor: 'color-mix(in srgb, var(--semi-color-bg-0) 88%, transparent)', boxShadow: '0 10px 30px rgba(15,23,42,0.08)' }}
             >
               <div className='flex items-start justify-between gap-4'>
                 <div className='flex items-start gap-3'>

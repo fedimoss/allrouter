@@ -489,6 +489,15 @@ func GetUserAffRecords(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	inviteeIDs := make([]int, 0, len(records))
+	for _, record := range records {
+		inviteeIDs = append(inviteeIDs, record.InviteeId)
+	}
+	topupSums, err := model.GetUsersTopupMoneySum(inviteeIDs)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	// 因为convertQuotaToDisplay后是小数, 用原有model必须转为整数, 影响精度
 	displayRecords := make([]gin.H, 0, len(records))
@@ -502,6 +511,7 @@ func GetUserAffRecords(c *gin.Context) {
 			"reward_quota":       convertQuotaToDisplay(record.RewardQuota, displayInfo),
 			"invitee_quota":      convertQuotaToDisplay(record.InviteeQuota, displayInfo),     // 被邀请人余额
 			"invitee_used_quota": convertQuotaToDisplay(record.InviteeUsedQuota, displayInfo), // 被邀请人消耗
+			"topup_quota":        convertUsdToDisplay(topupSums[record.InviteeId].FiatMoney+cryptoUsdtToUsd(topupSums[record.InviteeId].CryptoMoney), displayInfo),
 			"created_at":         record.CreatedAt,
 		})
 	}
@@ -569,6 +579,15 @@ func GetSelfAffRecords(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	inviteeIDs := make([]int, 0, len(records))
+	for _, record := range records {
+		inviteeIDs = append(inviteeIDs, record.InviteeId)
+	}
+	topupSums, err := model.GetUsersTopupMoneySum(inviteeIDs)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	// 因为convertQuotaToDisplay后是小数, 用原有model必须转为整数, 影响精度
 	displayRecords := make([]gin.H, 0, len(records))
@@ -582,6 +601,7 @@ func GetSelfAffRecords(c *gin.Context) {
 			"reward_quota":       convertQuotaToDisplay(record.RewardQuota, displayInfo),
 			"invitee_quota":      convertQuotaToDisplay(record.InviteeQuota, displayInfo),     // 被邀请人余额
 			"invitee_used_quota": convertQuotaToDisplay(record.InviteeUsedQuota, displayInfo), // 被邀请人消耗
+			"topup_quota":        convertUsdToDisplay(topupSums[record.InviteeId].FiatMoney+cryptoUsdtToUsd(topupSums[record.InviteeId].CryptoMoney), displayInfo),
 			"created_at":         record.CreatedAt,
 		})
 	}
