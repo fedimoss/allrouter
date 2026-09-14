@@ -21,11 +21,8 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useState, useEffect, useMemo } from 'react';
 // Semi Design UI 组件库
 import {
-  Card,           // 卡片容器，用于包裹签到面板
   Calendar,       // 日历组件，用于展示签到日历
   Button,         // 按钮组件，用于签到按钮
-  Typography,     // 排版组件，用于文字展示
-  Avatar,         // 头像/图标容器组件
   Spin,           // 加载旋转指示器
   Tooltip,        // 文字提示气泡
   Collapsible,    // 折叠面板组件，用于展开/收起签到详情
@@ -33,7 +30,6 @@ import {
 } from '@douyinfe/semi-ui';
 // Lucide 图标库
 import {
-  CalendarCheck,  // 日历勾选图标，签到面板标题图标
   Gift,           // 礼物图标，签到按钮图标
   Check,          // 勾选图标，已签到日期标记
   ChevronDown,    // 向下箭头，展开指示
@@ -382,7 +378,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
 
   // ==================== 渲染签到卡片 ====================
   return (
-    <Card className='personal-v2-panel personal-v2-checkin !rounded-2xl'>
+    <section className='ps-settings-card'>
       {/* Turnstile 人机验证弹窗 */}
       <Modal
         title='Security Check'
@@ -412,41 +408,53 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
         </div>
       </Modal>
 
-      {/* ===== 卡片头部区域：标题 + 签到按钮 ===== */}
-      <div className='flex items-center justify-between'>
-        {/* 左侧：点击可折叠/展开的区域 */}
-        <div
-          className='flex items-center flex-1 cursor-pointer'
-          onClick={() => setIsCollapsed(!isCollapsed)}
-        >
-          {/* 绿色头像图标 */}
-          <Avatar size='small' color='green' className='mr-3 shadow-md'>
-            <CalendarCheck size={16} />
-          </Avatar>
-          <div className='flex-1'>
-            {/* 标题行：文字 + 折叠箭头 */}
-            <div className='flex items-center gap-2'>
-              <Typography.Text className='text-lg font-medium'>
-                {t('每日签到')}
-              </Typography.Text>
-              {/* 根据折叠状态显示不同方向的箭头 */}
-              {isCollapsed ? (
-                <ChevronDown size={16} className='text-gray-400' />
-              ) : (
-                <ChevronUp size={16} className='text-gray-400' />
-              )}
-            </div>
-            {/* 副标题：根据状态显示不同的提示文字 */}
-            <div className='text-xs text-gray-500 dark:text-gray-400'>
-              {!initialLoaded
-                ? t('正在加载签到状态...')
-                : checkinData.stats?.checked_in_today
-                  ? t('今日已签到，累计签到') +
-                    ` ${checkinData.stats?.total_checkins || 0} ` +
-                    t('天')
-                  : t('每日签到可获得随机额度奖励')}
-            </div>
+      {/* ===== 卡片头部区域：标题（点击折叠/展开） ===== */}
+      <div
+        className='ps-settings-card-head ps-settings-card-head--clickable'
+        onClick={() => setIsCollapsed(!isCollapsed)}
+      >
+        <div>
+          <h2>{t('签到日历')}</h2>
+          <p className='ps-settings-card-sub'>
+            {!initialLoaded
+              ? t('正在加载签到状态...')
+              : checkinData.stats?.checked_in_today
+                ? t('今日已签到，累计签到') +
+                  ` ${checkinData.stats?.total_checkins || 0} ` +
+                  t('天')
+                : t('每日签到可获得随机额度奖励')}
+          </p>
+        </div>
+        {/* 根据折叠状态显示不同方向的箭头 */}
+        {isCollapsed ? (
+          <ChevronDown size={18} className='ps-collapse-arrow' />
+        ) : (
+          <ChevronUp size={18} className='ps-collapse-arrow' />
+        )}
+      </div>
+
+      {/* ===== 签到统计行：三项统计 + 签到按钮 ===== */}
+      <div className='ps-checkin-stats-row'>
+        {/* 累计签到天数 */}
+        <div className='ps-checkin-stat'>
+          <div className='ps-checkin-stat-value'>
+            {checkinData.stats?.total_checkins || 0}
           </div>
+          <div className='ps-checkin-stat-label'>{t('累计签到（天）')}</div>
+        </div>
+        {/* 本月获得的额度 */}
+        <div className='ps-checkin-stat'>
+          <div className='ps-checkin-stat-value'>
+            {formatCheckinQuota(monthlyQuota)}
+          </div>
+          <div className='ps-checkin-stat-label'>{t('本月获得')}</div>
+        </div>
+        {/* 累计获得的总额度 */}
+        <div className='ps-checkin-stat'>
+          <div className='ps-checkin-stat-value'>
+            {formatCheckinQuota(checkinData.stats?.total_quota || 0)}
+          </div>
+          <div className='ps-checkin-stat-label'>{t('累计获得')}</div>
         </div>
         {/* 右侧：签到按钮 */}
         <Button
@@ -456,7 +464,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
           onClick={() => doCheckin()}
           loading={checkinLoading || !initialLoaded}
           disabled={!initialLoaded || checkinData.stats?.checked_in_today}
-          className='!bg-green-600 hover:!bg-green-700'
+          className='ps-checkin-btn'
         >
           {/* 按钮文字根据状态变化 */}
           {!initialLoaded
@@ -470,31 +478,6 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
       {/* ===== 可折叠内容区域 ===== */}
       {/* isOpen=false 时折叠（已签到的默认状态） */}
       <Collapsible isOpen={isCollapsed === false} keepDOM>
-        {/* 签到统计面板：三列网格展示累计签到、本月获得、累计获得 */}
-        <div className='grid grid-cols-3 gap-3 mb-4 mt-4'>
-          {/* 累计签到天数 */}
-          <div className='text-center p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg'>
-            <div className='text-xl font-bold text-green-600'>
-              {checkinData.stats?.total_checkins || 0}
-            </div>
-            <div className='text-xs text-gray-500'>{t('累计签到')}</div>
-          </div>
-          {/* 本月获得的额度（6位小数精度） */}
-          <div className='text-center p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg'>
-            <div className='text-xl font-bold text-orange-600'>
-              {formatCheckinQuota(monthlyQuota, 6)}
-            </div>
-            <div className='text-xs text-gray-500'>{t('本月获得')}</div>
-          </div>
-          {/* 累计获得的总额度（6位小数精度） */}
-          <div className='text-center p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg'>
-            <div className='text-xl font-bold text-blue-600'>
-              {formatCheckinQuota(checkinData.stats?.total_quota || 0, 6)}
-            </div>
-            <div className='text-xs text-gray-500'>{t('累计获得')}</div>
-          </div>
-        </div>
-
         {/* ===== 签到日历区域 ===== */}
         <Spin spinning={loading}>
           <div className='border rounded-lg overflow-hidden checkin-calendar'>
@@ -536,8 +519,8 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
               background: transparent;
             }
             .checkin-calendar .semi-calendar-month-today .semi-calendar-month-grid-row-cell-day {
-              background: var(--semi-color-primary);
-              color: white;border-radius: 50%;
+              background: var(--ps-accent);
+              color: var(--ps-accent-ink);border-radius: 50%;
               width: 20px;
               height: 20px;
               display: flex;
@@ -554,17 +537,16 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
         </Spin>
 
         {/* ===== 签到说明文字 ===== */}
-        <div className='mt-3 p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg'>
-          <Typography.Text type='tertiary' className='text-xs'>
-            <ul className='list-disc list-inside space-y-0.5'>
-              <li>{t('每日签到可获得随机额度奖励')}</li>
-              <li>{t('签到奖励将直接添加到您的账户余额')}</li>
-              <li>{t('每日仅可签到一次，请勿重复签到')}</li>
-            </ul>
-          </Typography.Text>
+        <div className='ps-checkin-reward-tip'>
+          <Gift size={14} />
+          <ul>
+            <li>{t('每日签到可获得随机额度奖励')}</li>
+            <li>{t('签到奖励将直接添加到您的账户余额')}</li>
+            <li>{t('每日仅可签到一次，请勿重复签到')}</li>
+          </ul>
         </div>
       </Collapsible>
-    </Card>
+    </section>
   );
 };
 

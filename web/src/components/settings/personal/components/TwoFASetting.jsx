@@ -367,91 +367,75 @@ const TwoFASetting = ({ t, onStatusChange }) => {
 
   return (
     <>
-      <Card className='!rounded-xl w-full'>
-        <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
-          <div className='flex items-start w-full sm:w-auto'>
-            <div className='w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-4 flex-shrink-0'>
-              <IconShield
-                size='large'
-                className='text-slate-600 dark:text-slate-300'
-              />
-            </div>
-            <div className='flex-1'>
-              <div className='flex items-center gap-2 mb-1'>
-                <Typography.Title heading={6} className='mb-0'>
-                  {t('两步验证设置')}
-                </Typography.Title>
-                {status.enabled ? (
-                  <Tag color='green' shape='circle' size='small'>
-                    {t('已启用')}
-                  </Tag>
-                ) : (
-                  <Tag color='red' shape='circle' size='small'>
-                    {t('未启用')}
-                  </Tag>
-                )}
-                {status.locked && (
-                  <Tag color='orange' shape='circle' size='small'>
-                    {t('账户已锁定')}
-                  </Tag>
-                )}
-              </div>
-              <Typography.Text type='tertiary' className='text-sm'>
-                {t(
-                  '两步验证（2FA）为您的账户提供额外的安全保护。启用后，登录时需要输入密码和验证器应用生成的验证码。',
-                )}
-              </Typography.Text>
-              {status.enabled && (
-                <div className='mt-2'>
-                  <Text size='small' type='secondary'>
-                    {t('剩余备用码：')}
-                    {status.backup_codes_remaining || 0}
-                    {t('个')}
-                  </Text>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className='flex flex-col space-y-2 w-full sm:w-auto'>
-            {!status.enabled ? (
-              <Button
-                type='primary'
-                theme='solid'
-                size='default'
-                onClick={handleSetup2FA}
-                loading={loading}
-                className='!rounded-lg !bg-slate-600 hover:!bg-slate-700'
-                icon={<IconShield />}
-              >
-                {t('启用验证')}
-              </Button>
+      <div className='ps-field-row'>
+        <div className='ps-field-row-label'>
+          <div className='ps-field-title'>
+            {t('两步验证设置')}
+            {status.enabled ? (
+              <Tag color='green' shape='circle' size='small'>
+                {t('已启用')}
+              </Tag>
             ) : (
-              <div className='flex flex-col space-y-2'>
-                <Button
-                  type='danger'
-                  theme='solid'
-                  size='default'
-                  onClick={() => setDisableModalVisible(true)}
-                  className='!rounded-lg !bg-slate-500 hover:!bg-slate-600'
-                  icon={<IconAlertTriangle />}
-                >
-                  {t('禁用两步验证')}
-                </Button>
-                <Button
-                  type='primary'
-                  theme='solid'
-                  size='default'
-                  onClick={() => setBackupModalVisible(true)}
-                  className='!rounded-lg'
-                  icon={<IconRefresh />}
-                >
-                  {t('重新生成备用码')}
-                </Button>
-              </div>
+              <Tag color='red' shape='circle' size='small'>
+                {t('未启用')}
+              </Tag>
+            )}
+            {status.locked && (
+              <Tag color='orange' shape='circle' size='small'>
+                {t('账户已锁定')}
+              </Tag>
             )}
           </div>
+          <div className='ps-field-desc'>
+            {t(
+              '两步验证（2FA）为您的账户提供额外的安全保护。启用后，登录时需要输入密码和验证器应用生成的验证码。',
+            )}
+          </div>
+          {status.enabled && (
+            <div className='mt-2'>
+              <Text size='small' type='secondary'>
+                {t('剩余备用码：')}
+                {status.backup_codes_remaining || 0}
+                {t('个')}
+              </Text>
+            </div>
+          )}
         </div>
-      </Card>
+        <div className='ps-field-row-action ps-action-stack'>
+          {!status.enabled ? (
+            <Button
+              type='primary'
+              theme='solid'
+              size='small'
+              onClick={handleSetup2FA}
+              loading={loading}
+              icon={<IconShield />}
+            >
+              {t('启用验证')}
+            </Button>
+          ) : (
+            <>
+              <Button
+                type='danger'
+                theme='solid'
+                size='small'
+                onClick={() => setDisableModalVisible(true)}
+                icon={<IconAlertTriangle />}
+              >
+                {t('禁用两步验证')}
+              </Button>
+              <Button
+                theme='outline'
+                size='small'
+                onClick={() => setBackupModalVisible(true)}
+                icon={<IconRefresh />}
+              >
+                {t('重新生成备用码')}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* 2FA设置模态框 */}
       <Modal

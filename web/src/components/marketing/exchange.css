@@ -1,0 +1,443 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/* ============================================================
+   兑换码页 — 依据静态稿 console-exchange.html 的布局样式
+   结构：页头 → 兑换输入卡（三步指示）→ 兑换记录表 → 活动卡
+   ============================================================ */
+
+.exchange-page {
+  /* 设计变量（浅/深色通过 Semi 变量自适应） */
+  --ex-accent: var(--theme-primary, #14b8a6);
+  --ex-accent-ink: #ffffff;
+  --ex-surface: var(--semi-color-bg-2);
+  --ex-surface-2: var(--semi-color-fill-0);
+  --ex-line: color-mix(in srgb, var(--semi-color-text-0) 9%, transparent);
+  --ex-line-2: color-mix(in srgb, var(--semi-color-text-0) 16%, transparent);
+  --ex-ink: var(--semi-color-text-0);
+  --ex-ink-2: color-mix(in srgb, var(--semi-color-text-0) 62%, transparent);
+  --ex-ink-3: color-mix(in srgb, var(--semi-color-text-0) 44%, transparent);
+  --ex-ink-4: color-mix(in srgb, var(--semi-color-text-0) 26%, transparent);
+  --ex-accent-tint: color-mix(in srgb, var(--ex-accent) 10%, transparent);
+  --ex-success: #16a34a;
+  --ex-success-tint: color-mix(in srgb, var(--ex-success) 10%, transparent);
+  --ex-r-sm: 3px;
+  --ex-r-md: 3px;
+  --ex-r-lg: 3px;
+
+  padding: 16px 0 48px;
+}
+
+.ex-container {
+  max-width: 1064px;
+  margin: 0 auto;
+  padding: 0 4px;
+}
+
+/* 按钮：圆角 3px，覆盖全局 10px 规则 */
+.exchange-page .semi-button {
+  border-radius: 3px !important;
+}
+
+.exchange-page .semi-input-wrapper,
+.exchange-page .semi-select {
+  border-radius: 3px !important;
+}
+
+/* ===== 页头 ===== */
+.ex-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.ex-page-head h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ex-ink);
+}
+
+.ex-page-head .sub {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--ex-ink-2);
+}
+
+/* ===== 兑换输入卡片 ===== */
+.ex-hero {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ex-accent) 6%, transparent),
+    color-mix(in srgb, var(--ex-accent) 1%, transparent)
+  );
+  border: 1px solid color-mix(in srgb, var(--ex-accent) 16%, transparent);
+  border-radius: var(--ex-r-lg);
+  padding: 32px 24px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.ex-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.ex-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ex-step-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--ex-accent);
+  color: var(--ex-accent-ink);
+  font-size: 14px;
+  font-weight: 800;
+  flex: none;
+}
+
+.ex-step span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ex-ink-2);
+}
+
+.ex-step-arrow {
+  color: var(--ex-ink-4);
+  font-size: 18px;
+  flex: none;
+}
+
+.ex-input-row {
+  display: flex;
+  gap: 12px;
+  max-width: 560px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+}
+
+.ex-input-row .semi-input-wrapper {
+  flex: 1;
+  min-width: 200px;
+  height: 52px;
+  border: 1px solid var(--ex-line-2) !important;
+  background: var(--semi-color-bg-2) !important;
+}
+
+.ex-input-row .semi-input-wrapper input {
+  font-family: var(--semi-font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+}
+
+/* 兑换按钮：动态主题色 */
+.ex-input-row .semi-button-primary:not(.semi-button-disabled) {
+  background: var(--theme-gradient-135, var(--theme-primary, #14b8a6)) !important;
+  border-color: transparent !important;
+  color: var(--theme-primary-btn-color, #fff) !important;
+  min-height: 52px;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 0 28px;
+}
+
+.ex-input-row .semi-button-primary:not(.semi-button-disabled):hover {
+  filter: brightness(1.05);
+}
+
+.ex-hint {
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: var(--ex-ink-3);
+  line-height: 1.8;
+}
+
+.ex-link {
+  color: var(--ex-accent);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ex-link:hover {
+  filter: brightness(1.1);
+}
+
+/* ===== 表格卡片 ===== */
+.ex-table-card {
+  background: var(--ex-surface);
+  border: 1px solid var(--ex-line);
+  border-radius: var(--ex-r-lg);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.ex-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--ex-line);
+  flex-wrap: wrap;
+}
+
+.ex-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ex-ink);
+}
+
+.ex-count-badge {
+  font-size: 12px;
+  color: var(--ex-ink-3);
+  background: var(--ex-surface-2);
+  padding: 3px 10px;
+  border-radius: var(--ex-r-sm);
+}
+
+.ex-table-wrap {
+  overflow-x: auto;
+}
+
+/* 手机端表格横向滚动 */
+.exchange-page .ex-table-card .semi-table {
+  min-width: 720px;
+}
+
+.exchange-page .ex-table-card .semi-table-thead > tr > th {
+  background: var(--ex-surface-2) !important;
+  padding: 11px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ex-ink-3);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--ex-line);
+}
+
+.exchange-page .ex-table-card .semi-table-tbody > tr > td {
+  padding: 13px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--ex-line);
+}
+
+.exchange-page .ex-table-card .semi-table-tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+
+.exchange-page .ex-table-card .semi-table-tbody > tr:hover > td {
+  background: var(--ex-surface-2);
+}
+
+.exchange-page .ex-table-card .semi-pagination {
+  padding: 12px 16px;
+}
+
+/* 表格单元格 */
+.ex-date-cell {
+  font-size: 12px;
+  color: var(--ex-ink-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ex-code {
+  display: inline-block;
+  font-size: 12px;
+  font-family: var(--semi-font-mono, ui-monospace, SFMono-Regular, monospace);
+  background: color-mix(in srgb, var(--semi-color-text-0) 5%, transparent);
+  border-radius: var(--ex-r-sm);
+  padding: 3px 8px;
+  color: var(--ex-ink-2);
+}
+
+.ex-type-cell {
+  font-size: 13px;
+  color: var(--ex-ink-2);
+}
+
+.ex-quota-cell {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ex-ink);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ex-mono-cell {
+  font-size: 12px;
+  font-family: var(--semi-font-mono, ui-monospace, SFMono-Regular, monospace);
+  color: var(--ex-ink-3);
+}
+
+/* 状态标签 */
+.ex-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.ex-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ex-status--active {
+  background: var(--ex-success-tint);
+  color: var(--ex-success);
+}
+
+/* ===== 获取更多兑换码 ===== */
+.ex-promo-section {
+  margin-bottom: 8px;
+}
+
+.ex-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ex-ink);
+  margin-bottom: 14px;
+}
+
+.ex-promo-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .ex-promo-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.ex-promo-card {
+  background: var(--ex-surface);
+  border: 1px solid var(--ex-line);
+  border-radius: var(--ex-r-lg);
+  padding: 20px;
+  background-position: bottom right;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  transition: border-color 0.18s;
+}
+
+.ex-promo-card:hover {
+  border-color: color-mix(in srgb, var(--ex-accent) 40%, transparent);
+}
+
+.ex-promo-sub {
+  font-size: 12px;
+  color: var(--ex-accent);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.ex-promo-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ex-ink);
+  margin-bottom: 8px;
+}
+
+.ex-promo-desc {
+  font-size: 13px;
+  color: var(--ex-ink-3);
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.ex-promo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ex-accent);
+  font-weight: 700;
+}
+
+.ex-promo-card:hover .ex-promo-link svg {
+  transform: translateX(2px);
+}
+
+.ex-promo-link svg {
+  transition: transform 0.18s;
+}
+
+/* ===== 移动端适配 ===== */
+@media (max-width: 768px) {
+  .exchange-page {
+    padding: 12px 0 28px;
+  }
+
+  .ex-page-head h1 {
+    font-size: 24px;
+  }
+
+  .ex-hero {
+    padding: 20px 16px;
+  }
+
+  .ex-steps {
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .ex-step span {
+    font-size: 12px;
+  }
+
+  .ex-input-row .semi-input-wrapper {
+    min-width: 100%;
+  }
+
+  .ex-input-row .semi-button {
+    width: 100%;
+  }
+
+  .ex-promo-card {
+    padding: 16px;
+  }
+}

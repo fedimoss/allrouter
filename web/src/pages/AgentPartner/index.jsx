@@ -28,11 +28,9 @@ import {
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  getLogo,
   getQQSupport,
   getSystemName,
   getWechatSupport,
-  withBrowserBaseUrl,
 } from '../../helpers';
 import { StatusContext } from '../../context/Status';
 import Theme3Header from '../Home/theme/pageTheme3/Theme3Header';
@@ -46,7 +44,6 @@ import connectionImg from '../../../public/agency-franchise/connection.png';
 import fanContentImg from '../../../public/agency-franchise/fan-content.png';
 import idleOperationImg from '../../../public/agency-franchise/idle-operation.png';
 
-const logo = getLogo();
 const systemName = getSystemName();
 
 const audienceCards = [
@@ -147,18 +144,20 @@ const whyUsCards = [
   }
 ];
 
-function WhyUsCard({ t, title, desc }) {
+function WhyUsCard({ t, icon: Icon, title, desc }) {
   return (
-    <div className='bg-white dark:bg-[var(--landing-v2-bg-code)] rounded-xl border border-gray-100 dark:border-gray-700/50 p-5'>
-      <div className='flex items-center gap-4'>
-        <div className='w-3 h-3 rounded-full bg-[var(--theme-primary)] flex-shrink-0' />
+    <div className='agent-partner-why-card'>
+      <div className='agent-partner-why-card-inner'>
+        <span className='agent-partner-why-icon'>
+          <Icon size={19} strokeWidth={1.8} aria-hidden='true' />
+        </span>
         <span className='text-base font-bold text-[var(--landing-v2-text-main)]'>
           {t(title)}
         </span>
-        <span className='flex-1 text-sm text-[var(--landing-v2-text-sub)] truncate'>
+        <span className='agent-partner-why-desc'>
           {t(desc)}
         </span>
-        <span className='text-[var(--landing-v2-text-sub)] flex-shrink-0 w-6 h-6 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center text-sm'>
+        <span className='agent-partner-why-plus'>
           +
         </span>
       </div>
@@ -167,7 +166,7 @@ function WhyUsCard({ t, title, desc }) {
 }
 
 const AgentPartner = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [statusState] = useContext(StatusContext);
   const [showSupport, setShowSupport] = useState(false);
 
@@ -191,15 +190,6 @@ const AgentPartner = () => {
       qqSupport: status.qq_support || '',
     };
   }, [statusState?.status]);
-
-  const docsLink = statusState?.status?.docs_link || '';
-  const docsLangPrefix = i18n.language.startsWith('zh') ? 'zh' : 'en';
-  // const docsHref = docsLink || withBrowserBaseUrl(`/${docsLangPrefix}/docs`);
-  const docsHref = docsLink || withBrowserBaseUrl(`/docs`);
-  const apiReferenceHref = withBrowserBaseUrl(`/${docsLangPrefix}/docs/api`);
-  const communityHref = withBrowserBaseUrl(
-    `/${docsLangPrefix}/docs/support/community-interaction`,
-  );
 
   return (
     <div className='landing-home landing-v2 landing-v2-guest-home'>
@@ -518,110 +508,6 @@ const AgentPartner = () => {
         </section>
       </main>
 
-      {/* ===== Same footer as Home page ===== */}
-      <footer className='landing-v2-footer'>
-        <div className='landing-v2-footer-top'>
-          <div className='landing-v2-footer-brand'>
-            <div className='landing-v2-logo landing-v2-logo-small'>
-              <img src={logo} className='landing-v2-real-logo' />
-              <span>{systemName}</span>
-            </div>
-            <p>
-              {t(
-                '统一 AI 接入网关，为团队提供模型接入、路由、计费与治理能力。',
-              )}
-            </p>
-          </div>
-
-          <div className='landing-v2-footer-col'>
-            <h4>{t('产品')}</h4>
-            <ul>
-              <li>
-                <a href='/#features'>{t('功能特性')}</a>
-              </li>
-              <li>
-                <a href='/#models'>{t('模型生态')}</a>
-              </li>
-              <li>
-                <Link to='/pricing'>{t('定价')}</Link>
-              </li>
-              <li>
-                <a
-                  href='https://github.com/fedimoss/allrouter/releases'
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  {t('更新日志')}
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          <div className='landing-v2-footer-col'>
-            <h4>{t('资源')}</h4>
-            <ul>
-              <li>
-                <a href={docsHref} target='_blank' rel='noreferrer'>
-                  {t('文档')}
-                </a>
-              </li>
-              <li>
-                <a href={apiReferenceHref} target='_blank' rel='noreferrer'>
-                  {t('API 参考')}
-                </a>
-              </li>
-              <li>
-                <a href={communityHref} target='_blank' rel='noreferrer'>
-                  {t('社区')}
-                </a>
-              </li>
-              <li>
-                <a
-                  href={`https://status.${systemName.toLowerCase()}/`}
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  {t('系统状态')}
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          <div className='landing-v2-footer-col'>
-            <h4>{t('帮助中心')}</h4>
-            <ul>
-              <li>
-                <Link to='/about'>{t('关于平台')}</Link>
-              </li>
-              <li>
-                <a
-                  href='https://github.com/fedimoss/allrouter'
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  {t('项目仓库')}
-                </a>
-              </li>
-              <li>
-                <a
-                  href='https://github.com/fedimoss/allrouter/issues'
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  {t('问题反馈')}
-                </a>
-              </li>
-              <li>
-                <a href={`mailto:support@${systemName.toLowerCase()}`}>{t('联系我们')}</a>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div className='landing-v2-footer-bottom'>
-          <span>© {new Date().getFullYear()} {systemName}. All rights reserved.</span>
-        </div>
-      </footer>
     </div>
   );
 };

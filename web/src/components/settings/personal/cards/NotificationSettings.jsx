@@ -22,7 +22,6 @@ import {
   Button,
   Typography,
   Card,
-  Avatar,
   Form,
   Radio,
   Toast,
@@ -397,50 +396,14 @@ const NotificationSettings = ({
   };
 
   return (
-    <Card
-      className='personal-v2-panel personal-v2-notification !rounded-2xl shadow-sm border-0'
-      footer={
-        <div className='flex justify-end gap-3'>
-          {activeTabKey === 'sidebar' ? (
-            // 边栏设置标签页的按钮
-            <>
-              <Button
-                type='tertiary'
-                onClick={resetSidebarModules}
-                className='!rounded-lg'
-              >
-                {t('重置为默认')}
-              </Button>
-              <Button
-                type='primary'
-                onClick={saveSidebarSettings}
-                loading={sidebarLoading}
-                className='!rounded-lg'
-              >
-                {t('保存设置')}
-              </Button>
-            </>
-          ) : (
-            // 其他标签页的通用保存按钮
-            <Button type='primary' onClick={handleSubmit}>
-              {t('保存设置')}
-            </Button>
-          )}
-        </div>
-      }
-    >
+    <section className='ps-settings-card'>
       {/* 卡片头部 */}
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='blue' className='mr-3 shadow-md'>
-          <Bell size={16} />
-        </Avatar>
+      <div className='ps-settings-card-head'>
         <div>
-          <Typography.Text className='text-lg font-medium'>
-            {t('其他设置')}
-          </Typography.Text>
-          <div className='text-xs text-gray-600'>
+          <h2>{t('通知设置')}</h2>
+          <p className='ps-settings-card-sub'>
             {t('通知、价格和隐私相关设置')}
-          </div>
+          </p>
         </div>
       </div>
 
@@ -964,7 +927,31 @@ const NotificationSettings = ({
           </Tabs>
         )}
       </Form>
-    </Card>
+
+      {/* 保存行 */}
+      <div className='ps-form-save-row'>
+        {activeTabKey === 'sidebar' ? (
+          // 边栏设置标签页的按钮
+          <>
+            <Button type='tertiary' onClick={resetSidebarModules}>
+              {t('重置为默认')}
+            </Button>
+            <Button
+              type='primary'
+              onClick={saveSidebarSettings}
+              loading={sidebarLoading}
+            >
+              {t('保存设置')}
+            </Button>
+          </>
+        ) : (
+          // 其他标签页的通用保存按钮
+          <Button type='primary' onClick={handleSubmit}>
+            {t('保存设置')}
+          </Button>
+        )}
+      </div>
+    </section>
   );
 };
 

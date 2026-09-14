@@ -18,10 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { Card } from '@douyinfe/semi-ui';
 import {
   CheckCircle2,
-  Languages,
   MonitorSmartphone,
   MoonStar,
   SunMedium,
@@ -29,13 +27,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import { API, showSuccess, showError } from '../../../../helpers';
 import { UserContext } from '../../../../context/User';
-import {
-  useActualTheme,
-  useSetTheme,
-  useTheme,
-} from '../../../../context/Theme';
+import { useActualTheme, useSetTheme, useTheme } from '../../../../context/Theme';
 import { normalizeLanguage } from '../../../../i18n/language';
-import NotificationSettings from './NotificationSettings';
 
 export const languageOptions = [
   { value: 'zh-CN', label: '简体中文' },
@@ -51,31 +44,21 @@ const themeOptionFactory = (t, actualTheme) => [
   {
     value: 'light',
     label: t('浅色'),
-    description: t('明亮、清爽，适合白天和高亮环境使用'),
     icon: SunMedium,
   },
   {
     value: 'dark',
     label: t('深色'),
-    description: t('更聚焦内容，减少夜间浏览时的视觉刺激'),
     icon: MoonStar,
   },
   {
     value: 'auto',
     label: t('跟随系统'),
-    description: `${t('自动匹配系统外观')} · ${
-      actualTheme === 'dark' ? t('当前为深色') : t('当前为浅色')
-    }`,
     icon: MonitorSmartphone,
   },
 ];
 
-const PreferencesSettings = ({
-  t,
-  notificationSettings,
-  handleNotificationSettingChange,
-  saveNotificationSettings,
-}) => {
+const PreferencesSettings = ({ t }) => {
   const { i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
   const theme = useTheme();
@@ -167,100 +150,77 @@ const PreferencesSettings = ({
   };
 
   return (
-    <section className='personal-v3-section'>
-      <Card
-        className='personal-v3-card personal-v3-preference-card !rounded-[24px]'
-        bodyStyle={{ padding: 0 }}
-      >
-        <div className='personal-v3-card-body'>
-          <div className='personal-v3-card-title personal-v3-card-title-compact'>
-            <span className='personal-v3-icon-badge'>
-              <Languages size={18} />
-            </span>
-            <div>
-              <h3>{t('界面偏好')}</h3>
-              <p>{t('自定义主题模式和界面语言，兼容浅色、深色与跟随系统。')}</p>
-            </div>
-          </div>
-
-          <div className='personal-v3-preference-grid'>
-            <div className='personal-v3-preference-block'>
-              <div>
-                <div className='personal-v3-preference-head'>
-                  <h4>{t('主题模式')}</h4>
-                  <p>{t('根据使用场景自由切换外观，立即生效')}</p>
-                </div>
-
-                <div className='personal-v3-theme-grid'>
-                  {themeOptions.map((option) => {
-                    const Icon = option.icon;
-                    return (
-                      <button
-                        key={option.value}
-                        type='button'
-                        className={`personal-v3-theme-item ${theme === option.value ? 'is-active' : ''
-                          }`}
-                        onClick={() => handleThemePreferenceChange(option.value)}
-                      >
-                        <span className='personal-v3-theme-icon'>
-                          <Icon size={18} />
-                        </span>
-                        <span className='personal-v3-theme-title'>
-                          {option.label}
-                        </span>
-                        <span className='personal-v3-theme-desc'>
-                          {option.description}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="mt-8">
-                <div className='personal-v3-preference-head'>
-                  <h4>{t('语言设置')}</h4>
-                  <p>{t('选择界面语言，设置会同步保存到当前账户')}</p>
-                </div>
-
-                <div className='personal-v3-language-list'>
-                  {languageOptions.map((option) => {
-                    const active = currentLanguage === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type='button'
-                        disabled={loading}
-                        className={`personal-v3-language-item ${active ? 'is-active' : ''
-                          }`}
-                        onClick={() =>
-                          handleLanguagePreferenceChange(option.value)
-                        }
-                      >
-                        <span>{option.label}</span>
-                        <span className='personal-v3-language-dot'>
-                          {active ? <CheckCircle2 size={14} /> : null}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <NotificationSettings
-              t={t}
-              notificationSettings={notificationSettings}
-              handleNotificationSettingChange={handleNotificationSettingChange}
-              saveNotificationSettings={saveNotificationSettings}
-            />
-          </div>
-
-          <div className='personal-v3-inline-summary'>
-            <span>{t('当前主题')}：{themeOptions.find((item) => item.value === theme)?.label}</span>
-            <span>{t('当前语言')}：{languageOptions.find((item) => item.value === currentLanguage)?.label}</span>
-          </div>
+    <section className='ps-settings-card'>
+      <div className='ps-settings-card-head'>
+        <div>
+          <h2>{t('偏好设置')}</h2>
+          <p className='ps-settings-card-sub'>
+            {t('自定义语言、主题等界面与行为偏好')}
+          </p>
         </div>
-      </Card>
+      </div>
+
+      {/* 主题偏好 */}
+      <div className='ps-form-block'>
+        <label>{t('主题偏好')}</label>
+        <div className='ps-radio-row'>
+          {themeOptions.map((option) => {
+            const Icon = option.icon;
+            return (
+              <button
+                key={option.value}
+                type='button'
+                className={`ps-radio-chip ${
+                  theme === option.value ? 'is-active' : ''
+                }`}
+                onClick={() => handleThemePreferenceChange(option.value)}
+              >
+                <Icon size={15} />
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 语言偏好 */}
+      <div className='ps-form-block' style={{ marginTop: 20 }}>
+        <label>{t('语言偏好')}</label>
+        <div className='ps-radio-row'>
+          {languageOptions.map((option) => {
+            const active = currentLanguage === option.value;
+            return (
+              <button
+                key={option.value}
+                type='button'
+                disabled={loading}
+                className={`ps-radio-chip ${active ? 'is-active' : ''}`}
+                onClick={() =>
+                  handleLanguagePreferenceChange(option.value)
+                }
+              >
+                {active ? <CheckCircle2 size={14} /> : null}
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className='ps-inline-summary'>
+        <span>
+          {t('当前主题')}：
+          {themeOptions.find((item) => item.value === theme)?.label}
+          {theme === 'auto'
+            ? ` · ${actualTheme === 'dark' ? t('深色') : t('浅色')}`
+            : ''}
+        </span>
+        <span>
+          {t('当前语言')}：
+          {languageOptions.find((item) => item.value === currentLanguage)
+            ?.label || currentLanguage}
+        </span>
+      </div>
     </section>
   );
 };

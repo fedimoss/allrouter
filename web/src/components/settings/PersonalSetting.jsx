@@ -43,30 +43,29 @@ import { useActualTheme, useTheme } from '../../context/Theme';
 import {
   Avatar,
   Button,
-  Card,
   Input,
-  InputNumber,
   Modal,
   Select,
-  Switch,
-  Tag,
   Upload,
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import {
   BarChart3,
   Bell,
-  Globe2,
-  KeyRound,
-  Link2,
-  Laptop,
-  ShieldCheck,
-  UserRoundCog,
-  Wallet,
+  CalendarCheck,
   Camera,
+  Fingerprint,
+  Link2,
+  Mail,
+  Settings2,
+  ShieldCheck,
+  TriangleAlert,
+  UserRound,
+  Wallet,
 } from 'lucide-react';
 import { getLogo } from '../../helpers';
 import AccountManagement from './personal/cards/AccountManagement';
+import NotificationSettings from './personal/cards/NotificationSettings';
 import PreferencesSettings, {
   languageOptions,
 } from './personal/cards/PreferencesSettings';
@@ -169,8 +168,6 @@ const PersonalSetting = () => {
   const theme = useTheme();
   const actualTheme = useActualTheme();
   const { t, i18n } = useTranslation();
-  const accountAdvancedRef = useRef(null);
-  const notificationAdvancedRef = useRef(null);
 
   const [inputs, setInputs] = useState({
     wechat_verification_code: '',
@@ -228,6 +225,67 @@ const PersonalSetting = () => {
   const currentUser = userState?.user || {};
   const runtimeDevice = useMemo(() => detectRuntimeDevice(), []);
 
+  // 右侧设置导航锚点 + 滚动高亮
+  const sectionRefs = {
+    account: useRef(null),
+    security: useRef(null),
+    checkin: useRef(null),
+    notification: useRef(null),
+    preferences: useRef(null),
+    danger: useRef(null),
+  };
+  const [activeSection, setActiveSection] = useState('account');
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // 以视口坐标判定当前所在区块，兼容任意滚动容器
+      const threshold = 140;
+      let current = 'account';
+      Object.keys(sectionRefs).forEach((key) => {
+        const el = sectionRefs[key]?.current;
+        if (el && el.getBoundingClientRect().top <= threshold) {
+          current = key;
+        }
+      });
+      setActiveSection(current);
+    };
+    // scroll 事件不冒泡，用捕获阶段监听所有滚动容器（含控制台内部滚动区）
+    document.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleScroll);
+    handleScroll();
+    return () => {
+      document.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, []);
+
+  const settingsNavItems = useMemo(() => {
+    const items = [
+      { key: 'account', label: t('账户管理'), icon: UserRound },
+      { key: 'security', label: t('安全设置'), icon: ShieldCheck },
+    ];
+    if (status?.checkin_enabled) {
+      items.push({
+        key: 'checkin',
+        label: t('签到日历'),
+        icon: CalendarCheck,
+      });
+    }
+    items.push(
+      { key: 'notification', label: t('通知设置'), icon: Bell },
+      { key: 'preferences', label: t('偏好设置'), icon: Settings2 },
+      { key: 'danger', label: t('危险区域'), icon: TriangleAlert },
+    );
+    return items;
+  }, [status?.checkin_enabled, t]);
+
+  const scrollToSection = (key) => {
+    sectionRefs[key]?.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  };
+
   const timezoneOptions = useMemo(() => {
     const raw =
       typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function'
@@ -254,23 +312,6 @@ const PersonalSetting = () => {
     { value: '+33', label: t('法国 (+33)') },
     { value: '+61', label: t('澳大利亚 (+61)') },
   ], [t]);
-
-  const currentLanguageLabel = useMemo(() => {
-    const activeLanguage = normalizeLanguage(
-      safeParseSetting(currentUser?.setting).language || i18n.language,
-    );
-    return (
-      languageOptions.find((item) => item.value === activeLanguage)?.label ||
-      activeLanguage
-    );
-  }, [currentUser?.setting, i18n.language]);
-
-  const currentThemeLabel = useMemo(() => {
-    if (theme === 'auto') {
-      return `${t('跟随系统')} · ${actualTheme === 'dark' ? t('深色') : t('浅色')}`;
-    }
-    return theme === 'dark' ? t('深色') : t('浅色');
-  }, [actualTheme, t, theme]);
 
   const roleLabel = useMemo(() => {
     if (isRoot()) {
@@ -342,32 +383,6 @@ const PersonalSetting = () => {
       t,
     ],
   );
-
-  const notificationTargetSummary = useMemo(() => {
-    switch (notificationSettings.warningType) {
-      case 'webhook':
-        return notificationSettings.webhookUrl || t('未配置 Webhook 地址');
-      case 'bark':
-        return notificationSettings.barkUrl || t('未配置 Bark 推送地址');
-      case 'gotify':
-        return notificationSettings.gotifyUrl || t('未配置 Gotify 服务器');
-      case 'email':
-      default:
-        return (
-          notificationSettings.notificationEmail ||
-          currentUser?.email ||
-          t('将使用账号绑定邮箱接收通知')
-        );
-    }
-  }, [
-    currentUser?.email,
-    notificationSettings.barkUrl,
-    notificationSettings.gotifyUrl,
-    notificationSettings.notificationEmail,
-    notificationSettings.warningType,
-    notificationSettings.webhookUrl,
-    t,
-  ]);
 
   const isAdminUser = (currentUser?.role || 0) >= 10;
 
@@ -476,10 +491,6 @@ const PersonalSetting = () => {
     currentUser?.timezone,
     currentUser?.username,
   ]);
-
-  const scrollToRef = (ref) => {
-    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   const handleInputChange = (name, value) => {
     setInputs((currentInputs) => ({ ...currentInputs, [name]: value }));
@@ -945,573 +956,339 @@ const PersonalSetting = () => {
 
   return (
     <div className='personal-setting-v2'>
-      <div className='personal-setting-v2-backdrop' aria-hidden='true' />
-      <div className='flex justify-center'>
-        <div className='personal-setting-v2-container w-full px-2 sm:px-4 lg:px-6'>
-          <section className='personal-setting-v2-head personal-v3-hero'>
-            <h1 className='person-h1-title'>{t('个人中心')}</h1>
-            <p className='person-title-info'>{t('管理您的账户信息、安全设置、通知偏好及界面显示。')}</p>
-          </section>
+      <div className='ps-container'>
+        {/* 页面头部 */}
+        <section className='ps-page-head'>
+          <h1>{t('个人设置')}</h1>
+          <p className='sub'>{t('管理您的账户信息、安全设置与偏好')}</p>
+        </section>
 
-          <section className='personal-v3-main-grid'>
-            <Card
-              className='personal-v3-card !rounded-[24px]'
-              bodyStyle={{ padding: 0 }}
+        {/* 用户信息头部卡片 */}
+        <div className='ps-user-profile-card'>
+          <Upload
+            action='/'
+            accept='image/*'
+            showUploadList={false}
+            uploadTrigger='auto'
+            customRequest={handleAvatarUpload}
+          >
+            <Avatar
+              size={64}
+              shape='circle'
+              hoverMask={hoverMask}
+              src={avatarSrc}
+              className='ps-user-profile-avatar'
             >
+              {displayName?.[0]?.toUpperCase()}
+            </Avatar>
+          </Upload>
+          <div className='ps-user-profile-info'>
+            <div className='ps-user-profile-name'>{displayName}</div>
+            <div className='ps-user-profile-meta'>
+              <span>
+                <Mail size={14} />
+                {currentUser?.email || t('未绑定邮箱')}
+              </span>
+              <span>
+                <Fingerprint size={14} />
+                {t('用户 ID')}：{currentUser?.id ?? '-'}
+              </span>
+              <span>
+                <ShieldCheck size={14} />
+                {roleLabel}
+              </span>
+            </div>
+          </div>
+          <Button
+            theme='outline'
+            size='small'
+            onClick={() => setShowEmailBindModal(true)}
+          >
+            {t('更换邮箱')}
+          </Button>
+        </div>
 
-              <div className='personal-v3-card-body'>
-                <div className='card-heard'>
-                  <div><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-icon lucide-user"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-                  <div className='card-h-title'>{t('账户信息')}</div>
-                </div>
-                <div className='personal-v3-card-header'>
-                  <div className='personal-v3-card-title'>
-                    <Upload
-                      action='/'
-                      accept='image/*'
-                      showUploadList={false}
-                      uploadTrigger='auto'
-                      customRequest={handleAvatarUpload}
-                    >
-                      <Avatar
-                        size='large'
-                        shape='square'
-                        hoverMask={hoverMask}
-                        src={avatarSrc}
-                      >
-                        {displayName?.[0]?.toUpperCase()}
-                      </Avatar>
-                    </Upload>
-                    <div className='min-w-0'>
-                      <div className='personal-v3-profile-name'>
-                        {displayName} <Tag color='light-blue'>ID：{currentUser?.id || '-'}</Tag>
-                      </div>
-                      <div className='personal-v3-profile-subtitle'>
-                        {t('管理您的基础资料、账户状态与常用信息。')}
-                      </div>
-                      {/* <div className='personal-v3-chip-row'>
-                        <Tag shape='circle' className='personal-v3-soft-tag'>
-                          {roleLabel}
-                        </Tag>
-                        <Tag shape='circle' className='personal-v3-soft-tag'>
-                          ID #{currentUser?.id || '-'}
-                        </Tag>
-                        <Tag shape='circle' className='personal-v3-soft-tag'>
-                          {currentUser?.group || t('默认分组')}
-                        </Tag>
-                      </div> */}
-                    </div>
-                  </div>
-                  {/* <Button
-                    theme='outline'
-                    onClick={() => scrollToRef(accountAdvancedRef)}
-                    className='personal-v3-secondary-btn'
-                  >
-                    {t('账户绑定与安全设置')}
-                  </Button> */}
-                </div>
+        {/* 账户统计 */}
+        <div className='ps-stat-row'>
+          {metricItems.map((item) => (
+            <div key={item.key} className='ps-stat'>
+              <div className='ps-stat-value'>{item.value}</div>
+              <div className='ps-stat-label'>{item.label}</div>
+            </div>
+          ))}
+        </div>
 
-                <div className='personal-v3-account-form-grid'>
-                  <div className='personal-v3-field'>
-                    <label htmlFor='profile-username'>{t('用户名')}</label>
-                    <Input
-                      size='large'
-                      id='profile-username'
-                      value={profileInputs.username}
-                      onChange={(value) => handleProfileChange('username', value)}
-                      placeholder={t('请输入用户名')}
-                      showClear
-                    />
-                  </div>
-
-                  <div className='personal-v3-field'>
-                    <label htmlFor='profile-email'>
-                      <span>{t('邮箱地址')}</span>
-                      <span className='personal-v3-field-tag'>
-                        {currentUser?.email ? t('已绑定') : t('未绑定')}
-                      </span>
-                    </label>
-                    <Input
-                      size='large'
-                      id='profile-email'
-                      value={currentUser?.email || t('暂未绑定邮箱')}
-                      readonly
-                    />
-                    <div className='personal-v3-field-note'>
-                      {currentUser?.email
-                        ? t('如需修改邮箱，请在下方高级设置中重新绑定。')
-                        : t('可在下方高级设置中绑定邮箱，用于通知和登录验证。')}
-                    </div>
-                  </div>
-
-                  <div className='personal-v3-field'>
-                    <label>{t('手机号')}</label>
-                    <Input
-                      size='large'
-                      value={profileInputs.phone_number}
-                      addonBefore={
-                        <Select
-                          size='large'
-                          value={profileInputs.phone_country_code}
-                          optionList={phoneCountryCodeOptions}
-                          onChange={(value) =>
-                            handleProfileChange('phone_country_code', value)
-                          }
-                          filter={selectFilter}
-                          searchPosition='dropdown'
-                          style={{ width: 138 }}
-                        />
-                      }
-                      onChange={(value) => handleProfileChange('phone_number', value)}
-                      placeholder={t('请输入手机号')}
-                      showClear
-                    />
-                    <div className='personal-v3-field-note'>
-                      {t('显示名称将展示为区号 + 手机号格式')}
-                    </div>
-                  </div>
-
-                  <div className='personal-v3-field'>
-                    <label htmlFor='profile-timezone'>{t('时区')}</label>
-                    <Select
-                      size='large'
-                      id='profile-timezone'
-                      value={profileInputs.timezone}
-                      optionList={timezoneOptions}
-                      filter={selectFilter}
-                      searchPosition='dropdown'
-                      onChange={(value) => handleProfileChange('timezone', value)}
-                      style={{ width: '100%' }}
-                    />
-                    <div className='personal-v3-field-note'>
-                      {profileInputs.timezone
-                        ? `${profileInputs.timezone} · ${localTimeLabel}`
-                        : '-'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className='personal-v3-note-banner'>
-                  <strong>{t('提示')}：</strong>
-                  {t(
-                    '账户绑定、密码修改、两步验证与更多安全操作已保留在下方高级设置区域。',
-                  )}
-                </div>
-
-                <div className='personal-v3-stat-grid'>
-                  {metricItems.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <div key={item.key} className='personal-v3-stat-card'>
-                        <div className='personal-v3-stat-card-head'>
-                          <div>
-                            <div className='personal-v3-stat-label'>
-                              {item.label}
-                            </div>
-                            <div className='personal-v3-stat-value'>
-                              {item.value}
-                            </div>
-                          </div>
-                          <span className='personal-v3-stat-icon'>
-                            <Icon size={18} />
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className='personal-v3-card-actions'>
-                  <Button
-                    theme='outline'
-                    onClick={() => scrollToRef(accountAdvancedRef)}
-                  >
-                    {t('更多账户设置')}
-                  </Button>
-                  <Button
-                    type='primary'
-                    onClick={saveProfile}
-                    loading={profileSaving}
-                  >
-                    {t('保存修改')}
-                  </Button>
-                </div>
-              </div>
-            </Card>
-
-            {/* <Card
-              className='personal-v3-card !rounded-[24px]'
-              bodyStyle={{ padding: 0 }}
+        <div className='ps-settings-layout'>
+          <div className='ps-settings-content'>
+            {/* 账户管理卡片 */}
+            <section
+              ref={sectionRefs.account}
+              className='ps-settings-card ps-anchor'
             >
-              <div className='personal-v3-card-body'>
-                <div className='personal-v3-card-header'>
-                  <div className='personal-v3-card-title'>
-                    <span className='personal-v3-icon-badge'>
-                      <Bell size={18} />
-                    </span>
-                    <div>
-                      <h3>{t('通知偏好')}</h3>
-                      <p>{t('快速调整常用通知、风险与隐私开关。')}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className='personal-v3-quick-stack'>
-                  <div className='personal-v3-inline-field'>
-                    <div>
-                      <label>{t('通知方式')}</label>
-                      <span>{t('额度预警通知使用的推送渠道')}</span>
-                    </div>
-                    <Select
-                      value={notificationSettings.warningType}
-                      optionList={notificationTypeOptions.map((item) => ({
-                        value: item.value,
-                        label: t(item.label),
-                      }))}
-                      onChange={(value) =>
-                        handleNotificationSettingChange('warningType', value)
-                      }
-                    />
-                  </div>
-
-                  <div className='personal-v3-inline-field'>
-                    <div>
-                      <label>{t('预警阈值')}</label>
-                      <span>{t('额度低于该值时发送通知')}</span>
-                    </div>
-                    <InputNumber
-                      value={Number(notificationSettings.warningThreshold) || 0}
-                      min={1}
-                      step={100000}
-                      onChange={(value) =>
-                        handleNotificationSettingChange('warningThreshold', value)
-                      }
-                    />
-                  </div>
-
-                  <div className='personal-v3-note-banner personal-v3-note-banner-compact'>
-                    <strong>{t('当前通知目标：')}：</strong>
-                    {notificationTargetSummary}
-                  </div>
-
-                  {isAdminUser && (
-                    <div className='personal-v3-setting-row'>
-                      <div>
-                        <h4>{t('上游模型更新通知')}</h4>
-                        <p>
-                          {t('仅管理员可用，接收模型变更或检测异常汇总')}
-                        </p>
-                      </div>
-                      <Switch
-                        checked={
-                          notificationSettings.upstreamModelUpdateNotifyEnabled ===
-                          true
-                        }
-                        onChange={(checked) =>
-                          handleNotificationSettingChange(
-                            'upstreamModelUpdateNotifyEnabled',
-                            checked,
-                          )
-                        }
-                      />
-                    </div>
-                  )}
-
-                  <div className='personal-v3-setting-row'>
-                    <div>
-                      <h4>{t('接受未设置价格模型')}</h4>
-                      <p>
-                        {t(
-                          '仅在信任站点时开启，避免因价格缺失造成费用风险',
-                        )}
-                      </p>
-                    </div>
-                    <Switch
-                      checked={notificationSettings.acceptUnsetModelRatioModel}
-                      onChange={(checked) =>
-                        handleNotificationSettingChange(
-                          'acceptUnsetModelRatioModel',
-                          checked,
-                        )
-                      }
-                    />
-                  </div>
-
-                </div>
-
-                <div className='personal-v3-card-actions personal-v3-card-actions-split'>
-                  <Button
-                    theme='outline'
-                    onClick={() => scrollToRef(notificationAdvancedRef)}
-                  >
-                    {t('高级通知设置')}
-                  </Button>
-                  <Button
-                    type='primary'
-                    onClick={saveNotificationSettings}
-                    loading={notificationSaving}
-                  >
-                    {t('保存设置')}
-                  </Button>
+              <div className='ps-settings-card-head'>
+                <div>
+                  <h2>{t('账户管理')}</h2>
+                  <p className='ps-settings-card-sub'>
+                    {t('管理用户名、邮箱、密码与第三方绑定')}
+                  </p>
                 </div>
               </div>
-            </Card> */}
-          </section>
 
-          {/* <section className='personal-v3-section'>
-            <div className='personal-v3-section-head'>
-              <div>
-                <h2>{t('安全中心')}</h2>
-                <p>
-                  {t('管理访问令牌、双重验证、Passkey 与当前设备会话信息。')}
-                </p>
-              </div>
-            </div>
-
-            <div className='personal-v3-security-grid'>
-              <Card
-                className='personal-v3-card !rounded-[24px]'
-                bodyStyle={{ padding: 0 }}
-              >
-                <div className='personal-v3-card-body'>
-                  <div className='personal-v3-card-title personal-v3-card-title-compact'>
-                    <span className='personal-v3-icon-badge'>
-                      <KeyRound size={18} />
-                    </span>
-                    <div>
-                      <h3>{t('系统访问令牌')}</h3>
-                      <p>
-                        {t('用于 API 调用的身份校验，生成后会自动复制。')}
-                      </p>
-                    </div>
-                  </div>
-
-                  {systemToken ? (
-                    <Input
-                      readonly
-                      value={systemToken}
-                      onClick={handleSystemTokenClick}
-                    />
-                  ) : (
-                    <div className='personal-v3-empty-state'>
-                      {t('尚未生成系统访问令牌，点击下方按钮立即创建。')}
-                    </div>
-                  )}
-
-                  <div className='personal-v3-card-actions'>
-                    <Button type='primary' onClick={generateAccessToken}>
-                      {systemToken ? t('重新生成令牌') : t('生成令牌')}
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-
-              <Card
-                className='personal-v3-card !rounded-[24px]'
-                bodyStyle={{ padding: 0 }}
-              >
-                <div className='personal-v3-card-body'>
-                  <div className='personal-v3-card-title personal-v3-card-title-compact'>
-                    <span className='personal-v3-icon-badge'>
-                      <ShieldCheck size={18} />
-                    </span>
-                    <div>
-                      <h3>{t('验证与登录保护')}</h3>
-                      <p>{t('集中查看 2FA、Passkey 与账号保护状态。')}</p>
-                    </div>
-                  </div>
-
-                  <div className='personal-v3-quick-stack'>
-                    <div className='personal-v3-setting-row'>
-                      <div>
-                        <h4>{t('双重验证（2FA）')}</h4>
-                        <p>
-                          {twoFAStatus?.enabled
-                            ? t('已启用，登录时需要额外验证码')
-                            : t('未启用，建议尽快配置额外验证方式')}
-                        </p>
-                      </div>
-                      <Tag shape='circle' className='personal-v3-soft-tag'>
-                        {twoFAStatus?.enabled ? t('已开启') : t('未开启')}
-                      </Tag>
-                    </div>
-
-                    <div className='personal-v3-setting-row'>
-                      <div>
-                        <h4>{t('Passkey 登录')}</h4>
-                        <p>
-                          {passkeyStatus?.enabled
-                            ? t('当前已启用 Passkey，可免密登录')
-                            : t('使用设备密钥提升登录安全性与便捷性')}
-                        </p>
-                      </div>
-                      <Switch
-                        checked={passkeyStatus?.enabled === true}
-                        disabled={
-                          (!passkeySupported && !passkeyStatus?.enabled) ||
-                          passkeyRegisterLoading ||
-                          passkeyDeleteLoading
-                        }
-                        onChange={handlePasskeySwitch}
-                      />
-                    </div>
-                  </div>
-
-                  <div className='personal-v3-status-hint'>
-                    {twoFAStatus?.enabled
-                      ? t('备用码剩余：{{count}} 个', {
-                          count: twoFAStatus?.backup_codes_remaining || 0,
-                        })
-                      : t(
-                          '可在高级设置中完成 2FA 配置、备用码管理与更多安全操作。',
-                        )}
-                  </div>
-
-                  <div className='personal-v3-card-actions'>
-                    <Button
-                      theme='outline'
-                      onClick={() => scrollToRef(accountAdvancedRef)}
-                    >
-                      {t('配置验证方式')}
-                    </Button>
-                    {!passkeySupported && !passkeyStatus?.enabled ? (
-                      <Tag shape='circle' className='personal-v3-soft-tag'>
-                        {t('当前设备不支持 Passkey')}
-                      </Tag>
-                    ) : null}
-                  </div>
-                </div>
-              </Card>
-
-              <Card
-                className='personal-v3-card !rounded-[24px]'
-                bodyStyle={{ padding: 0 }}
-              >
-                <div className='personal-v3-card-body'>
-                  <div className='personal-v3-card-title personal-v3-card-title-compact'>
-                    <span className='personal-v3-icon-badge'>
-                      <Laptop size={18} />
-                    </span>
-                    <div>
-                      <h3>{t('当前设备与会话')}</h3>
-                      <p>
-                        {t('基于浏览器环境展示当前设备、语言与主题信息。')}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className='personal-v3-session-list'>
-                    <div className='personal-v3-session-row'>
-                      <div>
-                        <h4>{t('当前设备')}</h4>
-                        <p>{`${runtimeDevice.os} · ${runtimeDevice.browser}`}</p>
-                      </div>
-                      <Tag shape='circle' className='personal-v3-soft-tag'>
-                        {t('当前')}
-                      </Tag>
-                    </div>
-
-                    <div className='personal-v3-session-row'>
-                      <div>
-                        <h4>{t('语言设置')}</h4>
-                        <p>{currentLanguageLabel}</p>
-                      </div>
-                      <span className='personal-v3-session-badge'>
-                        <Globe2 size={14} />
-                      </span>
-                    </div>
-
-                    <div className='personal-v3-session-row'>
-                      <div>
-                        <h4>{t('界面主题')}</h4>
-                        <p>{currentThemeLabel}</p>
-                      </div>
-                      <span className='personal-v3-session-badge'>
-                        <UserRoundCog size={14} />
-                      </span>
-                    </div>
-
-                    <div className='personal-v3-session-row'>
-                      <div>
-                        <h4>{t('已绑定方式')}</h4>
-                        <p>
-                          {boundAccountCount}{t('项登录或通知方式已绑定')}
-                        </p>
-                      </div>
-                      <span className='personal-v3-session-badge'>
-                        <Link2 size={14} />
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          </section> */}
-
-          <section className='personal-v3-section personal-v3-advanced'>
-            <div className='personal-v3-section-head'>
-              <div>
-                <h2>{t('高级设置')}</h2>
-                <p>
-                  {t(
-                    '保留原有完整功能，继续管理账户绑定、细分通知策略、签到奖励与更多安全能力。',
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div
-              className={`personal-setting-v2-board mt-4 md:mt-6 ${
-                status?.checkin_enabled ? '' : 'personal-setting-v2-board--single'
-              }`}
-            >
-              <div
-                ref={accountAdvancedRef}
-                className='personal-setting-v2-col personal-v3-anchor'
-              >
-                <AccountManagement
-                  t={t}
-                  userState={userState}
-                  status={status}
-                  systemToken={systemToken}
-                  setShowEmailBindModal={setShowEmailBindModal}
-                  setShowWeChatBindModal={setShowWeChatBindModal}
-                  generateAccessToken={generateAccessToken}
-                  handleSystemTokenClick={handleSystemTokenClick}
-                  setShowChangePasswordModal={setShowChangePasswordModal}
-                  setShowAccountDeleteModal={setShowAccountDeleteModal}
-                  passkeyStatus={passkeyStatus}
-                  passkeySupported={passkeySupported}
-                  passkeyRegisterLoading={passkeyRegisterLoading}
-                  passkeyDeleteLoading={passkeyDeleteLoading}
-                  onPasskeyRegister={handleRegisterPasskey}
-                  onPasskeyDelete={handleRemovePasskey}
-                  onTwoFAStatusChange={setTwoFAStatus}
-                />
-              </div>
-
-              {status?.checkin_enabled && (
-                <div
-                  ref={notificationAdvancedRef}
-                  className='personal-setting-v2-col personal-v3-anchor'
-                >
-                  <CheckinCalendar
-                    t={t}
-                    status={status}
-                    turnstileEnabled={turnstileEnabled}
-                    turnstileSiteKey={turnstileSiteKey}
+              <div className='ps-account-form-grid'>
+                <div className='ps-form-block'>
+                  <label htmlFor='profile-username'>{t('用户名')}</label>
+                  <Input
+                    id='profile-username'
+                    value={profileInputs.username}
+                    onChange={(value) => handleProfileChange('username', value)}
+                    placeholder={t('请输入用户名')}
+                    showClear
                   />
                 </div>
-              )}
-            </div>
-          </section>
 
-          <PreferencesSettings
-            t={t}
-            notificationSettings={notificationSettings}
-            handleNotificationSettingChange={handleNotificationSettingChange}
-            saveNotificationSettings={saveNotificationSettings}
-          />
+                <div className='ps-form-block'>
+                  <label>{t('手机号')}</label>
+                  <Input
+                    value={profileInputs.phone_number}
+                    addonBefore={
+                      <Select
+                        value={profileInputs.phone_country_code}
+                        optionList={phoneCountryCodeOptions}
+                        onChange={(value) =>
+                          handleProfileChange('phone_country_code', value)
+                        }
+                        filter={selectFilter}
+                        searchPosition='dropdown'
+                        style={{ width: 132 }}
+                      />
+                    }
+                    onChange={(value) =>
+                      handleProfileChange('phone_number', value)
+                    }
+                    placeholder={t('请输入手机号')}
+                    showClear
+                  />
+                </div>
+
+                <div className='ps-form-block'>
+                  <label htmlFor='profile-timezone'>{t('时区')}</label>
+                  <Select
+                    id='profile-timezone'
+                    value={profileInputs.timezone}
+                    optionList={timezoneOptions}
+                    filter={selectFilter}
+                    searchPosition='dropdown'
+                    onChange={(value) => handleProfileChange('timezone', value)}
+                    style={{ width: '100%' }}
+                  />
+                  <div className='ps-field-note'>
+                    {profileInputs.timezone
+                      ? `${profileInputs.timezone} · ${localTimeLabel}`
+                      : t('选择时区后可同步本地时间')}
+                  </div>
+                </div>
+              </div>
+
+              <div className='ps-form-save-row'>
+                <Button
+                  type='primary'
+                  onClick={saveProfile}
+                  loading={profileSaving}
+                >
+                  {t('保存修改')}
+                </Button>
+              </div>
+
+              <div className='ps-field-row'>
+                <div className='ps-field-row-label'>
+                  <div className='ps-field-title'>{t('用户ID')}</div>
+                  <div className='ps-field-row-value ps-mono'>
+                    {currentUser?.id ?? '-'}
+                  </div>
+                </div>
+                <div className='ps-field-row-action'>
+                  <Button
+                    theme='outline'
+                    size='small'
+                    onClick={async () => {
+                      await copy(String(currentUser?.id ?? ''));
+                      showSuccess(t('用户ID已复制'));
+                    }}
+                  >
+                    {t('复制')}
+                  </Button>
+                </div>
+              </div>
+
+              <div className='ps-field-row'>
+                <div className='ps-field-row-label'>
+                  <div className='ps-field-title'>{t('邮箱')}</div>
+                  <div className='ps-field-desc'>
+                    {currentUser?.email
+                      ? `${t('已绑定邮箱')} ${currentUser.email}，${t(
+                          '用于登录与通知',
+                        )}`
+                      : t('暂未绑定邮箱，可在绑定后用于登录与通知')}
+                  </div>
+                </div>
+                <div className='ps-field-row-action'>
+                  <Button
+                    theme='outline'
+                    size='small'
+                    onClick={() => setShowEmailBindModal(true)}
+                  >
+                    {currentUser?.email ? t('更换邮箱') : t('绑定邮箱')}
+                  </Button>
+                </div>
+              </div>
+
+              <div className='ps-field-row'>
+                <div className='ps-field-row-label'>
+                  <div className='ps-field-title'>{t('密码')}</div>
+                  <div className='ps-field-desc'>
+                    {t('定期更改密码可以提高账户安全性')}
+                  </div>
+                </div>
+                <div className='ps-field-row-action'>
+                  <Button
+                    theme='outline'
+                    size='small'
+                    onClick={() => setShowChangePasswordModal(true)}
+                  >
+                    {t('修改密码')}
+                  </Button>
+                </div>
+              </div>
+
+              <div className='ps-field-row'>
+                <div className='ps-field-row-label'>
+                  <div className='ps-field-title'>{t('微信绑定')}</div>
+                  <div className='ps-field-desc'>
+                    {t('绑定后可使用微信扫码登录')}
+                  </div>
+                </div>
+                <div className='ps-field-row-value'>
+                  {!status.wechat_login
+                    ? t('未启用')
+                    : currentUser?.wechat_id
+                      ? t('已绑定')
+                      : t('未绑定')}
+                </div>
+                <div className='ps-field-row-action'>
+                  <Button
+                    theme='outline'
+                    size='small'
+                    disabled={!status.wechat_login}
+                    onClick={() => setShowWeChatBindModal(true)}
+                  >
+                    {currentUser?.wechat_id ? t('修改绑定') : t('绑定微信')}
+                  </Button>
+                </div>
+              </div>
+            </section>
+
+            {/* 安全设置卡片 */}
+            <div ref={sectionRefs.security} className='ps-anchor'>
+              <AccountManagement
+                t={t}
+                userState={userState}
+                status={status}
+                systemToken={systemToken}
+                runtimeDevice={runtimeDevice}
+                generateAccessToken={generateAccessToken}
+                handleSystemTokenClick={handleSystemTokenClick}
+                passkeyStatus={passkeyStatus}
+                passkeySupported={passkeySupported}
+                passkeyRegisterLoading={passkeyRegisterLoading}
+                passkeyDeleteLoading={passkeyDeleteLoading}
+                onPasskeyRegister={handleRegisterPasskey}
+                onPasskeyDelete={handleRemovePasskey}
+                onTwoFAStatusChange={setTwoFAStatus}
+              />
+            </div>
+
+            {/* 签到日历卡片 */}
+            {status?.checkin_enabled && (
+              <div ref={sectionRefs.checkin} className='ps-anchor'>
+                <CheckinCalendar
+                  t={t}
+                  status={status}
+                  turnstileEnabled={turnstileEnabled}
+                  turnstileSiteKey={turnstileSiteKey}
+                />
+              </div>
+            )}
+
+            {/* 通知设置卡片 */}
+            <div ref={sectionRefs.notification} className='ps-anchor'>
+              <NotificationSettings
+                t={t}
+                notificationSettings={notificationSettings}
+                handleNotificationSettingChange={handleNotificationSettingChange}
+                saveNotificationSettings={saveNotificationSettings}
+              />
+            </div>
+
+            {/* 偏好设置卡片 */}
+            <div ref={sectionRefs.preferences} className='ps-anchor'>
+              <PreferencesSettings t={t} />
+            </div>
+
+            {/* 危险区域卡片 */}
+            <section
+              ref={sectionRefs.danger}
+              className='ps-settings-card ps-settings-card--danger ps-anchor'
+            >
+              <div className='ps-settings-card-head'>
+                <div>
+                  <h2>{t('危险区域')}</h2>
+                  <p className='ps-settings-card-sub'>
+                    {t('以下操作不可逆，请谨慎执行')}
+                  </p>
+                </div>
+              </div>
+              <div className='ps-field-row'>
+                <div className='ps-field-row-label'>
+                  <div className='ps-field-title ps-text-danger'>
+                    {t('注销账户')}
+                  </div>
+                  <div className='ps-field-desc'>
+                    {t(
+                      '永久删除您的账户及所有关联数据，包括余额、令牌、调用记录等，此操作无法撤销。',
+                    )}
+                  </div>
+                </div>
+                <div className='ps-field-row-action'>
+                  <Button
+                    type='danger'
+                    theme='solid'
+                    size='small'
+                    onClick={() => setShowAccountDeleteModal(true)}
+                  >
+                    {t('注销账户')}
+                  </Button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {/* 桌面端设置导航 */}
+          <nav className='ps-settings-nav'>
+            <div className='ps-settings-nav-title'>{t('设置')}</div>
+            {settingsNavItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <a
+                  key={item.key}
+                  className={activeSection === item.key ? 'active' : ''}
+                  onClick={() => scrollToSection(item.key)}
+                >
+                  <Icon size={15} />
+                  {item.label}
+                </a>
+              );
+            })}
+          </nav>
         </div>
       </div>
 

@@ -56,16 +56,19 @@ import {
   Info,
   KeyRound,
   MessageSquare,
-  PenLine,
   Plus,
   RefreshCw,
   Search,
   Trash2,
   X,
-  EllipsisVertical
 } from 'lucide-react';
 
 const DEFAULT_GROUP_FILTER = '__default__';
+
+const formatTokenDisplayKey = (value) => {
+  if (!value) return '';
+  return String(value).replace(/\*+/g, '•••');
+};
 
 const buildSearchCriteria = (rawQuery) => {
   const query = rawQuery.trim();
@@ -1128,7 +1131,9 @@ function TokensPage() {
                         isKeyVisible && tokensData.resolvedTokenKeys[record.id]
                           ? tokensData.resolvedTokenKeys[record.id]
                           : record.key || '';
-                      const displayedKey = resolvedKey ? `sk-${resolvedKey}` : '';
+                      const displayedKey = formatTokenDisplayKey(
+                        resolvedKey ? `sk-${resolvedKey}` : '',
+                      );
 
                       return (
                         <tr
@@ -1249,7 +1254,9 @@ function TokensPage() {
                             </div>
                           </td>
                           <td className='token-v2-date-cell token-v2-col-date'>
-                            {timestamp2string(record.created_time)}
+                            <span className='token-v2-created-time'>
+                              {timestamp2string(record.created_time)}
+                            </span>
                             <div>
                               {expireMeta.warning ? (
                               <span className='token-v2-expire-warning'>
@@ -1263,13 +1270,77 @@ function TokensPage() {
                           </td>
                           <td className='token-v2-actions-col'>
                             <div className='token-v2-row-actions'>
-                              <div className='token-v2-split-action'>
+                              <button
+                                type='button'
+                                className='token-v2-action-button token-v2-action-info'
+                                onClick={() => handleOpenDetail(record)}
+                                title={tokensData.t('详情')}
+                                aria-label={tokensData.t('详情')}
+                              >
+                                <Info size={14} strokeWidth={1.8} />
+                              </button>
+                              <button
+                                type='button'
+                                className='token-v2-action-button token-v2-action-edit'
+                                onClick={() => {
+                                  tokensData.setEditingToken(record);
+                                  tokensData.setShowEdit(true);
+                                }}
+                              >
+                                {tokensData.t('编辑')}
+                              </button>
+                              <button
+                                type='button'
+                                className='token-v2-action-button token-v2-action-copy'
+                                onClick={() => tokensData.copyTokenKey(record)}
+                              >
+                                {tokensData.t('复制')}
+                              </button>
+                              {record.status === 1 ? (
+                                <button
+                                  type='button'
+                                  className='token-v2-action-button token-v2-action-warning'
+                                  onClick={async () => {
+                                    await tokensData.manageToken(
+                                      record.id,
+                                      'disable',
+                                      record,
+                                    );
+                                    await refreshCurrentView();
+                                  }}
+                                >
+                                  {tokensData.t('禁用')}
+                                </button>
+                              ) : (
+                                <button
+                                  type='button'
+                                  className='token-v2-action-button token-v2-action-success'
+                                  onClick={async () => {
+                                    await tokensData.manageToken(
+                                      record.id,
+                                      'enable',
+                                      record,
+                                    );
+                                    await refreshCurrentView();
+                                  }}
+                                >
+                                  {tokensData.t('启用')}
+                                </button>
+                              )}
+                              <button
+                                type='button'
+                                className='token-v2-action-button token-v2-action-danger'
+                                onClick={() => handleDeleteRecord(record)}
+                              >
+                                {tokensData.t('删除')}
+                              </button>
+                              <div className='token-v2-split-action token-v2-chat-action'>
                                 <button
                                   type='button'
                                   className='token-v2-action-button'
                                   onClick={() => handlePrimaryChat(record)}
                                 >
-                                  <MessageSquare size={14} />
+                                  <MessageSquare size={13} />
                                   {tokensData.t('聊天')}
                                 </button>
                                 <Dropdown
@@ -1282,78 +1353,10 @@ function TokensPage() {
                                     className='token-v2-action-chevron'
                                     aria-label={tokensData.t('聊天下拉菜单')}
                                   >
-                                    <ChevronDown size={14} />
+                                    <ChevronDown size={13} />
                                   </button>
                                 </Dropdown>
                               </div>
-                              <button
-                                type='button'
-                                className='token-v2-action-button'
-                                onClick={() => {
-                                  tokensData.setEditingToken(record);
-                                  tokensData.setShowEdit(true);
-                                }}
-                              >
-                                <PenLine size={14} />
-                              </button>
-                              <button
-                                type='button'
-                                className='token-v2-action-button token-v2-action-danger'
-                                onClick={() => handleDeleteRecord(record)}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-
-                              <Dropdown
-                                  render={
-                                  <Dropdown.Menu>
-                                    <Dropdown.Item>
-                                      <button
-                                        type='button'
-                                        className='token-v2-action-button'
-                                        onClick={() => handleOpenDetail(record)}
-                                      >
-                                        {tokensData.t('详情')}
-                                      </button>
-                                    </Dropdown.Item>
-                                    <Dropdown.Item>
-                                      {record.status === 1 ? (
-                                        <button
-                                          type='button'
-                                          className='token-v2-action-button'
-                                          onClick={async () => {
-                                            await tokensData.manageToken(
-                                              record.id,
-                                              'disable',
-                                              record,
-                                            );
-                                            await refreshCurrentView();
-                                          }}
-                                        >
-                                          {tokensData.t('禁用')}
-                                        </button>
-                                      ) : (
-                                        <button
-                                          type='button'
-                                          className='token-v2-action-button token-v2-action-success'
-                                          onClick={async () => {
-                                            await tokensData.manageToken(
-                                              record.id,
-                                              'enable',
-                                              record,
-                                            );
-                                            await refreshCurrentView();
-                                          }}
-                                        >
-                                          {tokensData.t('启用')}
-                                        </button>
-                                      )}
-                                    </Dropdown.Item>
-                                  </Dropdown.Menu>
-                                }
-                              >
-                                <Button theme='borderless' type='tertiary' icon={<EllipsisVertical />} />
-                              </Dropdown>
                             </div>
                           </td>
                         </tr>

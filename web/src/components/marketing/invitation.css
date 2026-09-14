@@ -1,0 +1,524 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/* ============================================================
+   邀请奖励页 — 依据静态稿 console-invitation.html 的布局样式
+   结构：页头 → 推广链接卡 → 统计卡 → 提现按钮 → 规则步骤 → 记录表格 → FAQ
+   ============================================================ */
+
+.invitation-page {
+  /* 设计变量（浅/深色通过 Semi 变量自适应） */
+  --inv-accent: var(--theme-primary, #14b8a6);
+  --inv-accent-ink: #ffffff;
+  --inv-surface: var(--semi-color-bg-2);
+  --inv-surface-2: var(--semi-color-fill-0);
+  --inv-line: color-mix(in srgb, var(--semi-color-text-0) 9%, transparent);
+  --inv-line-2: color-mix(in srgb, var(--semi-color-text-0) 16%, transparent);
+  --inv-line-strong: color-mix(in srgb, var(--semi-color-text-0) 24%, transparent);
+  --inv-ink: var(--semi-color-text-0);
+  --inv-ink-2: color-mix(in srgb, var(--semi-color-text-0) 62%, transparent);
+  --inv-ink-3: color-mix(in srgb, var(--semi-color-text-0) 44%, transparent);
+  --inv-accent-tint: color-mix(in srgb, var(--inv-accent) 10%, transparent);
+  --inv-blue: #3b82f6;
+  --inv-blue-tint: color-mix(in srgb, #3b82f6 12%, transparent);
+  --inv-violet: #8b5cf6;
+  --inv-violet-tint: color-mix(in srgb, #8b5cf6 12%, transparent);
+  --inv-orange: #f97316;
+  --inv-orange-tint: color-mix(in srgb, #f97316 12%, transparent);
+  --inv-r-sm: 3px;
+  --inv-r-md: 3px;
+  --inv-r-lg: 3px;
+
+  padding: 16px 0 48px;
+}
+
+.inv-container {
+  max-width: 1064px;
+  margin: 0 auto;
+  padding: 0 4px;
+}
+
+/* ===== 页头 ===== */
+.inv-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.inv-page-head h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--inv-ink);
+}
+
+.inv-page-head .sub {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--inv-ink-2);
+}
+
+/* ===== 推广链接卡片 ===== */
+.inv-promo-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--inv-accent) 8%, transparent),
+    color-mix(in srgb, var(--inv-accent) 2%, transparent)
+  );
+  border: 1px solid color-mix(in srgb, var(--inv-accent) 22%, transparent);
+  border-radius: var(--inv-r-lg);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.inv-promo-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.inv-promo-card-head > svg {
+  color: var(--inv-accent);
+  flex: none;
+}
+
+.inv-promo-card-head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--inv-ink);
+}
+
+.inv-promo-link-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.inv-promo-link-row .semi-input-wrapper {
+  flex: 1;
+  min-width: 200px;
+  border: 1px solid var(--inv-line-2) !important;
+  background: var(--semi-color-bg-2) !important;
+  border-radius: 3px !important;
+}
+
+.inv-promo-link-row .semi-input-wrapper input {
+  font-family: var(--semi-font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 13px;
+}
+
+.inv-share-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.inv-share-label {
+  font-size: 13px;
+  color: var(--inv-ink-2);
+  font-weight: 600;
+}
+
+.inv-share-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--inv-r-md);
+  border: 1px solid var(--inv-line-2);
+  color: var(--inv-ink-2);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    border-color 0.18s,
+    color 0.18s,
+    background-color 0.18s;
+}
+
+.inv-share-btn:hover {
+  border-color: var(--inv-accent);
+  color: var(--inv-accent);
+  background: var(--inv-accent-tint);
+}
+
+/* ===== 统计卡片 ===== */
+.inv-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (min-width: 640px) {
+  .inv-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .inv-stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.inv-stat-card {
+  background: var(--inv-surface);
+  border: 1px solid var(--inv-line);
+  border-radius: var(--inv-r-lg);
+  padding: 20px;
+  transition: border-color 0.18s;
+}
+
+.inv-stat-card:hover {
+  border-color: var(--inv-line-strong);
+}
+
+.inv-stat-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.inv-stat-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--inv-ink-2);
+}
+
+.inv-stat-card-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--inv-r-md);
+}
+
+.inv-stat-card-icon--green {
+  background: var(--inv-accent-tint);
+  color: var(--inv-accent);
+}
+
+.inv-stat-card-icon--violet {
+  background: var(--inv-violet-tint);
+  color: var(--inv-violet);
+}
+
+.inv-stat-card-icon--orange {
+  background: var(--inv-orange-tint);
+  color: var(--inv-orange);
+}
+
+.inv-stat-card-value {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  color: var(--inv-ink);
+  word-break: break-all;
+}
+
+.inv-stat-card-change {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.inv-change-label {
+  color: var(--inv-ink-3);
+}
+
+/* ===== 提现按钮区 ===== */
+.inv-withdraw-row {
+  margin-bottom: 24px;
+}
+
+.inv-withdraw-btn {
+  min-height: 46px;
+  font-size: 15px;
+  padding: 0 28px;
+}
+
+/* 按钮：圆角 3px，覆盖全局 10px 规则 */
+.invitation-page .semi-button {
+  border-radius: 3px !important;
+}
+
+/* 主按钮（复制链接 / 提现到钱包）使用动态主题色 */
+.invitation-page .inv-promo-link-row .semi-button-primary:not(.semi-button-disabled),
+.invitation-page .inv-withdraw-row .semi-button-primary:not(.semi-button-disabled) {
+  background: var(--theme-gradient-135, var(--theme-primary, #14b8a6)) !important;
+  border-color: transparent !important;
+  color: var(--theme-primary-btn-color, #fff) !important;
+}
+
+.invitation-page .inv-promo-link-row .semi-button-primary:not(.semi-button-disabled):hover,
+.invitation-page .inv-withdraw-row .semi-button-primary:not(.semi-button-disabled):hover {
+  filter: brightness(1.05);
+}
+
+/* ===== 奖励规则步骤 ===== */
+.inv-rule-steps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (min-width: 640px) {
+  .inv-rule-steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.inv-rule-step {
+  background: var(--inv-surface);
+  border: 1px solid var(--inv-line);
+  border-radius: var(--inv-r-lg);
+  padding: 20px;
+}
+
+.inv-rule-step-num {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--inv-accent-tint);
+  color: var(--inv-accent);
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+
+.inv-rule-step h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--inv-ink);
+}
+
+.inv-rule-step p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--inv-ink-2);
+  line-height: 1.7;
+}
+
+/* ===== 表格卡片 ===== */
+.inv-table-card {
+  background: var(--inv-surface);
+  border: 1px solid var(--inv-line);
+  border-radius: var(--inv-r-lg);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.inv-card-title {
+  padding: 16px 20px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--inv-ink);
+  border-bottom: 1px solid var(--inv-line);
+}
+
+.inv-table-wrap {
+  overflow-x: auto;
+}
+
+/* 手机端表格横向滚动 */
+.invitation-page .inv-table-card .semi-table {
+  min-width: 640px;
+}
+
+.invitation-page .inv-table-card .semi-table-thead > tr > th {
+  background: var(--inv-surface-2) !important;
+  padding: 11px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--inv-ink-3);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--inv-line);
+}
+
+.invitation-page .inv-table-card .semi-table-tbody > tr > td {
+  padding: 13px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--inv-line);
+}
+
+.invitation-page .inv-table-card .semi-table-tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+
+.invitation-page .inv-table-card .semi-table-tbody > tr:hover > td {
+  background: var(--inv-surface-2);
+}
+
+/* 奖励金额单元格 */
+.inv-reward-cell {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--inv-accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 查看按钮 */
+.inv-view-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--inv-r-sm);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--inv-blue-tint);
+  color: var(--inv-blue);
+  cursor: pointer;
+  transition: background-color 0.18s;
+  white-space: nowrap;
+}
+
+.inv-view-btn:hover {
+  background: color-mix(in srgb, #3b82f6 20%, transparent);
+}
+
+/* 分页 */
+.inv-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 16px;
+  border-top: 1px solid var(--inv-line);
+}
+
+.invitation-page .semi-page-item,
+.invitation-page .semi-page-item-active {
+  border-radius: 3px !important;
+}
+
+/* ===== 常见问题 ===== */
+.inv-faq-card {
+  background: var(--inv-surface);
+  border: 1px solid var(--inv-line);
+  border-radius: var(--inv-r-lg);
+  overflow: hidden;
+}
+
+.inv-faq-list {
+  padding: 0 20px;
+}
+
+.inv-faq-item {
+  border-bottom: 1px solid var(--inv-line);
+}
+
+.inv-faq-item:last-child {
+  border-bottom: 0;
+}
+
+.inv-faq-q {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--inv-ink);
+}
+
+.inv-faq-q svg {
+  color: var(--inv-ink-3);
+  flex: none;
+  transition: transform 0.2s;
+}
+
+.inv-faq-q svg.is-open {
+  transform: rotate(180deg);
+}
+
+.inv-faq-a {
+  margin: 0;
+  padding: 0 24px 14px 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--inv-ink-2);
+}
+
+/* ===== 移动端适配 ===== */
+@media (max-width: 768px) {
+  .invitation-page {
+    padding: 12px 0 28px;
+  }
+
+  .inv-page-head h1 {
+    font-size: 24px;
+  }
+
+  .inv-promo-card {
+    padding: 16px;
+  }
+
+  .inv-promo-detail-btn {
+    margin-left: 0;
+  }
+
+  .inv-promo-link-row .semi-input-wrapper {
+    min-width: 100%;
+  }
+
+  .inv-promo-link-row .semi-button {
+    width: 100%;
+  }
+
+  .inv-stat-card,
+  .inv-rule-step {
+    padding: 16px;
+  }
+
+  .inv-stat-card-value {
+    font-size: 24px;
+  }
+
+  .inv-withdraw-row .inv-withdraw-btn {
+    width: 100%;
+  }
+
+  .inv-pagination {
+    justify-content: center;
+  }
+}
