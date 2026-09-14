@@ -54,6 +54,11 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/stripe/webhook", anonymousRequestBodyLimit, controller.StripeWebhook)
 		apiRouter.POST("/creem/webhook", anonymousRequestBodyLimit, controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", anonymousRequestBodyLimit, controller.WaffoWebhook)
+		// Waffo Pancake uses separate test/prod webhook endpoints.  Keep this
+		// callback public (like the other payment webhooks); the handler
+		// verifies the signature and enforces that the payload mode matches the
+		// path segment before issuing a subscription.
+		apiRouter.POST("/waffo-pancake/webhook/:env", anonymousRequestBodyLimit, controller.WaffoPancakeWebhook)
 		apiRouter.POST("/telegram/webhook", anonymousRequestBodyLimit, controller.TelegramWebhook)
 		apiRouter.POST("/telegram/miniapp/bind", anonymousRequestBodyLimit, controller.TelegramMiniAppBind)
 
@@ -175,10 +180,12 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
 			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
+			subscriptionRoute.GET("/self/usage", controller.GetSubscriptionUsage)
 			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
 			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
 			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
 			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
+			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
 			subscriptionRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCryptoPay) // 加密货币订阅
 			subscriptionRoute.POST("/crypto/confirm", controller.SubscriptionRequestCryptoConfirm)                         // 加密货币订阅确认
 			subscriptionRoute.GET("/lakala/status", controller.GetSubscriptionLakalaStatus)                                // 拉卡拉订阅订单状态轮询

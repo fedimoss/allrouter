@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/model"
@@ -117,6 +118,13 @@ type SubscriptionFunding struct {
 	amount         int64 // 预扣的订阅额度（subConsume）
 	subscriptionId int
 	preConsumed    int64
+	// currentAmount tracks the absolute effective amount stored in the
+	// request's subscription pre-consume record.  It starts at preConsumed and
+	// is advanced by each incremental realtime settlement.  Keeping this state
+	// here prevents a second delta from being interpreted relative to the
+	// original pre-consume amount.
+	currentAmount            int64
+	currentAmountInitialized bool
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
 	AmountTotal     int64
 	AmountUsedAfter int64
@@ -134,6 +142,8 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	}
 	s.subscriptionId = res.UserSubscriptionId
 	s.preConsumed = res.PreConsumed
+	s.currentAmount = res.PreConsumed
+	s.currentAmountInitialized = true
 	s.AmountTotal = res.AmountTotal
 	s.AmountUsedAfter = res.AmountUsedAfter
 	// 获取订阅计划信息
@@ -145,10 +155,37 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 }
 
 func (s *SubscriptionFunding) Settle(delta int) error {
+	// Store an absolute final amount in the request record. This makes retries
+	// idempotent and keeps rolling five-hour usage in sync with weekly use.
+	if strings.TrimSpace(s.requestId) != "" && s.preConsumed > 0 {
+		if !s.currentAmountInitialized {
+			s.currentAmount = s.preConsumed
+			s.currentAmountInitialized = true
+		}
+		actual := s.currentAmount + int64(delta)
+		if actual < 0 {
+			actual = 0
+		}
+		if err := model.SettleSubscriptionPreConsume(s.requestId, actual); err != nil {
+			return err
+		}
+		s.currentAmount = actual
+		return nil
+	}
 	if delta == 0 {
 		return nil
 	}
-	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	if err := model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta)); err != nil {
+		return err
+	}
+	if !s.currentAmountInitialized {
+		s.currentAmountInitialized = true
+	}
+	s.currentAmount += int64(delta)
+	if s.currentAmount < 0 {
+		s.currentAmount = 0
+	}
+	return nil
 }
 
 func (s *SubscriptionFunding) Refund() error {

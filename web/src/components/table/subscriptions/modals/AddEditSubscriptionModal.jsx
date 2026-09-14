@@ -24,6 +24,8 @@ import {
   Card,
   Col,
   Form,
+  Input,
+  InputNumber,
   Row,
   Select,
   SideSheet,
@@ -36,6 +38,8 @@ import {
   IconCalendarClock,
   IconClose,
   IconCreditCard,
+  IconDelete,
+  IconPlus,
   IconSave,
 } from '@douyinfe/semi-icons';
 import { Clock, RefreshCw } from 'lucide-react';
@@ -67,8 +71,471 @@ const resetPeriodOptions = [
   { value: 'daily', label: '每天' },
   { value: 'weekly', label: '每周' },
   { value: 'monthly', label: '每月' },
+  { value: 'yearly', label: '每年' },
   { value: 'custom', label: '自定义(秒)' },
 ];
+
+const quotaWindowModeOptions = [
+  { value: 'legacy', label: '传统总额度' },
+  { value: 'five_hour', label: '滚动窗口' },
+  { value: 'weekly', label: '周期额度' },
+  { value: 'dual', label: '滚动窗口 + 周期额度' },
+  { value: 'generic', label: '通用多窗口' },
+];
+
+const quotaWindowTypeOptions = [
+  { value: 'hour', label: '小时' },
+  { value: 'day', label: '日' },
+  { value: 'week', label: '周' },
+  { value: 'month', label: '月' },
+  { value: 'year', label: '年' },
+  { value: 'custom', label: '自定义(秒)' },
+];
+
+const quotaWindowResetModeOptions = [
+  { value: 'rolling', label: '滚动周期' },
+  { value: 'calendar', label: '自然周期' },
+];
+
+const quotaWindowTypes = new Set(
+  quotaWindowTypeOptions.map((option) => option.value),
+);
+
+// Keep the client-side window arithmetic in sync with
+// model.MaxSubscriptionQuotaWindowSeconds.  The API rejects a fixed-unit
+// window when an explicitly supplied `window_seconds` does not equal
+// `duration * unit_seconds`; normalising that value here prevents a plan from
+// appearing to save successfully only to be rejected by the API afterwards.
+const MAX_QUOTA_WINDOW_SECONDS = 100 * 366 * 24 * 60 * 60;
+const QUOTA_WINDOW_UNIT_SECONDS = Object.freeze({
+  hour: 60 * 60,
+  day: 24 * 60 * 60,
+  week: 7 * 24 * 60 * 60,
+  month: 30 * 24 * 60 * 60,
+  year: 365 * 24 * 60 * 60,
+});
+
+const isPositiveInteger = (value) =>
+  Number.isFinite(value) && Number.isSafeInteger(value) && value > 0;
+
+const isNonNegativeInteger = (value) =>
+  Number.isFinite(value) && Number.isSafeInteger(value) && value >= 0;
+
+const genericQuotaWindowModes = new Set([
+  'generic',
+  '5h',
+  '5hour',
+  '5_hours',
+  'five-hours',
+  'hour',
+  'hourly',
+  'hours',
+  'day',
+  'daily',
+  'days',
+  'week',
+  'month',
+  'monthly',
+  'months',
+  'year',
+  'yearly',
+  'years',
+  'annual',
+  'annually',
+  'custom',
+  'second',
+  'seconds',
+  'duration',
+]);
+
+let quotaWindowKeySequence = 0;
+
+const getQuotaWindowKey = () => {
+  quotaWindowKeySequence += 1;
+  return `quota-window-${quotaWindowKeySequence}`;
+};
+
+const normalizeQuotaWindowType = (value) => {
+  const type = String(value || '').toLowerCase();
+  const aliases = {
+    '5h': 'hour',
+    '5hour': 'hour',
+    five_hour: 'hour',
+    hourly: 'hour',
+    hours: 'hour',
+    daily: 'day',
+    days: 'day',
+    weekly: 'week',
+    weeks: 'week',
+    monthly: 'month',
+    months: 'month',
+    yearly: 'year',
+    years: 'year',
+    annual: 'year',
+    annually: 'year',
+    second: 'custom',
+    seconds: 'custom',
+    duration: 'custom',
+  };
+  const normalized = aliases[type] || type;
+  return quotaWindowTypes.has(normalized) ? normalized : 'week';
+};
+
+const defaultQuotaWindowResetMode = (type) =>
+  ['day', 'week', 'month', 'year'].includes(type) ? 'calendar' : 'rolling';
+
+const createQuotaWindow = () => ({
+  _key: getQuotaWindowKey(),
+  name: '',
+  type: 'week',
+  reset_mode: 'calendar',
+  duration: 1,
+  window_seconds: 0,
+  amount: 0,
+});
+
+const getRawQuotaWindows = (plan) => {
+  let raw = plan?.quota_windows ?? plan?.quota_window_configs ?? [];
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      raw = [];
+    }
+  }
+  return Array.isArray(raw) ? raw : [];
+};
+
+const getQuotaWindowCandidates = (plan) => {
+  const existing = getRawQuotaWindows(plan);
+  if (existing.length > 0) return existing;
+
+  const rawMode = String(plan?.quota_window_mode || '').toLowerCase();
+  if (!genericQuotaWindowModes.has(rawMode)) return [];
+  const isFiveHourAlias = ['5h', '5hour', '5_hours', 'five-hours'].includes(
+    rawMode,
+  );
+  let type = normalizeQuotaWindowType(rawMode);
+  if (rawMode === 'generic') {
+    const resetPeriod = String(plan?.quota_reset_period || '').toLowerCase();
+    const resetTypes = {
+      daily: 'day',
+      weekly: 'week',
+      monthly: 'month',
+      yearly: 'year',
+      annual: 'year',
+      custom: 'custom',
+    };
+    type = resetTypes[resetPeriod] || 'week';
+  }
+  // JSON responses from migrated plans commonly include the new scalar field
+  // with a zero value while retaining the legacy total_amount.  Nullish
+  // coalescing would stop at that zero and render an apparently empty window;
+  // choose the first positive value instead.
+  const firstPositive = (...values) => {
+    for (const value of values) {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > 0) return numeric;
+    }
+    return 0;
+  };
+  const amount =
+    type === 'hour'
+      ? firstPositive(
+          plan?.five_hour_amount,
+          plan?.five_hour_quota,
+          plan?.five_hour_limit,
+          plan?.total_amount,
+        )
+      : firstPositive(
+          plan?.weekly_amount,
+          plan?.weekly_quota,
+          plan?.weekly_limit,
+          plan?.total_amount,
+        );
+  const windowSeconds =
+    type === 'custom'
+      ? Number(plan?.quota_reset_custom_seconds ?? plan?.custom_seconds ?? 0)
+      : isFiveHourAlias
+        ? 18000
+        : 0;
+  return [
+    {
+      type,
+      amount,
+      duration: isFiveHourAlias ? 5 : 1,
+      window_seconds: windowSeconds,
+      reset_mode: defaultQuotaWindowResetMode(type),
+    },
+  ];
+};
+
+const parseQuotaWindows = (plan) =>
+  getQuotaWindowCandidates(plan)
+    .filter((window) => window && typeof window === 'object')
+    .map((window) => {
+      const type = normalizeQuotaWindowType(
+        window.type || window.period || window.unit,
+      );
+      const rawAmount = Number(
+        window.amount ?? window.limit ?? window.quota ?? 0,
+      );
+      const displayAmount = quotaToDisplayAmount(
+        Number.isFinite(rawAmount) ? rawAmount : 0,
+      );
+      const duration = Number(window.duration ?? window.duration_value ?? 1);
+      const windowSeconds = Number(
+        window.window_seconds ??
+          window.duration_seconds ??
+          window.custom_seconds ??
+          0,
+      );
+      let resetMode = String(window.reset_mode || '').toLowerCase();
+      if (window.calendar === true) resetMode = 'calendar';
+      if (window.rolling === true) resetMode = 'rolling';
+      if (!['rolling', 'calendar'].includes(resetMode)) {
+        resetMode = defaultQuotaWindowResetMode(type);
+      }
+      return {
+        _key: getQuotaWindowKey(),
+        name: String(window.name || ''),
+        type,
+        reset_mode: resetMode,
+        duration: Number.isFinite(duration) && duration > 0 ? duration : 1,
+        window_seconds:
+          Number.isFinite(windowSeconds) && windowSeconds > 0
+            ? windowSeconds
+            : 0,
+        amount: Number.isFinite(displayAmount) ? displayAmount : 0,
+      };
+    });
+
+const getQuotaWindowModeForForm = (plan) => {
+  const rawMode = String(plan?.quota_window_mode || '').toLowerCase();
+  if (
+    getRawQuotaWindows(plan).length > 0 ||
+    genericQuotaWindowModes.has(rawMode)
+  ) {
+    return 'generic';
+  }
+  if (['legacy', 'five_hour', 'weekly', 'dual'].includes(rawMode)) {
+    return rawMode;
+  }
+  if (
+    Number(plan?.five_hour_amount || 0) > 0 &&
+    Number(plan?.weekly_amount || 0) > 0
+  ) {
+    return 'dual';
+  }
+  if (Number(plan?.five_hour_amount || 0) > 0) return 'five_hour';
+  if (Number(plan?.weekly_amount || 0) > 0) return 'weekly';
+  return 'legacy';
+};
+
+const QuotaWindowsEditor = ({ windows, onChange, t }) => {
+  const updateWindow = (index, patch) => {
+    onChange(
+      windows.map((window, currentIndex) =>
+        currentIndex === index ? { ...window, ...patch } : window,
+      ),
+    );
+  };
+
+  const removeWindow = (index) => {
+    onChange(windows.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  return (
+    <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
+      <div className='flex items-start justify-between gap-3 mb-3'>
+        <div>
+          <Text className='text-lg font-medium'>{t('独立额度窗口')}</Text>
+          <div className='text-xs text-gray-600 mt-1'>
+            {t(
+              '可组合多个滚动或自然周期额度；所有窗口同时生效，任一额度用尽即回落钱包。',
+            )}
+          </div>
+          <div className='text-xs text-gray-500 mt-1'>
+            {t('模型限制由“适用模型”统一应用到所有额度窗口。')}
+          </div>
+        </div>
+        <Button
+          type='primary'
+          theme='light'
+          icon={<IconPlus />}
+          disabled={windows.length >= 16}
+          onClick={() => onChange([...windows, createQuotaWindow()])}
+        >
+          {t('添加额度窗口')}
+        </Button>
+      </div>
+
+      {windows.length === 0 ? (
+        <div className='rounded-xl border border-dashed border-gray-300 p-5 text-center'>
+          <Text type='tertiary'>{t('暂无额度窗口，请至少添加一个')}</Text>
+        </div>
+      ) : (
+        <div className='space-y-3'>
+          {windows.map((window, index) => (
+            <div
+              key={window._key}
+              className='rounded-xl border border-gray-200 p-3'
+            >
+              <div className='flex items-center justify-between mb-2'>
+                <Space>
+                  <Tag color='blue' shape='circle'>
+                    {t('额度窗口')} {index + 1}
+                  </Tag>
+                  {window.name ? <Text>{window.name}</Text> : null}
+                </Space>
+                <Button
+                  type='danger'
+                  theme='borderless'
+                  size='small'
+                  icon={<IconDelete />}
+                  aria-label={t('删除额度窗口')}
+                  onClick={() => removeWindow(index)}
+                />
+              </div>
+
+              <Row gutter={12}>
+                <Col span={12}>
+                  <div className='mb-3'>
+                    <Text strong>{t('窗口名称')}</Text>
+                    <Input
+                      className='mt-1'
+                      value={window.name}
+                      placeholder={t('可选，例如：5 小时')}
+                      showClear
+                      onChange={(name) => updateWindow(index, { name })}
+                    />
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div className='mb-3'>
+                    <Text strong>{t('窗口类型')}</Text>
+                    <Select
+                      className='mt-1'
+                      value={window.type}
+                      style={{ width: '100%' }}
+                      onChange={(type) =>
+                        updateWindow(index, {
+                          type,
+                          reset_mode: defaultQuotaWindowResetMode(type),
+                          duration: type === 'custom' ? 1 : window.duration,
+                          // Fixed-unit windows are derived from their type and
+                          // duration. Clear a previously derived value when
+                          // changing units so it cannot become inconsistent.
+                          window_seconds:
+                            type === 'custom' ? window.window_seconds : 0,
+                        })
+                      }
+                    >
+                      {quotaWindowTypeOptions.map((option) => (
+                        <Select.Option key={option.value} value={option.value}>
+                          {t(option.label)}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div className='mb-3'>
+                    <Text strong>{t('重置方式')}</Text>
+                    <Select
+                      className='mt-1'
+                      value={window.reset_mode}
+                      style={{ width: '100%' }}
+                      onChange={(resetMode) =>
+                        updateWindow(index, { reset_mode: resetMode })
+                      }
+                    >
+                      {quotaWindowResetModeOptions.map((option) => (
+                        <Select.Option key={option.value} value={option.value}>
+                          {t(option.label)}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div className='mb-3'>
+                    <Text strong>{t('周期数')}</Text>
+                    <InputNumber
+                      className='mt-1'
+                      value={window.duration}
+                      min={1}
+                      max={
+                        QUOTA_WINDOW_UNIT_SECONDS[window.type]
+                          ? Math.floor(
+                              MAX_QUOTA_WINDOW_SECONDS /
+                                QUOTA_WINDOW_UNIT_SECONDS[window.type],
+                            )
+                          : 1
+                      }
+                      precision={0}
+                      disabled={window.type === 'custom'}
+                      style={{ width: '100%' }}
+                      onChange={(duration) =>
+                        updateWindow(index, {
+                          duration,
+                          window_seconds: 0,
+                        })
+                      }
+                    />
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div className='mb-1'>
+                    <Text strong>{t('精确窗口秒数')}</Text>
+                    <InputNumber
+                      className='mt-1'
+                      value={window.window_seconds}
+                      min={window.type === 'custom' ? 1 : 0}
+                      max={MAX_QUOTA_WINDOW_SECONDS}
+                      precision={0}
+                      style={{ width: '100%' }}
+                      onChange={(windowSeconds) =>
+                        updateWindow(index, {
+                          window_seconds: windowSeconds,
+                        })
+                      }
+                    />
+                    <div className='text-xs text-gray-500 mt-1'>
+                      {window.type === 'custom'
+                        ? t('自定义窗口必须填写精确窗口秒数')
+                        : t('0 表示按窗口类型和周期数自动计算')}
+                    </div>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div className='mb-1'>
+                    <Text strong>{t('窗口额度')}</Text>
+                    <InputNumber
+                      className='mt-1'
+                      value={window.amount}
+                      min={0}
+                      precision={2}
+                      style={{ width: '100%' }}
+                      onChange={(amount) => updateWindow(index, { amount })}
+                    />
+                    <div className='text-xs text-gray-500 mt-1'>
+                      {t('原生额度')}：{displayAmountToQuota(window.amount)}
+                    </div>
+                  </div>
+                </Col>
+              </Row>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className='text-xs text-gray-500 mt-3'>
+        {t('额度窗口最多支持 16 个')}
+      </div>
+    </Card>
+  );
+};
 
 const AddEditSubscriptionModal = ({
   visible,
@@ -87,6 +554,7 @@ const AddEditSubscriptionModal = ({
   const [groupLoading, setGroupLoading] = useState(false);
   const [modelOptions, setModelOptions] = useState([]);
   const [modelLoading, setModelLoading] = useState(false);
+  const [quotaWindows, setQuotaWindows] = useState([]);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const isEdit = editingPlan?.plan?.id !== undefined;
@@ -108,11 +576,17 @@ const AddEditSubscriptionModal = ({
     sort_order: 0,
     max_purchase_per_user: 0,
     total_purchase_limit: 0,
+    purchase_limit_group: '',
+    quota_window_mode: 'legacy',
+    five_hour_amount: 0,
+    five_hour_window_seconds: 18000,
+    weekly_amount: 0,
     total_amount: 0,
     upgrade_group: '',
     stripe_price_id: '',
     stripe_price_cny_id: '',
     creem_product_id: '',
+    waffo_pancake_product_id: '',
   });
 
   const buildFormValues = () => {
@@ -128,26 +602,52 @@ const AddEditSubscriptionModal = ({
       duration_unit: p.duration_unit || 'month',
       duration_value: Number(p.duration_value || 1),
       custom_seconds: Number(p.custom_seconds || 0),
-      quota_reset_period: p.quota_reset_period || 'never',
+      quota_reset_period:
+        p.quota_reset_period === 'custom' &&
+        Number(p.quota_reset_custom_seconds || 0) === 365 * 86400
+          ? 'yearly'
+          : p.quota_reset_period || 'never',
       quota_reset_custom_seconds: Number(p.quota_reset_custom_seconds || 0),
       enabled: p.enabled !== false,
       allow_purchase: Number(p.allow_purchase ?? 1) === 1,
       model_limits:
-        typeof p.model_limits === 'string' && p.model_limits !== ''
-          ? p.model_limits.split(',').filter(Boolean)
-          : [],
+        Array.isArray(p.model_limits) && p.model_limits.length > 0
+          ? p.model_limits.filter(Boolean)
+          : typeof p.model_limits === 'string' && p.model_limits !== ''
+            ? p.model_limits
+                .split(',')
+                .map((model) => model.trim())
+                .filter(Boolean)
+            : [],
       sort_order: Number(p.sort_order || 0),
       max_purchase_per_user: Number(p.max_purchase_per_user || 0),
       total_purchase_limit: Number(p.total_purchase_limit || 0),
+      purchase_limit_group: p.purchase_limit_group || '',
+      // Newer API responses include weekly_amount=0 on legacy plans. Infer
+      // the mode from positive limits instead of property presence.
+      quota_window_mode: getQuotaWindowModeForForm(p),
+      five_hour_amount: Number(
+        quotaToDisplayAmount(p.five_hour_amount || 0).toFixed(2),
+      ),
+      five_hour_window_seconds: Number(p.five_hour_window_seconds || 18000),
+      weekly_amount: Number(
+        quotaToDisplayAmount(p.weekly_amount ?? p.total_amount ?? 0).toFixed(2),
+      ),
       total_amount: Number(
-        quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
+        quotaToDisplayAmount(p.total_amount ?? p.weekly_amount ?? 0).toFixed(2),
       ),
       upgrade_group: p.upgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
       stripe_price_cny_id: p.stripe_price_cny_id || '',
       creem_product_id: p.creem_product_id || '',
+      waffo_pancake_product_id: p.waffo_pancake_product_id || '',
     };
   };
+
+  useEffect(() => {
+    if (!visible) return;
+    setQuotaWindows(parseQuotaWindows(editingPlan?.plan));
+  }, [visible, editingPlan?.plan?.id]);
 
   useEffect(() => {
     if (!visible) return;
@@ -205,6 +705,93 @@ const AddEditSubscriptionModal = ({
       showError(t('套餐标题不能为空'));
       return;
     }
+
+    let normalizedQuotaWindows = [];
+    if (values.quota_window_mode === 'generic') {
+      if (quotaWindows.length === 0) {
+        showError(t('通用额度模式至少需要一个窗口'));
+        return;
+      }
+      if (quotaWindows.length > 16) {
+        showError(t('额度窗口最多支持 16 个'));
+        return;
+      }
+      for (const window of quotaWindows) {
+        const type = normalizeQuotaWindowType(window.type);
+        const displayAmount = Number(window.amount);
+        const amount = displayAmountToQuota(displayAmount);
+        const duration = Number(window.duration);
+        const windowSeconds = Number(window.window_seconds);
+        if (
+          !Number.isFinite(displayAmount) ||
+          displayAmount <= 0 ||
+          !Number.isFinite(amount) ||
+          !Number.isSafeInteger(amount) ||
+          amount <= 0
+        ) {
+          showError(t('额度窗口的额度必须大于 0'));
+          return;
+        }
+
+        // InputNumber normally emits integers because the editor uses
+        // precision={0}, but values can still arrive as strings, null, or
+        // Infinity from imported/legacy plans.  Validate the canonical
+        // representation before sending it to the API.
+        if (!isNonNegativeInteger(windowSeconds)) {
+          showError(t('精确窗口秒数必须是非负整数'));
+          return;
+        }
+
+        let normalizedDuration = 1;
+        let normalizedWindowSeconds = windowSeconds;
+        if (type === 'custom') {
+          if (!isPositiveInteger(windowSeconds)) {
+            showError(t('自定义窗口必须填写精确窗口秒数'));
+            return;
+          }
+          if (windowSeconds > MAX_QUOTA_WINDOW_SECONDS) {
+            showError(t('额度窗口秒数超过最大值'));
+            return;
+          }
+        } else {
+          if (!isPositiveInteger(duration)) {
+            showError(t('额度窗口的周期必须是正整数'));
+            return;
+          }
+          const unitSeconds = QUOTA_WINDOW_UNIT_SECONDS[type];
+          if (!unitSeconds) {
+            showError(t('额度窗口类型无效'));
+            return;
+          }
+          if (duration > Math.floor(MAX_QUOTA_WINDOW_SECONDS / unitSeconds)) {
+            showError(t('额度窗口秒数超过最大值'));
+            return;
+          }
+          const expectedSeconds = duration * unitSeconds;
+          // A zero value means "derive from type and duration" in the UI.
+          // Once derived, always send the exact value so API validation and
+          // subsequent edits see a single canonical representation.
+          if (windowSeconds > 0 && windowSeconds !== expectedSeconds) {
+            showError(t('固定周期的精确窗口秒数必须与周期数匹配'));
+            return;
+          }
+          normalizedDuration = duration;
+          normalizedWindowSeconds = expectedSeconds;
+        }
+
+        normalizedQuotaWindows.push({
+          name: String(window.name || '').trim(),
+          type,
+          amount,
+          duration: normalizedDuration,
+          window_seconds: normalizedWindowSeconds,
+          reset_mode: ['rolling', 'calendar'].includes(window.reset_mode)
+            ? window.reset_mode
+            : defaultQuotaWindowResetMode(type),
+        });
+      }
+    }
+
     setLoading(true);
     try {
       const payload = {
@@ -212,9 +799,20 @@ const AddEditSubscriptionModal = ({
           ...values,
           price_amount: Number(values.price_amount || 0),
           currency: 'USD',
-          duration_value: Number(values.duration_value || 0),
+          // Keep the duration value canonical even for custom plans.  The
+          // backend validates explicit zero values instead of silently
+          // defaulting them, while custom duration is carried by
+          // custom_seconds.
+          duration_value:
+            values.duration_unit === 'custom'
+              ? 1
+              : Number(values.duration_value || 0),
           custom_seconds: Number(values.custom_seconds || 0),
-          quota_reset_period: values.quota_reset_period || 'never',
+          quota_reset_period:
+            values.quota_reset_period === 'never' &&
+            ['weekly', 'dual'].includes(values.quota_window_mode)
+              ? 'weekly'
+              : values.quota_reset_period || 'never',
           quota_reset_custom_seconds:
             values.quota_reset_period === 'custom'
               ? Number(values.quota_reset_custom_seconds || 0)
@@ -222,7 +820,41 @@ const AddEditSubscriptionModal = ({
           sort_order: Number(values.sort_order || 0),
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_purchase_limit: Number(values.total_purchase_limit || 0),
-          total_amount: displayAmountToQuota(values.total_amount),
+          purchase_limit_group: String(values.purchase_limit_group || '')
+            .trim()
+            .toLowerCase(),
+          quota_window_mode: quotaWindowModeOptions.some(
+            (option) => option.value === values.quota_window_mode,
+          )
+            ? values.quota_window_mode
+            : 'legacy',
+          five_hour_amount: displayAmountToQuota(
+            ['five_hour', 'dual'].includes(values.quota_window_mode)
+              ? Number(values.five_hour_amount || 0)
+              : 0,
+          ),
+          five_hour_window_seconds: Number(
+            values.five_hour_window_seconds || 18000,
+          ),
+          weekly_amount: displayAmountToQuota(
+            Number(
+              ['weekly', 'dual'].includes(values.quota_window_mode)
+                ? values.weekly_amount || 0
+                : 0,
+            ),
+          ),
+          quota_windows:
+            values.quota_window_mode === 'generic'
+              ? normalizedQuotaWindows
+              : [],
+          // Keep the legacy field in sync for older API/database versions.
+          total_amount: displayAmountToQuota(
+            Number(
+              ['weekly', 'dual'].includes(values.quota_window_mode)
+                ? values.weekly_amount || 0
+                : values.total_amount || 0,
+            ),
+          ),
           upgrade_group: values.upgrade_group || '',
           allow_purchase: values.allow_purchase === false ? 0 : 1,
           model_limits: Array.isArray(values.model_limits)
@@ -374,19 +1006,101 @@ const AddEditSubscriptionModal = ({
                     </Col>
 
                     <Col span={12}>
-                      <Form.InputNumber
-                        field='total_amount'
-                        label={t('总额度')}
-                        required
-                        min={0}
-                        precision={2}
-                        rules={[{ required: true, message: t('请输入总额度') }]}
-                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
-                          values.total_amount,
-                        )}`}
-                        style={{ width: '100%' }}
-                      />
+                      <Form.Select
+                        field='quota_window_mode'
+                        label={t('额度模式')}
+                        onChange={(mode) => {
+                          if (mode === 'generic' && quotaWindows.length === 0) {
+                            setQuotaWindows([createQuotaWindow()]);
+                          }
+                        }}
+                      >
+                        {quotaWindowModeOptions.map((option) => (
+                          <Select.Option
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {t(option.label)}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
                     </Col>
+
+                    {values.quota_window_mode !== 'generic' &&
+                      (['five_hour', 'dual'].includes(
+                        values.quota_window_mode,
+                      ) ? (
+                        <>
+                          <Col span={12}>
+                            <Form.InputNumber
+                              field='five_hour_amount'
+                              label={t('滚动窗口额度')}
+                              min={0}
+                              precision={2}
+                              extraText={`${t('0 表示关闭')} · ${t('原生额度')}：${displayAmountToQuota(
+                                values.five_hour_amount,
+                              )}`}
+                              style={{ width: '100%' }}
+                            />
+                          </Col>
+                          <Col span={12}>
+                            <Form.InputNumber
+                              field='five_hour_window_seconds'
+                              label={t('滚动窗口秒数')}
+                              min={60}
+                              precision={0}
+                              extraText={t(
+                                '可配置任意窗口时长，例如 5 小时为 18000 秒',
+                              )}
+                              style={{ width: '100%' }}
+                            />
+                          </Col>
+                          {values.quota_window_mode === 'dual' && (
+                            <Col span={12}>
+                              <Form.InputNumber
+                                field='weekly_amount'
+                                label={t('周期额度')}
+                                min={0}
+                                precision={2}
+                                extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                                  values.weekly_amount,
+                                )}`}
+                                style={{ width: '100%' }}
+                              />
+                            </Col>
+                          )}
+                        </>
+                      ) : values.quota_window_mode === 'weekly' ? (
+                        <Col span={12}>
+                          <Form.InputNumber
+                            field='weekly_amount'
+                            label={t('周期额度')}
+                            min={0}
+                            precision={2}
+                            extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                              values.weekly_amount,
+                            )}`}
+                            style={{ width: '100%' }}
+                          />
+                        </Col>
+                      ) : (
+                        <Col span={12}>
+                          <Form.InputNumber
+                            field='total_amount'
+                            label={t('总额度')}
+                            required
+                            min={0}
+                            precision={2}
+                            rules={[
+                              { required: true, message: t('请输入总额度') },
+                            ]}
+                            extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                              values.total_amount,
+                            )}`}
+                            style={{ width: '100%' }}
+                          />
+                        </Col>
+                      ))}
 
                     <Col span={12}>
                       <Form.Select
@@ -450,6 +1164,19 @@ const AddEditSubscriptionModal = ({
                       />
                     </Col>
 
+                    <Col span={24}>
+                      <Form.Input
+                        field='purchase_limit_group'
+                        label={t('购买限制组')}
+                        placeholder={t('例如：k3-month-card')}
+                        maxLength={64}
+                        showClear
+                        extraText={t(
+                          '相同限制组的套餐共享每用户购买上限和全局发放上限；留空则仅限制当前套餐。',
+                        )}
+                      />
+                    </Col>
+
                     <Col span={12}>
                       <Form.Switch
                         field='enabled'
@@ -484,6 +1211,14 @@ const AddEditSubscriptionModal = ({
                     </Col>
                   </Row>
                 </Card>
+
+                {values.quota_window_mode === 'generic' ? (
+                  <QuotaWindowsEditor
+                    windows={quotaWindows}
+                    onChange={setQuotaWindows}
+                    t={t}
+                  />
+                ) : null}
 
                 {/* 有效期设置 */}
                 <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
@@ -567,42 +1302,56 @@ const AddEditSubscriptionModal = ({
                     </div>
                   </div>
 
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.Select
-                        field='quota_reset_period'
-                        label={t('重置周期')}
-                      >
-                        {resetPeriodOptions.map((o) => (
-                          <Select.Option key={o.value} value={o.value}>
-                            {t(o.label)}
-                          </Select.Option>
-                        ))}
-                      </Form.Select>
-                    </Col>
-                    <Col span={12}>
-                      {values.quota_reset_period === 'custom' ? (
-                        <Form.InputNumber
-                          field='quota_reset_custom_seconds'
-                          label={t('自定义秒数')}
-                          required
-                          min={60}
-                          precision={0}
-                          rules={[{ required: true, message: t('请输入秒数') }]}
-                          style={{ width: '100%' }}
-                        />
-                      ) : (
-                        <Form.InputNumber
-                          field='quota_reset_custom_seconds'
-                          label={t('自定义秒数')}
-                          min={0}
-                          precision={0}
-                          style={{ width: '100%' }}
-                          disabled
-                        />
-                      )}
-                    </Col>
-                  </Row>
+                  {values.quota_window_mode === 'generic' ? (
+                    <Text type='tertiary'>
+                      {t('通用多窗口模式的重置规则在各额度窗口中独立配置')}
+                    </Text>
+                  ) : ['legacy', 'weekly', 'dual'].includes(
+                      values.quota_window_mode,
+                    ) ? (
+                    <Row gutter={12}>
+                      <Col span={12}>
+                        <Form.Select
+                          field='quota_reset_period'
+                          label={t('重置周期')}
+                        >
+                          {resetPeriodOptions.map((o) => (
+                            <Select.Option key={o.value} value={o.value}>
+                              {t(o.label)}
+                            </Select.Option>
+                          ))}
+                        </Form.Select>
+                      </Col>
+                      <Col span={12}>
+                        {['custom'].includes(values.quota_reset_period) ? (
+                          <Form.InputNumber
+                            field='quota_reset_custom_seconds'
+                            label={t('自定义秒数')}
+                            required
+                            min={60}
+                            precision={0}
+                            rules={[
+                              { required: true, message: t('请输入秒数') },
+                            ]}
+                            style={{ width: '100%' }}
+                          />
+                        ) : (
+                          <Form.InputNumber
+                            field='quota_reset_custom_seconds'
+                            label={t('自定义秒数')}
+                            min={0}
+                            precision={0}
+                            style={{ width: '100%' }}
+                            disabled
+                          />
+                        )}
+                      </Col>
+                    </Row>
+                  ) : (
+                    <Text type='tertiary'>
+                      {t('仅滚动窗口额度，不使用日/周/月周期重置')}
+                    </Text>
+                  )}
                 </Card>
 
                 {/* 第三方支付配置 */}
@@ -648,6 +1397,15 @@ const AddEditSubscriptionModal = ({
                       <Form.Input
                         field='creem_product_id'
                         label='Creem ProductId'
+                        placeholder='prod_...'
+                        showClear
+                      />
+                    </Col>
+
+                    <Col span={24}>
+                      <Form.Input
+                        field='waffo_pancake_product_id'
+                        label='Waffo Pancake ProductId'
                         placeholder='prod_...'
                         showClear
                       />

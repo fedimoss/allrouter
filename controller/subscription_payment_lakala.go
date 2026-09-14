@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -23,6 +24,21 @@ const (
 	// lakalaSubscriptionSubject 是订阅拉卡拉支付订单的商品标题。
 	lakalaSubscriptionSubject = "订阅"
 )
+
+// subscriptionLakalaCallbackMatches binds a verified callback to the exact
+// subscription payment channel and positive CNY amount snapshotted at
+// checkout.  Keeping this check in one helper prevents notify-path changes
+// from accidentally reintroducing a provider/method or zero-amount bypass.
+func subscriptionLakalaCallbackMatches(order *model.SubscriptionOrder, callbackAmountCents int64) bool {
+	if order == nil ||
+		strings.TrimSpace(order.PaymentProvider) != model.PaymentProviderLakala ||
+		strings.TrimSpace(order.PaymentMethod) != model.PaymentProviderLakala ||
+		order.OriginalMoney <= 0 || math.IsNaN(order.OriginalMoney) || math.IsInf(order.OriginalMoney, 0) {
+		return false
+	}
+	expectedAmount := decimal.NewFromFloat(order.OriginalMoney).Mul(decimal.NewFromInt(100)).Round(0).IntPart()
+	return expectedAmount > 0 && callbackAmountCents == expectedAmount
+}
 
 // requestSubscriptionLakalaPay 处理订阅套餐购买的拉卡拉扫码支付预下单。
 //
@@ -46,19 +62,46 @@ func requestSubscriptionLakalaPay(c *gin.Context, plan *model.SubscriptionPlan, 
 		return
 	}
 
-	// 将人民币金额元转分，拉卡拉金额单位为分
-	totalAmount := decimal.NewFromFloat(chargeMoney).Mul(decimal.NewFromInt(100)).Round(0).IntPart()
+	// 生成唯一交易流水号（与充值格式区分：SUB 前缀）
+	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
+	tradeNo = fmt.Sprintf("SUBUSR%dNO%s", userId, tradeNo)
+
+	// Reserve the local order before constructing/signing the gateway request.
+	// CreateSubscriptionOrderTx compares usdPrice with the authoritative locked
+	// plan row, so a cached quote racing an administrator price edit fails here
+	// without ever being sent to Lakala.
+	order := &model.SubscriptionOrder{
+		UserId:          userId,
+		PlanId:          plan.Id,
+		ProviderId:      c.GetInt("provider_id"),
+		Money:           usdPrice,
+		Currency:        "¥",
+		OriginalMoney:   chargeMoney,
+		TradeNo:         tradeNo,
+		PaymentMethod:   req.PaymentMethod,
+		PaymentProvider: model.PaymentProviderLakala,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
+	}
+	if err := model.CreateSubscriptionOrderWithTopUp(order); err != nil {
+		respondSubscriptionCreateError(c, err, "创建订单失败")
+		return
+	}
+	paymentReady := false
+	defer func() {
+		if !paymentReady {
+			_ = model.ExpireSubscriptionOrder(tradeNo, req.PaymentMethod)
+		}
+	}()
+
+	// Use the persisted callback snapshot for both the signed request and the
+	// response shown to the user.
+	lakalaPayMoney := decimal.NewFromFloat(order.OriginalMoney)
+	totalAmount := lakalaPayMoney.Mul(decimal.NewFromInt(100)).Round(0).IntPart()
 	if totalAmount <= 0 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "套餐金额过低"})
 		return
 	}
-
-	// lakalaPayMoney 保存人民币元金额，用于前端展示和后续订单记录
-	lakalaPayMoney := decimal.NewFromFloat(chargeMoney)
-
-	// 生成唯一交易流水号（与充值格式区分：SUB 前缀）
-	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
-	tradeNo = fmt.Sprintf("SUBUSR%dNO%s", userId, tradeNo)
 
 	// 构造回调地址（订阅专用路径）
 	lakalaNotifyURL := buildLakalaNotifyURL(config.CallbackAddress, lakalaSubscriptionNotifyURLPath)
@@ -96,31 +139,6 @@ func requestSubscriptionLakalaPay(c *gin.Context, plan *model.SubscriptionPlan, 
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉卡拉请求签名失败"})
 		return
 	}
-
-	// 先在本地原子预占库存，再向支付渠道发起预下单；否则多人同时扫码时无法保证最后一份不超发。
-	order := &model.SubscriptionOrder{
-		UserId:          userId,
-		PlanId:          plan.Id,
-		ProviderId:      c.GetInt("provider_id"),
-		Money:           usdPrice,
-		Currency:        "¥",
-		OriginalMoney:   lakalaPayMoney.InexactFloat64(),
-		TradeNo:         tradeNo,
-		PaymentMethod:   req.PaymentMethod,
-		PaymentProvider: model.PaymentProviderLakala,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
-	}
-	if err := model.CreateSubscriptionOrderWithTopUp(order); err != nil {
-		respondSubscriptionCreateError(c, err, "创建订单失败")
-		return
-	}
-	paymentReady := false
-	defer func() {
-		if !paymentReady {
-			_ = model.ExpireSubscriptionOrder(tradeNo, req.PaymentMethod)
-		}
-	}()
 
 	// 构造HTTP请求
 	httpReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, lakalaPreorderURL, bytes.NewReader(body))
@@ -233,15 +251,20 @@ func SubscriptionLakalaNotify(c *gin.Context) {
 	// 提取订单号并查询本地订阅订单
 	tradeNo := data.tradeNo()
 	order := model.GetSubscriptionOrderByTradeNo(tradeNo)
-	if order == nil || order.PaymentProvider != model.PaymentProviderLakala {
+	if order == nil ||
+		strings.TrimSpace(order.PaymentProvider) != model.PaymentProviderLakala ||
+		strings.TrimSpace(order.PaymentMethod) != model.PaymentProviderLakala {
 		common.SysLog(fmt.Sprintf("subscription lakala notify order not found or provider mismatch, trade_no=%s, body=%s", tradeNo, string(body)))
 		c.JSON(http.StatusBadRequest, gin.H{"code": "FAIL", "message": "order not found"})
 		return
 	}
 
 	// 校验回调金额与订单金额一致（防止金额篡改）
-	expectedAmount := decimal.NewFromFloat(order.OriginalMoney).Mul(decimal.NewFromInt(100)).Round(0).IntPart()
-	if data.amountInCents() != expectedAmount {
+	if !subscriptionLakalaCallbackMatches(order, data.amountInCents()) {
+		expectedAmount := int64(0)
+		if order != nil && order.OriginalMoney > 0 && !math.IsNaN(order.OriginalMoney) && !math.IsInf(order.OriginalMoney, 0) {
+			expectedAmount = decimal.NewFromFloat(order.OriginalMoney).Mul(decimal.NewFromInt(100)).Round(0).IntPart()
+		}
 		common.SysLog(fmt.Sprintf("subscription lakala notify amount mismatch, trade_no=%s, notify_amount=%d, expected_amount=%d, body=%s", tradeNo, data.amountInCents(), expectedAmount, string(body)))
 		c.JSON(http.StatusBadRequest, gin.H{"code": "FAIL", "message": "amount mismatch"})
 		return

@@ -20,6 +20,62 @@ type SubscriptionWaffoPancakePayRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
+// normalizeWaffoPancakeCurrency converts the symbols persisted in local
+// orders to the ISO code returned by Pancake webhooks.
+func normalizeWaffoPancakeCurrency(currency string) string {
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	switch currency {
+	case "$", "USD":
+		return "USD"
+	case "￥", "¥", "CNY":
+		return "CNY"
+	default:
+		return currency
+	}
+}
+
+// subscriptionWaffoPancakePaymentMatches validates the immutable payment
+// snapshot on a subscription order against a verified Pancake completion
+// event before the entitlement is activated.
+func subscriptionWaffoPancakePaymentMatches(order *model.SubscriptionOrder, event *service.WaffoPancakeWebhookEvent) bool {
+	if order == nil || event == nil {
+		return false
+	}
+	// Pancake's current webhook schema omits productId.  Checkout metadata is
+	// echoed as orderMetadata, so bind a new order to the exact product that was
+	// selected when its checkout session was created.  Legacy orders may not
+	// contain this snapshot and retain the amount/currency-only compatibility
+	// check below.
+	expectedProductID := strings.TrimSpace(order.PaymentProductId)
+	if expectedProductID != "" {
+		actualProductID := ""
+		if event.Data.OrderMetadata != nil {
+			for _, key := range []string{"new_api_product_id", "product_id", "productId"} {
+				if value := strings.TrimSpace(event.Data.OrderMetadata[key]); value != "" {
+					actualProductID = value
+					break
+				}
+			}
+		}
+		if actualProductID == "" || actualProductID != expectedProductID {
+			return false
+		}
+	}
+	expectedAmount := order.OriginalMoney
+	if expectedAmount <= 0 {
+		expectedAmount = order.Money // legacy orders predating OriginalMoney
+	}
+	if expectedAmount <= 0 || !amountStringMatchesMoney(event.Data.Amount, expectedAmount) {
+		return false
+	}
+	expectedCurrency := normalizeWaffoPancakeCurrency(order.Currency)
+	if expectedCurrency == "" {
+		expectedCurrency = "USD" // legacy Waffo subscription orders
+	}
+	actualCurrency := normalizeWaffoPancakeCurrency(event.Data.Currency)
+	return actualCurrency != "" && actualCurrency == expectedCurrency
+}
+
 func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
@@ -48,6 +104,13 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "该套餐暂不允许订阅")
 		return
 	}
+	// Pancake checkout accepts a positive USD amount.  Keep the same lower
+	// bound used by the other one-time payment paths so an accidentally zero
+	// priced plan cannot create a pending order that can never be settled.
+	if plan.PriceAmount < 0.01 {
+		common.ApiErrorMsg(c, "套餐金额过低")
+		return
+	}
 	if strings.TrimSpace(plan.WaffoPancakeProductId) == "" {
 		common.ApiErrorMsg(c, "该套餐未配置 WaffoPancakeProductId")
 		return
@@ -71,18 +134,6 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		return
 	}
 
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
-			return
-		}
-	}
-
 	// WAFFO_PANCAKE_SUB- prefix (vs. wallet's WAFFO_PANCAKE-) drives webhook
 	// dispatch in WaffoPancakeWebhook.
 	tradeNo := fmt.Sprintf("WAFFO_PANCAKE_SUB-%d-%d-%s", userId, time.Now().UnixMilli(), randstr.String(6))
@@ -91,13 +142,16 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		UserId: userId,
 		PlanId: plan.Id,
 		// 订单归属服务商（0=主站），完成订单时据此给服务商 owner 结算订阅收入。
-		ProviderId:      c.GetInt("provider_id"),
-		Money:           plan.PriceAmount,
-		TradeNo:         tradeNo,
-		PaymentMethod:   model.PaymentMethodWaffoPancake,
-		PaymentProvider: model.PaymentProviderWaffoPancake,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
+		ProviderId:       c.GetInt("provider_id"),
+		Money:            plan.PriceAmount,
+		Currency:         "$",
+		OriginalMoney:    model.RoundDisplayCurrencyAmount(plan.PriceAmount),
+		TradeNo:          tradeNo,
+		PaymentMethod:    model.PaymentMethodWaffoPancake,
+		PaymentProvider:  model.PaymentProviderWaffoPancake,
+		PaymentProductId: plan.WaffoPancakeProductId,
+		CreateTime:       time.Now().Unix(),
+		Status:           common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅订单创建失败 user_id=%d plan_id=%d trade_no=%s error=%q", userId, plan.Id, tradeNo, err.Error()))
@@ -107,10 +161,14 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 
 	expiresInSeconds := int(model.DefaultSubscriptionCheckoutSeconds)
 	session, err := service.CreateWaffoPancakeCheckoutSession(c.Request.Context(), &service.WaffoPancakeCreateSessionParams{
-		ProductID:     plan.WaffoPancakeProductId,
-		BuyerIdentity: service.WaffoPancakeBuyerIdentityFromUserID(user.Id),
+		// Use the immutable values accepted by CreateSubscriptionOrderTx rather
+		// than the cached plan object.  This keeps the remote checkout, callback
+		// verifier, and entitlement snapshot on the same catalog version.
+		ProductID:               order.PaymentProductId,
+		BuyerIdentity:           service.WaffoPancakeBuyerIdentityFromUserID(user.Id),
+		OrderMerchantExternalID: tradeNo,
 		PriceSnapshot: &service.WaffoPancakePriceSnapshot{
-			Amount:      decimal.NewFromFloat(plan.PriceAmount).StringFixed(2),
+			Amount:      decimal.NewFromFloat(order.OriginalMoney).StringFixed(2),
 			TaxCategory: "saas",
 		},
 		BuyerEmail:       getWaffoPancakeBuyerEmail(user),
@@ -122,7 +180,7 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅订单创建成功 user_id=%d plan_id=%d trade_no=%s session_id=%s money=%.2f", userId, plan.Id, tradeNo, session.SessionID, plan.PriceAmount))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅订单创建成功 user_id=%d plan_id=%d trade_no=%s session_id=%s money=%.2f", userId, plan.Id, tradeNo, session.SessionID, order.OriginalMoney))
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",

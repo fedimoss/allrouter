@@ -27,10 +27,39 @@ const (
 	cryptoDefaultTimezone   = "America/New_York"                                                   // 默认用户时区（用于确定用户币种）
 	cryptoTransferTopic     = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef" // ERC20 Transfer 事件签名哈希（所有 EVM 链通用）
 	cryptoOrderTimeSkewSecs = 600                                                                  // 链上交易时间与订单创建时间的最大允许偏差（秒）
+	// These are the values shipped by the SQL seed.  They are used only when
+	// the process has not initialized OptionMap yet (for example, a lightweight
+	// legacy caller invokes the top-up helper before startup completes).  Once an
+	// OptionMap exists, a missing or malformed administrator option remains an
+	// error instead of silently changing payment amounts.
+	cryptoDefaultUSDtoTokenRate = "1"
+	cryptoDefaultCNYtoTokenRate = "0.1471"
 )
+
+func optionMapUninitialized() bool {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	return common.OptionMap == nil
+}
+
+func parseTopUpCryptoRate(parse func() (decimal.Decimal, error), fallback string) (decimal.Decimal, error) {
+	rate, err := parse()
+	if err == nil {
+		return rate, nil
+	}
+	if !optionMapUninitialized() {
+		return decimal.Zero, err
+	}
+	// Preserve the historical seeded defaults for callers that run before the
+	// option cache has been initialized.  The subscription checkout path uses
+	// the strict parser directly and therefore still requires an explicit rate.
+	return decimal.NewFromString(fallback)
+}
 
 // getCryptoUSDtoTokenRate 获取美元到代币的汇率，从 options 表读取
 func getCryptoUSDtoTokenRate() string {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
 	if v, ok := common.OptionMap["CryptoUSDtoTokenRate"]; ok {
 		s := strings.TrimSpace(common.Interface2String(v))
 		if s != "" {
@@ -40,8 +69,22 @@ func getCryptoUSDtoTokenRate() string {
 	return ""
 }
 
+// parseCryptoUSDtoTokenRate parses and validates the USD -> token rate once at
+// order creation time. RequireFromString used by older call sites panics on an
+// empty/corrupt option; payment handlers must return a normal validation error
+// instead so a bad administrator setting cannot crash the process.
+func parseCryptoUSDtoTokenRate() (decimal.Decimal, error) {
+	rate, err := decimal.NewFromString(getCryptoUSDtoTokenRate())
+	if err != nil || !rate.GreaterThan(decimal.Zero) {
+		return decimal.Zero, errors.New("crypto USD/token rate is invalid")
+	}
+	return rate, nil
+}
+
 // getCryptoCNYtoTokenRate 获取人民币到代币的汇率，从 options 表读取
 func getCryptoCNYtoTokenRate() string {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
 	if v, ok := common.OptionMap["CryptoCNYtoTokenRate"]; ok {
 		s := strings.TrimSpace(common.Interface2String(v))
 		if s != "" {
@@ -49,6 +92,15 @@ func getCryptoCNYtoTokenRate() string {
 		}
 	}
 	return ""
+}
+
+// parseCryptoCNYToTokenRate parses and validates the CNY -> token rate.
+func parseCryptoCNYToTokenRate() (decimal.Decimal, error) {
+	rate, err := decimal.NewFromString(getCryptoCNYtoTokenRate())
+	if err != nil || !rate.GreaterThan(decimal.Zero) {
+		return decimal.Zero, errors.New("crypto CNY/token rate is invalid")
+	}
+	return rate, nil
 }
 
 // cryptoUsdtToUsd 将 USDT 金额按系统设置的"美元到 USDT 汇率"换算为美元
@@ -181,6 +233,22 @@ func isValidCryptoAddress(address string) bool {
 	return true
 }
 
+// isValidCryptoTxHash validates the canonical 32-byte EVM transaction hash.
+// Prefix/length checks alone allow arbitrary non-hex bytes to reach an RPC
+// provider and can produce inconsistent error handling across nodes.
+func isValidCryptoTxHash(hash string) bool {
+	hash = strings.TrimSpace(hash)
+	if len(hash) != 66 || !strings.HasPrefix(strings.ToLower(hash), "0x") {
+		return false
+	}
+	for _, r := range hash[2:] {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
 // resolveCryptoUserCurrency 根据用户时区解析用户币种（USD/CNY）
 func resolveCryptoUserCurrency(user *model.User) string {
 	timezone := cryptoDefaultTimezone
@@ -204,15 +272,27 @@ func calcCryptoAmounts(localAmount int64, currency string) (decimal.Decimal, dec
 	switch strings.ToUpper(strings.TrimSpace(currency)) {
 	case "CNY":
 		// 人民币用户：金额 × 汇率 = 代币金额
-		usdt := local.Mul(decimal.RequireFromString(getCryptoCNYtoTokenRate()))
+		rate, err := parseTopUpCryptoRate(parseCryptoCNYToTokenRate, cryptoDefaultCNYtoTokenRate)
+		if err != nil {
+			return decimal.Zero, decimal.Zero, "", err
+		}
+		usdt := local.Mul(rate)
 		return usdt, usdt, "¥", nil
 	case "USD", "":
-		// 美元用户：1:1 转换
-		usdt := local.Mul(decimal.RequireFromString(getCryptoUSDtoTokenRate()))
+		// 美元用户：金额 × 汇率 = 代币金额
+		rate, err := parseTopUpCryptoRate(parseCryptoUSDtoTokenRate, cryptoDefaultUSDtoTokenRate)
+		if err != nil {
+			return decimal.Zero, decimal.Zero, "", err
+		}
+		usdt := local.Mul(rate)
 		return local, usdt, "$", nil
 	default:
 		// 其他币种按美元处理
-		usdt := local.Mul(decimal.RequireFromString(getCryptoUSDtoTokenRate()))
+		rate, err := parseTopUpCryptoRate(parseCryptoUSDtoTokenRate, cryptoDefaultUSDtoTokenRate)
+		if err != nil {
+			return decimal.Zero, decimal.Zero, "", err
+		}
+		usdt := local.Mul(rate)
 		return local, usdt, "$", nil
 	}
 }
@@ -265,6 +345,10 @@ func RequestCryptoPay(c *gin.Context) {
 		common.ApiErrorMsg(c, "该网络的加密货币合约地址配置错误")
 		return
 	}
+	if chain.TokenDecimals < 0 || chain.TokenDecimals > 36 || chain.MinConfirmations < 0 {
+		common.ApiErrorMsg(c, "该网络代币参数配置错误")
+		return
+	}
 
 	// 从 JWT 会话获取当前用户 ID
 	userId := c.GetInt("id")
@@ -315,6 +399,7 @@ func RequestCryptoPay(c *gin.Context) {
 			ChainId:         chain.ChainID,                                 // 链 ID（confirm 时据此反查配置）
 			TokenSymbol:     chain.TokenSymbol,                             // 代币符号
 			TokenContract:   normalizeCryptoAddress(chain.TokenContract),   // 代币合约地址
+			TokenDecimals:   chain.TokenDecimals,                           // 精度快照，确认时不可被配置变更影响
 			ReceiverAddress: normalizeCryptoAddress(chain.ReceiverAddress), // 收款地址
 			UsdtAmount:      usdtAmountStr,                                 // 应支付的代币金额
 			Status:          model.CryptoTransactionStatusPending,          // 交易状态：待确认
@@ -364,7 +449,7 @@ func RequestCryptoConfirm(c *gin.Context) {
 		common.ApiErrorMsg(c, "订单号和交易哈希不能为空")
 		return
 	}
-	if !strings.HasPrefix(txHash, "0x") || len(txHash) != 66 {
+	if !isValidCryptoTxHash(txHash) {
 		common.ApiErrorMsg(c, "交易哈希格式错误")
 		return
 	}
@@ -401,6 +486,21 @@ func RequestCryptoConfirm(c *gin.Context) {
 	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return
+	}
+	// Keep the contract snapshot captured at checkout time.  Runtime chain
+	// settings (RPC URL/confirmations) may be rotated, but changing the active
+	// token contract must not invalidate or redirect an in-flight payment.
+	if !isValidCryptoAddress(cryptoTx.TokenContract) {
+		common.ApiErrorMsg(c, "订单代币合约地址错误")
+		return
+	}
+	chain.TokenContract = normalizeCryptoAddress(cryptoTx.TokenContract)
+	if cryptoTx.TokenDecimals > 0 {
+		if cryptoTx.TokenDecimals > 36 {
+			common.ApiErrorMsg(c, "订单代币精度错误")
+			return
+		}
+		chain.TokenDecimals = cryptoTx.TokenDecimals
 	}
 
 	requiredAmount, err := decimal.NewFromString(cryptoTx.UsdtAmount)

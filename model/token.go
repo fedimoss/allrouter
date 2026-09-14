@@ -213,12 +213,37 @@ func ValidateUserToken(key string) (token *Token, err error) {
 }
 
 func ValidateUserTokenInProvider(key string, providerId int) (token *Token, err error) {
+	return validateUserTokenInProvider(key, providerId, false)
+}
+
+// ValidateUserTokenInProviderForSubscription keeps token identity/status/
+// provider/expiry validation intact while allowing an enabled token with a
+// zero numeric balance to authenticate when its user has an active
+// subscription in the same provider scope.  This exception is intentionally
+// opt-in; ordinary token authentication retains the existing exhausted-token
+// behavior.
+func ValidateUserTokenInProviderForSubscription(key string, providerId int) (*Token, error) {
+	return validateUserTokenInProvider(key, providerId, true)
+}
+
+func validateUserTokenInProvider(key string, providerId int, allowSubscriptionQuotaBypass bool) (token *Token, err error) {
 	if key == "" {
 		return nil, ErrTokenNotProvided
 	}
 	token, err = GetTokenByKey(key, false)
 	if err == nil {
-		return validateUserTokenRecord(token, providerId)
+		allowZeroQuota := false
+		if allowSubscriptionQuotaBypass && token != nil && !token.UnlimitedQuota &&
+			token.RemainQuota == 0 &&
+			(token.Status == common.TokenStatusEnabled || token.Status == common.TokenStatusExhausted) &&
+			(token.ExpiredTime == -1 || token.ExpiredTime >= common.GetTimestamp()) {
+			hasSubscription, subErr := HasActiveUserSubscription(token.UserId, providerId)
+			if subErr != nil {
+				return nil, fmt.Errorf("%w: %v", ErrDatabase, subErr)
+			}
+			allowZeroQuota = hasSubscription
+		}
+		return validateUserTokenRecordWithQuota(token, providerId, allowZeroQuota)
 	}
 	common.SysLog("ValidateUserToken: failed to get token: " + err.Error())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -239,8 +264,12 @@ func ValidateUserTokenByIds(id int, userId int) (*Token, error) {
 	}
 	// Redis 模式下令牌剩余额度和状态可能比数据库记录更新。先用主键绑定身份，
 	// 再回到现有 key 缓存校验链，并确认缓存结果仍属于同一个令牌和用户。
+	// This is an internal, identity-bound continuation just like TokenAuth;
+	// use the subscription-aware validator so a zero-balance token can continue
+	// a request funded by an active subscription.  The provider scope comes
+	// from the already-bound row and is therefore not caller-controlled.
 	if common.RedisEnabled {
-		validated, err := ValidateUserTokenInProvider(token.Key, token.ProviderId)
+		validated, err := ValidateUserTokenInProviderForSubscription(token.Key, token.ProviderId)
 		if err != nil {
 			return validated, err
 		}
@@ -249,16 +278,34 @@ func ValidateUserTokenByIds(id int, userId int) (*Token, error) {
 		}
 		return validated, nil
 	}
-	return validateUserTokenRecord(token, token.ProviderId)
+	// Keep the same subscription exception when Redis is disabled.  Without
+	// this, image client-stream tickets (which restore by token ID/user ID)
+	// reject an otherwise valid subscription solely because the token's own
+	// numeric balance is zero.
+	allowZeroQuota := false
+	if token != nil && !token.UnlimitedQuota && token.RemainQuota == 0 &&
+		(token.Status == common.TokenStatusEnabled || token.Status == common.TokenStatusExhausted) &&
+		(token.ExpiredTime == -1 || token.ExpiredTime >= common.GetTimestamp()) {
+		hasSubscription, subErr := HasActiveUserSubscription(token.UserId, token.ProviderId)
+		if subErr != nil {
+			return nil, fmt.Errorf("%w: %v", ErrDatabase, subErr)
+		}
+		allowZeroQuota = hasSubscription
+	}
+	return validateUserTokenRecordWithQuota(token, token.ProviderId, allowZeroQuota)
 }
 
 func validateUserTokenRecord(token *Token, providerId int) (*Token, error) {
+	return validateUserTokenRecordWithQuota(token, providerId, false)
+}
+
+func validateUserTokenRecordWithQuota(token *Token, providerId int, allowZeroQuota bool) (*Token, error) {
 	if token == nil || token.ProviderId != providerId {
 		return token, ErrTokenInvalid
 	}
-	if token.Status == common.TokenStatusExhausted ||
-		token.Status == common.TokenStatusExpired ||
-		token.Status != common.TokenStatusEnabled {
+	if token.Status == common.TokenStatusExpired ||
+		(token.Status != common.TokenStatusEnabled &&
+			!(allowZeroQuota && token.Status == common.TokenStatusExhausted)) {
 		return token, ErrTokenInvalid
 	}
 	if token.ExpiredTime != -1 && token.ExpiredTime < common.GetTimestamp() {
@@ -270,7 +317,7 @@ func validateUserTokenRecord(token *Token, providerId int) (*Token, error) {
 		}
 		return token, ErrTokenInvalid
 	}
-	if !token.UnlimitedQuota && token.RemainQuota <= 0 {
+	if !token.UnlimitedQuota && (token.RemainQuota < 0 || (token.RemainQuota == 0 && !allowZeroQuota)) {
 		if !common.RedisEnabled {
 			token.Status = common.TokenStatusExhausted
 			if err := token.SelectUpdate(); err != nil {

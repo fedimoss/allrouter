@@ -57,6 +57,26 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 	return nil
 }
 
+// RollbackSettledBilling compensates a billing session after its settlement
+// has committed but a following local persistence step failed.  Most error
+// paths should continue to use BillingSettler.Refund before settlement; this
+// helper is intentionally explicit so a late task/record insert failure does
+// not silently strand a charge.  Older/custom billing implementations that do
+// not expose the optional rollback extension retain the historical best-effort
+// Refund behaviour.
+func RollbackSettledBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo) error {
+	if relayInfo == nil || relayInfo.Billing == nil {
+		return nil
+	}
+	if rollbacker, ok := relayInfo.Billing.(relaycommon.BillingRollbacker); ok {
+		return rollbacker.RollbackSettlement(c)
+	}
+	if relayInfo.Billing.NeedsRefund() {
+		relayInfo.Billing.Refund(c)
+	}
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // SettleBilling — 后结算辅助函数
 // ---------------------------------------------------------------------------

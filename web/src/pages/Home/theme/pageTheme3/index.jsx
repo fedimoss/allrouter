@@ -760,6 +760,18 @@ const Theme3Home = () => {
                   <Play size={15} fill='currentColor' aria-hidden='true' />
                   {t('阅读文档')}
                 </a>
+                <Link
+                  className='secondary-cta'
+                  to={isLoggedIn ? '/console/topup' : '/login'}
+                  state={
+                    isLoggedIn
+                      ? undefined
+                      : { from: { pathname: '/console/topup' } }
+                  }
+                >
+                  {t('订阅套餐')}
+                  <ArrowRight size={16} aria-hidden='true' />
+                </Link>
               </div>
               <ModelEcosystem t={t} />
             </div>

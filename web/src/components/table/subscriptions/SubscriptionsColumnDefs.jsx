@@ -31,6 +31,13 @@ import {
 } from '@douyinfe/semi-ui';
 import { renderQuota } from '../../../helpers';
 import { convertUSDToCurrency } from '../../../helpers/render';
+import {
+  formatSubscriptionWindowSeconds,
+  formatSubscriptionWindowType,
+  getSubscriptionQuotaWindows,
+  getSubscriptionQuotaWindowMode,
+  getSubscriptionWeeklyAmount,
+} from '../../../helpers/subscriptionFormat';
 
 const { Text } = Typography;
 
@@ -54,8 +61,10 @@ function formatResetPeriod(plan, t) {
   if (period === 'daily') return t('每天');
   if (period === 'weekly') return t('每周');
   if (period === 'monthly') return t('每月');
+  if (period === 'yearly' || period === 'annual') return t('每年');
   if (period === 'custom') {
     const seconds = Number(plan?.quota_reset_custom_seconds || 0);
+    if (seconds === 365 * 86400) return t('每年');
     if (seconds >= 86400) return `${Math.floor(seconds / 86400)} ${t('天')}`;
     if (seconds >= 3600) return `${Math.floor(seconds / 3600)} ${t('小时')}`;
     if (seconds >= 60) return `${Math.floor(seconds / 60)} ${t('分钟')}`;
@@ -64,9 +73,83 @@ function formatResetPeriod(plan, t) {
   return t('不重置');
 }
 
-const renderPlanTitle = (text, record, t) => {
+// The backend enforces purchase limits across every plan that shares a
+// provider-scoped purchase_limit_group. Build the same effective scope here
+// so the admin table does not show per-plan counters that disagree with the
+// actual admission check.
+function getPurchaseScopeKey(plan) {
+  const group = String(plan?.purchase_limit_group || '')
+    .trim()
+    .toLowerCase();
+  if (group) {
+    return `group:${Number(plan?.provider_id || 0)}:${group}`;
+  }
+  return plan?.id ? `plan:${plan.id}` : '';
+}
+
+function minPositive(current, candidate) {
+  const value = Number(candidate || 0);
+  if (!Number.isFinite(value) || value <= 0) return current;
+  return current <= 0 ? value : Math.min(current, value);
+}
+
+function addNonNegative(current, candidate) {
+  const value = Number(candidate || 0);
+  if (!Number.isFinite(value) || value <= 0) return current;
+  return current + value;
+}
+
+function buildPurchaseScopeStats(plans = []) {
+  const stats = new Map();
+  (plans || []).forEach((item) => {
+    const plan = item?.plan || item;
+    const key = getPurchaseScopeKey(plan);
+    if (!key) return;
+    const current = stats.get(key) || {
+      maxPurchasePerUser: 0,
+      totalPurchaseLimit: 0,
+      issuedCount: 0,
+      reservedCount: 0,
+    };
+    current.maxPurchasePerUser = minPositive(
+      current.maxPurchasePerUser,
+      plan?.max_purchase_per_user,
+    );
+    current.totalPurchaseLimit = minPositive(
+      current.totalPurchaseLimit,
+      plan?.total_purchase_limit,
+    );
+    current.issuedCount = addNonNegative(current.issuedCount, plan?.issued_count);
+    current.reservedCount = addNonNegative(
+      current.reservedCount,
+      plan?.reserved_count,
+    );
+    stats.set(key, current);
+  });
+  return stats;
+}
+
+function getPurchaseScopeStats(plan, stats) {
+  return (
+    stats?.get(getPurchaseScopeKey(plan)) || {
+      maxPurchasePerUser: Number(plan?.max_purchase_per_user || 0),
+      totalPurchaseLimit: Number(plan?.total_purchase_limit || 0),
+      issuedCount: Number(plan?.issued_count || 0),
+      reservedCount: Number(plan?.reserved_count || 0),
+    }
+  );
+}
+
+const renderPlanTitle = (text, record, t, purchaseScopeStats) => {
   const subtitle = record?.plan?.subtitle;
   const plan = record?.plan;
+  const quotaWindowMode = getSubscriptionQuotaWindowMode(plan);
+  const quotaWindows = getSubscriptionQuotaWindows(plan);
+  const weeklyAmount = getSubscriptionWeeklyAmount(plan);
+  const displayAmount =
+    quotaWindowMode === 'dual' || quotaWindowMode === 'weekly'
+      ? weeklyAmount
+      : Number(plan?.total_amount || 0);
   const popoverContent = (
     <div style={{ width: 260 }}>
       <Text strong>{text}</Text>
@@ -81,27 +164,54 @@ const renderPlanTitle = (text, record, t) => {
         <Text strong style={{ color: 'var(--semi-color-success)' }}>
           {convertUSDToCurrency(Number(plan?.price_amount || 0), 2)}
         </Text>
-        <Text type='tertiary'>{t('总额度')}</Text>
-        {plan?.total_amount > 0 ? (
-          <Tooltip content={`${t('原生额度')}：${plan.total_amount}`}>
-            <Text>{renderQuota(plan.total_amount)}</Text>
-          </Tooltip>
+        {quotaWindows.length > 0 ? (
+          quotaWindows.map((window, index) => (
+            <React.Fragment key={`${window.type}-${index}`}>
+              <Text type='tertiary'>
+                {formatSubscriptionWindowType(window.type, t)}
+              </Text>
+              <Text>
+                {window.limit > 0 ? renderQuota(window.limit) : t('不限')}
+                {window.window_seconds > 0 &&
+                  ` · ${formatSubscriptionWindowSeconds(window.window_seconds, t)}`}
+              </Text>
+            </React.Fragment>
+          ))
         ) : (
-          <Text>{t('不限')}</Text>
+          <>
+            <Text type='tertiary'>
+              {quotaWindowMode === 'dual' ? t('每周额度') : t('总额度')}
+            </Text>
+            {displayAmount > 0 ? (
+              <Tooltip content={`${t('原生额度')}：${displayAmount}`}>
+                <Text>{renderQuota(displayAmount)}</Text>
+              </Tooltip>
+            ) : (
+              <Text>{t('不限')}</Text>
+            )}
+          </>
         )}
         <Text type='tertiary'>{t('升级分组')}</Text>
         <Text>{plan?.upgrade_group ? plan.upgrade_group : t('不升级')}</Text>
         <Text type='tertiary'>{t('每用户购买上限')}</Text>
         <Text>
-          {plan?.max_purchase_per_user > 0
-            ? plan.max_purchase_per_user
+          {getPurchaseScopeStats(plan, purchaseScopeStats).maxPurchasePerUser > 0
+            ? getPurchaseScopeStats(plan, purchaseScopeStats)
+                .maxPurchasePerUser
             : t('不限')}
         </Text>
         <Text type='tertiary'>{t('全局发放上限')}</Text>
         <Text>
-          {plan?.total_purchase_limit > 0
-            ? `${Number(plan?.issued_count || 0) + Number(plan?.reserved_count || 0)}/${plan.total_purchase_limit}`
+          {getPurchaseScopeStats(plan, purchaseScopeStats).totalPurchaseLimit > 0
+            ? `${
+                getPurchaseScopeStats(plan, purchaseScopeStats).issuedCount +
+                getPurchaseScopeStats(plan, purchaseScopeStats).reservedCount
+              }/${getPurchaseScopeStats(plan, purchaseScopeStats).totalPurchaseLimit}`
             : t('不限')}
+        </Text>
+        <Text type='tertiary'>{t('购买限制组')}</Text>
+        <Text>
+          {plan?.purchase_limit_group ? plan.purchase_limit_group : t('无')}
         </Text>
         <Text type='tertiary'>{t('有效期')}</Text>
         <Text>{formatDuration(plan, t)}</Text>
@@ -139,8 +249,9 @@ const renderPrice = (text) => {
   );
 };
 
-const renderPurchaseLimit = (text, record, t) => {
-  const limit = Number(record?.plan?.max_purchase_per_user || 0);
+const renderPurchaseLimit = (text, record, t, purchaseScopeStats) => {
+  const limit = getPurchaseScopeStats(record?.plan, purchaseScopeStats)
+    .maxPurchasePerUser;
   return (
     <Text type={limit > 0 ? 'secondary' : 'tertiary'}>
       {limit > 0 ? limit : t('不限')}
@@ -148,11 +259,12 @@ const renderPurchaseLimit = (text, record, t) => {
   );
 };
 
-const renderGlobalLimit = (text, record, t) => {
+const renderGlobalLimit = (text, record, t, purchaseScopeStats) => {
   const plan = record?.plan || {};
-  const limit = Number(plan.total_purchase_limit || 0);
-  const issued = Number(plan.issued_count || 0);
-  const reserved = Number(plan.reserved_count || 0);
+  const scope = getPurchaseScopeStats(plan, purchaseScopeStats);
+  const limit = scope.totalPurchaseLimit;
+  const issued = scope.issuedCount;
+  const reserved = scope.reservedCount;
   const content = (
     <Text type={limit > 0 ? 'secondary' : 'tertiary'}>
       {limit > 0 ? `${issued + reserved}/${limit}` : t('不限')}
@@ -234,12 +346,26 @@ const renderModelLimits = (text, record, t) => {
 };
 
 const renderTotalAmount = (text, record, t) => {
-  const total = Number(record?.plan?.total_amount || 0);
+  const plan = record?.plan || {};
+  const windows = getSubscriptionQuotaWindows(plan);
+  const weekly = getSubscriptionWeeklyAmount(plan);
+  if (windows.length > 0) {
+    return (
+      <div className='text-xs leading-5'>
+        {windows.map((window, index) => (
+          <div key={`${window.type}-${index}`}>
+            {formatSubscriptionWindowType(window.type, t)}:{' '}
+            {window.limit > 0 ? renderQuota(window.limit) : t('不限')}
+          </div>
+        ))}
+      </div>
+    );
+  }
   return (
-    <Text type={total > 0 ? 'secondary' : 'tertiary'}>
-      {total > 0 ? (
-        <Tooltip content={`${t('原生额度')}：${total}`}>
-          <span>{renderQuota(total)}</span>
+    <Text type={weekly > 0 ? 'secondary' : 'tertiary'}>
+      {weekly > 0 ? (
+        <Tooltip content={`${t('原生额度')}：${weekly}`}>
+          <span>{renderQuota(weekly)}</span>
         </Tooltip>
       ) : (
         t('不限')
@@ -258,11 +384,22 @@ const renderUpgradeGroup = (text, record, t) => {
 };
 
 const renderResetPeriod = (text, record, t) => {
-  const period = record?.plan?.quota_reset_period || 'never';
+  const plan = record?.plan || {};
+  const windows = getSubscriptionQuotaWindows(plan);
+  if (windows.length > 0) {
+    return (
+      <Text type='secondary'>
+        {windows
+          .map((window) => formatSubscriptionWindowType(window.type, t))
+          .join(' + ')}
+      </Text>
+    );
+  }
+  const period = plan?.quota_reset_period || 'never';
   const isNever = period === 'never';
   return (
     <Text type={isNever ? 'tertiary' : 'secondary'}>
-      {formatResetPeriod(record?.plan, t)}
+      {formatResetPeriod(plan, t)}
     </Text>
   );
 };
@@ -353,7 +490,9 @@ export const getSubscriptionsColumns = ({
   openEdit,
   setPlanEnabled,
   enableEpay,
+  allPlans = [],
 }) => {
+  const purchaseScopeStats = buildPurchaseScopeStats(allPlans);
   return [
     {
       title: 'ID',
@@ -365,7 +504,8 @@ export const getSubscriptionsColumns = ({
       title: t('套餐'),
       dataIndex: ['plan', 'title'],
       width: 200,
-      render: (text, record) => renderPlanTitle(text, record, t),
+      render: (text, record) =>
+        renderPlanTitle(text, record, t, purchaseScopeStats),
     },
     {
       title: t('价格'),
@@ -376,12 +516,14 @@ export const getSubscriptionsColumns = ({
     {
       title: t('每用户购买上限'),
       width: 90,
-      render: (text, record) => renderPurchaseLimit(text, record, t),
+      render: (text, record) =>
+        renderPurchaseLimit(text, record, t, purchaseScopeStats),
     },
     {
       title: t('全局发放上限'),
       width: 120,
-      render: (text, record) => renderGlobalLimit(text, record, t),
+      render: (text, record) =>
+        renderGlobalLimit(text, record, t, purchaseScopeStats),
     },
     {
       title: t('优先级'),

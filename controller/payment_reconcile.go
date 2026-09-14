@@ -57,8 +57,12 @@ func minorUnitAmountMatchesMoney(amount int, currency string, expected float64) 
 	return dAmount.Round(2).Equal(normalizeMoneyDecimal(expected))
 }
 
-// stripeAmountTotalMatchesMoney Stripe webhook 的 amount_total 使用最小货币单位，需要先折算再对账。
-func stripeAmountTotalMatchesMoney(amountTotal string, expected float64) bool {
+// stripeAmountTotalMatchesMoney compares Stripe's amount_total (expressed in
+// the currency's smallest unit) with a local major-unit amount.  USD/CNY and
+// other two-decimal currencies are divided by 100; zero-decimal currencies
+// such as JPY are compared directly.  The optional currency argument keeps
+// the historical two-argument helper source-compatible with existing callers.
+func stripeAmountTotalMatchesMoney(amountTotal string, expected float64, currencies ...string) bool {
 	if strings.TrimSpace(amountTotal) == "" {
 		return false
 	}
@@ -66,7 +70,14 @@ func stripeAmountTotalMatchesMoney(amountTotal string, expected float64) bool {
 	if err != nil {
 		return false
 	}
-	return dAmount.Div(decimal.NewFromInt(100)).Round(2).Equal(normalizeMoneyDecimal(expected))
+	currency := ""
+	if len(currencies) > 0 {
+		currency = strings.ToUpper(strings.TrimSpace(currencies[0]))
+	}
+	if !zeroDecimalCurrencies[currency] {
+		dAmount = dAmount.Div(decimal.NewFromInt(100))
+	}
+	return dAmount.Round(2).Equal(normalizeMoneyDecimal(expected))
 }
 
 // getStripeExpectedPayMoneyFromTopUp 根据本地 Stripe 充值订单反推出本次应收款金额。
@@ -76,6 +87,14 @@ func stripeAmountTotalMatchesMoney(amountTotal string, expected float64) bool {
 func getStripeExpectedPayMoneyFromTopUp(topUp *model.TopUp) float64 {
 	if topUp == nil {
 		return 0
+	}
+	// OriginalMoney is captured when the Checkout order is created and is the
+	// amount actually quoted to the customer in the selected currency.  Use the
+	// immutable snapshot first; recalculating from current exchange rates,
+	// group ratios, or discount settings could reject a valid delayed webhook
+	// after an administrator changes pricing.
+	if topUp.OriginalMoney > 0 {
+		return topUp.OriginalMoney
 	}
 	discount := 1.0
 	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(topUp.Amount)]; ok && ds > 0 {

@@ -376,7 +376,12 @@ func TokenAuth() func(c *gin.Context) {
 			key = parts[0]
 		}
 		providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
-		token, err := model.ValidateUserTokenInProvider(key, providerId)
+		// Subscription-funded requests may legitimately use an otherwise enabled
+		// token whose numeric quota has reached zero.  The subscription-aware
+		// validator still enforces token identity, provider, status, and expiry;
+		// it only bypasses the quota-number check after finding an active
+		// subscription in the same tenant scope.
+		token, err := model.ValidateUserTokenInProviderForSubscription(key, providerId)
 		if token != nil {
 			id := c.GetInt("id")
 			if id == 0 {

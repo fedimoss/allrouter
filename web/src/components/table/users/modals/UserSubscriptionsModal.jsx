@@ -33,10 +33,16 @@ import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
-import { API, showError, showSuccess } from '../../../../helpers';
+import { API, renderQuota, showError, showSuccess } from '../../../../helpers';
 import { convertUSDToCurrency } from '../../../../helpers/render';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import CardTable from '../../../common/ui/CardTable';
+import {
+  formatSubscriptionWindowSeconds,
+  formatSubscriptionWindowType,
+  getSubscriptionQuotaWindows,
+  getSubscriptionQuotaWindowMode,
+} from '../../../../helpers/subscriptionFormat';
 
 const { Text } = Typography;
 
@@ -264,8 +270,12 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
         render: (_, record) => {
           const sub = record?.subscription;
           const planId = sub?.plan_id;
+          // Prefer the issuance-time snapshot returned by the API. The live
+          // catalog can be edited or deleted after a subscription is issued.
           const title =
-            planTitleMap.get(planId) || (planId ? `#${planId}` : '-');
+            record?.plan?.title ||
+            planTitleMap.get(planId) ||
+            (planId ? `#${planId}` : '-');
           return (
             <div className='min-w-0'>
               <div className='font-medium truncate'>{title}</div>
@@ -306,6 +316,30 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
         width: 120,
         render: (_, record) => {
           const sub = record?.subscription;
+          const mode = getSubscriptionQuotaWindowMode(record);
+          const windows = getSubscriptionQuotaWindows(record);
+          const formatResetAt = (timestamp) =>
+            timestamp > 0 ? new Date(timestamp * 1000).toLocaleString() : '';
+          if (windows.length > 0 && mode !== 'legacy') {
+            return (
+              <div className='text-xs leading-5'>
+                {windows.map((window, index) => (
+                  <div key={`${window.type}-${index}`}>
+                    {formatSubscriptionWindowType(window.type, t)}:{' '}
+                    {window.limit > 0
+                      ? `${renderQuota(window.used)}/${renderQuota(window.limit)} · ${t('剩余')} ${renderQuota(window.remaining)}`
+                      : `${t('不限')} · ${t('已用')} ${renderQuota(window.used)}`}
+                    {window.window_seconds > 0
+                      ? ` · ${formatSubscriptionWindowSeconds(window.window_seconds, t)}`
+                      : ''}
+                    {window.reset_at > 0
+                      ? ` · ${t('重置')} ${formatResetAt(window.reset_at)}`
+                      : ''}
+                  </div>
+                ))}
+              </div>
+            );
+          }
           const total = Number(sub?.amount_total || 0);
           const used = Number(sub?.amount_used || 0);
           return (

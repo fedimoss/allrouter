@@ -72,6 +72,10 @@ const (
 	PaymentMethodCreem        = "creem"
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
+	// PaymentMethodCrypto identifies on-chain crypto payments.  Keeping the
+	// method constant in model avoids coupling transactional helpers to the
+	// controller package.
+	PaymentMethodCrypto = "crypto"
 )
 
 const (
@@ -81,6 +85,9 @@ const (
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
+	// PaymentProviderCrypto identifies on-chain crypto payments for provider
+	// consistency checks on subscription orders.
+	PaymentProviderCrypto = "crypto"
 )
 
 // normalizeTopUpBizType 规范化业务类型
@@ -176,7 +183,7 @@ func withUserTopUpRecords(tx *gorm.DB, userId int) *gorm.DB {
 		Where(topUpRecordAlias+".user_id = ?", userId)
 }
 
-func withTopUpRecordKeyword(query *gorm.DB, keyword string, bizType, payMethod string) *gorm.DB {
+func withTopUpRecordKeyword(query *gorm.DB, keyword string, bizType, payMethod, payType, status string) *gorm.DB {
 	//if keyword == "" {
 	//	return query
 	//}
@@ -195,6 +202,14 @@ func withTopUpRecordKeyword(query *gorm.DB, keyword string, bizType, payMethod s
 	if payMethod != "" {
 		ps := strings.Split(payMethod, ",")
 		query = query.Where(fmt.Sprintf("  %s.payment_method IN (?)  ", topUpRecordAlias), ps)
+	}
+	// 单个充值类型（支付方式维度）筛选，与 payMethod 独立叠加（AND）
+	if payType != "" {
+		query = query.Where(fmt.Sprintf("  %s.payment_method = ? ", topUpRecordAlias), payType)
+	}
+	// 支付状态筛选（pending/success/failed/expired）
+	if status != "" {
+		query = query.Where(fmt.Sprintf("  %s.status = ? ", topUpRecordAlias), status)
 	}
 
 	if keyword != "" {
@@ -843,7 +858,7 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 }
 
 // SearchUserTopUps 按订单号搜索某用户的充值记录
-func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func SearchUserTopUps(userId int, keyword string, payMethod, payType, status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -854,14 +869,14 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 		}
 	}()
 
-	countQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword, "", "")
+	countQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword, "", payMethod, payType, status)
 
 	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	dataQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword, "", "")
+	dataQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword, "", payMethod, payType, status)
 	if err = withTopUpRecordOrder(dataQuery).
 		Limit(pageInfo.GetPageSize()).
 		Offset(pageInfo.GetStartIdx()).
@@ -878,7 +893,7 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 }
 
 // SearchAllTopUps 按订单号或用户昵称搜索全平台充值记录（管理员使用）
-func SearchAllTopUps(keyword string, bizType string, payMethod string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func SearchAllTopUps(keyword string, bizType string, payMethod, payType, status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -889,14 +904,14 @@ func SearchAllTopUps(keyword string, bizType string, payMethod string, pageInfo 
 		}
 	}()
 
-	countQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword, bizType, payMethod)
+	countQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword, bizType, payMethod, payType, status)
 
 	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	dataQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword, bizType, payMethod)
+	dataQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword, bizType, payMethod, payType, status)
 	if err = withTopUpRecordOrder(dataQuery).
 		Limit(pageInfo.GetPageSize()).
 		Offset(pageInfo.GetStartIdx()).
@@ -1438,19 +1453,27 @@ func RechargeCrypto(tradeNo string, txHash string, payerAddress string, blockNum
 		if cryptoTx.TopUpId != topUp.Id {
 			return errors.New("加密货币交易记录不匹配")
 		}
-		// 幂等处理：加密货币交易已成功直接返回
+		// 幂等处理：加密货币交易已成功 only for the same hash.  A different
+		// hash must never be silently accepted as a retry, otherwise callers can
+		// mistake a failed confirmation for a newly verified transfer.
 		if cryptoTx.Status == CryptoTransactionStatusSuccess {
-			return nil
+			if cryptoTx.TxHash != nil && normalizeTxHash(*cryptoTx.TxHash) == txHash {
+				return nil
+			}
+			return ErrCryptoTransactionStatusInvalid
+		}
+		if cryptoTx.Status != CryptoTransactionStatusPending {
+			return ErrCryptoTransactionStatusInvalid
 		}
 		// 防止同一笔链上交易哈希被重复使用
 		var duplicateCount int64
 		if err := tx.Model(&CryptoTransaction{}).
-			Where("tx_hash = ? AND trade_no <> ?", txHash, tradeNo).
+			Where("LOWER(tx_hash) = LOWER(?) AND trade_no <> ?", txHash, tradeNo).
 			Count(&duplicateCount).Error; err != nil {
 			return err
 		}
 		if duplicateCount > 0 {
-			return errors.New("交易哈希已被使用")
+			return ErrCryptoTransactionHashUsed
 		}
 
 		// 计算实际到账额度
@@ -1475,6 +1498,9 @@ func RechargeCrypto(tradeNo string, txHash string, payerAddress string, blockNum
 		cryptoTx.Status = CryptoTransactionStatusSuccess
 		cryptoTx.CompleteTime = now
 		if err := tx.Save(&cryptoTx).Error; err != nil {
+			if IsCryptoTransactionHashUniqueViolation(err) {
+				return ErrCryptoTransactionHashUsed
+			}
 			return err
 		}
 

@@ -2,9 +2,11 @@ package controller
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Calcium-Ion/go-epay/epay"
@@ -56,6 +58,20 @@ func subscriptionEpayOrderMoneyMatches(order *model.SubscriptionOrder, callbackM
 	if order == nil {
 		return false
 	}
+	if math.IsNaN(order.OriginalMoney) || math.IsInf(order.OriginalMoney, 0) || order.OriginalMoney < 0 ||
+		math.IsNaN(order.Money) || math.IsInf(order.Money, 0) || order.Money < 0 {
+		return false
+	}
+	// A malformed/legacy order with no positive accounting amount must never be
+	// fulfilled by a signed callback.  In particular, accepting zero here would
+	// turn a missing OriginalMoney snapshot into a free subscription.
+	expected := order.OriginalMoney
+	if expected <= 0 {
+		expected = order.Money
+	}
+	if expected <= 0 || math.IsNaN(expected) || math.IsInf(expected, 0) {
+		return false
+	}
 	// 优先用 OriginalMoney 直接比较人民币金额，兼容历史订单回退到 USD 换算比较
 	if order.OriginalMoney > 0 {
 		return amountStringMatchesMoney(callbackMoney, order.OriginalMoney)
@@ -63,6 +79,26 @@ func subscriptionEpayOrderMoneyMatches(order *model.SubscriptionOrder, callbackM
 
 	// 使用容差匹配，处理浮点精度问题
 	return epayCallbackMoneyMatches(callbackMoney, order.Money)
+}
+
+// subscriptionEpayCallbackMatches binds a verified Epay callback to the
+// immutable local order identity before any entitlement is issued.  Epay has
+// several payment methods (alipay/wxpay/etc.), so the callback method must be
+// exactly the method recorded at checkout; a provider-only check would allow
+// a malformed order with an empty method to bypass CompleteSubscriptionOrder's
+// optional method guard.  Empty PaymentProvider remains accepted only for
+// pre-snapshot legacy rows.
+func subscriptionEpayCallbackMatches(order *model.SubscriptionOrder, callbackMethod, callbackMoney string) bool {
+	if order == nil {
+		return false
+	}
+	if strings.TrimSpace(order.PaymentMethod) == "" || order.PaymentMethod != callbackMethod {
+		return false
+	}
+	if provider := strings.TrimSpace(order.PaymentProvider); provider != "" && provider != model.PaymentProviderEpay {
+		return false
+	}
+	return subscriptionEpayOrderMoneyMatches(order, callbackMoney)
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
@@ -116,18 +152,6 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
-			return
-		}
-	}
-
 	callBackAddress := service.GetCallbackAddress()
 	returnBaseURL := common.GetTrustedRequestBaseURLWithDomains(c, system_setting.ServerAddress, getPaymentTrustedDomains(c))
 	returnUrl, err := url.Parse(returnBaseURL + "/api/subscription/epay/return")
@@ -166,14 +190,15 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		UserId: userId,
 		PlanId: plan.Id,
 		// 订单归属服务商（0=主站），完成订单时据此给服务商 owner 结算订阅收入。
-		ProviderId:    c.GetInt("provider_id"),
-		Money:         plan.PriceAmount,
-		Currency:      "￥",         // 易支付固定人民币
-		OriginalMoney: chargeMoney, // 实际支付的人民币金额
-		TradeNo:       tradeNo,
-		PaymentMethod: req.PaymentMethod,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
+		ProviderId:      c.GetInt("provider_id"),
+		Money:           plan.PriceAmount,
+		Currency:        "￥",         // 易支付固定人民币
+		OriginalMoney:   chargeMoney, // 实际支付的人民币金额
+		TradeNo:         tradeNo,
+		PaymentMethod:   req.PaymentMethod,
+		PaymentProvider: model.PaymentProviderEpay,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
 	}
 	if err := model.CreateSubscriptionOrderWithTopUp(order); err != nil {
 		respondSubscriptionCreateError(c, err, "创建订单失败")
@@ -184,10 +209,13 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
 		Name:           fmt.Sprintf("SUB:%s", plan.Title),
-		Money:          strconv.FormatFloat(chargeMoney, 'f', 2, 64), // 使用币种转换后的实际扣款金额
-		Device:         epay.PC,
-		NotifyUrl:      notifyUrl,
-		ReturnUrl:      returnUrl,
+		// OriginalMoney is the immutable CNY amount accepted together with the
+		// locked plan price.  Using it here keeps the remote request and callback
+		// validation on exactly the same snapshot.
+		Money:     strconv.FormatFloat(order.OriginalMoney, 'f', 2, 64),
+		Device:    epay.PC,
+		NotifyUrl: notifyUrl,
+		ReturnUrl: returnUrl,
 	})
 	if err != nil {
 		_ = model.ExpireSubscriptionOrder(tradeNo, req.PaymentMethod)
@@ -245,12 +273,12 @@ func SubscriptionEpayNotify(c *gin.Context) {
 
 	order := model.GetSubscriptionOrderByTradeNo(verifyInfo.ServiceTradeNo)
 	// 校验回调金额与订单金额是否匹配（支持 CNY 容差匹配）
-	if !subscriptionEpayOrderMoneyMatches(order, verifyInfo.Money) {
+	if !subscriptionEpayCallbackMatches(order, verifyInfo.Type, verifyInfo.Money) {
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 
-	if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), verifyInfo.Type); err != nil {
+	if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), verifyInfo.Type, model.PaymentProviderEpay); err != nil {
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
@@ -306,11 +334,11 @@ func SubscriptionEpayReturn(c *gin.Context) {
 
 		order := model.GetSubscriptionOrderByTradeNo(verifyInfo.ServiceTradeNo)
 		// 校验回调金额与订单金额是否匹配（支持 CNY 容差匹配）
-		if !subscriptionEpayOrderMoneyMatches(order, verifyInfo.Money) {
+		if !subscriptionEpayCallbackMatches(order, verifyInfo.Type, verifyInfo.Money) {
 			c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
 			return
 		}
-		if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), verifyInfo.Type); err != nil {
+		if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), verifyInfo.Type, model.PaymentProviderEpay); err != nil {
 			c.Redirect(http.StatusFound, returnBaseURL+"/console/topup?pay=fail")
 			return
 		}

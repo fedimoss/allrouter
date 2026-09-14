@@ -557,6 +557,7 @@ CREATE TABLE crypto_transactions (
     chain_id bigint NOT NULL,
     token_symbol character varying(20) NOT NULL,
     token_contract character varying(128) NOT NULL,
+    token_decimals integer NOT NULL DEFAULT 0,
     receiver_address character varying(128) NOT NULL,
     payer_address character varying(128),
     usdt_amount character varying(64) NOT NULL,
@@ -633,6 +634,13 @@ COMMENT ON COLUMN crypto_transactions.token_symbol IS '代币符号（如 USDT�
 --
 
 COMMENT ON COLUMN crypto_transactions.token_contract IS '代币合约地址';
+
+
+--
+-- Name: COLUMN crypto_transactions.token_decimals; Type: COMMENT;;
+--
+
+COMMENT ON COLUMN crypto_transactions.token_decimals IS '下单时快照的代币精度';
 
 
 --
@@ -2937,6 +2945,7 @@ CREATE TABLE subscription_orders (
     id bigint NOT NULL,
     user_id bigint,
     plan_id bigint,
+    provider_id bigint DEFAULT 0 NOT NULL,
     money numeric,
     trade_no character varying(255),
     payment_method character varying(50),
@@ -2946,7 +2955,11 @@ CREATE TABLE subscription_orders (
     provider_payload text,
     currency character varying(10) DEFAULT ''::character varying,
     original_money numeric(18,6) DEFAULT 0 NOT NULL,
-    payment_provider character varying(50) DEFAULT ''::character varying
+    payment_provider character varying(50) DEFAULT ''::character varying,
+    payment_product_id character varying(128) DEFAULT ''::character varying,
+    plan_snapshot text,
+    stock_status character varying(16) DEFAULT ''::character varying NOT NULL,
+    stock_expires_at bigint DEFAULT 0 NOT NULL
 );
 
 
@@ -2976,6 +2989,10 @@ CREATE TABLE subscription_plans (
     stripe_price_id character varying(128) DEFAULT ''::character varying,
     creem_product_id character varying(128) DEFAULT ''::character varying,
     max_purchase_per_user bigint DEFAULT 0,
+    purchase_limit_group character varying(64) DEFAULT ''::character varying NOT NULL,
+    total_purchase_limit bigint DEFAULT 0 NOT NULL,
+    issued_count bigint DEFAULT 0 NOT NULL,
+    reserved_count bigint DEFAULT 0 NOT NULL,
     upgrade_group character varying(64) DEFAULT ''::character varying,
     total_amount bigint DEFAULT 0 NOT NULL,
     quota_reset_period character varying(16) DEFAULT 'never'::character varying,
@@ -2986,7 +3003,12 @@ CREATE TABLE subscription_plans (
     waffo_pancake_product_id character varying(128) DEFAULT ''::character varying,
     allow_purchase integer NOT NULL DEFAULT 1,
     model_limits text NOT NULL DEFAULT '',
-    provider_id bigint NOT NULL DEFAULT 0
+    provider_id bigint NOT NULL DEFAULT 0,
+    quota_window_mode character varying(16) NOT NULL DEFAULT 'legacy',
+    five_hour_amount bigint NOT NULL DEFAULT 0,
+    five_hour_window_seconds bigint NOT NULL DEFAULT 0,
+    weekly_amount bigint NOT NULL DEFAULT 0,
+    quota_windows text
 );
 
 
@@ -3019,6 +3041,10 @@ CREATE TABLE subscription_pre_consume_records (
     user_id bigint,
     user_subscription_id bigint,
     pre_consumed bigint DEFAULT 0 NOT NULL,
+    model_name character varying(255) DEFAULT '',
+    quota_type integer DEFAULT 0,
+    settled_amount bigint,
+    settled_at bigint DEFAULT 0,
     status character varying(32),
     created_at bigint,
     updated_at bigint
@@ -3326,6 +3352,17 @@ CREATE TABLE user_subscriptions (
     next_reset_time bigint DEFAULT 0,
     upgrade_group character varying(64) DEFAULT ''::character varying,
     prev_user_group character varying(64) DEFAULT ''::character varying,
+    provider_id bigint NOT NULL DEFAULT 0,
+    quota_window_mode character varying(16) NOT NULL DEFAULT 'legacy',
+    five_hour_amount bigint NOT NULL DEFAULT 0,
+    five_hour_window_seconds bigint NOT NULL DEFAULT 0,
+    weekly_amount bigint NOT NULL DEFAULT 0,
+    quota_reset_period_snapshot character varying(16) DEFAULT '',
+    quota_reset_custom_seconds_snapshot bigint DEFAULT 0,
+    quota_windows_snapshot text,
+    plan_policy_snapshot_version integer NOT NULL DEFAULT 0,
+    model_limits_snapshot text,
+    plan_title_snapshot character varying(255) DEFAULT ''::character varying NOT NULL,
     created_at bigint,
     updated_at bigint
 );
@@ -6528,12 +6565,21 @@ CREATE INDEX idx_subscription_pre_consume_records_user_id ON subscription_pre_co
 
 CREATE INDEX idx_subscription_pre_consume_records_user_subscription_id ON subscription_pre_consume_records USING btree (user_subscription_id);
 
+CREATE INDEX idx_sub_pre_consume_window ON subscription_pre_consume_records USING btree (user_subscription_id, status, created_at);
+
 
 --
 -- Name: idx_subscription_plans_provider_id; Type: INDEX;;
 --
 
 CREATE INDEX idx_subscription_plans_provider_id ON subscription_plans USING btree (provider_id);
+
+
+--
+-- Name: idx_subscription_plan_purchase_group; Type: INDEX;;
+--
+
+CREATE INDEX idx_subscription_plan_purchase_group ON subscription_plans USING btree (provider_id, purchase_limit_group);
 
 
 --

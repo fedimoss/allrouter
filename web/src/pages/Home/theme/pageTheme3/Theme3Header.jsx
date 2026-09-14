@@ -37,10 +37,7 @@ import {
 } from '../../../../helpers';
 import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
-import {
-  useActualTheme,
-  useSetTheme,
-} from '../../../../context/Theme';
+import { useActualTheme, useSetTheme } from '../../../../context/Theme';
 import UserArea from '../../../../components/layout/headerbar/UserArea';
 import brandLogo from '../../../../../public/theme/theme3/allrouter-logo.svg';
 
@@ -254,6 +251,7 @@ const HeaderView = ({
               <Link
                 key={link.label}
                 to={link.to}
+                state={link.state}
                 className={isActive ? 'site-nav-link--active' : undefined}
                 aria-current={isActive ? 'page' : undefined}
               >
@@ -329,6 +327,7 @@ const HeaderView = ({
               <Link
                 key={link.label}
                 to={link.to}
+                state={link.state}
                 className={isActive ? 'site-nav-link--active' : undefined}
                 aria-current={isActive ? 'page' : undefined}
                 onClick={() => setMenuOpen(false)}
@@ -402,6 +401,10 @@ const Theme3Header = () => {
   const consoleNavTarget = isLoggedIn ? '/console' : '/login';
   const pricingNavTarget =
     !isLoggedIn && pricingRequireAuth ? '/login' : '/pricing';
+  const subscriptionNavTarget = isLoggedIn ? '/console/topup' : '/login';
+  const subscriptionNavState = isLoggedIn
+    ? undefined
+    : { from: { pathname: '/console/topup' } };
   const showAgentPartnerNav = shouldShowProviderAgentPartner(
     statusState?.status,
   );
@@ -411,6 +414,11 @@ const Theme3Header = () => {
       { label: t('首页'), to: '/' },
       { label: t('控制台'), to: consoleNavTarget },
       { label: t('模型广场'), to: pricingNavTarget },
+      {
+        label: t('订阅套餐'),
+        to: subscriptionNavTarget,
+        state: subscriptionNavState,
+      },
     ];
     if (showAgentPartnerNav) {
       links.push({ label: t('代理加盟'), to: '/agent-partner' });
@@ -422,6 +430,8 @@ const Theme3Header = () => {
     consoleNavTarget,
     docsHref,
     pricingNavTarget,
+    subscriptionNavState,
+    subscriptionNavTarget,
     showAgentPartnerNav,
     t,
   ]);

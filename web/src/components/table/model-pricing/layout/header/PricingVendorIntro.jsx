@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { memo, useMemo, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ArrowUpRight,
   Flame,
@@ -29,10 +30,9 @@ import {
 } from 'lucide-react';
 import SearchActions from './SearchActions';
 import { getSystemName } from '@/helpers';
-import pricingBannerImg from '../../../../../../public/pricing-banner.jpg'
+import pricingBannerImg from '../../../../../../public/pricing-banner.jpg';
 
 const systemName = getSystemName() || '';
-
 
 const getRecommendationCards = (t) => [
   {
@@ -157,8 +157,16 @@ const PricingVendorIntro = memo(
                 {t('更快的响应速度，更低的网络延迟，通过')} {systemName} {t('智能路由引擎，自动为您选择最优渠道。')}
               </div>
               <div className='pricing-banner-cont-action'>
-                <div className='pricing-banner-cont-action-btn'>{t('立即调用')}</div>
-                <div className='pricing-banner-cont-action-btn' onClick={() => toDocs() }>
+                <Link
+                  to='/console/topup'
+                  className='pricing-banner-cont-action-btn'
+                >
+                  {t('订阅套餐')}
+                </Link>
+                <div
+                  className='pricing-banner-cont-action-btn'
+                  onClick={() => toDocs()}
+                >
                   {t('查看文档')}
                 </div>
               </div>

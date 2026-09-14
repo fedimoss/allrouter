@@ -19,8 +19,18 @@ For commercial licensing, please contact support@quantumnous.com
 import { getCurrencyConfig } from './render';
 
 export const getQuotaPerUnit = () => {
-  const raw = parseFloat(localStorage.getItem('quota_per_unit') || '1');
-  return Number.isFinite(raw) && raw > 0 ? raw : 1;
+  // The backend stores quota in its native unit (currently 500,000 units per
+  // USD).  The status endpoint normally hydrates this value into localStorage,
+  // but subscription/admin screens can render before that request completes
+  // (and a first visit has no cached value at all).  Falling back to `1`
+  // silently converts a displayed `$0.01` window into one native quota unit,
+  // effectively disabling the configured allowance.  Keep the frontend
+  // fallback in lockstep with common.QuotaPerUnit so form round-trips remain
+  // lossless even before status hydration.
+  const raw = parseFloat(
+    localStorage.getItem('quota_per_unit') || String(500 * 1000),
+  );
+  return Number.isFinite(raw) && raw > 0 ? raw : 500 * 1000;
 };
 
 export const quotaToDisplayAmount = (quota) => {

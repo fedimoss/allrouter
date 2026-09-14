@@ -95,12 +95,29 @@ func calculateAudioQuota(info QuotaInfo) (int, *common.QuotaClamp) {
 }
 
 func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage) error {
+	if relayInfo == nil || usage == nil {
+		return errors.New("invalid realtime billing arguments")
+	}
 	if relayInfo.UsePrice {
 		return nil
 	}
-	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
-	if err != nil {
-		return err
+	// A regular request has already reserved the initial estimate through its
+	// BillingSession.  Realtime usage arrives in several chunks; when that
+	// session supports progress settlement, apply each chunk as an incremental
+	// target instead of calling the legacy PostConsumeQuota path (which would
+	// charge the same request a second time).  Keep the old path for callers
+	// that deliberately do not create a BillingSession.
+	progressSettler, hasBillingSession := relayInfo.Billing.(interface {
+		SettleProgress(int) error
+	})
+
+	var userQuota int
+	var err error
+	if relayInfo.BillingSource != BillingSourceSubscription {
+		userQuota, err = model.GetUserQuota(relayInfo.UserId, false)
+		if err != nil {
+			return err
+		}
 	}
 
 	token, err := model.GetTokenByKey(strings.TrimPrefix(relayInfo.TokenKey, "sk-"), false)
@@ -147,15 +164,24 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	quota, clamp := calculateAudioQuota(quotaInfo)
 	noteQuotaClamp(relayInfo, clamp)
 
-	if userQuota < quota {
+	if relayInfo.BillingSource != BillingSourceSubscription && userQuota < quota {
 		return fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", logger.FormatQuota(userQuota), logger.FormatQuota(quota))
 	}
 
-	if !token.UnlimitedQuota && token.RemainQuota < quota {
+	// Subscription funding is independent of the per-token numeric allowance.
+	// Keep loading the token above (the request was authenticated and the row
+	// must still exist), but do not reject a valid subscription chunk merely
+	// because RemainQuota has reached zero.  Wallet/legacy callers retain the
+	// original token quota guard.
+	if relayInfo.BillingSource != BillingSourceSubscription && !token.UnlimitedQuota && token.RemainQuota < quota {
 		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
 	}
 
-	err = PostConsumeQuota(relayInfo, quota, 0, false)
+	if hasBillingSession {
+		err = progressSettler.SettleProgress(quota)
+	} else {
+		err = PostConsumeQuota(relayInfo, quota, 0, false)
+	}
 	if err != nil {
 		return err
 	}
@@ -260,6 +286,9 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
 		logger.LogError(ctx, "error settling billing: "+err.Error())
+		if relayInfo.Billing != nil && relayInfo.Billing.NeedsRefund() {
+			relayInfo.Billing.Refund(ctx)
+		}
 	}
 	providerOwnerCostQuota := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerCost)
 	if providerId > 0 && providerOwnerUserId > 0 && providerOwnerCostQuota > 0 && totalTokens > 0 {
@@ -422,6 +451,9 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 
 	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
 		logger.LogError(ctx, "error settling billing: "+err.Error())
+		if relayInfo.Billing != nil && relayInfo.Billing.NeedsRefund() {
+			relayInfo.Billing.Refund(ctx)
+		}
 	}
 	providerOwnerCostQuota := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerCost)
 	if providerId > 0 && providerOwnerUserId > 0 && providerOwnerCostQuota > 0 && totalTokens > 0 {
@@ -472,6 +504,12 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	if relayInfo.IsPlayground {
 		return nil
 	}
+	// Subscription allowance is a separate funding source.  It still requires
+	// a valid token for identity/authentication, but must not reserve or consume
+	// the token's numeric quota (which may legitimately be zero).
+	if relayInfo.BillingSource == BillingSourceSubscription {
+		return nil
+	}
 	//if relayInfo.TokenUnlimited {
 	//	return nil
 	//}
@@ -498,10 +536,42 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 		}
 		delta := int64(quota)
 		if delta != 0 {
-			if err := model.PostConsumeUserSubscriptionDelta(relayInfo.SubscriptionId, delta); err != nil {
-				return err
+			var settleErr error
+			requestAware := strings.TrimSpace(relayInfo.RequestId) != "" && relayInfo.SubscriptionPreConsumed > 0
+			var actual int64
+			if requestAware {
+				// PostConsumeQuota receives incremental amounts on the compatibility
+				// realtime path, but SettleBilling's fallback passes a final delta
+				// relative to the original reservation (preConsumedQuota != 0).
+				// Build an absolute target in both cases: accumulate prior chunks for
+				// the former, while treating the latter as the already-cumulative final
+				// amount so a final settlement cannot double-charge the stream.
+				incremental := preConsumedQuota == 0
+				actual = relayInfo.SubscriptionPreConsumed + delta
+				if incremental {
+					actual += relayInfo.SubscriptionPostDelta
+				}
+				if actual < 0 {
+					actual = 0
+				}
+				settleErr = model.SettleSubscriptionPreConsume(relayInfo.RequestId, actual)
+			} else {
+				settleErr = model.PostConsumeUserSubscriptionDelta(relayInfo.SubscriptionId, delta)
 			}
-			relayInfo.SubscriptionPostDelta += delta
+			if settleErr != nil {
+				return settleErr
+			}
+			if requestAware && preConsumedQuota == 0 {
+				// Keep the compatibility field synchronized with the absolute
+				// target (including clamping at zero) so a negative adjustment or
+				// retry cannot leave stale bookkeeping behind.
+				relayInfo.SubscriptionPostDelta = actual - relayInfo.SubscriptionPreConsumed
+			} else if requestAware {
+				// The caller supplied the final absolute target as
+				// preConsumed + delta; synchronize the compatibility field rather
+				// than retaining stale per-chunk bookkeeping.
+				relayInfo.SubscriptionPostDelta = delta
+			}
 		}
 	} else {
 		// Wallet
@@ -528,7 +598,7 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 		}
 	}
 
-	if !relayInfo.IsPlayground {
+	if !relayInfo.IsPlayground && relayInfo.BillingSource != BillingSourceSubscription {
 		if quota > 0 {
 			err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
 		} else {

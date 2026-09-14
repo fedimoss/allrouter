@@ -84,6 +84,24 @@ func isWaffoPancakeTopUpEnabled() bool {
 		strings.TrimSpace(setting.WaffoPancakeProductID) != ""
 }
 
+// isWaffoPancakeSubscriptionWebhookEnabled reports whether the credentials
+// needed to verify a Pancake webhook are present for subscription orders.
+//
+// Subscription plans carry their own Pancake product id
+// (SubscriptionPlan.WaffoPancakeProductId); the gateway-level
+// WaffoPancakeProductID is only the wallet top-up product.  Requiring the
+// latter here would disable callbacks for otherwise valid subscription-only
+// configurations.  Keep the stricter isWaffoPancakeTopUpEnabled check for
+// wallet top-ups, but use this credential-only predicate for the shared
+// webhook endpoint.
+func isWaffoPancakeSubscriptionWebhookEnabled() bool {
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	return strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
+		strings.TrimSpace(setting.WaffoPancakePrivateKey) != ""
+}
+
 func isWaffoPancakeWebhookConfigured() bool {
 	return isWaffoPancakeTopUpEnabled()
 }

@@ -732,6 +732,10 @@ func RelayTask(c *gin.Context) {
 		}
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
+		if relayInfo.BillingSource == service.BillingSourceSubscription {
+			task.PrivateData.SubscriptionRequestId = relayInfo.RequestId
+			task.PrivateData.SubscriptionPreConsumed = relayInfo.SubscriptionPreConsumed
+		}
 		task.PrivateData.TokenId = relayInfo.TokenId
 		// 钱包计费的异步任务：持久化奖励/充值消费拆分快照。
 		// 此快照用于后续差额结算和退款时按原路返回额度（奖励退回奖励，充值退回充值）。
@@ -773,7 +777,14 @@ func RelayTask(c *gin.Context) {
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
 		if insertErr := task.Insert(); insertErr != nil {
-			service.RefundTaskQuota(c, task, "task persistence failed")
+			// SettleBilling runs before task.Insert for ordinary asynchronous
+			// submissions.  If persistence fails, the task row cannot carry a
+			// durable refund checkpoint; explicitly roll back the already-settled
+			// session instead of calling the pre-settlement Refund path (which
+			// intentionally skips settled sessions).
+			if rollbackErr := service.RollbackSettledBilling(c, relayInfo); rollbackErr != nil {
+				common.SysLog("error rolling back settled billing after task persistence failure: " + rollbackErr.Error())
+			}
 			taskErr = service.TaskErrorWrapperLocal(insertErr, "insert_task_failed", http.StatusInternalServerError)
 			respondTaskError(c, taskErr)
 			return

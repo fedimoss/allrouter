@@ -142,12 +142,18 @@ func GetTopUpInfo(c *gin.Context) {
 	enableLakalaTopUp := operation_setting.ContainsPayMethod(model.PaymentProviderLakala) && isLakalaConfigured()
 	// enableOnlineTopUp: 在线充值总开关 —— 易支付或拉卡拉任一可用即开启
 	enableOnlineTopUp := enableEpayTopUp || enableLakalaTopUp
+	// Waffo Pancake subscription checkout uses per-plan product IDs and does
+	// not depend on the wallet top-up product. Expose a separate capability so
+	// the subscription UI can render its button even when wallet top-up is not
+	// configured for Pancake.
+	enableWaffoPancakeSubscription := isWaffoPancakeSubscriptionWebhookEnabled()
 
 	data := gin.H{
-		"enable_online_topup": enableOnlineTopUp,
-		"enable_stripe_topup": enableStripeTopup,
-		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
-		"enable_waffo_topup":  enableWaffo,
+		"enable_online_topup":               enableOnlineTopUp,
+		"enable_stripe_topup":               enableStripeTopup,
+		"enable_creem_topup":                setting.CreemApiKey != "" && setting.CreemProducts != "[]",
+		"enable_waffo_topup":                enableWaffo,
+		"enable_waffo_pancake_subscription": enableWaffoPancakeSubscription,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()
@@ -503,14 +509,20 @@ func GetUserTopUps(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
+	//支付方式（在线充值/充值返佣等来源，逗号分隔）
+	payMethod := c.Query("payment_method")
+	//单个充值类型（支付方式维度）
+	payType := c.Query("payment_type")
+	//支付状态（pending/success/failed/expired）
+	status := c.Query("status")
 
 	var (
 		topups []*model.TopUp
 		total  int64
 		err    error
 	)
-	if keyword != "" {
-		topups, total, err = model.SearchUserTopUps(userId, keyword, pageInfo)
+	if keyword != "" || payMethod != "" || payType != "" || status != "" {
+		topups, total, err = model.SearchUserTopUps(userId, keyword, payMethod, payType, status, pageInfo)
 	} else {
 		topups, total, err = model.GetUserTopUps(userId, pageInfo)
 	}
@@ -538,16 +550,20 @@ func GetAllTopUps(c *gin.Context) {
 		common.ApiError(c, errors.New("bill type error"))
 		return
 	}
-	//支付方式,
+	//支付方式（在线充值/充值返佣等来源，逗号分隔）
 	payMethod := c.Query("payment_method")
+	//单个充值类型（支付方式维度）
+	payType := c.Query("payment_type")
+	//支付状态（pending/success/failed/expired）
+	status := c.Query("status")
 
 	var (
 		topups []*model.TopUp
 		total  int64
 		err    error
 	)
-	if keyword != "" || payMethod != "" || bizType != "" {
-		topups, total, err = model.SearchAllTopUps(keyword, bizType, payMethod, pageInfo)
+	if keyword != "" || payMethod != "" || bizType != "" || payType != "" || status != "" {
+		topups, total, err = model.SearchAllTopUps(keyword, bizType, payMethod, payType, status, pageInfo)
 	} else {
 		topups, total, err = model.GetAllTopUps(pageInfo)
 	}

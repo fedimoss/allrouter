@@ -45,7 +45,7 @@ import {
   Coins,
   Gift,
   Wallet,
-  BarChart3
+  BarChart3,
 } from 'lucide-react';
 import { IconSearch, IconCopy, IconEyeOpened } from '@douyinfe/semi-icons';
 import { API, timestamp2string, formatDisplayMoney } from '../../helpers';
@@ -92,6 +92,32 @@ const PAYMENT_METHOD_MAP = {
   redemptionCode: '兑换码',
   redemption_code: '兑换码',
 };
+
+// 充值类型（支付方式维度）下拉选项；值为所选支付方式，向后端 payment_type 传单个值
+const PAYMENT_TYPE_OPTIONS = [
+  { value: 'all', label: '全部' },
+  { value: 'wxpay', label: '微信' },
+  { value: 'alipay', label: '支付宝' },
+  { value: 'redemptionCode', label: '兑换码' },
+  { value: 'stripe', label: 'Stripe' },
+];
+
+// 充值来源下拉选项；值即向后端 payment_method 传的取值
+// 在线充值 = 所有在线支付方式的并集；充值返佣 = provider_profit（服务商分润）
+const PAYMENT_SOURCE_OPTIONS = [
+  { value: 'all', label: '全部' },
+  { value: 'wxpay,alipay,redemptionCode,stripe', label: '在线充值' },
+  { value: 'provider_profit', label: '充值返佣' },
+];
+
+// 支付状态下拉选项；值与 STATUS_CONFIG / TopUp.Status 一致，向后端 status 传单个值
+const PAYMENT_STATUS_OPTIONS = [
+  { value: 'all', label: '全部' },
+  { value: 'success', label: '成功' },
+  { value: 'pending', label: '待支付' },
+  { value: 'failed', label: '失败' },
+  { value: 'expired', label: '已过期' },
+];
 
 const HISTORY_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
@@ -219,7 +245,9 @@ const buildDetailSections = (orderInfo, commissionDetails, t) => {
   const statusConfig = getDetailStatusTag(orderInfo.status, t);
   const tradeNo = orderInfo.user_id || '--';
   const createTime = timestamp2string(orderInfo.create_time);
-  const payAmount = formatCurrency(orderInfo.money, { signed: Number(orderInfo.money) > 0 });
+  const payAmount = formatCurrency(orderInfo.money, {
+    signed: Number(orderInfo.money) > 0,
+  });
 
   return {
     mainInfo: [
@@ -249,33 +277,40 @@ const buildDetailSections = (orderInfo, commissionDetails, t) => {
       },
       { label: t('金额变动'), value: payAmount },
     ],
-    commissionGroups: commissionDetails.length>0 ? commissionDetails.map((item) => ({
-      title: t('一级分佣（供应商）'),
-      items: [
-        { label: t('接收账户'), value: item.inviter_id, copyValue: item.inviter_id },
-        { label: t('分佣比例'), value: formatPercent(item.rebate_ratio) },
-        { label: t('结算金额'), value: formatCurrency(item.money) },
-        {
-          label: t('状态'),
-          value: (
-            <span
-              className='inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm'
-              style={{
-                color: statusConfig.color,
-                background: statusConfig.background,
-                borderColor: statusConfig.borderColor,
-              }}
-            >
-              <span
-                className='h-2 w-2 rounded-full'
-                style={{ backgroundColor: statusConfig.color }}
-              />
-              {statusConfig.label}
-            </span>
-          ),
-        },
-      ],
-    }))  : [],
+    commissionGroups:
+      commissionDetails.length > 0
+        ? commissionDetails.map((item) => ({
+            title: t('一级分佣（供应商）'),
+            items: [
+              {
+                label: t('接收账户'),
+                value: item.inviter_id,
+                copyValue: item.inviter_id,
+              },
+              { label: t('分佣比例'), value: formatPercent(item.rebate_ratio) },
+              { label: t('结算金额'), value: formatCurrency(item.money) },
+              {
+                label: t('状态'),
+                value: (
+                  <span
+                    className='inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm'
+                    style={{
+                      color: statusConfig.color,
+                      background: statusConfig.background,
+                      borderColor: statusConfig.borderColor,
+                    }}
+                  >
+                    <span
+                      className='h-2 w-2 rounded-full'
+                      style={{ backgroundColor: statusConfig.color }}
+                    />
+                    {statusConfig.label}
+                  </span>
+                ),
+              },
+            ],
+          }))
+        : [],
   };
 };
 
@@ -309,7 +344,9 @@ const Billing = () => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [billingPeriod, setBillingPeriod] = useState('day');
-  const [billingSummary, setBillingSummary] = useState(BILLING_SUMMARY_DEFAULTS);
+  const [billingSummary, setBillingSummary] = useState(
+    BILLING_SUMMARY_DEFAULTS,
+  );
   const [billingSummaryLoading, setBillingSummaryLoading] = useState(false);
 
   const [activePage, setActivePage] = useState(1);
@@ -318,6 +355,9 @@ const Billing = () => {
   const [historyTotal, setHistoryTotal] = useState(0);
   const historyPageSize = 10;
   const [historyKeyword, setHistoryKeyword] = useState('');
+  const [paymentType, setPaymentType] = useState('all');
+  const [paymentSource, setPaymentSource] = useState('all');
+  const [paymentStatus, setPaymentStatus] = useState('all');
   const [detailVisible, setDetailVisible] = useState(false);
   const [orderInfo, setOrderInfo] = useState(null);
   const [commissionDetails, setCommissionDetails] = useState([]);
@@ -326,13 +366,32 @@ const Billing = () => {
   const billingPageTitle = t('账单中心');
   const billingPageDescription = t('查看全平台充值、充值返佣与用户账单状态。');
 
-  const loadTopups = async (page, pageSize, keyword) => {
+  const loadTopups = async (
+    page,
+    pageSize,
+    keyword,
+    payType,
+    paySource,
+    status,
+  ) => {
     setHistoryLoading(true);
     try {
       const base = userIsAdmin ? '/api/user/topup' : '/api/user/topup/self';
       const qs =
         `p=${page}&page_size=${pageSize}` +
-        (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '');
+        (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '') +
+        // 单个充值类型（支付方式维度），'all' 表示不过滤
+        (payType && payType !== 'all'
+          ? `&payment_type=${encodeURIComponent(payType)}`
+          : '') +
+        // 充值来源：在线充值的并集取值，或 provider_profit（充值返佣），'all' 表示不过滤
+        (paySource && paySource !== 'all'
+          ? `&payment_method=${encodeURIComponent(paySource)}`
+          : '') +
+        // 支付状态（pending/success/failed/expired），'all' 表示不过滤
+        (status && status !== 'all'
+          ? `&status=${encodeURIComponent(status)}`
+          : '');
       const res = await API.get(`${base}?${qs}`);
       const { success, message, data } = res.data;
       if (success) {
@@ -361,7 +420,9 @@ const Billing = () => {
 
         const payload = res.data || {};
         const source =
-          payload.data && typeof payload.data === 'object' ? payload.data : payload;
+          payload.data && typeof payload.data === 'object'
+            ? payload.data
+            : payload;
 
         if (payload.success === false) {
           Toast.error({ content: payload.message || t('加载失败') });
@@ -394,8 +455,23 @@ const Billing = () => {
   }, [billingPeriod, t]);
 
   useEffect(() => {
-    loadTopups(activePage, historyPageSize, historyKeyword);
-  }, [activePage, historyPageSize, historyKeyword, userIsAdmin]);
+    loadTopups(
+      activePage,
+      historyPageSize,
+      historyKeyword,
+      paymentType,
+      paymentSource,
+      paymentStatus,
+    );
+  }, [
+    activePage,
+    historyPageSize,
+    historyKeyword,
+    paymentType,
+    paymentSource,
+    paymentStatus,
+    userIsAdmin,
+  ]);
 
   const handleAdminComplete = async (tradeNo) => {
     try {
@@ -405,7 +481,14 @@ const Billing = () => {
       const { success, message } = res.data;
       if (success) {
         Toast.success({ content: t('补单成功') });
-        await loadTopups(activePage, historyPageSize, historyKeyword);
+        await loadTopups(
+          activePage,
+          historyPageSize,
+          historyKeyword,
+          paymentType,
+          paymentSource,
+          paymentStatus,
+        );
       } else {
         Toast.error({ content: message || t('补单失败') });
       }
@@ -444,7 +527,7 @@ const Billing = () => {
       const { success, message, data } = res.data;
       if (success) {
         setOrderInfo(data.topup || {});
-        setCommissionDetails(data.level1_rate? [data.level1_rate] : []);
+        setCommissionDetails(data.level1_rate ? [data.level1_rate] : []);
         setDetailVisible(true);
       } else {
         Toast.error({ content: message || t('加载失败') });
@@ -455,7 +538,11 @@ const Billing = () => {
   };
 
   const handleCopyDetailValue = async (value) => {
-    if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+    if (
+      !value ||
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard?.writeText
+    ) {
       Toast.error({ content: t('复制失败') });
       return;
     }
@@ -468,114 +555,165 @@ const Billing = () => {
   };
 
   const renderStatusBadge = (status, record) => {
-      if (isInviteRebateTopup(record)) {
-        return (
-          <span className='inline-flex items-center justify-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
-            <CheckCircle size={14} />
-            <span className='font-medium'>{t('已入账')}</span>
-          </span>
-        );
-      }
-      if (!status) {
-        return <Text type='tertiary'>-</Text>;
-      }
-      const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
+    if (isInviteRebateTopup(record)) {
       return (
-        <span className='flex items-center justify-center gap-2'>
-          <Badge dot type={config.type} />
-          <span>{t(config.key)}</span>
+        <span className='inline-flex items-center justify-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
+          <CheckCircle size={14} />
+          <span className='font-medium'>{t('已入账')}</span>
         </span>
       );
-    };
+    }
+    if (!status) {
+      return <Text type='tertiary'>-</Text>;
+    }
+    const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
+    return (
+      <span className='flex items-center justify-center gap-2'>
+        <Badge dot type={config.type} />
+        <span>{t(config.key)}</span>
+      </span>
+    );
+  };
 
-    const renderPaymentMethod = (paymentMethod) => {
-      const displayName = PAYMENT_METHOD_MAP[paymentMethod];
-      return <Text>{displayName ? t(displayName) : paymentMethod || '-'}</Text>;
-    };
+  const renderPaymentMethod = (paymentMethod) => {
+    const displayName = PAYMENT_METHOD_MAP[paymentMethod];
+    return (
+      <>
+        <Text>
+          {displayName
+            ? t(displayName)
+            : paymentMethod === 'provider_profit'
+              ? t('服务商分润')
+              : paymentMethod || '-'}
+        </Text>
+      </>
+    );
+  };
 
-    const renderBizTypeTag = (record) => {
-      const config = getTopupBizTypeConfig(record);
-      const inviteRebate = isInviteRebateTopup(record);
-      return (
-        <Tag color={config.color} shape='circle' size='small'>
+  const renderBizTypeTag = (record) => {
+    const config = getTopupBizTypeConfig(record);
+    const inviteRebate = isInviteRebateTopup(record);
+    return (
+      <Tag color={config.color} shape='circle' size='small'>
+        <span className='inline-flex items-center gap-1'>
+          {inviteRebate ? <Gift size={12} /> : null}
+          {t(config.label)}
+        </span>
+      </Tag>
+    );
+  };
+
+  const periodOptionList = useMemo(
+    () =>
+      BILL_PERIOD_OPTIONS.map((item) => ({
+        value: item.value,
+        label: t(item.label),
+      })),
+    [t],
+  );
+
+  const paymentTypeOptionList = useMemo(
+    () =>
+      PAYMENT_TYPE_OPTIONS.map((item) => ({
+        value: item.value,
+        label: t(item.label),
+      })),
+    [t],
+  );
+
+  const paymentSourceOptionList = useMemo(
+    () =>
+      PAYMENT_SOURCE_OPTIONS.map((item) => ({
+        value: item.value,
+        label: t(item.label),
+      })),
+    [t],
+  );
+
+  const paymentStatusOptionList = useMemo(
+    () =>
+      PAYMENT_STATUS_OPTIONS.map((item) => ({
+        value: item.value,
+        label: t(item.label),
+      })),
+    [t],
+  );
+
+  const summaryCards = useMemo(
+    () => [
+      {
+        key: 'current_quota',
+        title: t('支出/消费'),
+        value: formatCurrency(billingSummary.expense, {
+          symbol: billingSummary.display_symbol,
+        }),
+        description: (
           <span className='inline-flex items-center gap-1'>
-            {inviteRebate ? <Gift size={12} /> : null}
-            {t(config.label)}
-          </span>
-        </Tag>
-      );
-    };
-
-    const periodOptionList = useMemo(
-      () => BILL_PERIOD_OPTIONS.map((item) => ({ value: item.value, label: t(item.label) })),
-      [t],
-    );
-
-    const summaryCards = useMemo(
-      () => [
-        {
-          key: 'current_quota',
-          title: t('支出/消费'),
-          value: formatCurrency(billingSummary.expense, { symbol: billingSummary.display_symbol }),
-          description: (
-            <span className='inline-flex items-center gap-1'>
-              <span className='text-slate-400'>{t('较上月')}</span>
-              <span className={getPercentToneClassName(billingSummary.expense_trend)}>
-                {formatPercent(billingSummary.expense_trend)}
-              </span>
+            <span className='text-slate-400'>{t('较上月')}</span>
+            <span
+              className={getPercentToneClassName(billingSummary.expense_trend)}
+            >
+              {formatPercent(billingSummary.expense_trend)}
             </span>
-          ),
-          icon: BadgeDollarSign,
-          iconClassName: 'text-slate-500',
-          iconWrapClassName: 'bg-slate-100',
-          valueClassName: 'text-slate-700',
-        },
-        {
-          key: 'topup_amount',
-          title: t('充值/本金'),
-          value: formatCurrency(billingSummary.topup, { symbol: billingSummary.display_symbol }),
-          description: t('实际支付充值的金额'),
-          icon: CalendarCheck2,
-          iconClassName: 'text-slate-500',
-          iconWrapClassName: 'bg-slate-100',
-          valueClassName: 'text-slate-700',
-        },
-        {
-          key: 'redemption_amount',
-          title: t('获赠/福利'),
-          value: formatCurrency(billingSummary.bonus, { symbol: billingSummary.display_symbol }),
-          description: t('获得的平台赠送或活动奖励'),
-          icon: Coins,
-          iconClassName: 'text-slate-500',
-          iconWrapClassName: 'bg-slate-100',
-          valueClassName: 'text-slate-700',
-        },
-        {
-          key: 'net_change',
-          title: t('净变动'),
-          value: formatCurrency(billingSummary.net_change, { signed: true, symbol: billingSummary.display_symbol }),
-          description: t('账户资金的净增减情况'),
-          icon: BarChart3,
-          iconClassName: 'text-slate-500',
-          iconWrapClassName: 'bg-slate-100',
-          valueClassName: 'text-slate-700',
-        },
-      ],
-      [billingSummary, t],
-    );
+          </span>
+        ),
+        icon: BadgeDollarSign,
+        iconClassName: 'text-slate-500',
+        iconWrapClassName: 'bg-slate-100',
+        valueClassName: 'text-slate-700',
+      },
+      {
+        key: 'topup_amount',
+        title: t('充值/本金'),
+        value: formatCurrency(billingSummary.topup, {
+          symbol: billingSummary.display_symbol,
+        }),
+        description: t('实际支付充值的金额'),
+        icon: CalendarCheck2,
+        iconClassName: 'text-slate-500',
+        iconWrapClassName: 'bg-slate-100',
+        valueClassName: 'text-slate-700',
+      },
+      {
+        key: 'redemption_amount',
+        title: t('获赠/福利'),
+        value: formatCurrency(billingSummary.bonus, {
+          symbol: billingSummary.display_symbol,
+        }),
+        description: t('获得的平台赠送或活动奖励'),
+        icon: Coins,
+        iconClassName: 'text-slate-500',
+        iconWrapClassName: 'bg-slate-100',
+        valueClassName: 'text-slate-700',
+      },
+      {
+        key: 'net_change',
+        title: t('净变动'),
+        value: formatCurrency(billingSummary.net_change, {
+          signed: true,
+          symbol: billingSummary.display_symbol,
+        }),
+        description: t('账户资金的净增减情况'),
+        icon: BarChart3,
+        iconClassName: 'text-slate-500',
+        iconWrapClassName: 'bg-slate-100',
+        valueClassName: 'text-slate-700',
+      },
+    ],
+    [billingSummary, t],
+  );
 
-    const startIndex =
-      historyTotal === 0 ? 0 : (activePage - 1) * historyPageSize + 1;
-    const endIndex = Math.min(activePage * historyPageSize, historyTotal);
-    const detailSections = useMemo(
-      () => buildDetailSections(orderInfo, commissionDetails, t),
-      [orderInfo, commissionDetails, t],
-  
-    );
-    const hasInviteRebateRecords = useMemo(
-      () => historyRows.some((record) => isInviteRebateTopup(record)),
-      [historyRows],
-    );
+  const startIndex =
+    historyTotal === 0 ? 0 : (activePage - 1) * historyPageSize + 1;
+  const endIndex = Math.min(activePage * historyPageSize, historyTotal);
+  const detailSections = useMemo(
+    () => buildDetailSections(orderInfo, commissionDetails, t),
+    [orderInfo, commissionDetails, t],
+  );
+  const hasInviteRebateRecords = useMemo(
+    () => historyRows.some((record) => isInviteRebateTopup(record)),
+    [historyRows],
+  );
   const columns = useMemo(() => {
     const baseColumns = [
       {
@@ -626,16 +764,14 @@ const Billing = () => {
         render: (money, record) => {
           const normalizedMoney = Number(money || 0);
           if (normalizedMoney <= 0) {
-            return <Text type="tertiary">-</Text>;
+            return <Text type='tertiary'>-</Text>;
           }
           // 优先使用后端返回的币种符号，Stripe 默认 $，其他默认 ¥
           const paySymbol =
             record.display_symbol ||
-            (record.payment_method === "stripe" ? "$" : "¥");
+            (record.payment_method === 'stripe' ? '$' : '¥');
           return (
-            <Text type="danger">
-              {formatDisplayMoney(money, paySymbol)}
-            </Text>
+            <Text type='danger'>{formatDisplayMoney(money, paySymbol)}</Text>
           );
         },
       },
@@ -755,7 +891,9 @@ const Billing = () => {
         </div>
 
         <div className='flex w-full items-center justify-between dark:bg-slate-800 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 shadow-sm sm:w-auto sm:gap-4'>
-          <span className='text-sm font-medium text-slate-400'>{t('日期范围')}</span>
+          <span className='text-sm font-medium text-slate-400'>
+            {t('日期范围')}
+          </span>
           <Select
             value={billingPeriod}
             optionList={periodOptionList}
@@ -787,15 +925,22 @@ const Billing = () => {
                   <div
                     className={`icon-bg flex h-12 w-12 items-center justify-center dark:bg-slate-600 rounded-2xl ${item.iconWrapClassName}`}
                   >
-                    <Icon size={22} className={`icon-color ${item.iconClassName}`} />
+                    <Icon
+                      size={22}
+                      className={`icon-color ${item.iconClassName}`}
+                    />
                   </div>
                 </div>
 
                 <div className='space-y-4'>
-                  <div className={`text-val text-[24px] font-[900] md:text-[26px] ${item.valueClassName}`}>
+                  <div
+                    className={`text-val text-[24px] font-[900] md:text-[26px] ${item.valueClassName}`}
+                  >
                     {item.value}
                   </div>
-                  <div className='text-sm text-slate-500'>{item.description}</div>
+                  <div className='text-sm text-slate-500'>
+                    {item.description}
+                  </div>
                 </div>
               </div>
             </Card>
@@ -837,6 +982,54 @@ const Billing = () => {
             <span className='text-xs text-slate-400'>
               {t('共 {{count}} 条记录', { count: historyTotal })}
             </span>
+            <div className='flex items-center gap-2'>
+              <span className='text-xs whitespace-nowrap font-medium text-slate-400'>
+                {t('充值类型')}
+              </span>
+              <Select
+                value={paymentType}
+                optionList={paymentTypeOptionList}
+                onChange={(value) => {
+                  setPaymentType(value || 'all');
+                  setActivePage(1);
+                }}
+                placeholder={t('充值类型')}
+                className='select-bg min-w-[120px]'
+                size='small'
+              />
+            </div>
+            <div className='flex items-center gap-2'>
+              <span className='text-xs whitespace-nowrap font-medium text-slate-400'>
+                {t('充值来源')}
+              </span>
+              <Select
+                value={paymentSource}
+                optionList={paymentSourceOptionList}
+                onChange={(value) => {
+                  setPaymentSource(value || 'all');
+                  setActivePage(1);
+                }}
+                placeholder={t('充值来源')}
+                className='select-bg min-w-[120px]'
+                size='small'
+              />
+            </div>
+            <div className='flex items-center gap-2'>
+              <span className='text-xs whitespace-nowrap font-medium text-slate-400'>
+                {t('支付状态')}
+              </span>
+              <Select
+                value={paymentStatus}
+                optionList={paymentStatusOptionList}
+                onChange={(value) => {
+                  setPaymentStatus(value || 'all');
+                  setActivePage(1);
+                }}
+                placeholder={t('支付状态')}
+                className='select-bg min-w-[120px]'
+                size='small'
+              />
+            </div>
             <Input
               prefix={<IconSearch />}
               placeholder={t(
@@ -862,7 +1055,9 @@ const Billing = () => {
           pagination={false}
           empty={
             <Empty
-              image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+              image={
+                <IllustrationNoResult style={{ width: 150, height: 150 }} />
+              }
               darkModeImage={
                 <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
               }
@@ -873,7 +1068,6 @@ const Billing = () => {
         />
 
         <div className='billing-pagination flex flex-col gap-3 pt-3 lg:flex-row lg:items-center lg:justify-end'>
-          
           <div className='flex items-center gap-3'>
             <Pagination
               total={historyTotal}
@@ -888,7 +1082,9 @@ const Billing = () => {
 
       <Modal
         title={
-          <span className='text-[18px] font-[700] text-[#334155]'>{t('详情')}</span>
+          <span className='text-[18px] font-[700] text-[#334155]'>
+            {t('详情')}
+          </span>
         }
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
@@ -930,7 +1126,9 @@ const Billing = () => {
         centered={!isMobile}
         bodyStyle={{
           padding: isMobile ? '4px 16px 0' : '4px 0',
-          height: isMobile ? 'calc(100vh - 220px)' : DETAIL_MODAL_CONTENT_HEIGHT,
+          height: isMobile
+            ? 'calc(100vh - 220px)'
+            : DETAIL_MODAL_CONTENT_HEIGHT,
           overflow: 'hidden',
         }}
       >
@@ -967,32 +1165,38 @@ const Billing = () => {
             </div>
 
             <div className='space-y-7'>
-              {detailSections.commissionGroups.length>0 ? detailSections.commissionGroups.map((group) => (
-                <div key={group.title}>
-                  <div className='mb-3 text-sm font-semibold text-[#94A3B8]'>
-                    {group.title}
+              {detailSections.commissionGroups.length > 0 ? (
+                detailSections.commissionGroups.map((group) => (
+                  <div key={group.title}>
+                    <div className='mb-3 text-sm font-semibold text-[#94A3B8]'>
+                      {group.title}
+                    </div>
+                    <div className='space-y-2'>
+                      {group.items.map((item) => (
+                        <DetailField
+                          key={`${group.title}-${item.label}`}
+                          label={item.label}
+                          value={item.value}
+                          copyValue={item.copyValue}
+                          onCopy={handleCopyDetailValue}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className='space-y-2'>
-                    {group.items.map((item) => (
-                      <DetailField
-                        key={`${group.title}-${item.label}`}
-                        label={item.label}
-                        value={item.value}
-                        copyValue={item.copyValue}
-                        onCopy={handleCopyDetailValue}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )) :
+                ))
+              ) : (
                 <div className='text-center text-[#94A3B8] h-full flex items-center justify-center'>
                   <Empty
-                    image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+                    image={
+                      <IllustrationNoResult
+                        style={{ width: 150, height: 150 }}
+                      />
+                    }
                     description={t('暂无分佣明细')}
                     style={{ padding: 30 }}
                   />
                 </div>
-              }
+              )}
             </div>
           </div>
         </div>

@@ -2,20 +2,80 @@ package controller
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log"
+	"math"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/thanhpk/randstr"
 )
 
 type SubscriptionCreemPayRequest struct {
 	PlanId int `json:"plan_id"`
+}
+
+// resolveSubscriptionCreemProductSnapshot reads the optional local Creem
+// product catalog and returns the currency/price that the remote product is
+// configured with.  SubscriptionPlan.PriceAmount is the USD accounting value,
+// while Creem charges the fixed amount attached to ProductId; using the site
+// wide quota-display currency here (for example CNY) would create an order
+// whose webhook can never match a USD Creem product.  If the product is not in
+// the top-up catalog, retain the historical USD behaviour and let the locked
+// plan price remain authoritative.
+func resolveSubscriptionCreemProductSnapshot(productID string) (currency string, price float64, found bool, err error) {
+	productID = strings.TrimSpace(productID)
+	if productID == "" {
+		return "", 0, false, fmt.Errorf("empty Creem product id")
+	}
+	raw := strings.TrimSpace(setting.CreemProducts)
+	if raw == "" || raw == "[]" {
+		return "USD", 0, false, nil
+	}
+	var products []CreemProduct
+	if err := common.Unmarshal([]byte(raw), &products); err != nil {
+		return "", 0, false, fmt.Errorf("invalid Creem product catalog: %w", err)
+	}
+	for i := range products {
+		product := &products[i]
+		if !strings.EqualFold(strings.TrimSpace(product.ProductId), productID) {
+			continue
+		}
+		if math.IsNaN(product.Price) || math.IsInf(product.Price, 0) || product.Price <= 0 {
+			return "", 0, false, fmt.Errorf("invalid Creem product price")
+		}
+		currency = strings.ToUpper(strings.TrimSpace(product.Currency))
+		if currency == "" {
+			// Older catalog entries omitted currency and Creem defaults to USD.
+			currency = "USD"
+		}
+		// The checkout/webhook path below has explicit symbol/code mappings;
+		// reject an unsupported catalog currency now rather than creating an
+		// order that can never pass callback reconciliation.
+		switch currency {
+		case "USD", "EUR", "CNY":
+		default:
+			return "", 0, false, fmt.Errorf("unsupported Creem product currency: %s", currency)
+		}
+		return currency, product.Price, true, nil
+	}
+	return "USD", 0, false, nil
+}
+
+func creemCurrencySymbol(currency string) string {
+	switch strings.ToUpper(strings.TrimSpace(currency)) {
+	case "CNY", "RMB", "￥", "¥":
+		return "￥"
+	case "EUR", "€":
+		return "€"
+	default:
+		return "$"
+	}
 }
 
 func SubscriptionRequestCreemPay(c *gin.Context) {
@@ -72,38 +132,26 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		return
 	}
 
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
-			return
-		}
-	}
-
 	reference := "sub-creem-ref-" + randstr.String(6)
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference+time.Now().String()+user.Username))
 
-	// 根据系统配额显示类型确定币种和实际支付金额
+	// Creem product prices are fixed on the provider side.  Do not derive the
+	// charged currency from the site's quota-display setting: a CNY display
+	// setting does not convert a USD Creem ProductId, and would make every
+	// legitimate USD webhook fail currency validation.  When the administrator
+	// has also listed this product in CreemProducts, use that immutable catalog
+	// price/currency (EUR and CNY products are supported as well); otherwise
+	// preserve the historical USD/plan-price path.
 	currency := "USD"
 	currencySymbol := "$"
 	originalMoney := plan.PriceAmount
-	switch operation_setting.GetGeneralSetting().QuotaDisplayType {
-	case operation_setting.QuotaDisplayTypeCNY:
-		currency = "CNY"
-		currencySymbol = "￥"
-		originalMoney = getSubscriptionChargeMoneyByCurrency(plan.PriceAmount, "CNY")
-	case operation_setting.QuotaDisplayTypeUSD:
-		currency = "USD"
-		currencySymbol = "$"
-		originalMoney = plan.PriceAmount
-	default:
-		currency = "USD"
-		currencySymbol = "$"
-		originalMoney = plan.PriceAmount
+	if productCurrency, productPrice, found, err := resolveSubscriptionCreemProductSnapshot(plan.CreemProductId); err != nil {
+		common.ApiErrorMsg(c, "Creem 产品配置错误")
+		return
+	} else if found {
+		currency = productCurrency
+		currencySymbol = creemCurrencySymbol(productCurrency)
+		originalMoney = productPrice
 	}
 
 	// create pending order first
@@ -111,14 +159,16 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		UserId: userId,
 		PlanId: plan.Id,
 		// 记录订单归属服务商：来自请求上下文 provider_id（0=主站），后续完成订单时据此给服务商 owner 结算订阅收入。
-		ProviderId:    c.GetInt("provider_id"),
-		Money:         plan.PriceAmount,
-		Currency:      currencySymbol, // 币种符号
-		OriginalMoney: originalMoney,  // 实际支付金额（用户币种）
-		TradeNo:       referenceId,
-		PaymentMethod: PaymentMethodCreem,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
+		ProviderId:       c.GetInt("provider_id"),
+		Money:            plan.PriceAmount,
+		Currency:         currencySymbol, // 币种符号
+		OriginalMoney:    originalMoney,  // 实际支付金额（用户币种）
+		TradeNo:          referenceId,
+		PaymentMethod:    PaymentMethodCreem,
+		PaymentProvider:  model.PaymentProviderCreem,
+		PaymentProductId: plan.CreemProductId,
+		CreateTime:       time.Now().Unix(),
+		Status:           common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
 		respondSubscriptionCreateError(c, err, "创建订单失败")
@@ -126,10 +176,12 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	}
 
 	// Reuse Creem checkout generator by building a lightweight product reference.
+	// The order fields were checked against the locked plan row.  Do not read
+	// the mutable/cached plan again after reserving inventory.
 	product := &CreemProduct{
-		ProductId: plan.CreemProductId,
+		ProductId: order.PaymentProductId,
 		Name:      plan.Title,
-		Price:     plan.PriceAmount,
+		Price:     order.Money,
 		Currency:  currency,
 		Quota:     0,
 	}

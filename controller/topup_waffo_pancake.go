@@ -402,8 +402,9 @@ func RequestWaffoPancakePay(c *gin.Context) {
 
 	expiresInSeconds := 45 * 60
 	session, err := service.CreateWaffoPancakeCheckoutSession(c.Request.Context(), &service.WaffoPancakeCreateSessionParams{
-		ProductID:     setting.WaffoPancakeProductID,
-		BuyerIdentity: getWaffoPancakeBuyerIdentity(user),
+		ProductID:               setting.WaffoPancakeProductID,
+		BuyerIdentity:           getWaffoPancakeBuyerIdentity(user),
+		OrderMerchantExternalID: tradeNo,
 		PriceSnapshot: &service.WaffoPancakePriceSnapshot{
 			Amount:      formatWaffoPancakeAmount(payMoney),
 			TaxCategory: "saas",
@@ -434,7 +435,12 @@ func RequestWaffoPancakePay(c *gin.Context) {
 }
 
 func WaffoPancakeWebhook(c *gin.Context) {
-	if !isWaffoPancakeWebhookEnabled() {
+	// Signature verification is shared by wallet top-up and subscription
+	// callbacks.  A subscription-only deployment may intentionally leave the
+	// wallet product id unset, so the endpoint must require only merchant
+	// credentials; the top-up checkout endpoint still enforces its own product
+	// configuration via isWaffoPancakeTopUpEnabled.
+	if !isWaffoPancakeSubscriptionWebhookEnabled() {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Waffo Pancake webhook 被拒绝 reason=webhook_disabled path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
 		c.String(http.StatusForbidden, "webhook disabled")
 		return
@@ -487,7 +493,10 @@ func WaffoPancakeWebhook(c *gin.Context) {
 
 	// Subscription vs top-up dispatch by trade_no prefix (written at
 	// session-creation time): WAFFO_PANCAKE_SUB- vs WAFFO_PANCAKE-.
-	rawTradeNo := strings.TrimSpace(event.Data.OrderID)
+	rawTradeNo := strings.TrimSpace(event.Data.OrderMerchantExternalID)
+	if rawTradeNo == "" {
+		rawTradeNo = strings.TrimSpace(event.Data.OrderID)
+	}
 	isSubscription := strings.HasPrefix(rawTradeNo, "WAFFO_PANCAKE_SUB-")
 
 	if isSubscription {
@@ -502,7 +511,21 @@ func WaffoPancakeWebhook(c *gin.Context) {
 		}
 		LockOrder(tradeNo)
 		defer UnlockOrder(tradeNo)
-		if err := model.CompleteSubscriptionOrder(tradeNo, string(bodyBytes), model.PaymentProviderWaffoPancake, ""); err != nil {
+		// Validate the amount and currency against the immutable local checkout
+		// snapshot before granting the subscription.  A signed event can still
+		// belong to a different product/price if a merchant account is reused.
+		order := model.GetSubscriptionOrderByTradeNo(tradeNo)
+		if !subscriptionWaffoPancakePaymentMatches(order, event) {
+			logger.LogError(c.Request.Context(), fmt.Sprintf(
+				"Waffo Pancake 订阅金额或币种校验失败 trade_no=%s event_id=%s amount=%q currency=%q",
+				tradeNo, event.ID, event.Data.Amount, event.Data.Currency,
+			))
+			// The event has a valid signature but is permanently inconsistent
+			// with the local order; acknowledge it rather than retrying forever.
+			c.String(http.StatusOK, "OK")
+			return
+		}
+		if err := model.CompleteSubscriptionOrder(tradeNo, string(bodyBytes), model.PaymentMethodWaffoPancake, model.PaymentProviderWaffoPancake); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅完成失败 trade_no=%s event_id=%s order_id=%s client_ip=%s error=%q", tradeNo, event.ID, event.Data.OrderID, c.ClientIP(), err.Error()))
 			c.String(http.StatusInternalServerError, "retry")
 			return

@@ -220,6 +220,7 @@
   border-radius: 12px;
   margin-right: 16px;
   cursor: pointer;
+  text-decoration: none;
 }
 .pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-action .pricing-banner-cont-action-btn:first-child{
   border: 1px solid var(--theme-primary);
@@ -1104,4 +1105,3 @@ html.dark .pricing-market-desktop-card .semi-button,
 html.dark .pricing-market-mobile-card .semi-button {
   color: #cbd5e1 !important;
 }
-
