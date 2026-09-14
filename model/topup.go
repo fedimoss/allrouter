@@ -971,7 +971,7 @@ func GetProviderTopUps(providerId int, pageInfo *common.PageInfo) (topups []*Top
 }
 
 // SearchProviderTopUps 按订单号或用户昵称搜索某服务商站点的充值记录（站长账单中心使用）
-func SearchProviderTopUps(providerId int, keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func SearchProviderTopUps(providerId int, keyword string, bizType, payMethod, payType, status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -982,13 +982,13 @@ func SearchProviderTopUps(providerId int, keyword string, pageInfo *common.PageI
 		}
 	}()
 
-	countQuery := withTopUpRecordKeyword(withProviderTopUpRecords(tx, providerId), keyword)
+	countQuery := withTopUpRecordKeyword(withProviderTopUpRecords(tx, providerId), keyword, bizType, payMethod, payType, status)
 	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	dataQuery := withTopUpRecordKeyword(withProviderTopUpRecords(tx, providerId), keyword)
+	dataQuery := withTopUpRecordKeyword(withProviderTopUpRecords(tx, providerId), keyword, bizType, payMethod, payType, status)
 	if err = withTopUpRecordOrder(dataQuery).
 		Limit(pageInfo.GetPageSize()).
 		Offset(pageInfo.GetStartIdx()).

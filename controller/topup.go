@@ -570,7 +570,7 @@ func GetAllTopUps(c *gin.Context) {
 	)
 	if keyword != "" || payMethod != "" || bizType != "" || payType != "" || status != "" {
 		if providerId > 0 {
-			topups, total, err = model.SearchProviderTopUps(providerId, keyword, pageInfo)
+			topups, total, err = model.SearchProviderTopUps(providerId, keyword, bizType, payMethod, payType, status, pageInfo)
 		} else {
 			topups, total, err = model.SearchAllTopUps(keyword, bizType, payMethod, payType, status, pageInfo)
 		}
