@@ -255,9 +255,9 @@ func InitLogDB() (err error) {
 func migrateDB() error {
 	// Keep global startup AutoMigrate disabled, but always bring the
 	// subscription tables to the schema required by the billing engine.
-	if err := migrateSubscriptionSchema(); err != nil {
-		return err
-	}
+	//if err := migrateSubscriptionSchema(); err != nil {
+	//	return err
+	//}
 	// ⚠️ 除订阅专用迁移外，启动期全局表结构维护仍保持禁用；其他表结构
 	// 变更请按项目部署流程手动执行 SQL。
 	return nil
