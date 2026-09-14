@@ -59,11 +59,17 @@ func scaleBillingExprForDisplay(expr string, multiplier float64) string {
 	return prefix + "(" + body + ") * " + factor
 }
 
-func applyProviderPricingRule(item model.Pricing, rule model.ProviderModelPricing, importPriceRatio float64) model.Pricing {
+func applyProviderPricingRule(item model.Pricing, rule model.ProviderModelPricing, importPriceRatio float64, cacheImportRatio float64) model.Pricing {
 	if importPriceRatio <= 0 {
 		importPriceRatio = 1
 	}
+	if cacheImportRatio <= 0 {
+		// 未单独配置缓存折扣时，缓存按主站原价展示，不跟随输入输出折扣
+		cacheImportRatio = 1
+	}
 	item.ModelName = rule.PublicModelName
+	// 主站原始倍率 M：缓存展示反算需要（缓存价 = M × 原缓存倍率 × 缓存折扣）
+	originalModelRatio := item.ModelRatio
 	item.ModelRatio *= importPriceRatio
 	item.ModelPrice *= importPriceRatio
 	if len(item.ResolutionPrices) > 0 {
@@ -103,6 +109,34 @@ func applyProviderPricingRule(item model.Pricing, rule model.ProviderModelPricin
 	if item.ModelPrice < 0 {
 		item.ModelPrice = 0
 	}
+	// 缓存展示反算：缓存价不受服务商加价影响，展示为 主站缓存价 × 缓存折扣。
+	// 前端按 展示ModelRatio × CacheRatio_display 计算缓存单价，因此
+	// CacheRatio_display = 原值 × 缓存折扣 × M / 展示ModelRatio
+	// （比例模式因子即 缓存折扣/(import×加价倍率)，与 M 无关；差价模式下
+	// 展示ModelRatio = M×import+delta，因子随模型基础倍率不同而不同）。
+	// 倍率未显式配置（nil）时按默认值（读 1 / 写 1.25）物化，避免展示价与实收不符。
+	// tiered_expr 模式结算时无法拆分缓存（保持统一折扣），展示同样保持统一；
+	// 展示倍率非正（免费/按次模型）时无法反算，保持原值。
+	// 注意：GetPricing 返回的是共享缓存切片，CacheRatio/CreateCacheRatio 是
+	// 指向缓存本体的指针——禁止通过指针原地修改（否则缓存窗口内每次请求都会
+	// 累乘一次，表现为"刷新一次缓存价格翻倍一次"），必须读取值后新建指针。
+	if item.BillingMode != "tiered_expr" {
+		if cacheRatioFactor := service.ProviderDisplayCacheFactor(originalModelRatio, item.ModelRatio, cacheImportRatio); cacheRatioFactor != 1 {
+			cacheRatio := 1.0
+			if item.CacheRatio != nil {
+				cacheRatio = *item.CacheRatio
+			}
+			cacheRatio *= cacheRatioFactor
+			item.CacheRatio = &cacheRatio
+
+			createCacheRatio := 1.25
+			if item.CreateCacheRatio != nil {
+				createCacheRatio = *item.CreateCacheRatio
+			}
+			createCacheRatio *= cacheRatioFactor
+			item.CreateCacheRatio = &createCacheRatio
+		}
+	}
 	return item
 }
 
@@ -120,9 +154,11 @@ func applyProviderPricingView(providerId int, pricing []model.Pricing) []model.P
 		return []model.Pricing{}
 	}
 	importPriceRatio := 1.0
+	cacheImportRatio := 0.0
 	var cfg model.ProviderConfig
-	if err := model.DB.Select("import_price_ratio").Where("provider_id = ?", providerId).First(&cfg).Error; err == nil && cfg.ImportPriceRatio > 0 {
+	if err := model.DB.Select("import_price_ratio, import_cache_price_ratio").Where("provider_id = ?", providerId).First(&cfg).Error; err == nil && cfg.ImportPriceRatio > 0 {
 		importPriceRatio = cfg.ImportPriceRatio
+		cacheImportRatio = cfg.ImportCachePriceRatio
 	}
 	result := make([]model.Pricing, 0, len(rules))
 	for _, rule := range rules {
@@ -130,7 +166,7 @@ func applyProviderPricingView(providerId int, pricing []model.Pricing) []model.P
 		if !ok {
 			continue
 		}
-		result = append(result, applyProviderPricingRule(item, rule, importPriceRatio))
+		result = append(result, applyProviderPricingRule(item, rule, importPriceRatio, cacheImportRatio))
 	}
 	return result
 }

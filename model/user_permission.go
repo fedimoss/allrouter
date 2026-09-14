@@ -119,6 +119,7 @@ var MainSitePermissionModules = []string{
 var ProviderSitePermissionModules = []string{
 	"provider",
 	"providerOperational",
+	"providerBilling",
 	"providerWithdraw",
 	"providerReward",
 	"providerRewardReport",

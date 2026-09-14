@@ -78,3 +78,29 @@ func TestRechargeCryptoCompletesOrderOnce(t *testing.T) {
 	require.NoError(t, DB.First(&user, 1).Error)
 	require.Equal(t, 500000, user.Quota)
 }
+
+func TestCryptoTxHashExistsForOtherTradeNoAllowsSameOrderRetry(t *testing.T) {
+	setupCryptoTransactionTestDB(t)
+	hash := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	record := &CryptoTransaction{
+		TopUpId:             0,
+		SubscriptionOrderId: 42,
+		UserId:              7,
+		TradeNo:             "sub-trade-42",
+		TxHash:              &hash,
+		ChainId:             1,
+		TokenSymbol:         "USDT",
+		TokenContract:       "0x1111111111111111111111111111111111111111",
+		ReceiverAddress:     "0x2222222222222222222222222222222222222222",
+		UsdtAmount:          "1",
+		Status:              CryptoTransactionStatusSuccess,
+	}
+	require.NoError(t, DB.Create(record).Error)
+
+	// A retry for the same order (including case/whitespace differences in the
+	// submitted hash and trade number) is not a duplicate and must proceed to
+	// the idempotent completion path.
+	require.False(t, CryptoTxHashExistsForOtherTradeNo(" 0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA ", " sub-trade-42 "))
+	// A different order must still be rejected before chain verification.
+	require.True(t, CryptoTxHashExistsForOtherTradeNo(hash, "sub-trade-other"))
+}

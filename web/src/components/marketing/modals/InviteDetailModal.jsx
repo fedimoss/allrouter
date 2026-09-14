@@ -154,13 +154,13 @@ const InviteDetailModal = ({ t, visible, onClose, inviteeId, inviteeName }) => {
             <span className='text-[14px] leading-[20px] text-[#98A2B3]'>{t('被邀请人ID：')}</span>
             <span className='text-[14px] leading-[20px] text-[#475467] font-semibold'>{inviteeName || '-'}</span>
           </div>
-          <div className='flex items-center'>
+          <div className='hidden flex items-center'>
             <span className='text-[14px] leading-[20px] text-[#98A2B3]'>{t('一级累计贡献返利：')}</span>
             <span className='text-[14px] leading-[20px] text-[#475467] font-semibold'>
               {displaySymbol} {totalRebateQuota}
             </span>
           </div>
-          <div className='flex items-center'>
+          <div className='hidden flex items-center'>
             <span className='text-[14px] leading-[20px] text-[#98A2B3]'>{t('二级累计贡献返利：')}</span>
             <span className='text-[14px] leading-[20px] text-[#475467] font-semibold'>
               {displaySymbol} {secondLevelRebateQuota}

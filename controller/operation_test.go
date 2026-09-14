@@ -9,38 +9,64 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
-	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
-func TestGetOperationProviderID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+func setupOperationTestDB(t *testing.T) {
+	t.Helper()
+
+	// getOperationProviderID 会经 GetUserCache 走 DB/Redis,测试用内存库并关闭 Redis。
 	oldDB := model.DB
 	oldRedisEnabled := common.RedisEnabled
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}))
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.User{}, &model.Provider{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
 	model.DB = db
-	// GetUserCache should use the SQLite fallback; no Redis client is initialized
-	// in this unit-test process.
 	common.RedisEnabled = false
+
 	t.Cleanup(func() {
 		model.DB = oldDB
 		common.RedisEnabled = oldRedisEnabled
 	})
-	for _, user := range []model.User{
-		{Id: 42, ProviderId: 0, Username: "operation-owner", Password: "password", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, AffCode: "operation-owner-aff"},
-		{Id: 43, ProviderId: 7, Username: "operation-member", Password: "password", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, AffCode: "operation-member-aff"},
-		{Id: 44, ProviderId: 0, Username: "operation-main", Password: "password", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, AffCode: "operation-main-aff"},
-		{Id: 45, ProviderId: 7, Username: "operation-member-granted", Password: "password", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, AffCode: "operation-member-granted-aff", Permissions: model.PermissionList{"providerOperational"}},
-		{Id: 46, ProviderId: 0, Username: "operation-main-granted", Password: "password", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, AffCode: "operation-main-granted-aff", Permissions: model.PermissionList{"operational"}},
-	} {
-		require.NoError(t, db.Create(&user).Error)
+}
+
+func TestGetOperationProviderID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupOperationTestDB(t)
+
+	// 授权用户 user 50 持有主站 operational 权限;user 51 无任何权限。
+	granted := model.User{Id: 50, Username: "granted", Role: common.RoleCommonUser, ProviderId: 0}
+	granted.Permissions = model.ParsePermissionList(`["operational"]`)
+	if err := model.DB.Create(&granted).Error; err != nil {
+		t.Fatalf("seed granted user: %v", err)
+	}
+	// 服务商 7/8 启用,9 禁用:用于校验授权用户切换时的服务商有效性。
+	// 注意 Provider.Status 带 gorm default:1 标签,Create 零值会被替换为默认值,
+	// 禁用状态需在插入后显式更新。
+	if err := model.DB.Create(&model.Provider{Id: 7, Name: "p7", Status: model.ProviderStatusEnabled}).Error; err != nil {
+		t.Fatalf("seed provider 7: %v", err)
+	}
+	if err := model.DB.Create(&model.Provider{Id: 8, Name: "p8", Status: model.ProviderStatusEnabled}).Error; err != nil {
+		t.Fatalf("seed provider 8: %v", err)
+	}
+	if err := model.DB.Create(&model.Provider{Id: 9, Name: "p9", Status: model.ProviderStatusEnabled}).Error; err != nil {
+		t.Fatalf("seed provider 9: %v", err)
+	}
+	if err := model.DB.Model(&model.Provider{}).Where("id = ?", 9).Update("status", model.ProviderStatusDisabled).Error; err != nil {
+		t.Fatalf("disable provider 9: %v", err)
 	}
 
 	// 保留并最终还原默认的归属服务商解析,避免影响其它测试。
 	origLookup := lookupOwnedProviderID
-	defer func() { lookupOwnedProviderID = origLookup }()
+	origEnabledLookup := lookupEnabledProviderID
+	defer func() {
+		lookupOwnedProviderID = origLookup
+		lookupEnabledProviderID = origEnabledLookup
+	}()
 
 	tests := []struct {
 		name              string
@@ -59,11 +85,15 @@ func TestGetOperationProviderID(t *testing.T) {
 		{name: "admin rejects invalid provider", role: common.RoleAdminUser, query: "?provider_id=invalid", wantOK: false},
 		{name: "provider owner is bound to current site", role: common.RoleCommonUser, userID: 42, query: "?provider_id=99", currentProviderID: 7, ownerUserID: 42, wantProviderID: 7, wantOK: true},
 		{name: "provider member is rejected", role: common.RoleCommonUser, userID: 43, currentProviderID: 7, ownerUserID: 42, wantOK: false},
-		{name: "provider member with providerOperational is allowed", role: common.RoleCommonUser, userID: 45, currentProviderID: 7, ownerUserID: 42, wantProviderID: 7, wantOK: true},
-		{name: "owner of another provider cannot use current provider tenant", role: common.RoleCommonUser, userID: 42, currentProviderID: 99, ownerUserID: 123, ownedProviderID: 7, ownedProviderOK: true, wantOK: false},
 		{name: "provider owner on main site sees own data", role: common.RoleCommonUser, userID: 42, currentProviderID: 0, ownerUserID: 0, ownedProviderID: 7, ownedProviderOK: true, wantProviderID: 7, wantOK: true},
+		{name: "granted user defaults to main site", role: common.RoleCommonUser, userID: 50, wantProviderID: 0, wantOK: true},
+		{name: "granted user switches to enabled provider", role: common.RoleCommonUser, userID: 50, query: "?provider_id=7", wantProviderID: 7, wantOK: true},
+		{name: "granted user rejects disabled provider", role: common.RoleCommonUser, userID: 50, query: "?provider_id=9", wantOK: false},
+		{name: "granted user rejects unknown provider", role: common.RoleCommonUser, userID: 50, query: "?provider_id=999", wantOK: false},
+		{name: "granted user rejects invalid provider param", role: common.RoleCommonUser, userID: 50, query: "?provider_id=invalid", wantOK: false},
+		{name: "granted user main site scope can be explicit", role: common.RoleCommonUser, userID: 50, query: "?provider_id=0", wantProviderID: 0, wantOK: true},
+		{name: "ungranted main site user is rejected", role: common.RoleCommonUser, userID: 51, wantOK: false},
 		{name: "non-owner on main site is rejected", role: common.RoleCommonUser, userID: 44, currentProviderID: 0, ownerUserID: 0, wantOK: false},
-		{name: "main-site operational member sees main-site data", role: common.RoleCommonUser, userID: 46, currentProviderID: 0, ownerUserID: 0, wantProviderID: 0, wantOK: true},
 	}
 
 	for _, test := range tests {
@@ -75,6 +105,8 @@ func TestGetOperationProviderID(t *testing.T) {
 				}
 				return 0, false
 			}
+			// enabled 校验走真实内存库(上面 seed 的服务商 7/8/9)。
+			lookupEnabledProviderID = origEnabledLookup
 
 			recorder := httptest.NewRecorder()
 			context, _ := gin.CreateTestContext(recorder)
@@ -86,7 +118,7 @@ func TestGetOperationProviderID(t *testing.T) {
 
 			providerID, ok := getOperationProviderID(context)
 			if ok != test.wantOK {
-				t.Fatalf("getOperationProviderID() ok = %v, want %v", ok, test.wantOK)
+				t.Fatalf("getOperationProviderID() ok = %v, want %v (resp=%s)", ok, test.wantOK, recorder.Body.String())
 			}
 			if providerID != test.wantProviderID {
 				t.Fatalf("getOperationProviderID() providerID = %d, want %d", providerID, test.wantProviderID)

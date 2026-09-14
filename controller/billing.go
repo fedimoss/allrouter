@@ -110,9 +110,15 @@ func GetUsage(c *gin.Context) {
 	return
 }
 
-// GetAllBill 获取所有用户账单概览
+// GetAllBill 获取账单概览：主站管理员/被授权用户看全平台，
+// 服务商站长与被授权的分站成员看本站范围（provider_id>0）。
 // query 参数 "period": day / week / month / year（默认 month）
 func GetAllBill(c *gin.Context) {
+	providerId, ok := getBillingProviderID(c)
+	if !ok {
+		return
+	}
+
 	period := c.DefaultQuery("period", "month")
 
 	now := time.Now()
@@ -137,48 +143,85 @@ func GetAllBill(c *gin.Context) {
 		prevStart = time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, now.Location())
 	}
 
-	// 当前周期全平台消费额度
-	currentQuota, err := model.SumAllUsedQuota(currentStart.Unix(), 0)
+	// 消费额度汇总：providerId>0 时限定本站，否则全平台
+	sumUsedQuota := func(start, end int64) (int, error) {
+		if providerId > 0 {
+			return model.SumUsedQuotaByProvider(providerId, start, end)
+		}
+		return model.SumAllUsedQuota(start, end)
+	}
+	// 获赠额度汇总（兑换码，amount 即内部额度）：providerId>0 时限定本站，否则全平台
+	sumTopUp := func(start, end int64, bizType string) (int64, error) {
+		if providerId > 0 {
+			return model.SumTopUpByProvider(providerId, start, end, bizType)
+		}
+		return model.SumAllTopUp(start, end, bizType)
+	}
+	// 充值实付金额汇总（美元）：与运营数据"入金金额"同口径，按 money 聚合并把 crypto(USDT) 折成美元。
+	// 不能按 amount 聚合：amount 在不同支付方式下单位不一致（展示币种或额度），
+	// 支付宝/微信/Stripe/拉卡拉/加密货币等订单按额度口径会被 QuotaPerUnit 除成接近 0。
+	sumTopUpMoney := func(start, end int64) (float64, error) {
+		bizTypes := []string{model.TopUpBizTypePayment, model.TopUpBizTypeSubscription}
+		var (
+			moneySum model.TopUpMoneySum
+			err      error
+		)
+		if providerId > 0 {
+			moneySum, err = model.SumTopUpMoneyByProvider(providerId, start, end, bizTypes)
+		} else {
+			moneySum, err = model.SumAllTopUpMoney(start, end, bizTypes)
+		}
+		if err != nil {
+			return 0, err
+		}
+		return moneySum.FiatMoney + cryptoUsdtToUsd(moneySum.CryptoMoney), nil
+	}
+
+	// 当前周期消费额度
+	currentQuota, err := sumUsedQuota(currentStart.Unix(), 0)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	// 上周期全平台消费额度
-	prevQuota, err := model.SumAllUsedQuota(prevStart.Unix(), currentStart.Unix())
+	// 上周期消费额度
+	prevQuota, err := sumUsedQuota(prevStart.Unix(), currentStart.Unix())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	// 当前周期全平台充值金额
-	paymentAmount, err := model.SumAllTopUp(currentStart.Unix(), 0, model.TopUpBizTypePayment)
+	// 当前周期充值金额（实付美元，含在线支付与订阅）
+	topupUsd, err := sumTopUpMoney(currentStart.Unix(), 0)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	// 当前周期全平台获赠金额(兑换码)
-	redemptionAmount, err := model.SumAllTopUp(currentStart.Unix(), 0, model.TopUpBizTypeRedemption)
+	// 当前周期获赠金额(兑换码，内部额度口径)
+	redemptionAmount, err := sumTopUp(currentStart.Unix(), 0, model.TopUpBizTypeRedemption)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
+	// 统一折算为美元后再转展示币种：消费/获赠为内部额度 ÷ QuotaPerUnit，充值为实付美元。
 	// 当前周期净变动 = 充值 + 获赠 - 消费
-	netChange := paymentAmount + redemptionAmount - int64(currentQuota)
+	expenseUsd := float64(currentQuota) / common.QuotaPerUnit
+	bonusUsd := float64(redemptionAmount) / common.QuotaPerUnit
+	netChangeUsd := topupUsd + bonusUsd - expenseUsd
 
-	// 币种转换：内部额度 ÷ QuotaPerUnit → 美元 → 按汇率转换为本地币种
+	// 币种转换：美元 → 按汇率转换为本地币种
 	displayInfo := getDisplayCurrencyForUser(c)
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"expense":        convertUsdToDisplay(float64(currentQuota)/common.QuotaPerUnit, displayInfo),
+			"expense":        convertUsdToDisplay(expenseUsd, displayInfo),
 			"expense_trend":  calcPercentChange(currentQuota, prevQuota),
-			"topup":          convertUsdToDisplay(float64(paymentAmount)/common.QuotaPerUnit, displayInfo),
-			"bonus":          convertUsdToDisplay(float64(redemptionAmount)/common.QuotaPerUnit, displayInfo),
-			"net_change":     convertUsdToDisplay(float64(netChange)/common.QuotaPerUnit, displayInfo),
+			"topup":          convertUsdToDisplay(topupUsd, displayInfo),
+			"bonus":          convertUsdToDisplay(bonusUsd, displayInfo),
+			"net_change":     convertUsdToDisplay(netChangeUsd, displayInfo),
 			"display_symbol": displayInfo.Symbol,
 		},
 	})

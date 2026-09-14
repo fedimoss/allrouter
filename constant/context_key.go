@@ -63,12 +63,14 @@ const (
 	ContextKeyProviderDeltaRatio       ContextKey = "provider_delta_model_ratio"
 	ContextKeyProviderDeltaPrice       ContextKey = "provider_delta_model_price"
 	ContextKeyProviderImportPriceRatio ContextKey = "provider_import_price_ratio"
-	ContextKeyProviderBaseQuota        ContextKey = "provider_base_quota"
-	ContextKeyProviderUserQuota        ContextKey = "provider_user_quota"
-	ContextKeyProviderPaidQuota        ContextKey = "provider_paid_quota"
-	ContextKeyProviderCoveredCost      ContextKey = "provider_covered_cost_quota"
-	ContextKeyProviderOwnerCost        ContextKey = "provider_owner_cost_quota"
-	ContextKeyProviderProfitQuota      ContextKey = "provider_profit_quota"
+	// ContextKeyProviderImportCachePriceRatio 服务商缓存成本折扣（0=未设置，读取时按原价 1 计费，不跟随 import price ratio）
+	ContextKeyProviderImportCachePriceRatio ContextKey = "provider_import_cache_price_ratio"
+	ContextKeyProviderBaseQuota             ContextKey = "provider_base_quota"
+	ContextKeyProviderUserQuota             ContextKey = "provider_user_quota"
+	ContextKeyProviderPaidQuota             ContextKey = "provider_paid_quota"
+	ContextKeyProviderCoveredCost           ContextKey = "provider_covered_cost_quota"
+	ContextKeyProviderOwnerCost             ContextKey = "provider_owner_cost_quota"
+	ContextKeyProviderProfitQuota           ContextKey = "provider_profit_quota"
 
 	ContextKeyLocalCountTokens ContextKey = "local_count_tokens"
 

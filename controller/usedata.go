@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -13,10 +15,73 @@ import (
 
 // GetSelfInviteeDashboardData returns dashboard card data for a user invited
 // by the current user. The relation check prevents arbitrary account lookup.
+// user_id=all 时返回名下全部邀请用户的汇总卡片数据。
 func GetSelfInviteeDashboardData(c *gin.Context) {
 	inviterID := c.GetInt("id")
-	inviteeID, err := strconv.Atoi(c.Query("user_id"))
-	if inviterID <= 0 || inviteeID <= 0 {
+	inviteeIDRaw := strings.TrimSpace(c.Query("user_id"))
+	if inviterID <= 0 || inviteeIDRaw == "" {
+		common.ApiErrorMsg(c, "invalid user_id")
+		return
+	}
+
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if endTimestamp-startTimestamp > 2592000 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "time range cannot exceed 30 days",
+		})
+		return
+	}
+
+	displayInfo := getDisplayCurrencyForUser(c)
+
+	// 全部邀请用户模式:账户数据与聚合明细均由邀请关系限定,无越权风险。
+	if strings.ToLower(inviteeIDRaw) == "all" {
+		agg, err := model.GetInviteeAggregation(inviterID)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		quotaData, err := model.GetInviteeQuotaDataByInviter(inviterID, startTimestamp, endTimestamp)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+
+		// 请求/统计次数:logs 可能独立于主库,先取邀请人 ID 列表再按 IN 过滤统计
+		inviteeIds, err := model.GetInviteeIdsByInviter(inviterID)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		requestResult, _ := model.CountRequestLogsByUserIds(startTimestamp, endTimestamp, inviteeIds)
+		totalRequestResult, _ := model.CountRequestLogsByUserIds(0, 0, inviteeIds)
+
+		userData := gin.H{
+			"id":               "all",
+			"username":         fmt.Sprintf("%s (%d)", "全部邀请用户", agg.InviteeCount),
+			"quota":            agg.QuotaSum,
+			"used_quota":       agg.UsedQuotaSum,
+			"total_token_used": agg.TokenUsedSum,
+			"display_symbol":   displayInfo.Symbol,
+			"display_currency": displayInfo.Currency,
+			"display_rate":     displayInfo.Rate,
+			"request_count":    requestResult.SuccessCount + requestResult.ErrorCount,
+			"total_count":      totalRequestResult.SuccessCount + totalRequestResult.ErrorCount,
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"user":    userData,
+			"data":    quotaData,
+		})
+		return
+	}
+
+	inviteeID, err := strconv.Atoi(inviteeIDRaw)
+	if err != nil || inviteeID <= 0 {
 		common.ApiErrorMsg(c, "invalid user_id")
 		return
 	}
@@ -33,16 +98,6 @@ func GetSelfInviteeDashboardData(c *gin.Context) {
 		return
 	}
 
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	if endTimestamp-startTimestamp > 2592000 {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "time range cannot exceed 30 days",
-		})
-		return
-	}
-
 	invitee, err := model.GetUserById(inviteeID, false)
 	if err != nil {
 		common.ApiError(c, err)
@@ -56,7 +111,6 @@ func GetSelfInviteeDashboardData(c *gin.Context) {
 
 	requestResult, _ := model.CountRequestLogs(startTimestamp, endTimestamp, inviteeID)
 	totalRequestResult, _ := model.CountRequestLogs(0, 0, inviteeID)
-	displayInfo := getDisplayCurrencyForUser(c)
 
 	userData := gin.H{
 		"id":               invitee.Id,

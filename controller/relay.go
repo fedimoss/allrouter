@@ -89,10 +89,11 @@ func applyProviderRelayModel(c *gin.Context, request dto.Request) *types.NewAPIE
 	common.SetContextKey(c, constant.ContextKeyProviderDeltaPrice, rule.DeltaModelPrice)
 	importPriceRatio := 1.0
 	var cfg model.ProviderConfig
-	if err := model.DB.Select("import_price_ratio").Where("provider_id = ?", providerId).First(&cfg).Error; err == nil && cfg.ImportPriceRatio > 0 {
+	if err := model.DB.Select("import_price_ratio, import_cache_price_ratio").Where("provider_id = ?", providerId).First(&cfg).Error; err == nil && cfg.ImportPriceRatio > 0 {
 		importPriceRatio = cfg.ImportPriceRatio
 	}
 	common.SetContextKey(c, constant.ContextKeyProviderImportPriceRatio, importPriceRatio)
+	common.SetContextKey(c, constant.ContextKeyProviderImportCachePriceRatio, cfg.ImportCachePriceRatio)
 	common.SetContextKey(c, constant.ContextKeyOriginalModel, rule.BaseModelName)
 	request.SetModelName(rule.BaseModelName)
 	return nil

@@ -101,6 +101,11 @@ export const PROVIDER_PERMISSION_MODULES = [
     description: '查看本服务商的运营看板。',
   },
   {
+    key: 'providerBilling',
+    label: '账单中心',
+    description: '查看本站充值、充值返佣与本站用户账单。',
+  },
+  {
     key: 'providerWithdraw',
     label: '提现管理',
     description: '发起、查看与取消提现申请。',
@@ -143,8 +148,9 @@ export const PROVIDER_PERMISSION_MODULES = [
 ];
 
 export const MAIN_PERMISSION_KEYS = MAIN_PERMISSION_MODULES.map((m) => m.key);
-export const PROVIDER_PERMISSION_KEYS =
-  PROVIDER_PERMISSION_MODULES.map((m) => m.key);
+export const PROVIDER_PERMISSION_KEYS = PROVIDER_PERMISSION_MODULES.map(
+  (m) => m.key,
+);
 
 export function getPermissionModules(providerMode) {
   return providerMode ? PROVIDER_PERMISSION_MODULES : MAIN_PERMISSION_MODULES;

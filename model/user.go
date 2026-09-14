@@ -526,10 +526,13 @@ func GetUserRecordsByCondition(pageInfo *common.PageInfo, sortFields map[string]
 	needWelfareSort := sortFields["welfare_quota"] == "asc" || sortFields["welfare_quota"] == "desc"
 
 	if needTopupSort {
-		// LEFT JOIN logs 表统计每个用户充值总额
-		topupSub := LOG_DB.Model(&Log{}).
-			Select("user_id, SUM(quota) as topup_total").
-			Where(logTypeCol+" = ?", LogTypeTopup).
+		// LEFT JOIN top_ups 表统计每个用户充值实付金额(美元口径,加密货币按 USDT 计,排序近似)
+		// 与 GetUsersTopupMoneySum 同口径;不能用 SUM(amount)——amount 是充值数量而非金额
+		topupSub := DB.Model(&TopUp{}).
+			Select("user_id, SUM(money) as topup_total").
+			Where("status = ?", common.TopUpStatusSuccess).
+			Where("biz_type IN ?", []string{TopUpBizTypePayment, TopUpBizTypeSubscription}).
+			Where("payment_method NOT IN ?", []string{TopUpPaymentMethodProviderProfit, TopUpPaymentMethodProviderSubscription}).
 			Group("user_id")
 		query = query.Joins("LEFT JOIN (?) lt ON lt.user_id = users.id", topupSub)
 	}

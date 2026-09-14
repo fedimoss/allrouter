@@ -48,18 +48,11 @@ export const getTimeInterval = (timeType, isSeconds = false) => {
   return isSeconds ? intervals.seconds : intervals.minutes;
 };
 
+// 初始查询窗口恒为 24h：顶部统计卡片与图表初始数据不随 localStorage 记忆的
+// 上次筛选（data_export_default_time）偏移为 7 天/30 天
 export const getInitialTimestamp = () => {
-  const defaultTime = getDefaultTime();
   const now = new Date().getTime() / 1000;
-
-  switch (defaultTime) {
-    case 'hour':
-      return timestamp2string(now - 86400);
-    case 'week':
-      return timestamp2string(now - 86400 * 30);
-    default:
-      return timestamp2string(now - 86400 * 7);
-  }
+  return timestamp2string(now - 86400);
 };
 
 // ========== 数据处理工具函数 ==========

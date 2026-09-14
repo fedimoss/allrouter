@@ -318,6 +318,15 @@ function App() {
           }
         />
         <Route
+          path='/console/provider/billing'
+          element={
+            // 与运营数据同款模式：同一 Billing 组件，站长/分站被授权成员看本站账单
+            <PrivateRoute>
+              <Billing />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/console/provider/setting'
           element={
             <ProviderPermissionRoute ownerOnly>
@@ -651,7 +660,7 @@ function App() {
             </Suspense>
           }
         />
-        
+
         <Route
           path='/service-clause'
           element={

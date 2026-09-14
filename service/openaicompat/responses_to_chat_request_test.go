@@ -848,3 +848,147 @@ func TestCompactionEnvelopeRoundTrip(t *testing.T) {
 	_, ok = relaycommon.DecodeCompactionSummary("raw-blob")
 	require.False(t, ok)
 }
+
+// TestResponsesChatCompatMergesAssistantTextWithFollowingToolCalls 验证同一 assistant
+// 回合的"可见文本 + 工具调用"合并为一条 Chat 消息（对齐 Claude→Chat 路径语义）。
+// 拆成两条时，纯文本 assistant 回合会被 Kimi 等上游解读为完整回合，诱导模型在
+// 输出计划文本后提前命中 EOS（话没说完就中断）。
+func TestResponsesChatCompatMergesAssistantTextWithFollowingToolCalls(t *testing.T) {
+	raw := []byte(`{
+		"model":"Kimi-K3",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"read the config file"}]},
+			{"type":"reasoning","summary":[{"type":"summary_text","text":"User wants the config. Read it first."}]},
+			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"我先读取配置文件。"}]},
+			{"type":"function_call","call_id":"call_read","name":"shell_command","arguments":"{\"command\":\"cat config.json\"}"},
+			{"type":"function_call_output","call_id":"call_read","output":"done"}
+		],
+		"tools":[
+			{"type":"function","name":"shell_command","description":"run shell","parameters":{"type":"object","properties":{"command":{"type":"string"}}}}
+		],
+		"stream":true
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+	require.NoError(t, err)
+
+	// user -> 一条合并后的 assistant(content+tool_calls+reasoning) -> tool
+	require.Len(t, chatReq.Messages, 3)
+	merged := chatReq.Messages[1]
+	require.Equal(t, "assistant", merged.Role)
+	require.Equal(t, "我先读取配置文件。", merged.StringContent())
+	require.NotEmpty(t, merged.ToolCalls)
+	require.Contains(t, string(merged.ToolCalls), "call_read")
+	// 真实 reasoning 保留在合并后的消息上
+	require.Equal(t, "User wants the config. Read it first.", merged.GetReasoningContent())
+	// 工具结果消息不受影响
+	require.Equal(t, "tool", chatReq.Messages[2].Role)
+	require.Equal(t, "call_read", chatReq.Messages[2].ToolCallId)
+}
+
+// TestResponsesChatCompatMergesAssistantTextWithParallelToolCalls 验证文本回合后跟
+// 多个连续工具调用时，全部调用合入同一条 assistant 消息的 tool_calls 数组。
+func TestResponsesChatCompatMergesAssistantTextWithParallelToolCalls(t *testing.T) {
+	raw := []byte(`{
+		"model":"Kimi-K3",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"read both files"}]},
+			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"并行读取两个文件。"}]},
+			{"type":"function_call","call_id":"call_a","name":"shell_command","arguments":"{\"command\":\"cat a\"}"},
+			{"type":"function_call","call_id":"call_b","name":"shell_command","arguments":"{\"command\":\"cat b\"}"},
+			{"type":"function_call_output","call_id":"call_a","output":"A"},
+			{"type":"function_call_output","call_id":"call_b","output":"B"}
+		],
+		"tools":[
+			{"type":"function","name":"shell_command","description":"run shell","parameters":{"type":"object","properties":{"command":{"type":"string"}}}}
+		],
+		"stream":true
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+	require.NoError(t, err)
+
+	require.Len(t, chatReq.Messages, 4)
+	merged := chatReq.Messages[1]
+	require.Equal(t, "assistant", merged.Role)
+	require.Equal(t, "并行读取两个文件。", merged.StringContent())
+	var calls []dto.ToolCallRequest
+	require.NoError(t, common.Unmarshal(merged.ToolCalls, &calls))
+	require.Len(t, calls, 2)
+	require.Equal(t, "call_a", calls[0].ID)
+	require.Equal(t, "call_b", calls[1].ID)
+	require.Equal(t, "tool", chatReq.Messages[2].Role)
+	require.Equal(t, "tool", chatReq.Messages[3].Role)
+}
+
+// TestResponsesChatCompatKeepsToolCallOnlyTurnWithoutPrecedingText 验证无前置文本的
+// 工具调用回合维持独立 assistant 消息（现有行为不变）。
+func TestResponsesChatCompatKeepsToolCallOnlyTurnWithoutPrecedingText(t *testing.T) {
+	raw := []byte(`{
+		"model":"Kimi-K3",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"run it"}]},
+			{"type":"function_call","call_id":"call_run","name":"shell_command","arguments":"{\"command\":\"echo ok\"}"},
+			{"type":"function_call_output","call_id":"call_run","output":"ok"}
+		],
+		"tools":[
+			{"type":"function","name":"shell_command","description":"run shell","parameters":{"type":"object","properties":{"command":{"type":"string"}}}}
+		],
+		"stream":true
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+	require.NoError(t, err)
+
+	require.Len(t, chatReq.Messages, 3)
+	toolTurn := chatReq.Messages[1]
+	require.Equal(t, "assistant", toolTurn.Role)
+	require.NotEmpty(t, toolTurn.ToolCalls)
+	require.Contains(t, string(toolTurn.ToolCalls), "call_run")
+}
+
+// TestResponsesChatCompatDoesNotMergeAcrossTurnBoundaries 验证 user 回合边界隔开时
+// 不发生合并：上一回合的 assistant 文本与下一回合 user 之后的工具调用必须各归其位。
+func TestResponsesChatCompatDoesNotMergeAcrossTurnBoundaries(t *testing.T) {
+	raw := []byte(`{
+		"model":"Kimi-K3",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"first"}]},
+			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"第一轮回答完毕。"}]},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"second"}]},
+			{"type":"function_call","call_id":"call_two","name":"shell_command","arguments":"{\"command\":\"echo second\"}"},
+			{"type":"function_call_output","call_id":"call_two","output":"second"}
+		],
+		"tools":[
+			{"type":"function","name":"shell_command","description":"run shell","parameters":{"type":"object","properties":{"command":{"type":"string"}}}}
+		],
+		"stream":true
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+	require.NoError(t, err)
+
+	// user -> assistant(纯文本, 上一回合) -> user(边界) -> assistant(tool_calls) -> tool
+	require.Len(t, chatReq.Messages, 5)
+	require.Equal(t, "assistant", chatReq.Messages[1].Role)
+	require.Equal(t, "第一轮回答完毕。", chatReq.Messages[1].StringContent())
+	require.Empty(t, chatReq.Messages[1].ToolCalls)
+	require.Equal(t, "user", chatReq.Messages[2].Role)
+	toolTurn := chatReq.Messages[3]
+	require.Equal(t, "assistant", toolTurn.Role)
+	require.Contains(t, string(toolTurn.ToolCalls), "call_two")
+	// 跨回合的工具调用消息不带上一回合的文本
+	require.Empty(t, toolTurn.StringContent())
+}

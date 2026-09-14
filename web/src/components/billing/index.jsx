@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import {
   Badge,
   Button,
@@ -55,7 +55,12 @@ import {
   isInviteRebateTopup,
   isSubscriptionTopup,
 } from '../../helpers/topup';
-import { isAdmin } from '../../helpers/utils';
+import {
+  hasUserPermission,
+  isAdmin,
+  isProviderOwner,
+} from '../../helpers/utils';
+import { StatusContext } from '../../context/Status';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 
 const { Text } = Typography;
@@ -362,9 +367,28 @@ const Billing = () => {
   const [orderInfo, setOrderInfo] = useState(null);
   const [commissionDetails, setCommissionDetails] = useState([]);
 
-  const userIsAdmin = useMemo(() => isAdmin(), []);
+  // 站点维度用域名租户上下文判断（/api/status 的 site_provider_id），与运营数据页一致
+  const [statusState] = useContext(StatusContext);
+  const siteProviderId = Number(statusState?.status?.site_provider_id) || 0;
+
+  // 管理员优先按主站口径；站长（任意域名）与分站被授权成员（分站域名）看本站数据，
+  // 后端按登录身份解析范围，前端只决定接口选择与操作可见性
+  const providerMode =
+    !isAdmin() &&
+    (isProviderOwner() ||
+      (siteProviderId > 0 && hasUserPermission('providerBilling')));
+  // 管理员或被授予 billing 模块权限的普通用户走平台级接口，
+  // 与后端 AdminOrModuleAuth("billing") 的放行口径一致；分站域名上不生效
+  const canManageBilling = useMemo(
+    () => !providerMode && siteProviderId === 0 && hasUserPermission('billing'),
+    [providerMode, siteProviderId],
+  );
+  // 平台级(管理员)或本站级(站长)共用同一组接口，仅普通用户回落到 /self
+  const canViewSiteBilling = providerMode || canManageBilling;
   const billingPageTitle = t('账单中心');
-  const billingPageDescription = t('查看全平台充值、充值返佣与用户账单状态。');
+  const billingPageDescription = providerMode
+    ? t('查看本站充值、充值返佣与用户账单状态。')
+    : t('查看全平台充值、充值返佣与用户账单状态。');
 
   const loadTopups = async (
     page,
@@ -376,7 +400,9 @@ const Billing = () => {
   ) => {
     setHistoryLoading(true);
     try {
-      const base = userIsAdmin ? '/api/user/topup' : '/api/user/topup/self';
+      const base = canViewSiteBilling
+        ? '/api/user/topup'
+        : '/api/user/topup/self';
       const qs =
         `p=${page}&page_size=${pageSize}` +
         (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '') +
@@ -410,7 +436,7 @@ const Billing = () => {
   useEffect(() => {
     let mounted = true;
     setBillingSummaryLoading(true);
-    let url = userIsAdmin
+    let url = canViewSiteBilling
       ? `/api/bill?period=${billingPeriod}`
       : `/api/bill/self?period=${billingPeriod}`;
 
@@ -452,7 +478,7 @@ const Billing = () => {
     return () => {
       mounted = false;
     };
-  }, [billingPeriod, t]);
+  }, [billingPeriod, t, canViewSiteBilling]);
 
   useEffect(() => {
     loadTopups(
@@ -470,7 +496,7 @@ const Billing = () => {
     paymentType,
     paymentSource,
     paymentStatus,
-    userIsAdmin,
+      canViewSiteBilling,
   ]);
 
   const handleAdminComplete = async (tradeNo) => {
@@ -798,7 +824,7 @@ const Billing = () => {
         align: 'left',
         render: (_, record) => (
           <div className='flex items-center justify-start gap-2'>
-            {userIsAdmin && record.status === 'pending' ? (
+            {canManageBilling && record.status === 'pending' ? (
               <Tooltip content={t('补单')}>
                 <Button
                   size='small'
@@ -825,7 +851,7 @@ const Billing = () => {
       },
     ];
 
-    if (userIsAdmin) {
+    if (canViewSiteBilling) {
       baseColumns.splice(1, 0, {
         title: t('用户名'),
         dataIndex: 'username',
@@ -852,7 +878,7 @@ const Billing = () => {
     }
 
     return baseColumns;
-  }, [t, userIsAdmin]);
+  }, [t, canViewSiteBilling]);
 
   return (
     <div className='billing-page flex flex-col gap-4 pb-4'>
@@ -873,23 +899,7 @@ const Billing = () => {
         </div>
       </div>
 
-      <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
-        <div className='inline-flex w-fit items-center rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-1 shadow-sm'>
-          <button
-            type='button'
-            className='rounded-xl bg-[#f3faf8] dark:bg-slate-400 px-6 py-3 text-sm font-semibold text-[#1f3b2d]'
-          >
-            {t('用户')}
-          </button>
-          <button
-            type='button'
-            disabled
-            className='rounded-xl px-6 py-3 text-sm font-semibold text-slate-400 opacity-70'
-          >
-            {t('代理商')}
-          </button>
-        </div>
-
+      <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-end'>
         <div className='flex w-full items-center justify-between dark:bg-slate-800 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 shadow-sm sm:w-auto sm:gap-4'>
           <span className='text-sm font-medium text-slate-400'>
             {t('日期范围')}
@@ -1033,7 +1043,7 @@ const Billing = () => {
             <Input
               prefix={<IconSearch />}
               placeholder={t(
-                userIsAdmin ? '搜索订单号或用户昵称' : '搜索订单号',
+                canViewSiteBilling ? '搜索订单号或用户昵称' : '搜索订单号',
               )}
               value={historyKeyword}
               onChange={(value) => {

@@ -750,13 +750,23 @@ func appendResponsesToolCallMessage(messages []dto.Message, message dto.Message)
 		return append(messages, message)
 	}
 	last := &messages[len(messages)-1]
-	if last.Role != "assistant" || len(last.ToolCalls) == 0 || last.StringContent() != "" {
+	// 合并仅发生在同一 assistant 回合内：Responses input 中相邻的 assistant 文本与
+	// function/custom/tool-search 调用来自同一次模型输出（回合之间必有 user/tool 边界条目）。
+	// 对齐 Claude→Chat 路径把 content 与 tool_calls 保留在同一条消息的回合语义；
+	// 拆成两条时，纯文本 assistant 回合会被 Kimi 等上游解读为完整回合，诱导模型在
+	// 输出计划文本后提前命中 EOS（用户侧表现为"话说一半中断"）。
+	if last.Role != "assistant" {
 		return append(messages, message)
 	}
 
 	var existing []dto.ToolCallRequest
+	if len(last.ToolCalls) > 0 {
+		if common.Unmarshal(last.ToolCalls, &existing) != nil {
+			return append(messages, message)
+		}
+	}
 	var incoming []dto.ToolCallRequest
-	if common.Unmarshal(last.ToolCalls, &existing) != nil || common.Unmarshal(message.ToolCalls, &incoming) != nil {
+	if common.Unmarshal(message.ToolCalls, &incoming) != nil {
 		return append(messages, message)
 	}
 	merged := make([]dto.ToolCallRequest, 0, len(existing)+len(incoming))

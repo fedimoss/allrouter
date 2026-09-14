@@ -309,16 +309,21 @@ export const OPERATIONAL_PERIOD_COPY = {
 
 export const USER_COLUMNS = [
   { key: 'user', title: '用户ID', label: '用户ID', defaultChecked: true },
+  { key: 'topupQuota', title: '充值', label: '充值', defaultChecked: true, sortable: true, sortField: 'topup_quota' },
   { key: 'quota', title: '余额', label: '余额', defaultChecked: true, sortable: true, sortField: 'quota' },
   { key: 'requestCount', title: '使用', label: '使用', defaultChecked: true, sortable: true, sortField: 'request_count' },
   { key: 'usedQuota', title: '消耗', label: '消耗', defaultChecked: true },
   { key: 'retention', title: '留存', label: '留存', defaultChecked: true },
-  { key: 'topupQuota', title: '充值', label: '充值', defaultChecked: false, sortable: true, sortField: 'topup_quota' },
   { key: 'welfareQuota', title: '赠送', label: '赠送', defaultChecked: false, sortable: true, sortField: 'welfare_quota' },
   { key: 'source', title: '注册来源', label: '注册来源', defaultChecked: false },
   { key: 'registerAt', title: '注册时间', label: '注册时间', defaultChecked: false },
   { key: 'lastActiveTime', title: '最后活跃', label: '最后活跃', defaultChecked: false },
 ];
+
+// 用户列展示用户名称(显示名优先,回退用户名/ID):代理商数据、平台自营共用
+export const USER_NAME_COLUMNS = USER_COLUMNS.map((column) =>
+  column.key === 'user' ? { ...column, title: '用户名称', label: '用户名称', renderName: true } : column,
+);
 
 export const TAB_CONFIG = {
   user: {
@@ -346,7 +351,7 @@ export const TAB_CONFIG = {
       records: '/api/operation/records',
     },
     cards: SELF_HOSTED_DASHBOARD_CARDS,
-    columns: USER_COLUMNS,
+    columns: USER_NAME_COLUMNS,
     advancedFilters: USER_ADVANCED_FILTER_CONFIG,
   },
   merchant: {
@@ -372,7 +377,7 @@ export const TAB_CONFIG = {
       records: '/api/operation/records',
     },
     cards: SELF_HOSTED_DASHBOARD_CARDS,
-    columns: USER_COLUMNS,
+    columns: USER_NAME_COLUMNS,
     advancedFilters: USER_ADVANCED_FILTER_CONFIG,
   },
 };

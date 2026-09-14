@@ -898,6 +898,27 @@ func CountRequestLogs(startTimestamp int64, endTimestamp int64, userId int) (Req
 	return result, err
 }
 
+// CountRequestLogsByUserIds 统计一组用户在时间范围内的请求次数(成功+失败)。
+// userIds 为空时返回全零;时间参数为 0 时表示不限制,与 CountRequestLogs 语义一致。
+func CountRequestLogsByUserIds(startTimestamp int64, endTimestamp int64, userIds []int) (RequestCountResult, error) {
+	var result RequestCountResult
+	if len(userIds) == 0 {
+		return result, nil
+	}
+	tx := LOG_DB.Model(&Log{}).
+		Select("SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) as success_count, SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) as error_count",
+			LogTypeConsume, LogTypeError).
+		Where("user_id IN ?", userIds)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+	err := tx.Scan(&result).Error
+	return result, err
+}
+
 // CountInviteRewardsByUserId 统计指定用户在时间范围内的邀请奖励次数
 func CountInviteRewardsByUserId(userId int, startTimestamp, endTimestamp int64) (int64, error) {
 	var count int64
@@ -979,27 +1000,39 @@ func GetUsersLastActiveTime(userIds []int) (map[int]int64, error) {
 	return m, nil
 }
 
-// GetUsersTopupQuota 批量查询用户充值总额
-func GetUsersTopupQuota(userIds []int) (map[int]int64, error) {
+// TopUpMoneySumByUser 单个用户的充值实付金额汇总：按是否加密货币拆分
+type TopUpMoneySumByUser struct {
+	UserId      int     `json:"user_id"`
+	FiatMoney   float64 `gorm:"column:fiat_money"`   // 非加密货币 money 总和（美元）
+	CryptoMoney float64 `gorm:"column:crypto_money"` // 加密货币 money 总和（USDT）
+}
+
+// GetUsersTopupMoneySum 批量查询用户充值实付金额汇总（与 SumTopUpMoneyByProvider 同口径）
+// 基于 top_ups 表按 money 统计：非加密货币的 money 为美元，加密货币的 money 为 USDT（上层换算）。
+// 仅计 status=success，包含在线支付+订阅，排除内部结算流水（服务商分润/订阅收入）
+// 与兑换码（兑换码在福利金额中单独统计）。
+// 注意：不能用 SUM(amount) —— amount 是充值数量（如 ¥10 充值对应 10），不是内部额度；
+// 也不能按 logs(type=topup) 的 quota 统计：RecordLog 写充值日志时不带 quota 字段，恒为 0。
+func GetUsersTopupMoneySum(userIds []int) (map[int]TopUpMoneySumByUser, error) {
 	if len(userIds) == 0 {
-		return map[int]int64{}, nil
+		return map[int]TopUpMoneySumByUser{}, nil
 	}
-	type result struct {
-		UserId int   `json:"user_id"`
-		Total  int64 `json:"total"`
-	}
-	var results []result
-	err := LOG_DB.Model(&Log{}).
-		Select("user_id, COALESCE(SUM(quota), 0) as total").
-		Where("user_id IN ? AND type = ?", userIds, LogTypeTopup).
+	var results []TopUpMoneySumByUser
+	err := DB.Model(&TopUp{}).
+		Select("user_id, "+
+			"COALESCE(SUM(CASE WHEN payment_method = 'crypto' THEN 0 ELSE money END), 0) AS fiat_money, "+
+			"COALESCE(SUM(CASE WHEN payment_method = 'crypto' THEN money ELSE 0 END), 0) AS crypto_money").
+		Where("user_id IN ? AND status = ?", userIds, common.TopUpStatusSuccess).
+		Where("biz_type IN ?", []string{TopUpBizTypePayment, TopUpBizTypeSubscription}).
+		Where("payment_method NOT IN ?", []string{TopUpPaymentMethodProviderProfit, TopUpPaymentMethodProviderSubscription}).
 		Group("user_id").
 		Scan(&results).Error
 	if err != nil {
 		return nil, err
 	}
-	m := make(map[int]int64, len(results))
+	m := make(map[int]TopUpMoneySumByUser, len(results))
 	for _, r := range results {
-		m[r.UserId] = r.Total
+		m[r.UserId] = r
 	}
 	return m, nil
 }
@@ -1009,6 +1042,21 @@ func SumAllUsedQuota(startTimestamp, endTimestamp int64) (int, error) {
 	var quota int
 	tx := LOG_DB.Table("logs").Select("COALESCE(SUM(quota), 0)").
 		Where("type = ?", LogTypeConsume)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at < ?", endTimestamp)
+	}
+	err := tx.Scan(&quota).Error
+	return quota, err
+}
+
+// SumUsedQuotaByProvider 查询某服务商站点用户在时间范围内的消费总额（与 SumAllUsedQuota 同口径）
+func SumUsedQuotaByProvider(providerId int, startTimestamp, endTimestamp int64) (int, error) {
+	var quota int
+	tx := LOG_DB.Table("logs").Select("COALESCE(SUM(quota), 0)").
+		Where("type = ? AND provider_id = ?", LogTypeConsume, providerId)
 	if startTimestamp != 0 {
 		tx = tx.Where("created_at >= ?", startTimestamp)
 	}
