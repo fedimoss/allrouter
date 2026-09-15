@@ -79,6 +79,23 @@ export const DEFAULT_ADMIN_CONFIG = {
 
 const deepClone = (value) => JSON.parse(JSON.stringify(value));
 
+// Keep the cached user record aligned with the server-side module grants.
+// Route guards read localStorage synchronously, while this hook refreshes the
+// same grants asynchronously; without this sync a changed permission could
+// make the sidebar and direct URL guard disagree until the next login.
+const syncCachedModulePermissions = (permissions) => {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return;
+    const user = JSON.parse(raw);
+    if (!user || typeof user !== 'object') return;
+    user.module_permissions = permissions;
+    localStorage.setItem('user', JSON.stringify(user));
+  } catch (error) {
+    // A malformed cache must not prevent the sidebar from rendering.
+  }
+};
+
 export const mergeAdminConfig = (savedConfig) => {
   const merged = deepClone(DEFAULT_ADMIN_CONFIG);
   if (!savedConfig || typeof savedConfig !== 'object') return merged;
@@ -142,11 +159,17 @@ export const useSidebar = () => {
       const res = await API.get('/api/user/self');
       if (res.data.success) {
         const selfData = res.data.data || {};
-        const perms = selfData.module_permissions;
-        if (Array.isArray(perms)) {
+        if (
+          Object.prototype.hasOwnProperty.call(
+            selfData,
+            'module_permissions',
+          )
+        ) {
+          const perms = Array.isArray(selfData.module_permissions)
+            ? selfData.module_permissions
+            : [];
           setModulePermissions(perms);
-        } else if (perms === null || perms === undefined) {
-          setModulePermissions([]);
+          syncCachedModulePermissions(perms);
         }
       }
       if (res.data.success && res.data.data.sidebar_modules) {

@@ -321,7 +321,7 @@ func convertResponsesInputToMessages(req *dto.OpenAIResponsesRequest, ctx *relay
 			setResponsesToolMessageName(msg, callNames, messages)
 			messages = append(messages, *msg)
 
-		case "input_text", "input_image", "input_file", "input_audio", "text", "output_text":
+		case "input_text", "input_image", "input_file", "input_audio", "input_video", "text", "output_text":
 			// 顶层 content-part 条目（不包在 message 内）：按 cc-switch 行为，
 			// 包成单元素数组交给 parseContentToChatFormat，role 取条目 role 或默认 user。
 			role := normalizeResponsesRole(peek.Role)
@@ -878,13 +878,17 @@ func parseContentToChatFormat(contentRaw json.RawMessage, role string) any {
 
 	// 尝试作为内容部件数组解析
 	var parts []struct {
-		Type       string          `json:"type"`        // 部件类型（input_text/output_text/input_image/input_audio/input_file/refusal）
+		Type       string          `json:"type"`        // 部件类型（input_text/output_text/input_image/input_audio/input_file/input_video/refusal）
 		Text       string          `json:"text"`        // 文本内容
 		Refusal    string          `json:"refusal"`     // 拒绝文本
 		ImageURL   json.RawMessage `json:"image_url"`   // 图片 URL（字符串或 {url:...} 对象）
 		InputAudio json.RawMessage `json:"input_audio"` // 音频输入对象 {data,format}
+		VideoURL   json.RawMessage `json:"video_url"`   // 视频 URL（字符串或 {url:...} 对象）
+		URL        string          `json:"url"`         // 视频部件顶层 url（input_video 的简写形态）
 		FileID     string          `json:"file_id"`     // 文件 ID
 		Filename   string          `json:"filename"`    // 文件名
+		FileData   json.RawMessage `json:"file_data"`   // 文件内容（base64 data URL）
+		FileURL    json.RawMessage `json:"file_url"`    // 文件 URL
 	}
 	if err := common.Unmarshal(contentRaw, &parts); err != nil {
 		// 兜底处理：返回原始 JSON 字符串
@@ -935,12 +939,22 @@ func parseContentToChatFormat(contentRaw json.RawMessage, role string) any {
 				hasNonTextPart = true
 			}
 		case "input_file":
-			// 文件内容部件：保留 file_id + filename（参考 cc-switch chat_file_from_input_file）
-			f := normalizeInputFileRaw(p.FileID, p.Filename)
+			// 文件内容部件：保留 file_id/file_data/filename/file_url（对齐 new-api responsesFilePartToChatFile）
+			f := normalizeInputFileRaw(p.FileID, p.Filename, p.FileData, p.FileURL)
 			if f != nil {
 				mediaParts = append(mediaParts, dto.MediaContent{
 					Type: dto.ContentTypeFile,
 					File: f,
+				})
+				hasNonTextPart = true
+			}
+		case "input_video":
+			// 视频内容部件：input_video → video_url（Kimi/百炼 chat 格式 {"type":"video_url","video_url":{"url":...}}）
+			videoUrl := normalizeVideoURLRaw(p.VideoURL, p.URL)
+			if videoUrl != nil {
+				mediaParts = append(mediaParts, dto.MediaContent{
+					Type:     dto.ContentTypeVideoUrl,
+					VideoUrl: videoUrl,
 				})
 				hasNonTextPart = true
 			}
@@ -1547,10 +1561,37 @@ func normalizeImageURLRaw(raw json.RawMessage) any {
 	return nil
 }
 
+// normalizeVideoURLRaw 将 Responses 的 input_video 部件归一化为 chat/completions 的 video_url 对象。
+// video_url 字符串（http/data URL 或 ms:// 文件引用）→ {"url": "..."}；已是对象则原样保留；
+// 兜底部件顶层 url；均无 → nil。
+func normalizeVideoURLRaw(videoRaw json.RawMessage, partURL string) any {
+	s := strings.TrimSpace(string(videoRaw))
+	if s != "" && s != "null" {
+		// 对象形式：原样保留
+		if s[0] == '{' {
+			var obj map[string]any
+			if err := common.Unmarshal(videoRaw, &obj); err == nil && len(obj) > 0 {
+				return obj
+			}
+		}
+		// 字符串形式：包成 {"url": "..."}
+		var str string
+		if err := common.Unmarshal(videoRaw, &str); err == nil && str != "" {
+			return map[string]any{"url": str}
+		}
+	}
+	if strings.TrimSpace(partURL) != "" {
+		return map[string]any{"url": partURL}
+	}
+	return nil
+}
+
 // normalizeInputFileRaw 将 Responses 的 input_file 部件归一化为 chat/completions 的 file 对象。
-// 仅保留 file_id + filename（参考 cc-switch chat_file_from_input_file，丢弃 file_url）。
-func normalizeInputFileRaw(fileID, filename string) any {
-	if fileID == "" && filename == "" {
+// 保留 file_id/file_data/filename/file_url 四字段（对齐 new-api responsesFilePartToChatFile）。
+func normalizeInputFileRaw(fileID, filename string, fileData, fileURL json.RawMessage) any {
+	hasData := strings.TrimSpace(string(fileData)) != "" && strings.TrimSpace(string(fileData)) != "null"
+	hasURL := strings.TrimSpace(string(fileURL)) != "" && strings.TrimSpace(string(fileURL)) != "null"
+	if fileID == "" && filename == "" && !hasData && !hasURL {
 		return nil
 	}
 	f := map[string]any{}
@@ -1559,6 +1600,17 @@ func normalizeInputFileRaw(fileID, filename string) any {
 	}
 	if filename != "" {
 		f["filename"] = filename
+	}
+	var v any
+	if hasData {
+		if err := common.Unmarshal(fileData, &v); err == nil {
+			f["file_data"] = v
+		}
+	}
+	if hasURL {
+		if err := common.Unmarshal(fileURL, &v); err == nil {
+			f["file_url"] = v
+		}
 	}
 	return f
 }

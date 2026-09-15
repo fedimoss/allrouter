@@ -45,6 +45,7 @@ func TestMain(m *testing.M) {
 		&model.Channel{},
 		&model.TopUp{},
 		&model.UserSubscription{},
+		&model.SubscriptionPreConsumeRecord{},
 		&model.ConsumeRebate{},
 		&model.Midjourney{},
 		&model.ProviderModelPricing{},
@@ -70,6 +71,7 @@ func truncate(t *testing.T) {
 		model.DB.Exec("DELETE FROM channels")
 		model.DB.Exec("DELETE FROM top_ups")
 		model.DB.Exec("DELETE FROM user_subscriptions")
+		model.DB.Exec("DELETE FROM subscription_pre_consume_records")
 		model.DB.Exec("DELETE FROM consume_rebates")
 		model.DB.Exec("DELETE FROM midjourneys")
 		model.DB.Exec("DELETE FROM provider_model_pricings")
@@ -256,12 +258,103 @@ func TestRefundTaskQuota_Subscription(t *testing.T) {
 	// Subscription used should decrease by preConsumed
 	assert.Equal(t, subUsed-int64(preConsumed), getSubscriptionUsed(t, subID))
 
-	// Token should also be refunded
-	assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
+	// Subscription billing does not reserve the token's numeric allowance.
+	assert.Equal(t, tokenRemain, getTokenRemainQuota(t, tokenID))
 
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestRefundTaskQuota_SubscriptionZeroTaskQuotaUsesPreConsumed(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID, subID = 205, 205, 205, 205
+	const preConsumed int64 = 1
+	const subUsed int64 = 50001
+	const tokenRemain = 8000
+
+	seedUser(t, userID, 0)
+	seedToken(t, tokenID, userID, "sk-sub-zero-refund", tokenRemain)
+	seedChannel(t, channelID)
+	seedSubscription(t, subID, userID, 100000, subUsed)
+
+	settled := preConsumed
+	record := &model.SubscriptionPreConsumeRecord{
+		RequestId:          "subscription-zero-task-refund",
+		UserId:             userID,
+		UserSubscriptionId: subID,
+		ModelName:          "test-model",
+		PreConsumed:        preConsumed,
+		SettledAmount:      &settled,
+		Status:             "consumed",
+	}
+	require.NoError(t, model.DB.Create(record).Error)
+
+	// SettleBilling keeps a one-unit subscription reservation when the upstream
+	// task reports actualQuota == 0, so the task row contains Quota=0 while its
+	// private billing snapshot still carries the refundable pre-consume amount.
+	task := makeTask(userID, channelID, 0, tokenID, BillingSourceSubscription, subID)
+	task.PrivateData.SubscriptionRequestId = record.RequestId
+	task.PrivateData.SubscriptionPreConsumed = preConsumed
+
+	RefundTaskQuota(ctx, task, "subscription task failed after zero-priced submit")
+
+	assert.Equal(t, subUsed-preConsumed, getSubscriptionUsed(t, subID))
+	assert.Equal(t, tokenRemain, getTokenRemainQuota(t, tokenID))
+	var refunded model.SubscriptionPreConsumeRecord
+	require.NoError(t, model.DB.Where("request_id = ?", record.RequestId).First(&refunded).Error)
+	assert.NotNil(t, refunded.SettledAmount)
+	assert.Equal(t, int64(0), *refunded.SettledAmount)
+	assert.Equal(t, int64(1), countLogs(t))
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, int(preConsumed), log.Quota)
+}
+
+func TestRecalculateTaskQuota_SubscriptionZeroTaskQuotaUsesPreConsumedBaseline(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID, subID = 206, 206, 206, 206
+	const preConsumed int64 = 1
+	const subUsed int64 = 50001
+	const tokenRemain = 8000
+	const actualQuota = 5
+
+	seedUser(t, userID, 0)
+	seedToken(t, tokenID, userID, "sk-sub-zero-settle", tokenRemain)
+	seedChannel(t, channelID)
+	seedSubscription(t, subID, userID, 100000, subUsed)
+
+	settled := preConsumed
+	record := &model.SubscriptionPreConsumeRecord{
+		RequestId:          "subscription-zero-task-settle",
+		UserId:             userID,
+		UserSubscriptionId: subID,
+		ModelName:          "test-model",
+		PreConsumed:        preConsumed,
+		SettledAmount:      &settled,
+		Status:             "consumed",
+	}
+	require.NoError(t, model.DB.Create(record).Error)
+
+	task := makeTask(userID, channelID, 0, tokenID, BillingSourceSubscription, subID)
+	task.PrivateData.SubscriptionRequestId = record.RequestId
+	task.PrivateData.SubscriptionPreConsumed = preConsumed
+
+	RecalculateTaskQuota(ctx, task, actualQuota, "subscription task completion")
+
+	// The one-unit submit reservation is already included in the record.  Only
+	// the four-unit completion delta should be charged.
+	assert.Equal(t, subUsed+int64(actualQuota)-preConsumed, getSubscriptionUsed(t, subID))
+	assert.Equal(t, tokenRemain, getTokenRemainQuota(t, tokenID))
+	assert.Equal(t, actualQuota, task.Quota)
+	var settledRecord model.SubscriptionPreConsumeRecord
+	require.NoError(t, model.DB.Where("request_id = ?", record.RequestId).First(&settledRecord).Error)
+	require.NotNil(t, settledRecord.SettledAmount)
+	assert.Equal(t, int64(actualQuota), *settledRecord.SettledAmount)
 }
 
 func TestRefundTaskQuota_ZeroQuota(t *testing.T) {
@@ -303,6 +396,48 @@ func TestRefundTaskQuota_NoToken(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestRefundTaskQuota_RetriesOnlyUncommittedTokenSide(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 116, 116, 116
+	const reserved = 1200
+	const userAfterPreConsume, tokenAfterPreConsume = 8800, 3800
+	seedUser(t, userID, userAfterPreConsume)
+	seedToken(t, tokenID, userID, "sk-async-refund-partial", tokenAfterPreConsume)
+	seedChannel(t, channelID)
+	task := makeTask(userID, channelID, reserved, tokenID, BillingSourceWallet, 0)
+	task.TaskID = "task-async-partial-refund"
+	require.NoError(t, model.DB.Create(task).Error)
+
+	oldAdjuster := taskTokenQuotaAdjuster
+	t.Cleanup(func() { taskTokenQuotaAdjuster = oldAdjuster })
+	taskTokenQuotaAdjuster = func(_ context.Context, _ *model.Task, _ int) error {
+		return fmt.Errorf("injected token refund failure")
+	}
+	RefundTaskQuota(ctx, task, "partial refund")
+	assert.Equal(t, userAfterPreConsume+reserved, getUserQuota(t, userID), "funding must be refunded once")
+	assert.Equal(t, tokenAfterPreConsume, getTokenRemainQuota(t, tokenID))
+	assert.True(t, task.PrivateData.BillingSettlementPending)
+	assert.False(t, task.PrivateData.BillingRefunded)
+
+	var reloaded model.Task
+	require.NoError(t, model.DB.Where("id = ?", task.ID).First(&reloaded).Error)
+	taskTokenQuotaAdjuster = func(_ context.Context, _ *model.Task, delta int) error {
+		return model.IncreaseTokenQuota(tokenID, "sk-async-refund-partial", -delta)
+	}
+	RefundTaskQuota(ctx, &reloaded, "partial refund retry")
+	assert.Equal(t, userAfterPreConsume+reserved, getUserQuota(t, userID), "funding refund must not be repeated")
+	assert.Equal(t, tokenAfterPreConsume+reserved, getTokenRemainQuota(t, tokenID))
+	assert.True(t, reloaded.PrivateData.BillingRefunded)
+	assert.False(t, reloaded.PrivateData.BillingSettlementPending)
+
+	// A duplicate retry after full completion is a no-op.
+	RefundTaskQuota(ctx, &reloaded, "duplicate refund")
+	assert.Equal(t, userAfterPreConsume+reserved, getUserQuota(t, userID))
+	assert.Equal(t, tokenAfterPreConsume+reserved, getTokenRemainQuota(t, tokenID))
 }
 
 // ===========================================================================
@@ -435,14 +570,150 @@ func TestRecalculate_Subscription_NegativeDelta(t *testing.T) {
 	// Subscription used should decrease by delta (refund 3000)
 	assert.Equal(t, subUsed-int64(preConsumed-actualQuota), getSubscriptionUsed(t, subID))
 
-	// Token refunded
-	assert.Equal(t, tokenRemain+(preConsumed-actualQuota), getTokenRemainQuota(t, tokenID))
+	// Subscription billing does not adjust token quota, including negative
+	// settlement deltas.
+	assert.Equal(t, tokenRemain, getTokenRemainQuota(t, tokenID))
 
 	assert.Equal(t, actualQuota, task.Quota)
 
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+// TestRecalculateTaskQuota_RetriesOnlyUncommittedTokenSide verifies that an
+// asynchronous settlement remains recoverable when funding succeeds but the
+// token store fails.  The task row is reloaded between attempts to exercise
+// the durable billing checkpoint rather than in-memory state only.
+func TestRecalculateTaskQuota_RetriesOnlyUncommittedTokenSide(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 115, 115, 115
+	const preConsumed, actualQuota = 1000, 1500
+	const userAfterPreConsume, tokenAfterPreConsume = 9000, 4000
+	seedUser(t, userID, userAfterPreConsume)
+	seedToken(t, tokenID, userID, "sk-async-partial", tokenAfterPreConsume)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.TaskID = "task-async-partial-settlement"
+	require.NoError(t, model.DB.Create(task).Error)
+
+	attempts := 0
+	oldAdjuster := taskTokenQuotaAdjuster
+	t.Cleanup(func() { taskTokenQuotaAdjuster = oldAdjuster })
+	taskTokenQuotaAdjuster = func(_ context.Context, _ *model.Task, _ int) error {
+		attempts++
+		if attempts == 1 {
+			return fmt.Errorf("injected token persistence failure")
+		}
+		return nil
+	}
+
+	RecalculateTaskQuota(ctx, task, actualQuota, "partial settlement")
+	assert.Equal(t, userAfterPreConsume-500, getUserQuota(t, userID), "funding side must commit once")
+	assert.Equal(t, tokenAfterPreConsume, getTokenRemainQuota(t, tokenID), "failed token side must remain unchanged")
+	assert.Equal(t, preConsumed, task.Quota, "task quota is not advanced until both sides commit")
+	assert.True(t, task.PrivateData.BillingSettlementPending)
+	assert.Equal(t, actualQuota, task.PrivateData.BillingSettlementTarget)
+	assert.Equal(t, actualQuota, task.PrivateData.BillingSettlementFundingAmount)
+	assert.Equal(t, preConsumed, task.PrivateData.BillingSettlementTokenAmount)
+
+	var reloaded model.Task
+	require.NoError(t, model.DB.Where("id = ?", task.ID).First(&reloaded).Error)
+	assert.True(t, reloaded.PrivateData.BillingSettlementPending, "checkpoint must survive process restart")
+
+	// The retry succeeds on the token side.  Funding must not be charged again.
+	taskTokenQuotaAdjuster = func(_ context.Context, _ *model.Task, delta int) error {
+		attempts++
+		return model.DecreaseTokenQuota(tokenID, "sk-async-partial", delta)
+	}
+	RecalculateTaskQuota(ctx, &reloaded, actualQuota, "partial settlement retry")
+
+	assert.Equal(t, userAfterPreConsume-500, getUserQuota(t, userID), "funding must not be double charged")
+	assert.Equal(t, tokenAfterPreConsume-500, getTokenRemainQuota(t, tokenID))
+	assert.Equal(t, actualQuota, reloaded.Quota)
+	assert.False(t, reloaded.PrivateData.BillingSettlementPending)
+	var persisted model.Task
+	require.NoError(t, model.DB.Where("id = ?", task.ID).First(&persisted).Error)
+	assert.False(t, persisted.PrivateData.BillingSettlementPending)
+}
+
+func TestRetryPendingTaskBilling_ResumesTerminalSuccess(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 117, 117, 117
+	const preConsumed, actualQuota = 1000, 1500
+	const userAfterPreConsume, tokenAfterPreConsume = 9000, 4000
+	seedUser(t, userID, userAfterPreConsume)
+	seedToken(t, tokenID, userID, "sk-terminal-success", tokenAfterPreConsume)
+	seedChannel(t, channelID)
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.TaskID = "task-terminal-success-recovery"
+	task.Status = model.TaskStatusSuccess
+	require.NoError(t, model.DB.Create(task).Error)
+
+	oldAdjuster := taskTokenQuotaAdjuster
+	t.Cleanup(func() { taskTokenQuotaAdjuster = oldAdjuster })
+	taskTokenQuotaAdjuster = func(_ context.Context, _ *model.Task, _ int) error {
+		return fmt.Errorf("injected terminal token failure")
+	}
+	RecalculateTaskQuota(ctx, task, actualQuota, "terminal partial settlement")
+	assert.True(t, task.PrivateData.BillingSettlementPending)
+	assert.Equal(t, userAfterPreConsume-500, getUserQuota(t, userID))
+
+	var reloaded model.Task
+	require.NoError(t, model.DB.Where("id = ?", task.ID).First(&reloaded).Error)
+	taskTokenQuotaAdjuster = func(_ context.Context, _ *model.Task, delta int) error {
+		return model.DecreaseTokenQuota(tokenID, "sk-terminal-success", delta)
+	}
+	assert.Equal(t, 1, RetryPendingTaskBilling(ctx, 20))
+	assert.Equal(t, userAfterPreConsume-500, getUserQuota(t, userID), "recovery must not double charge funding")
+	assert.Equal(t, tokenAfterPreConsume-500, getTokenRemainQuota(t, tokenID))
+	var persisted model.Task
+	require.NoError(t, model.DB.Where("id = ?", task.ID).First(&persisted).Error)
+	assert.False(t, persisted.PrivateData.BillingSettlementPending)
+	assert.Equal(t, actualQuota, persisted.Quota)
+}
+
+func TestRetryPendingTaskBilling_ResumesTerminalFailureRefund(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 118, 118, 118
+	const reserved = 1200
+	const userAfterPreConsume, tokenAfterPreConsume = 8800, 3800
+	seedUser(t, userID, userAfterPreConsume)
+	seedToken(t, tokenID, userID, "sk-terminal-failure", tokenAfterPreConsume)
+	seedChannel(t, channelID)
+	task := makeTask(userID, channelID, reserved, tokenID, BillingSourceWallet, 0)
+	task.TaskID = "task-terminal-failure-recovery"
+	task.Status = model.TaskStatusFailure
+	require.NoError(t, model.DB.Create(task).Error)
+
+	oldAdjuster := taskTokenQuotaAdjuster
+	t.Cleanup(func() { taskTokenQuotaAdjuster = oldAdjuster })
+	taskTokenQuotaAdjuster = func(_ context.Context, _ *model.Task, _ int) error {
+		return fmt.Errorf("injected terminal refund token failure")
+	}
+	RefundTaskQuota(ctx, task, "terminal partial refund")
+	assert.True(t, task.PrivateData.BillingSettlementPending)
+	assert.Equal(t, userAfterPreConsume+reserved, getUserQuota(t, userID))
+
+	var reloaded model.Task
+	require.NoError(t, model.DB.Where("id = ?", task.ID).First(&reloaded).Error)
+	taskTokenQuotaAdjuster = func(_ context.Context, _ *model.Task, delta int) error {
+		return model.IncreaseTokenQuota(tokenID, "sk-terminal-failure", -delta)
+	}
+	assert.Equal(t, 1, RetryPendingTaskBilling(ctx, 20))
+	assert.Equal(t, userAfterPreConsume+reserved, getUserQuota(t, userID), "recovery must not double refund funding")
+	assert.Equal(t, tokenAfterPreConsume+reserved, getTokenRemainQuota(t, tokenID))
+	var persisted model.Task
+	require.NoError(t, model.DB.Where("id = ?", task.ID).First(&persisted).Error)
+	assert.True(t, persisted.PrivateData.BillingRefunded)
+	assert.False(t, persisted.PrivateData.BillingSettlementPending)
 }
 
 // ===========================================================================

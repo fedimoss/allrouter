@@ -253,8 +253,13 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
-	// ⚠️ 已禁用启动期自动维护表结构（AutoMigrate + 历史手写迁移 + SubscriptionPlan 建表）。
-	// 以后表结构变更请手动在数据库执行 SQL；恢复时删除下面的 return nil 与函数末尾的 */ 即可。
+	// Keep global startup AutoMigrate disabled, but always bring the
+	// subscription tables to the schema required by the billing engine.
+	//if err := migrateSubscriptionSchema(); err != nil {
+	//	return err
+	//}
+	// ⚠️ 除订阅专用迁移外，启动期全局表结构维护仍保持禁用；其他表结构
+	// 变更请按项目部署流程手动执行 SQL。
 	return nil
 	/* ---- 原自动迁移逻辑（已停用，保留以便恢复）----
 	// Migrate price_amount column from float/double to decimal for existing tables
@@ -455,7 +460,7 @@ func ensureSubscriptionPlanTableSQLite() error {
 	if !DB.Migrator().HasTable(tableName) {
 		createSQL := `CREATE TABLE ` + "`" + tableName + "`" + ` (
 ` + "`id`" + ` integer,
-// provider_id：订阅套餐归属服务商 ID（0=主站套餐，>0=服务商私有套餐），本次"服务商私有订阅"特性新增列。
+-- provider_id：订阅套餐归属服务商 ID（0=主站套餐，>0=服务商私有套餐），本次"服务商私有订阅"特性新增列。
 ` + "`provider_id`" + ` integer NOT NULL DEFAULT 0,
 ` + "`title`" + ` varchar(128) NOT NULL,
 ` + "`subtitle`" + ` varchar(255) DEFAULT '',
@@ -471,7 +476,9 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`stripe_price_id`" + ` varchar(128) DEFAULT '',
 ` + "`stripe_price_cny_id`" + ` varchar(128) DEFAULT '',
 ` + "`creem_product_id`" + ` varchar(128) DEFAULT '',
+` + "`waffo_pancake_product_id`" + ` varchar(128) DEFAULT '',
 ` + "`max_purchase_per_user`" + ` integer DEFAULT 0,
+` + "`purchase_limit_group`" + ` varchar(64) NOT NULL DEFAULT '',
 ` + "`total_purchase_limit`" + ` bigint NOT NULL DEFAULT 0,
 ` + "`issued_count`" + ` bigint NOT NULL DEFAULT 0,
 ` + "`reserved_count`" + ` bigint NOT NULL DEFAULT 0,
@@ -479,11 +486,22 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`total_amount`" + ` bigint NOT NULL DEFAULT 0,
 ` + "`quota_reset_period`" + ` varchar(16) DEFAULT 'never',
 ` + "`quota_reset_custom_seconds`" + ` bigint DEFAULT 0,
+` + "`quota_window_mode`" + ` varchar(16) NOT NULL DEFAULT 'legacy',
+` + "`five_hour_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`five_hour_window_seconds`" + ` bigint NOT NULL DEFAULT 0,
+` + "`weekly_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`quota_windows`" + ` text DEFAULT '[]',
 ` + "`created_at`" + ` bigint,
 ` + "`updated_at`" + ` bigint,
 PRIMARY KEY (` + "`id`" + `)
 )`
-		return DB.Exec(createSQL).Error
+		if err := DB.Exec(createSQL).Error; err != nil {
+			return err
+		}
+		if err := DB.Exec("CREATE INDEX IF NOT EXISTS `idx_subscription_plan_purchase_group` ON `" + tableName + "` (`provider_id`, `purchase_limit_group`)").Error; err != nil {
+			return err
+		}
+		return nil
 	}
 	var cols []struct {
 		Name string `gorm:"column:name"`
@@ -512,7 +530,9 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "stripe_price_id", DDL: "`stripe_price_id` varchar(128) DEFAULT ''"},
 		{Name: "stripe_price_cny_id", DDL: "`stripe_price_cny_id` varchar(128) DEFAULT ''"},
 		{Name: "creem_product_id", DDL: "`creem_product_id` varchar(128) DEFAULT ''"},
+		{Name: "waffo_pancake_product_id", DDL: "`waffo_pancake_product_id` varchar(128) DEFAULT ''"},
 		{Name: "max_purchase_per_user", DDL: "`max_purchase_per_user` integer DEFAULT 0"},
+		{Name: "purchase_limit_group", DDL: "`purchase_limit_group` varchar(64) NOT NULL DEFAULT ''"},
 		{Name: "total_purchase_limit", DDL: "`total_purchase_limit` bigint NOT NULL DEFAULT 0"},
 		{Name: "issued_count", DDL: "`issued_count` bigint NOT NULL DEFAULT 0"},
 		{Name: "reserved_count", DDL: "`reserved_count` bigint NOT NULL DEFAULT 0"},
@@ -520,6 +540,11 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "total_amount", DDL: "`total_amount` bigint NOT NULL DEFAULT 0"},
 		{Name: "quota_reset_period", DDL: "`quota_reset_period` varchar(16) DEFAULT 'never'"},
 		{Name: "quota_reset_custom_seconds", DDL: "`quota_reset_custom_seconds` bigint DEFAULT 0"},
+		{Name: "quota_window_mode", DDL: "`quota_window_mode` varchar(16) NOT NULL DEFAULT 'legacy'"},
+		{Name: "five_hour_amount", DDL: "`five_hour_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "five_hour_window_seconds", DDL: "`five_hour_window_seconds` bigint NOT NULL DEFAULT 0"},
+		{Name: "weekly_amount", DDL: "`weekly_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "quota_windows", DDL: "`quota_windows` text DEFAULT '[]'"},
 		{Name: "created_at", DDL: "`created_at` bigint"},
 		{Name: "updated_at", DDL: "`updated_at` bigint"},
 	}
@@ -531,7 +556,7 @@ PRIMARY KEY (` + "`id`" + `)
 			return err
 		}
 	}
-	return nil
+	return DB.Exec("CREATE INDEX IF NOT EXISTS `idx_subscription_plan_purchase_group` ON `" + tableName + "` (`provider_id`, `purchase_limit_group`)").Error
 }
 
 func migrateProviderScopedRewardColumns() error {

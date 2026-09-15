@@ -75,18 +75,6 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		return
 	}
 
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
-			return
-		}
-	}
-
 	// 根据用户时区和前端请求参数，确定本次支付的展示币种（USD 或 CNY）
 	displayCurrency := resolveSubscriptionStripeDisplayCurrency(user, req.DisplayCurrency)
 	// 根据展示币种，从套餐中选择对应的 Stripe Price ID
@@ -104,15 +92,6 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	// 对参考号做 SHA1 哈希，加上 "sub_ref_" 前缀作为最终订单号，避免重复
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
-	// 先计算 Stripe Price 数量和真实扣款金额，再在创建 Checkout 前预占本地库存。
-	stripe.Key = setting.StripeApiSecret
-	quantity, actualCharge, err := getStripeSubscriptionQuantity(priceId, chargeMoney)
-	if err != nil {
-		log.Println("获取Stripe Price失败", err)
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "计算支付金额失败"})
-		return
-	}
-
 	// 根据展示币种确定币种符号
 	currencySymbol := "$"
 	if strings.EqualFold(displayCurrency, "CNY") {
@@ -123,20 +102,45 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		UserId: userId,
 		PlanId: plan.Id,
 		// 订单归属服务商（0=主站），完成订单时据此给服务商 owner 结算订阅收入。
-		ProviderId:    c.GetInt("provider_id"),
-		Money:         plan.PriceAmount,
-		Currency:      currencySymbol, // 币种符号
-		OriginalMoney: actualCharge,   // 实际支付金额（用户币种）
-		TradeNo:       referenceId,
-		PaymentMethod: PaymentMethodStripe,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
+		ProviderId:       c.GetInt("provider_id"),
+		Money:            plan.PriceAmount,
+		Currency:         currencySymbol, // 币种符号
+		OriginalMoney:    chargeMoney,    // 实际支付金额（用户币种）
+		TradeNo:          referenceId,
+		PaymentMethod:    PaymentMethodStripe,
+		PaymentProvider:  model.PaymentProviderStripe,
+		PaymentProductId: priceId,
+		CreateTime:       time.Now().Unix(),
+		Status:           common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
 		respondSubscriptionCreateError(c, err, "创建订单失败")
 		return
 	}
+	// CreateSubscriptionOrderTx compared the quote with the locked catalog row
+	// and persisted the immutable product/amount snapshot.  From this point on,
+	// drive Stripe exclusively from that order so a later plan edit cannot
+	// change the checkout being created.
+	priceId = order.PaymentProductId
+	chargeMoney = order.OriginalMoney
+	stripe.Key = setting.StripeApiSecret
+	quantity, actualCharge, err := getStripeSubscriptionQuantity(priceId, chargeMoney, displayCurrency)
+	if err != nil {
+		_ = model.ExpireSubscriptionOrder(referenceId, PaymentMethodStripe)
+		log.Println("获取Stripe Price失败", err)
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "计算支付金额失败"})
+		return
+	}
+	if !normalizeMoneyPrecisionDecimal(actualCharge).Equal(normalizeMoneyPrecisionDecimal(order.OriginalMoney)) {
+		_ = model.ExpireSubscriptionOrder(referenceId, PaymentMethodStripe)
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付金额已变更，请重试"})
+		return
+	}
 
+	// Persist the pending order (and reserve inventory) before creating the
+	// remote Checkout Session.  Stripe may deliver checkout.session.completed
+	// immediately in test mode; creating the session first leaves a race where
+	// the webhook cannot find the local order and the paid entitlement is lost.
 	trustedDomains := getStripeTrustedDomains(c)
 	payLink, err := genStripeSubscriptionLink(c, referenceId, user.StripeCustomer, user.Email, priceId, quantity, trustedDomains)
 	if err != nil {
@@ -154,7 +158,10 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	})
 }
 
-// genStripeSubscriptionLink 生成 Stripe 订阅 Checkout Session 的支付链接
+// genStripeSubscriptionLink 生成 Stripe 一次性套餐 Checkout Session 的支付链接。
+// 本地订阅套餐在支付成功后创建固定有效期的 UserSubscription，并没有 Stripe
+// 自动续费生命周期；因此 Checkout 必须使用 payment 模式，而不是 subscription
+// 模式。管理员为套餐配置的 Price ID 应对应 Stripe 的 one_time Price。
 func genStripeSubscriptionLink(c *gin.Context, referenceId string, customerId string, email string, priceId string, quantity int64, trustedDomains []string) (string, error) {
 	// 设置 Stripe API 密钥
 	stripe.Key = setting.StripeApiSecret
@@ -170,25 +177,40 @@ func genStripeSubscriptionLink(c *gin.Context, referenceId string, customerId st
 	return result.URL, nil
 }
 
-// buildStripeSubscriptionCheckoutParams 构建 Stripe 订阅 Checkout Session 的请求参数
+// buildStripeSubscriptionCheckoutParams 构建 Stripe 一次性套餐 Checkout Session 的请求参数。
 func buildStripeSubscriptionCheckoutParams(c *gin.Context, referenceId string, customerId string, email string, priceId string, quantity int64, trustedDomains []string) *stripe.CheckoutSessionParams {
 	baseURL := common.GetTrustedRequestBaseURLWithDomains(c, system_setting.ServerAddress, trustedDomains)
 	params := &stripe.CheckoutSessionParams{
-		ClientReferenceID: stripe.String(referenceId),                // 客户端引用 ID，用于 Webhook 回调时匹配订单
-		SuccessURL:        stripe.String(baseURL + "/console/topup"), // 支付成功后跳回发起请求的域名
-		CancelURL:         stripe.String(baseURL + "/console/topup"), // 支付取消后跳回发起请求的域名
-		ExpiresAt:         stripe.Int64(time.Now().Add(time.Duration(model.DefaultSubscriptionCheckoutSeconds) * time.Second).Unix()),
+		ClientReferenceID: stripe.String(referenceId), // 客户端引用 ID，用于 Webhook 回调时匹配订单
+		// Keep the gateway product identity on the Checkout Session itself.  The
+		// local order stores the same immutable value, and the webhook compares
+		// both before issuing an entitlement.  This prevents a valid Stripe
+		// session for a different Price (with the same amount) from being used to
+		// complete this subscription order.
+		Metadata: map[string]string{
+			"new_api_order_type": "subscription",
+			"new_api_product_id": strings.TrimSpace(priceId),
+		},
+		SuccessURL: stripe.String(baseURL + "/console/topup"), // 支付成功后跳回发起请求的域名
+		CancelURL:  stripe.String(baseURL + "/console/topup"), // 支付取消后跳回发起请求的域名
+		ExpiresAt:  stripe.Int64(time.Now().Add(time.Duration(model.DefaultSubscriptionCheckoutSeconds) * time.Second).Unix()),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
 				Price:    stripe.String(priceId), // 使用币种对应的 Stripe Price ID
 				Quantity: stripe.Int64(quantity), // quantity = chargeMoney / Price 单价
 			},
 		},
-		Mode: stripe.String(string(stripe.CheckoutSessionModeSubscription)), // 订阅模式
+		// The local entitlement is issued once for the configured duration. Using
+		// Stripe's subscription mode here would create an unmanaged recurring
+		// subscription and charge the customer again without extending the local
+		// entitlement. Keep this explicitly one-time.
+		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
 	}
 
-	// 订阅模式不传 Customer，避免同一客户下多币种冲突（Stripe 不允许一个 Customer 混用 USD/CNY 订阅）
-	// 通过邮箱关联，Stripe 会按邮箱自动匹配已有客户
+	// Do not attach an existing Customer: a single Stripe customer may have
+	// payment methods in different currencies, while each checkout is tied to
+	// one immutable Price. CustomerEmail lets Stripe associate/create a customer
+	// without introducing cross-currency subscription constraints.
 	if email != "" {
 		params.CustomerEmail = stripe.String(email) // 传入邮箱，Stripe 会自动创建客户
 	}
@@ -233,13 +255,16 @@ func getSubscriptionStripeExpectedPayMoney(order *model.SubscriptionOrder, charg
 	if order == nil {
 		return 0
 	}
-	// 根据订单的 PlanId 查询套餐信息
-	plan, err := model.GetSubscriptionPlanById(order.PlanId)
-	if err != nil || plan == nil {
-		return order.Money // 查不到套餐时回退到订单原始金额
+	// OriginalMoney is snapshotted when the checkout session is created and is
+	// expressed in the currency charged by Stripe (USD or CNY).  Never
+	// recalculate from the current catalog plan here: an administrator may edit
+	// the plan price between checkout creation and webhook delivery, and doing
+	// so would reject a valid payment (or validate against the wrong amount).
+	if order.OriginalMoney > 0 {
+		return order.OriginalMoney
 	}
-	// 按币种换算应付金额
-	return getSubscriptionChargeMoneyByCurrency(plan.PriceAmount, chargeCurrency)
+	// Historical orders may not have the snapshot; retain the legacy fallback.
+	return order.Money
 }
 
 // getSubscriptionChargeMoneyByCurrency 根据币种计算订阅应付金额
@@ -256,10 +281,11 @@ func getSubscriptionChargeMoneyByCurrency(priceAmount float64, chargeCurrency st
 	return model.RoundDisplayCurrencyAmount(priceAmount)
 }
 
-// getStripeSubscriptionQuantity 通过 Stripe Price API 查询单价，计算订阅的购买数量
-// Stripe Checkout 的金额 = Price 单价 × quantity，因此 quantity = 应付金额(分) / 单价(分)
-// 如果能整除则精确匹配，不能整除则向下取整（实际收费略低于预期），同时记录日志。
-func getStripeSubscriptionQuantity(priceId string, chargeMoney float64) (int64, float64, error) {
+// getStripeSubscriptionQuantity 通过 Stripe Price API 查询单价，计算订阅的购买数量。
+// Stripe Checkout 的金额 = Price 单价 × quantity，因此应付金额必须能被
+// one-time Price 的单价整除；不能整除时拒绝创建 Checkout，避免静默少收款却
+// 发放完整订阅。
+func getStripeSubscriptionQuantity(priceId string, chargeMoney float64, expectedCurrencies ...string) (int64, float64, error) {
 	// 校验 priceId 非空
 	if strings.TrimSpace(priceId) == "" {
 		return 0, 0, errors.New("empty stripe price id")
@@ -274,6 +300,22 @@ func getStripeSubscriptionQuantity(priceId string, chargeMoney float64) (int64, 
 	if priceInfo == nil || priceInfo.UnitAmount <= 0 {
 		return 0, 0, errors.New("invalid stripe price amount")
 	}
+	if !priceInfo.Active {
+		return 0, 0, errors.New("stripe price is inactive")
+	}
+	if priceInfo.Type != stripe.PriceTypeOneTime {
+		return 0, 0, errors.New("stripe price must be one-time")
+	}
+	if priceInfo.BillingScheme != stripe.PriceBillingSchemePerUnit {
+		return 0, 0, errors.New("stripe price must use per-unit billing")
+	}
+	if len(expectedCurrencies) > 0 {
+		expectedCurrency := strings.ToUpper(strings.TrimSpace(expectedCurrencies[0]))
+		actualCurrency := strings.ToUpper(strings.TrimSpace(string(priceInfo.Currency)))
+		if expectedCurrency != "" && actualCurrency != "" && expectedCurrency != actualCurrency {
+			return 0, 0, fmt.Errorf("stripe price currency mismatch: expected %s, got %s", expectedCurrency, actualCurrency)
+		}
+	}
 
 	// 将应付金额转换为最小货币单位（如 USD: 美元 -> 美分）
 	expectedMinor := convertMoneyToMinorUnits(chargeMoney, string(priceInfo.Currency))
@@ -286,18 +328,15 @@ func getStripeSubscriptionQuantity(priceId string, chargeMoney float64) (int64, 
 	if quantity <= 0 {
 		return 0, 0, errors.New("invalid stripe subscription quantity")
 	}
+	if expectedMinor%priceInfo.UnitAmount != 0 {
+		return 0, 0, fmt.Errorf("subscription charge %.2f is not divisible by stripe price unit amount %d", chargeMoney, priceInfo.UnitAmount)
+	}
 
 	// 计算实际收费金额（分 -> 元）
 	actualMinor := quantity * priceInfo.UnitAmount
 	actualCharge := float64(actualMinor)
 	if !zeroDecimalCurrencies[strings.ToUpper(strings.TrimSpace(string(priceInfo.Currency)))] {
 		actualCharge = actualCharge / 100.0
-	}
-
-	// 不能整除时记录日志，但不阻断支付
-	if expectedMinor%priceInfo.UnitAmount != 0 {
-		log.Printf("Stripe subscription amount not exact: expected=%.2f(%d minor), unit=%d, quantity=%d, actual=%.2f(%d minor)",
-			chargeMoney, expectedMinor, priceInfo.UnitAmount, quantity, actualCharge, actualMinor)
 	}
 
 	return quantity, actualCharge, nil

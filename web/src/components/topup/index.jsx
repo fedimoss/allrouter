@@ -88,6 +88,8 @@ const TopUp = () => {
 
   // Waffo 相关状态
   const [enableWaffoTopUp, setEnableWaffoTopUp] = useState(false);
+  const [enableWaffoPancakeSubscription, setEnableWaffoPancakeSubscription] =
+    useState(false);
   const [waffoPayMethods, setWaffoPayMethods] = useState([]);
   const [waffoMinTopUp, setWaffoMinTopUp] = useState(1);
 
@@ -557,6 +559,9 @@ const TopUp = () => {
           }
           const enableWaffoTopUp = data.enable_waffo_topup || false;
           setEnableWaffoTopUp(enableWaffoTopUp);
+          setEnableWaffoPancakeSubscription(
+            data.enable_waffo_pancake_subscription || false,
+          );
           setWaffoPayMethods(data.waffo_pay_methods || []);
           setWaffoMinTopUp(data.waffo_min_topup || 1);
           setMinTopUp(minTopUpValue);
@@ -851,6 +856,7 @@ const TopUp = () => {
           stripeCurrency={stripeCurrency}
           displayCurrency={displayCurrency}
           enableCreemTopUp={enableCreemTopUp}
+          enableWaffoPancakeSubscription={enableWaffoPancakeSubscription}
           creemProducts={creemProducts}
           creemPreTopUp={creemPreTopUp}
           enableWaffoTopUp={enableWaffoTopUp}

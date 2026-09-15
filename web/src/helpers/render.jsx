@@ -1100,22 +1100,31 @@ export function renderNumberWithPoint(num) {
   return num;
 }
 
+// Keep this fallback synchronized with common.QuotaPerUnit on the backend.
+// Some pages (notably the subscription editor) can be rendered before the
+// `/api/status` response has populated localStorage.  Returning NaN/0 here
+// makes every quota amount display as `$NaN` and causes a `$0.01` form value to
+// round-trip to one native unit.  A deterministic native-unit fallback keeps
+// those early renders safe and is replaced automatically once status loads.
+const DEFAULT_QUOTA_PER_UNIT = 500 * 1000;
+
+function readQuotaPerUnit() {
+  const raw = parseFloat(localStorage.getItem('quota_per_unit') || '');
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_QUOTA_PER_UNIT;
+}
+
 export function getQuotaPerUnit() {
-  let quotaPerUnit = localStorage.getItem('quota_per_unit');
-  quotaPerUnit = parseFloat(quotaPerUnit);
-  return quotaPerUnit;
+  return readQuotaPerUnit();
 }
 
 export function renderUnitWithQuota(quota) {
-  let quotaPerUnit = localStorage.getItem('quota_per_unit');
-  quotaPerUnit = parseFloat(quotaPerUnit);
+  const quotaPerUnit = readQuotaPerUnit();
   quota = parseFloat(quota);
   return quotaPerUnit * quota;
 }
 
 export function getQuotaWithUnit(quota, digits = 6) {
-  let quotaPerUnit = localStorage.getItem('quota_per_unit');
-  quotaPerUnit = parseFloat(quotaPerUnit);
+  const quotaPerUnit = readQuotaPerUnit();
   return (quota / quotaPerUnit).toFixed(digits);
 }
 
@@ -1206,9 +1215,8 @@ export function convertUSDToCurrency(usdAmount, digits = 2) {
 }
 
 export function renderQuota(quota, digits = 2) {
-  let quotaPerUnit = localStorage.getItem('quota_per_unit');
+  const quotaPerUnit = readQuotaPerUnit();
   const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
-  quotaPerUnit = parseFloat(quotaPerUnit);
   if (quotaDisplayType === 'TOKENS') {
     return renderNumber(quota);
   }

@@ -262,6 +262,10 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}
 	appendRequestPath(nil, relayInfo, other)
+	// Keep Midjourney logs consistent with text/task logs.  In particular,
+	// subscription-backed requests need their subscription id and consumed
+	// amount visible because the wallet quota remains unchanged.
+	appendBillingInfo(relayInfo, other)
 	return other
 }
 

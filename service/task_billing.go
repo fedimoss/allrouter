@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -14,6 +16,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 )
+
+// taskTokenQuotaAdjuster is nil in production and exists solely as a narrow
+// fault-injection seam for the async billing state-machine tests.  The real
+// path delegates to model.DecreaseTokenQuota/IncreaseTokenQuota.
+var taskTokenQuotaAdjuster func(context.Context, *model.Task, int) error
+
+// taskBillingRecoveryMu serializes recovery passes within one process.  The
+// durable checkpoint still provides restart safety; this mutex additionally
+// prevents two goroutines (for example, a manually triggered recovery and the
+// regular polling loop) from both reading the same unfinished side before
+// either has persisted its completion flag.  Cross-process deployments should
+// use the same database/task ownership mechanism as the polling loop; all
+// underlying subscription request operations remain idempotent.
+var taskBillingRecoveryMu sync.Mutex
 
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
 // 实际扣费已由 BillingSession（PreConsumeBilling + SettleBilling）完成。
@@ -96,7 +112,42 @@ func resolveTokenKey(ctx context.Context, tokenId int, taskID string) string {
 
 // taskIsSubscription 判断任务是否通过订阅计费。
 func taskIsSubscription(task *model.Task) bool {
-	return task.PrivateData.BillingSource == BillingSourceSubscription && task.PrivateData.SubscriptionId > 0
+	return task != nil && task.PrivateData.BillingSource == BillingSourceSubscription && task.PrivateData.SubscriptionId > 0
+}
+
+// taskTokenQuotaRequired mirrors the synchronous BillingSession rule for
+// asynchronous tasks. Subscription-funded requests reserve and settle their
+// allowance in subscription_pre_consume_records; the API token's numeric
+// quota is only an authentication credential and must remain untouched.
+func taskTokenQuotaRequired(task *model.Task) bool {
+	return task != nil && task.PrivateData.BillingSource != BillingSourceSubscription &&
+		task.PrivateData.TokenId > 0
+}
+
+// taskRefundQuota returns the amount that was actually reserved for an
+// asynchronous task failure refund.  Subscription requests are pre-consumed
+// with at least one quota unit so that a zero-priced/rounded request still
+// consumes a subscription allowance.  SettleBilling intentionally keeps that
+// reservation when the submitted task reports actualQuota == 0, while the
+// task row retains the raw result.Quota (zero).  In that case the persisted
+// subscription snapshot is the only available refund amount.
+func taskRefundQuota(task *model.Task) int {
+	if task == nil {
+		return 0
+	}
+	if task.Quota > 0 {
+		return task.Quota
+	}
+	if !taskIsSubscription(task) || task.PrivateData.SubscriptionPreConsumed <= 0 {
+		return 0
+	}
+	// Quota is an int for historical task storage.  Clamp an out-of-range
+	// snapshot rather than allowing an implementation-dependent conversion.
+	maxInt := int64(^uint(0) >> 1)
+	if task.PrivateData.SubscriptionPreConsumed > maxInt {
+		return int(maxInt)
+	}
+	return int(task.PrivateData.SubscriptionPreConsumed)
 }
 
 func RecordTaskTotalTokenUsage(ctx context.Context, task *model.Task, totalTokens int) {
@@ -121,6 +172,9 @@ func RecordTaskTotalTokenUsage(ctx context.Context, task *model.Task, totalToken
 //   - 旧任务（无快照）：回退到 IncreaseUserQuota 全部加到 quota（兼容旧行为）。
 func taskAdjustFunding(task *model.Task, delta int) error {
 	if taskIsSubscription(task) {
+		if requestID := strings.TrimSpace(task.PrivateData.SubscriptionRequestId); requestID != "" {
+			return model.AdjustSubscriptionPreConsume(requestID, int64(delta))
+		}
 		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
 	}
 	if delta > 0 {
@@ -233,11 +287,28 @@ func persistTaskBillingState(task *model.Task) error {
 	}).Error
 }
 
+// persistTaskBillingProgress writes only the task billing checkpoint.  It is
+// deliberately called after each independently committed side of an async
+// settlement.  Funding and token quota live in separate persistence systems,
+// so this durable checkpoint is what makes a retry after a process crash
+// continue from the unfinished side instead of replaying the entire delta.
+func persistTaskBillingProgress(task *model.Task) error {
+	return persistTaskBillingState(task)
+}
+
 // FinalizeTaskConsumeRebate credits the main-site inviter exactly once after
 // an async wallet task reaches SUCCESS and all quota adjustments are complete.
 func FinalizeTaskConsumeRebate(ctx context.Context, task *model.Task) {
 	if task == nil || task.PrivateData.BillingSource != BillingSourceWallet ||
 		!task.PrivateData.WalletQuotaBreakdownRecorded || task.PrivateData.ConsumeRebateSettled {
+		return
+	}
+	// A terminal task can still have an unfinished two-phase settlement (for
+	// example, funding committed but token-quota persistence failed).  The
+	// completion path invokes this helper via defer, so do not settle the
+	// rebate while either billing side is pending; doing so would make the
+	// inviter balance reflect a charge that may later be rolled back/retried.
+	if task.PrivateData.BillingSettlementPending {
 		return
 	}
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.ProviderId > 0 {
@@ -262,6 +333,13 @@ func FinalizeTaskConsumeRebate(ctx context.Context, task *model.Task) {
 // pollers remain idempotent.
 func FinalizeTaskProviderProfit(ctx context.Context, task *model.Task) {
 	if task == nil || task.PrivateData.ProviderProfitSettled {
+		return
+	}
+	// See FinalizeTaskConsumeRebate: settlement is called from a defer in the
+	// terminal polling path.  Provider cost/profit must wait until both the
+	// funding and token sides have committed, otherwise a retry could record
+	// provider profit for an uncommitted/partially rolled-back charge.
+	if task.PrivateData.BillingSettlementPending {
 		return
 	}
 	bc := task.PrivateData.BillingContext
@@ -329,11 +407,42 @@ func persistMidjourneyBillingState(task *model.Midjourney) error {
 		return nil
 	}
 	return model.DB.Model(&model.Midjourney{}).Where("id = ?", task.Id).Updates(map[string]interface{}{
+		"billing_source":                  task.BillingSource,
+		"billing_pre_consumed":            task.BillingPreConsumed,
+		"subscription_id":                 task.SubscriptionId,
+		"subscription_request_id":         task.SubscriptionRequestId,
+		"subscription_pre_consumed":       task.SubscriptionPreConsumed,
+		"token_id":                        task.TokenId,
+		"billing_refunded":                task.BillingRefunded,
+		"billing_refund_funding_done":     task.BillingRefundFundingDone,
+		"billing_refund_token_done":       task.BillingRefundTokenDone,
 		"wallet_reward_used":              task.WalletRewardUsed,
 		"wallet_paid_used":                task.WalletPaidUsed,
 		"wallet_quota_breakdown_recorded": task.WalletQuotaBreakdownRecorded,
 		"consume_rebate_settled":          task.ConsumeRebateSettled,
 	}).Error
+}
+
+// RecordMidjourneyBilling persists the billing-session snapshot on a
+// Midjourney task.  Midjourney tasks are stored in their own table (rather
+// than the generic tasks table), so this explicit copy is required for later
+// polling, settlement and failure refunds.  The helper is intentionally
+// idempotent and uses an UPDATE by primary key to avoid accidental inserts.
+func RecordMidjourneyBilling(task *model.Midjourney, info *relaycommon.RelayInfo) error {
+	if task == nil || info == nil {
+		return nil
+	}
+	task.BillingSource = info.BillingSource
+	task.BillingPreConsumed = int64(info.FinalPreConsumedQuota)
+	task.SubscriptionId = info.SubscriptionId
+	task.SubscriptionRequestId = ""
+	task.SubscriptionPreConsumed = 0
+	if info.BillingSource == BillingSourceSubscription {
+		task.SubscriptionRequestId = strings.TrimSpace(info.RequestId)
+		task.SubscriptionPreConsumed = info.SubscriptionPreConsumed
+	}
+	task.TokenId = info.TokenId
+	return persistMidjourneyBillingState(task)
 }
 
 // RecordMidjourneyWalletFunding 在 Midjourney 任务提交成功后持久化钱包消费的奖励/充值拆分。
@@ -374,43 +483,280 @@ func FinalizeMidjourneyConsumeRebate(ctx context.Context, task *model.Midjourney
 	}
 }
 
-// RefundMidjourneyQuota 按原路返回 Midjourney 任务消费的额度。
-//
-//   - 新任务（有 WalletQuotaBreakdownRecorded）：按 WalletRewardUsed/WalletPaidUsed 原路退回，
-//     奖励部分退回 reward_quota，充值部分退回 quota，防止用户通过退款将奖励额度洗成充值额度。
-//     同时验证 consumedTotal == Quota 确保快照一致性，不一致则报错拒绝退款。
-//   - 旧任务（无快照）：兼容旧行为，全部退回 quota。
-//
-// 退款成功后清零快照字段并标记 ConsumeRebateSettled=1，防止重复处理。
-func RefundMidjourneyQuota(task *model.Midjourney) error {
-	if task == nil || task.Quota <= 0 {
+// Midjourney refunds are performed by the polling worker, which may run in
+// several goroutines/processes at once.  Wallet and token increments are
+// relative (non-idempotent) operations, so a single boolean BillingRefunded
+// marker is insufficient: a token failure after a successful wallet refund
+// would cause a retry to refund the wallet twice.  The two durable progress
+// markers below are intentionally small integers (0=pending, 1=done,
+// 2=claimed).  A process-local lock handles duplicate calls in one process;
+// the conditional database claim handles workers in different processes.
+var midjourneyRefundLocks sync.Map // map[string]*sync.Mutex
+
+func midjourneyRefundLockKey(task *model.Midjourney) string {
+	if task == nil {
+		return ""
+	}
+	if task.Id > 0 {
+		return fmt.Sprintf("id:%d", task.Id)
+	}
+	if id := strings.TrimSpace(task.MjId); id != "" {
+		return "mj:" + id
+	}
+	return fmt.Sprintf("ptr:%p", task)
+}
+
+func withMidjourneyRefundLock(task *model.Midjourney, fn func() error) error {
+	key := midjourneyRefundLockKey(task)
+	if key == "" {
+		return fn()
+	}
+	entry, _ := midjourneyRefundLocks.LoadOrStore(key, &sync.Mutex{})
+	mu := entry.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
+	return fn()
+}
+
+// claimMidjourneyRefundSide atomically claims one refund side.  It returns
+// false when another worker already completed/claimed the side.  For an
+// unsaved task the in-memory marker is sufficient (there is no row on which a
+// database CAS could operate).
+func claimMidjourneyRefundSide(task *model.Midjourney, column string, state *int) (bool, error) {
+	if task == nil || state == nil {
+		return false, nil
+	}
+	if *state == 1 || task.BillingRefunded == 1 {
+		return false, nil
+	}
+	if task.Id <= 0 || model.DB == nil {
+		if *state != 0 {
+			return false, nil
+		}
+		*state = 2
+		return true, nil
+	}
+	// The column names are fixed internal constants, never user input.
+	result := model.DB.Model(&model.Midjourney{}).
+		Where("id = ? AND billing_refunded = 0 AND "+column+" = 0", task.Id).
+		Update(column, 2)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 1 {
+		*state = 2
+		return true, nil
+	}
+	// Refresh only the state columns.  This also makes a stale task object
+	// observe a completion made by a different polling worker.
+	var current struct {
+		BillingRefunded          int `gorm:"column:billing_refunded"`
+		BillingRefundFundingDone int `gorm:"column:billing_refund_funding_done"`
+		BillingRefundTokenDone   int `gorm:"column:billing_refund_token_done"`
+	}
+	if err := model.DB.Model(&model.Midjourney{}).
+		Select("billing_refunded", "billing_refund_funding_done", "billing_refund_token_done").
+		Where("id = ?", task.Id).Take(&current).Error; err != nil {
+		return false, err
+	}
+	task.BillingRefunded = current.BillingRefunded
+	if column == "billing_refund_funding_done" {
+		*state = current.BillingRefundFundingDone
+	} else {
+		*state = current.BillingRefundTokenDone
+	}
+	return false, nil
+}
+
+func finishMidjourneyRefundSide(task *model.Midjourney, column string, state *int, success bool) error {
+	if task == nil || state == nil {
 		return nil
 	}
-	if task.WalletQuotaBreakdownRecorded != 1 {
-		return model.IncreaseUserQuota(task.UserId, task.Quota, false)
+	next := 0
+	if success {
+		next = 1
 	}
-	consumedTotal := task.WalletRewardUsed + task.WalletPaidUsed
-	if consumedTotal != task.Quota {
-		return fmt.Errorf("Midjourney wallet snapshot mismatch: quota=%d consumed=%d", task.Quota, consumedTotal)
+	if task.Id > 0 && model.DB != nil {
+		result := model.DB.Model(&model.Midjourney{}).Where("id = ? AND "+column+" = 2", task.Id).Update(column, next)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 && success {
+			// Another worker may have completed the side while this process was
+			// performing the external operation.  Read-back distinguishes that
+			// benign race from a missing row.
+			var value int
+			if err := model.DB.Model(&model.Midjourney{}).Select(column).Where("id = ?", task.Id).Scan(&value).Error; err != nil {
+				return err
+			}
+			if value != 1 {
+				return fmt.Errorf("midjourney refund checkpoint lost for %s", column)
+			}
+		}
 	}
-	if err := model.IncreaseUserQuotaByBreakdown(task.UserId, consumedTotal, task.WalletRewardUsed); err != nil {
-		return err
+	*state = next
+	return nil
+}
+
+func finalizeMidjourneyRefund(task *model.Midjourney) error {
+	if task == nil {
+		return nil
 	}
+	if task.BillingRefundFundingDone != 1 || task.BillingRefundTokenDone != 1 {
+		return nil
+	}
+	task.BillingRefunded = 1
 	task.WalletRewardUsed = 0
 	task.WalletPaidUsed = 0
+	task.WalletQuotaBreakdownRecorded = 0
 	task.ConsumeRebateSettled = 1
-	return persistMidjourneyBillingState(task)
+	if task.Id > 0 && model.DB != nil {
+		// Keep the final flag conditional so a stale worker cannot overwrite a
+		// row that has already been finalized by another worker.
+		if err := model.DB.Model(&model.Midjourney{}).
+			Where("id = ? AND billing_refund_funding_done = 1 AND billing_refund_token_done = 1", task.Id).
+			Updates(map[string]interface{}{
+				"billing_refunded":                1,
+				"wallet_reward_used":              0,
+				"wallet_paid_used":                0,
+				"wallet_quota_breakdown_recorded": 0,
+				"consume_rebate_settled":          1,
+			}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RefundMidjourneyQuota 按原路返回 Midjourney 任务消费的额度。
+// Each funding/token side is claimed and checkpointed independently, making
+// retries safe when one persistence system is temporarily unavailable.
+func RefundMidjourneyQuota(task *model.Midjourney) error {
+	if task == nil {
+		return nil
+	}
+	return withMidjourneyRefundLock(task, func() error {
+		// Persisted tasks use the model-layer atomic implementation.  It locks
+		// the task row and updates the wallet/subscription, token, and refund
+		// marker in one transaction, so concurrent pollers and process crashes
+		// cannot mint quota by replaying a relative increment.
+		if task.Id > 0 && model.DB != nil {
+			return model.RefundMidjourneyBilling(task)
+		}
+		if task.BillingRefunded == 1 {
+			return nil
+		}
+		// A persisted caller may hold a stale copy.  Refresh billing state before
+		// claiming; if the row is gone (e.g. a unit test's unsaved task), retain
+		// the supplied snapshot and continue in memory.
+		if task.Id > 0 && model.DB != nil {
+			var current model.Midjourney
+			if err := model.DB.Where("id = ?", task.Id).First(&current).Error; err == nil {
+				*task = current
+			}
+		}
+
+		fundingClaimed, err := claimMidjourneyRefundSide(task, "billing_refund_funding_done", &task.BillingRefundFundingDone)
+		if err != nil {
+			return err
+		}
+		if fundingClaimed {
+			if task.BillingSource == BillingSourceSubscription {
+				requestID := strings.TrimSpace(task.SubscriptionRequestId)
+				if requestID != "" {
+					err = model.RefundSubscriptionPreConsume(requestID)
+				} else if task.SubscriptionId > 0 && task.SubscriptionPreConsumed > 0 {
+					err = fmt.Errorf("Midjourney subscription refund request id is missing")
+				}
+			} else {
+				refundTotal := task.Quota
+				if task.BillingPreConsumed > 0 && refundTotal <= 0 {
+					refundTotal = int(task.BillingPreConsumed)
+				}
+				if refundTotal > 0 {
+					if task.WalletQuotaBreakdownRecorded == 1 {
+						consumedTotal := task.WalletRewardUsed + task.WalletPaidUsed
+						if consumedTotal != refundTotal {
+							err = fmt.Errorf("Midjourney wallet snapshot mismatch: quota=%d consumed=%d", refundTotal, consumedTotal)
+						} else {
+							err = model.IncreaseUserQuotaByBreakdown(task.UserId, consumedTotal, task.WalletRewardUsed)
+						}
+					} else {
+						err = model.IncreaseUserQuota(task.UserId, refundTotal, false)
+					}
+				}
+			}
+			if err != nil {
+				_ = finishMidjourneyRefundSide(task, "billing_refund_funding_done", &task.BillingRefundFundingDone, false)
+				return err
+			}
+			if err = finishMidjourneyRefundSide(task, "billing_refund_funding_done", &task.BillingRefundFundingDone, true); err != nil {
+				return err
+			}
+		}
+
+		// Token quota is pre-consumed for wallet-funded billing sessions.  A
+		// subscription-funded request bypasses the token's numeric allowance, so
+		// its subscription snapshot must never be credited back to a token.
+		tokenClaimed, err := claimMidjourneyRefundSide(task, "billing_refund_token_done", &task.BillingRefundTokenDone)
+		if err != nil {
+			return err
+		}
+		if tokenClaimed {
+			if task.BillingSource == BillingSourceSubscription {
+				// Subscription funding never reserves the token's numeric quota;
+				// mark this side complete without touching the token row.
+				if err = finishMidjourneyRefundSide(task, "billing_refund_token_done", &task.BillingRefundTokenDone, true); err != nil {
+					return err
+				}
+			} else {
+				refundQuota := task.BillingPreConsumed
+				if refundQuota <= 0 {
+					refundQuota = int64(task.Quota)
+				}
+				if refundQuota > 0 && task.TokenId > 0 {
+					token, lookupErr := model.GetTokenById(task.TokenId)
+					if lookupErr != nil {
+						err = lookupErr
+					} else {
+						err = model.IncreaseTokenQuota(task.TokenId, token.Key, int(refundQuota))
+					}
+				}
+				if err != nil {
+					_ = finishMidjourneyRefundSide(task, "billing_refund_token_done", &task.BillingRefundTokenDone, false)
+					return err
+				}
+				if err = finishMidjourneyRefundSide(task, "billing_refund_token_done", &task.BillingRefundTokenDone, true); err != nil {
+					return err
+				}
+			}
+		}
+
+		return finalizeMidjourneyRefund(task)
+	})
 }
 
 // taskAdjustTokenQuota 调整任务的令牌额度，delta > 0 表示扣费，delta < 0 表示退还。
 // 需要通过 resolveTokenKey 运行时获取 key（不从 PrivateData 中读取）。
-func taskAdjustTokenQuota(ctx context.Context, task *model.Task, delta int) {
-	if task.PrivateData.TokenId <= 0 || delta == 0 {
-		return
+func taskAdjustTokenQuota(ctx context.Context, task *model.Task, delta int) error {
+	if !taskTokenQuotaRequired(task) || delta == 0 {
+		return nil
+	}
+	if taskTokenQuotaAdjuster != nil {
+		if err := taskTokenQuotaAdjuster(ctx, task, delta); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("调整令牌额度失败 (delta=%d, task=%s): %s", delta, task.TaskID, err.Error()))
+			return err
+		}
+		return nil
 	}
 	tokenKey := resolveTokenKey(ctx, task.PrivateData.TokenId, task.TaskID)
 	if tokenKey == "" {
-		return
+		// A token can be deleted after an asynchronous task was submitted.  Keep
+		// the historical best-effort behavior in that case: the user/subscription
+		// funding side remains authoritative, while the missing token row cannot
+		// be adjusted anyway.  Actual database failures below are still surfaced
+		// so the checkpoint can be retried.
+		return nil
 	}
 	var err error
 	if delta > 0 {
@@ -421,6 +767,7 @@ func taskAdjustTokenQuota(ctx context.Context, task *model.Task, delta int) {
 	if err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("调整令牌额度失败 (delta=%d, task=%s): %s", delta, task.TaskID, err.Error()))
 	}
+	return err
 }
 
 // taskBillingOther 从 task 的 BillingContext 构建日志 Other 字段。
@@ -468,6 +815,97 @@ func taskModelName(task *model.Task) string {
 	return task.Properties.OriginModelName
 }
 
+func initializeTaskBillingSettlementAt(task *model.Task, current, target int) error {
+	if task == nil {
+		return errors.New("task is nil")
+	}
+	state := &task.PrivateData
+	if state.BillingSettlementPending {
+		// Keep an existing durable checkpoint untouched.  The caller that owns
+		// retargeting (settleTaskBillingTarget) updates the target and done flags
+		// atomically before attempting another side.
+		return nil
+	}
+	state.BillingSettlementPending = true
+	state.BillingSettlementTarget = target
+	state.BillingSettlementFundingAmount = current
+	state.BillingSettlementTokenAmount = current
+	state.BillingSettlementFundingDone = state.BillingSettlementFundingAmount == target
+	state.BillingSettlementTokenDone = state.BillingSettlementTokenAmount == target || !taskTokenQuotaRequired(task)
+	return persistTaskBillingProgress(task)
+}
+
+func initializeTaskBillingSettlement(task *model.Task, target int) error {
+	if task == nil {
+		return errors.New("task is nil")
+	}
+	return initializeTaskBillingSettlementAt(task, task.Quota, target)
+}
+
+func clearTaskBillingSettlement(task *model.Task) {
+	state := &task.PrivateData
+	state.BillingSettlementPending = false
+	state.BillingSettlementTarget = 0
+	state.BillingSettlementFundingAmount = 0
+	state.BillingSettlementTokenAmount = 0
+	state.BillingSettlementFundingDone = false
+	state.BillingSettlementTokenDone = false
+}
+
+// settleTaskBillingTarget advances an async task to an absolute quota target.
+// The funding and token sides are checkpointed separately.  This mirrors the
+// synchronous BillingSession state machine and prevents duplicate funding
+// charges when token persistence (or the task-row write after it) fails.
+func settleTaskBillingTarget(ctx context.Context, task *model.Task, target int) error {
+	if target < 0 {
+		return errors.New("actual quota must be >= 0")
+	}
+	if task == nil {
+		return errors.New("task is nil")
+	}
+	state := &task.PrivateData
+	if state.BillingSettlementPending {
+		// A later poll can provide a better final amount while a previous
+		// checkpoint is still pending. Keep the independently committed side
+		// amounts and retarget only the unfinished difference.
+		if state.BillingSettlementTarget != target {
+			state.BillingSettlementTarget = target
+			state.BillingSettlementFundingDone = state.BillingSettlementFundingAmount == target
+			state.BillingSettlementTokenDone = state.BillingSettlementTokenAmount == target || !taskTokenQuotaRequired(task)
+			if err := persistTaskBillingProgress(task); err != nil {
+				return fmt.Errorf("persist task settlement retarget checkpoint: %w", err)
+			}
+		}
+	} else if err := initializeTaskBillingSettlement(task, target); err != nil {
+		return err
+	}
+
+	if !state.BillingSettlementFundingDone {
+		delta := target - state.BillingSettlementFundingAmount
+		if err := taskAdjustFunding(task, delta); err != nil {
+			return err
+		}
+		state.BillingSettlementFundingAmount = target
+		state.BillingSettlementFundingDone = true
+		if err := persistTaskBillingProgress(task); err != nil {
+			return fmt.Errorf("persist task funding settlement checkpoint: %w", err)
+		}
+	}
+
+	if !state.BillingSettlementTokenDone {
+		delta := target - state.BillingSettlementTokenAmount
+		if err := taskAdjustTokenQuota(ctx, task, delta); err != nil {
+			return err
+		}
+		state.BillingSettlementTokenAmount = target
+		state.BillingSettlementTokenDone = true
+		if err := persistTaskBillingProgress(task); err != nil {
+			return fmt.Errorf("persist task token settlement checkpoint: %w", err)
+		}
+	}
+	return nil
+}
+
 // RefundTaskQuota 统一的任务失败退款逻辑。
 // 当异步任务失败时，将预扣的 quota 退还给用户（支持钱包和订阅），并退还令牌额度。
 //
@@ -478,14 +916,68 @@ func taskModelName(task *model.Task) string {
 //     阻止后续误触发返利。
 //   - 旧任务（无快照）：兼容旧行为，全部退到 quota。
 func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
-	quota := task.Quota
-	if quota == 0 {
+	if task == nil {
+		return
+	}
+	if task.PrivateData.BillingRefunded {
+		return
+	}
+	quota := taskRefundQuota(task)
+	// A settlement checkpoint can outlive the task's raw Quota value.  In
+	// particular, a task submitted with Quota=0 may have already committed a
+	// completion target on one side before the other side failed.  Derive the
+	// refundable amount from both durable side snapshots before applying the
+	// zero-quota fast path; otherwise the pending funding/token operation would
+	// be stranded forever.
+	if task.PrivateData.BillingSettlementPending {
+		if task.PrivateData.BillingSettlementFundingAmount > quota {
+			quota = task.PrivateData.BillingSettlementFundingAmount
+		}
+		if task.PrivateData.BillingSettlementTokenAmount > quota {
+			quota = task.PrivateData.BillingSettlementTokenAmount
+		}
+	}
+	if quota <= 0 {
 		return
 	}
 
-	// 1. 退还资金来源（钱包或订阅）
-	if err := taskAdjustFunding(task, -quota); err != nil {
-		logger.LogWarn(ctx, fmt.Sprintf("退还资金来源失败 task %s: %s", task.TaskID, err.Error()))
+	// 1. 退还资金来源（钱包或订阅）。  The two sides are checkpointed so
+	// a token-store failure does not make a later retry refund funding twice.
+	if task.PrivateData.BillingSettlementPending {
+		// A failed completion settlement may have left one side at a different
+		// absolute amount. Refund from each side's checkpoint independently.
+		state := &task.PrivateData
+		if state.BillingSettlementFundingAmount > quota {
+			quota = state.BillingSettlementFundingAmount
+		}
+		if state.BillingSettlementTokenAmount > quota {
+			quota = state.BillingSettlementTokenAmount
+		}
+		state.BillingSettlementTarget = 0
+		state.BillingSettlementFundingDone = state.BillingSettlementFundingAmount == 0
+		state.BillingSettlementTokenDone = state.BillingSettlementTokenAmount == 0 || !taskTokenQuotaRequired(task)
+		if err := persistTaskBillingProgress(task); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("持久化任务退款目标失败 task %s: %s", task.TaskID, err.Error()))
+			return
+		}
+	} else {
+		current := quota
+		if task.Quota > 0 {
+			current = task.Quota
+		}
+		if err := initializeTaskBillingSettlementAt(task, current, 0); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("初始化任务退款状态失败 task %s: %s", task.TaskID, err.Error()))
+			return
+		}
+	}
+	if err := settleTaskBillingTarget(ctx, task, 0); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("退还任务资金/令牌失败 task %s: %s", task.TaskID, err.Error()))
+		return
+	}
+	clearTaskBillingSettlement(task)
+	task.PrivateData.BillingRefunded = true
+	if err := persistTaskBillingState(task); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("failed to persist task refund completion (task=%s): %s", task.TaskID, err.Error()))
 		return
 	}
 	// 退款后标记 ConsumeRebateSettled=true，防止后续轮询误触发消费返利。
@@ -498,8 +990,6 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	}
 
 	// 2. 退还令牌额度
-	taskAdjustTokenQuota(ctx, task, -quota)
-
 	// 3. 记录日志
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
@@ -521,13 +1011,30 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 // actualQuota 是任务完成后的实际应扣额度，与预扣额度 (task.Quota) 做差额结算。
 // reason 用于日志记录（例如 "token重算" 或 "adaptor调整"）。
 func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int, reason string) {
+	if task == nil {
+		return
+	}
 	if actualQuota <= 0 {
 		return
 	}
 	preConsumedQuota := task.Quota
+	// A subscription-backed async submission may intentionally preserve a
+	// one-unit pre-consume when the submit-time result rounds to zero.  The task
+	// row keeps that raw result (Quota=0), but the subscription record already
+	// contains the reserved amount.  Use the snapshot as the settlement baseline
+	// so the completion adjustment charges only actual-preConsumed.
+	if preConsumedQuota <= 0 && taskIsSubscription(task) {
+		preConsumedQuota = taskRefundQuota(task)
+	}
 	quotaDelta := actualQuota - preConsumedQuota
 
 	if quotaDelta == 0 {
+		if task.Quota != actualQuota {
+			task.Quota = actualQuota
+			if err := persistTaskBillingState(task); err != nil {
+				logger.LogWarn(ctx, fmt.Sprintf("failed to persist normalized task quota (task=%s): %s", task.TaskID, err.Error()))
+			}
+		}
 		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 预扣费准确（%s，%s）",
 			task.TaskID, logger.LogQuota(actualQuota), reason))
 		return
@@ -541,16 +1048,26 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		reason,
 	))
 
-	// 调整资金来源
-	if err := taskAdjustFunding(task, quotaDelta); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("差额结算资金调整失败 task %s: %s", task.TaskID, err.Error()))
+	// For a zero-valued subscription task, Quota is intentionally kept at zero
+	// in the task row while the request record holds the one-unit reservation.
+	// Pass that effective baseline to the checkpoint state machine.
+	settlementCurrent := preConsumedQuota
+	if task.PrivateData.BillingSettlementPending {
+		settlementCurrent = task.PrivateData.BillingSettlementFundingAmount
+	}
+	if err := initializeTaskBillingSettlementAt(task, settlementCurrent, actualQuota); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("初始化任务差额结算状态失败 task %s: %s", task.TaskID, err.Error()))
 		return
 	}
-
-	// 调整令牌额度
-	taskAdjustTokenQuota(ctx, task, quotaDelta)
-
+	if err := settleTaskBillingTarget(ctx, task, actualQuota); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("任务差额结算资金/令牌调整失败 task %s: %s", task.TaskID, err.Error()))
+		return
+	}
+	clearTaskBillingSettlement(task)
 	task.Quota = actualQuota
+	if err := persistTaskBillingState(task); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("failed to persist task quota settlement (task=%s): %s", task.TaskID, err.Error()))
+	}
 
 	var logType int
 	var logQuota int
@@ -582,6 +1099,73 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		Group:     task.Group,
 		Other:     other,
 	})
+}
+
+// RetryPendingTaskBilling resumes terminal-task billing checkpoints left by
+// an earlier process after one side of the two-phase settlement failed.  A
+// terminal task is no longer returned by GetAllUnFinishSyncTasks, therefore a
+// separate bounded recovery pass is required to make retries self-healing.
+//
+// SUCCESS tasks resume their absolute settlement target.  FAILURE tasks are
+// refunded to zero.  Both operations are idempotent at the subscription
+// request-record layer and are checkpointed independently for wallet/token
+// stores.  The returned count is the number of candidates examined.
+func RetryPendingTaskBilling(ctx context.Context, limit int) int {
+	if limit <= 0 {
+		limit = 100
+	}
+	taskBillingRecoveryMu.Lock()
+	defer taskBillingRecoveryMu.Unlock()
+	tasks, err := model.GetTerminalTasksForBillingRecovery(limit)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("load pending terminal task billing checkpoints: %v", err))
+		return 0
+	}
+	processed := 0
+	for _, task := range tasks {
+		if task == nil || !task.PrivateData.BillingSettlementPending {
+			continue
+		}
+		processed++
+		switch task.Status {
+		case model.TaskStatusFailure:
+			RefundTaskQuota(ctx, task, "retry pending task billing refund")
+		case model.TaskStatusSuccess:
+			target := task.PrivateData.BillingSettlementTarget
+			if target < 0 {
+				logger.LogWarn(ctx, fmt.Sprintf("skip invalid pending billing target task=%s target=%d", task.TaskID, target))
+				continue
+			}
+			// RecalculateTaskQuota intentionally ignores non-positive targets.  A
+			// pending target of zero is nevertheless meaningful for a successful
+			// task that must release its reservation, so drive the internal state
+			// machine directly in that case.
+			if target == 0 {
+				if err := settleTaskBillingTarget(ctx, task, 0); err != nil {
+					logger.LogWarn(ctx, fmt.Sprintf("retry pending zero settlement task=%s: %v", task.TaskID, err))
+					continue
+				}
+				clearTaskBillingSettlement(task)
+				task.Quota = 0
+				if err := persistTaskBillingState(task); err != nil {
+					logger.LogWarn(ctx, fmt.Sprintf("persist pending zero settlement task=%s: %v", task.TaskID, err))
+					continue
+				}
+			} else {
+				RecalculateTaskQuota(ctx, task, target, "retry pending task billing settlement")
+			}
+			// Rebate/profit finalizers are normally deferred by the completion
+			// path.  They were intentionally skipped while the checkpoint was
+			// pending, so invoke them after a successful recovery pass.
+			if !task.PrivateData.BillingSettlementPending {
+				FinalizeTaskConsumeRebate(ctx, task)
+				FinalizeTaskProviderProfit(ctx, task)
+			}
+		default:
+			logger.LogWarn(ctx, fmt.Sprintf("skip pending billing task %s with non-terminal status %s", task.TaskID, task.Status))
+		}
+	}
+	return processed
 }
 
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。

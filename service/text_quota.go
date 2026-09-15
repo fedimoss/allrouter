@@ -597,6 +597,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
 		logger.LogError(ctx, "error settling billing: "+err.Error())
+		if relayInfo.Billing != nil && relayInfo.Billing.NeedsRefund() {
+			relayInfo.Billing.Refund(ctx)
+		}
 	}
 	providerOwnerCostQuota := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerCost)
 	if providerId > 0 && providerOwnerUserId > 0 && providerOwnerCostQuota > 0 && summary.TotalTokens > 0 {

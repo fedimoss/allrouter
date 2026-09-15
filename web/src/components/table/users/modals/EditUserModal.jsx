@@ -415,7 +415,9 @@ const EditUserModal = (props) => {
                 {/* 模块权限：授予普通用户访问指定管理页面 */}
                 {showPermissionCard && (
                   <PermissionModulesCard
-                    providerMode={props.providerMode}
+                    // 主站管理员也可能编辑 provider_id>0 的服务商普通用户；
+                    // 权限目录必须按目标用户所属站点选择，而不是按当前页面模式。
+                    providerMode={isProviderUser}
                     value={permissions}
                     onChange={setPermissions}
                   />

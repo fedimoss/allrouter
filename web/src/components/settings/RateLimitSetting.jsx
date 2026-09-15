@@ -17,21 +17,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
-import { Card, Spin } from '@douyinfe/semi-ui';
+import React, { useEffect, useRef, useState } from 'react';
+import { Button, Card, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
 
-import { API, showError, toBoolean } from '../../helpers';
+import {
+  API,
+  showError,
+  showSuccess,
+  showWarning,
+  toBoolean,
+} from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import RequestRateLimit from '../../pages/Setting/RateLimit/SettingsRequestRateLimit';
 
 const RateLimitSetting = () => {
-  const { t } = useTranslation();
   let [inputs, setInputs] = useState({
     ModelRequestRateLimitEnabled: false,
     ModelRequestRateLimitCount: 0,
     ModelRequestRateLimitSuccessCount: 1000,
     ModelRequestRateLimitDurationMinutes: 1,
     ModelRequestRateLimitGroup: '',
+    ClientIPBlacklist: '',
   });
 
   let [loading, setLoading] = useState(false);
@@ -53,7 +59,11 @@ const RateLimitSetting = () => {
         }
       });
 
-      setInputs(newInputs);
+      setInputs((previous) => ({
+        ...previous,
+        ...newInputs,
+        ClientIPBlacklist: newInputs.ClientIPBlacklist ?? '',
+      }));
     } else {
       showError(message);
     }
@@ -81,9 +91,85 @@ const RateLimitSetting = () => {
         <Card style={{ marginTop: '10px' }}>
           <RequestRateLimit options={inputs} refresh={onRefresh} />
         </Card>
+        <Card style={{ marginTop: '10px' }}>
+          <ClientIPBlacklist options={inputs} refresh={onRefresh} />
+        </Card>
       </Spin>
     </>
   );
 };
+
+function ClientIPBlacklist({ options, refresh }) {
+  const { t } = useTranslation();
+  const [loading, setLoading] = useState(false);
+  const [value, setValue] = useState('');
+  const [originalValue, setOriginalValue] = useState('');
+  const refForm = useRef();
+
+  useEffect(() => {
+    const current = String(options?.ClientIPBlacklist ?? '');
+    setValue(current);
+    setOriginalValue(current);
+    refForm.current?.setValues({ ClientIPBlacklist: current });
+  }, [options?.ClientIPBlacklist]);
+
+  const onSubmit = async () => {
+    if (value === originalValue) {
+      showWarning(t('你似乎并没有修改什么'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await API.put('/api/option/', {
+        key: 'ClientIPBlacklist',
+        value,
+      });
+      if (!response?.data?.success) {
+        showError(response?.data?.message || t('保存失败，请重试'));
+        return;
+      }
+      showSuccess(t('保存成功'));
+      await refresh();
+    } catch (error) {
+      showError(t('保存失败，请重试'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Spin spinning={loading}>
+      <Form
+        values={{ ClientIPBlacklist: value }}
+        getFormApi={(formAPI) => (refForm.current = formAPI)}
+        style={{ marginBottom: 15 }}
+      >
+        <Form.Section text={t('客户端 IP 黑名单')}>
+          <Row gutter={16}>
+            <Col xs={24} sm={24} md={16} lg={16} xl={16}>
+              <Form.TextArea
+                field='ClientIPBlacklist'
+                label={t('禁止访问的客户端 IP')}
+                placeholder={t(
+                  '每行一个 IP 或 CIDR，例如：203.0.113.8 或 203.0.113.0/24',
+                )}
+                autosize={{ minRows: 3, maxRows: 10 }}
+                extraText={t(
+                  '命中后会拒绝访问 API、模型和注册等请求；留空表示不启用。请确认代理已正确传递真实客户端 IP。',
+                )}
+                onChange={(nextValue) => setValue(nextValue ?? '')}
+              />
+            </Col>
+          </Row>
+          <Row>
+            <Button size='default' onClick={onSubmit}>
+              {t('保存 IP 黑名单')}
+            </Button>
+          </Row>
+        </Form.Section>
+      </Form>
+    </Spin>
+  );
+}
 
 export default RateLimitSetting;

@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -236,6 +237,62 @@ type CreemWebhookEvent struct {
 	} `json:"object"`
 }
 
+// normalizeCreemCurrency converts the symbols used by local subscription
+// orders to the ISO currency codes returned by Creem.  Orders created before
+// currency snapshots were introduced may have an empty value; callers can
+// use the empty result as a backwards-compatible "unspecified" marker.
+func normalizeCreemCurrency(currency string) string {
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	switch currency {
+	case "$", "USD":
+		return "USD"
+	case "€", "EUR":
+		return "EUR"
+	case "￥", "¥", "CNY":
+		return "CNY"
+	default:
+		return currency
+	}
+}
+
+// creemSubscriptionPaymentMatches validates the immutable payment snapshot
+// captured on a subscription order against a successful Creem webhook.  The
+// product identifier and charged currency are part of the payment identity;
+// accepting a missing product/currency when the order has a snapshot would
+// allow a callback for a different product or currency to activate an
+// entitlement.  Empty snapshots remain compatible with historical orders.
+func creemSubscriptionPaymentMatches(order *model.SubscriptionOrder, event *CreemWebhookEvent, expectedProductID string) bool {
+	if order == nil || event == nil {
+		return false
+	}
+	expectedAmount := order.Money
+	if order.OriginalMoney > 0 {
+		expectedAmount = order.OriginalMoney
+	}
+	if expectedAmount <= 0 || !minorUnitAmountMatchesMoney(event.Object.Order.AmountPaid, event.Object.Order.Currency, expectedAmount) {
+		return false
+	}
+
+	// Currency is optional only for legacy rows that predate the snapshot.
+	expectedCurrency := normalizeCreemCurrency(order.Currency)
+	actualCurrency := normalizeCreemCurrency(event.Object.Order.Currency)
+	if expectedCurrency != "" && (actualCurrency == "" || actualCurrency != expectedCurrency) {
+		return false
+	}
+
+	// A newly-created order always has PaymentProductId.  If an expected
+	// product is present, the webhook must include and exactly match it; do not
+	// silently accept a missing product field.
+	expectedProductID = strings.TrimSpace(expectedProductID)
+	if expectedProductID != "" {
+		actualProductID := strings.TrimSpace(event.Object.Product.Id)
+		if actualProductID == "" || actualProductID != expectedProductID {
+			return false
+		}
+	}
+	return true
+}
+
 func CreemWebhook(c *gin.Context) {
 	// 读取body内容用于打印，同时保留原始数据供后续使用
 	bodyBytes, err := io.ReadAll(c.Request.Body)
@@ -313,20 +370,24 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 
 	// 先尝试按订阅订单处理：订阅订单金额固定，可做严格对账。
 	if order := model.GetSubscriptionOrderByTradeNo(referenceId); order != nil {
-		if !minorUnitAmountMatchesMoney(event.Object.Order.AmountPaid, event.Object.Order.Currency, order.Money) {
+		// Validate against the amount/currency/product snapshotted when checkout
+		// was created.  Never recalculate from the mutable catalog on webhook.
+		expectedProductID := strings.TrimSpace(order.PaymentProductId)
+		if expectedProductID == "" {
+			// Legacy orders did not persist PaymentProductId.  Keep a catalog
+			// fallback for those rows only; new rows always use the immutable
+			// order snapshot above.
+			if plan, err := model.GetSubscriptionPlanById(order.PlanId); err == nil && plan != nil {
+				expectedProductID = strings.TrimSpace(plan.CreemProductId)
+			}
+		}
+		if !creemSubscriptionPaymentMatches(order, event, expectedProductID) {
 			log.Printf("Creem订阅金额校验失败: 订单号=%s, callback_amount_paid=%d, currency=%s, local_money=%.2f",
 				referenceId, event.Object.Order.AmountPaid, event.Object.Order.Currency, order.Money)
 			c.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
-		if plan, err := model.GetSubscriptionPlanById(order.PlanId); err == nil && plan != nil &&
-			plan.CreemProductId != "" && event.Object.Product.Id != "" && plan.CreemProductId != event.Object.Product.Id {
-			log.Printf("Creem订阅产品校验失败: 订单号=%s, callback_product_id=%s, local_product_id=%s",
-				referenceId, event.Object.Product.Id, plan.CreemProductId)
-			c.AbortWithStatus(http.StatusBadRequest)
-			return
-		}
-		if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(event), PaymentMethodCreem); err != nil {
+		if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(event), PaymentMethodCreem, model.PaymentProviderCreem); err != nil {
 			log.Printf("Creem订阅订单处理失败: %s, 订单号: %s", err.Error(), referenceId)
 			c.AbortWithStatus(http.StatusInternalServerError)
 			return

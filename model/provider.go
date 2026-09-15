@@ -124,12 +124,30 @@ type providerPublicConfigCacheEntry struct {
 }
 
 type TreeProvider struct {
-	*User
+	Id          int    `json:"id"`
+	ProviderId  int    `json:"provider_id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Role        int    `json:"role"`
+	Status      int    `json:"status"`
+	InviterId   int    `json:"inviter_id"`
 
 	Children []*TreeProvider `json:"children"`
 
 	// 分页信息（关键）
 	HasMoreChildren bool `json:"has_more_children"`
+}
+
+// providerTreeUserRow keeps GORM from treating TreeProvider.Children as a
+// database relation while loading the flat user rows for one tree level.
+type providerTreeUserRow struct {
+	Id          int
+	ProviderId  int
+	Username    string
+	DisplayName string
+	Role        int
+	Status      int
+	InviterId   int
 }
 
 type childCountRow struct {
@@ -501,30 +519,36 @@ func (p *ProviderModelPricing) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
-func GetTreeChilendUsers(userId int, parentId int, pageInfo *common.PageInfo) ([]*TreeProvider, error) {
-	if parentId == 0 && userId != 1 { // userId为1是根超级管理员（目前仅限定根超级管理员能查看各个服务商）
-		return nil, errors.New("Insufficient permissions")
+func GetTreeChilendUsers(providerId int, ownerUserId int, parentId int, pageInfo *common.PageInfo) ([]*TreeProvider, error) {
+	if providerId <= 0 || ownerUserId <= 0 || parentId <= 0 {
+		return nil, errors.New("invalid provider tree query")
 	}
-	provider, err := GetProviderByOwnerUserId(userId)
+	provider, err := GetProviderById(providerId)
 	if err != nil {
 		return nil, err
 	}
-	if provider == nil {
-		return nil, errors.New("current user is not provider")
-	}
-	//查看parentId的归属在哪个服务商下
-	root, err := GetProviderRoot(parentId, userId)
-	if err != nil {
-		return nil, err
-	}
-	if root.Status != 1 {
+	if provider.Status != ProviderStatusEnabled {
 		return nil, errors.New("provider is not enabled")
 	}
-	if root.OwnerUserId != userId {
-		return nil, errors.New("current user is not provider root") //非法请求
+	// Bind the query to the provider selected by the caller. Looking up a
+	// provider by owner here is ambiguous when one owner manages more than one
+	// provider.
+	if provider.OwnerUserId != ownerUserId {
+		return nil, errors.New("current user is not provider root")
+	}
+	if parentId != ownerUserId {
+		var count int64
+		if err := DB.Model(&User{}).
+			Where("id = ? AND provider_id = ?", parentId, providerId).
+			Count(&count).Error; err != nil {
+			return nil, err
+		}
+		if count == 0 {
+			return nil, errors.New("parent user is not in provider")
+		}
 	}
 	// TODO: 查询当前节点的子节点
-	ups, total, err := GetChilendsProvide(parentId, root, pageInfo)
+	ups, total, err := GetChilendsProvide(parentId, provider, pageInfo)
 	if pageInfo != nil {
 		pageInfo.SetTotal(total)
 	}
@@ -552,7 +576,7 @@ func GetProviderRoot(userId int, providerId int) (*Provider, error) {
 }
 
 func GetChilendsProvide(parentId int, provider *Provider, pageInfo *common.PageInfo) ([]*TreeProvider, int, error) {
-	var us []*User
+	var rows []*providerTreeUserRow
 	var tree []*TreeProvider
 	var err error
 	var total int64
@@ -574,13 +598,14 @@ func GetChilendsProvide(parentId int, provider *Provider, pageInfo *common.PageI
 		Order("id asc").
 		Limit(pageInfo.GetPageSize()).
 		Offset(pageInfo.GetStartIdx()).
-		Find(&us).Error; err != nil {
+		Select("id", "provider_id", "username", "display_name", "role", "status", "inviter_id").
+		Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 
 	//当前层userids
-	userids := make([]int, 0, len(us))
-	for _, u := range us {
+	userids := make([]int, 0, len(rows))
+	for _, u := range rows {
 		userids = append(userids, u.Id)
 	}
 	var childCounts []childCountRow
@@ -595,11 +620,19 @@ func GetChilendsProvide(parentId int, provider *Provider, pageInfo *common.PageI
 	for _, row := range childCounts {
 		childRows[row.InviterId] = row.Count
 	}
-	for _, u := range us {
-		tree = append(tree, &TreeProvider{
-			User:            u,
-			HasMoreChildren: childRows[u.Id] > 0,
-		})
+	for _, row := range rows {
+		u := &TreeProvider{
+			Id:              row.Id,
+			ProviderId:      row.ProviderId,
+			Username:        row.Username,
+			DisplayName:     row.DisplayName,
+			Role:            row.Role,
+			Status:          row.Status,
+			InviterId:       row.InviterId,
+			Children:        make([]*TreeProvider, 0),
+			HasMoreChildren: childRows[row.Id] > 0,
+		}
+		tree = append(tree, u)
 	}
 	return tree, int(total), nil
 }

@@ -61,6 +61,10 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 		common.ApiErrorMsg(c, "该套餐暂不允许订阅")
 		return
 	}
+	if plan.PriceAmount <= 0 {
+		common.ApiErrorMsg(c, "套餐金额必须大于 0")
+		return
+	}
 
 	// 根据前端传的 network + token_symbol 查找链配置
 	chainCfg, err := model.GetCryptoChainByNetwork(req.Network, req.TokenSymbol)
@@ -71,6 +75,22 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 	// 校验收款地址是否已配置
 	if strings.TrimSpace(chainCfg.ReceiverAddress) == "" {
 		common.ApiErrorMsg(c, "该网络的收款地址未配置")
+		return
+	}
+	// Token decimals are used as an int32 scale by decimal.Round and as a
+	// base-unit multiplier during chain verification. Reject malformed config
+	// rather than allowing an overflow or an unusable payment order.
+	if chainCfg.TokenDecimals < 0 || chainCfg.TokenDecimals > 36 || chainCfg.MinConfirmations < 0 {
+		common.ApiErrorMsg(c, "该网络代币精度配置错误")
+		return
+	}
+	if !isValidCryptoAddress(chainCfg.TokenContract) || !isValidCryptoAddress(chainCfg.ReceiverAddress) {
+		common.ApiErrorMsg(c, "该网络加密货币地址配置错误")
+		return
+	}
+	rate, err := parseCryptoUSDtoTokenRate()
+	if err != nil {
+		common.ApiErrorMsg(c, "加密货币汇率未配置或无效")
 		return
 	}
 
@@ -84,19 +104,6 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 	if user == nil {
 		common.ApiErrorMsg(c, "用户不存在")
 		return
-	}
-
-	// 校验用户是否已购买该套餐
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
-			return
-		}
 	}
 
 	// 以下为已注释的展示币种自动推断逻辑（保留供后续参考）：
@@ -116,13 +123,10 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 	reference := fmt.Sprintf("sub-crypto-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
-	// 美元价格按汇率换算为代币金额（plan.PriceAmount 为美元价格，1 USDT ≈ 1 USD）
-	usdtAmount := decimal.NewFromFloat(plan.PriceAmount).Mul(decimal.RequireFromString(getCryptoUSDtoTokenRate()))
-	// 按链配置的精度四舍五入，字符串存储避免浮点精度问题
-	payAmount := usdtAmount.Round(int32(chainCfg.TokenDecimals)).StringFixed(int32(chainCfg.TokenDecimals))
-
 	now := time.Now().Unix()
 	var order *model.SubscriptionOrder
+	var payAmount string
+	var accountingPrice decimal.Decimal
 	// 事务中同时创建 subscription_orders 和 crypto_transactions 记录
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		// 创建订阅订单
@@ -130,17 +134,41 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 			UserId: userId,  // 用户 ID
 			PlanId: plan.Id, // 订阅套餐 ID
 			// 订单归属服务商（0=主站），完成订单时据此给服务商 owner 结算订阅收入。
-			ProviderId:    c.GetInt("provider_id"),
-			Money:         usdtAmount.InexactFloat64(), // 换算后的代币金额（USDT）
-			Currency:      currencySymbol,              // 用户币种符号（$ / ￥）
-			OriginalMoney: plan.PriceAmount,            // 套餐原价
-			TradeNo:       referenceId,                 // 订单号（唯一）
-			PaymentMethod: PaymentMethodCrypto,         // 支付方式：crypto
-			CreateTime:    now,                         // 创建时间
-			Status:        common.TopUpStatusPending,   // 订单状态：待支付
+			ProviderId: c.GetInt("provider_id"),
+			// Money is the normalized USD accounting amount. The converted token
+			// amount is persisted separately in CryptoTransaction.UsdtAmount.
+			Money:           plan.PriceAmount,
+			Currency:        currencySymbol,      // 用户币种符号（$ / ￥）
+			OriginalMoney:   plan.PriceAmount,    // 套餐原价
+			TradeNo:         referenceId,         // 订单号（唯一）
+			PaymentMethod:   PaymentMethodCrypto, // 支付方式：crypto
+			PaymentProvider: model.PaymentProviderCrypto,
+			CreateTime:      now,                       // 创建时间
+			Status:          common.TopUpStatusPending, // 订单状态：待支付
 		}
 		if err := model.CreateSubscriptionOrderTx(tx, order); err != nil {
 			return err
+		}
+		// CreateSubscriptionOrderTx locks the authoritative plan and normalizes
+		// Money for crypto orders. Recompute the token amount from that locked
+		// value so a concurrent catalog edit cannot change the quoted amount.
+		accountingPrice = decimal.NewFromFloat(order.Money)
+		if !accountingPrice.GreaterThan(decimal.Zero) {
+			return fmt.Errorf("invalid subscription price")
+		}
+		// Keep the monetary snapshot coherent with the authoritative plan row.
+		// The token quantity remains in CryptoTransaction.UsdtAmount.
+		order.OriginalMoney = accountingPrice.InexactFloat64()
+		if err := tx.Model(&model.SubscriptionOrder{}).
+			Where("id = ?", order.Id).
+			Update("original_money", order.OriginalMoney).Error; err != nil {
+			return err
+		}
+		tokenAmount := accountingPrice.Mul(rate)
+		payAmount = tokenAmount.Round(int32(chainCfg.TokenDecimals)).StringFixed(int32(chainCfg.TokenDecimals))
+		parsedPayAmount, parseErr := decimal.NewFromString(payAmount)
+		if parseErr != nil || !parsedPayAmount.GreaterThan(decimal.Zero) {
+			return fmt.Errorf("crypto payment amount is too small")
 		}
 		// 创建加密货币交易记录（存储链上支付参数，确认时回查）
 		cryptoTx := model.CryptoTransaction{
@@ -151,6 +179,7 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 			ChainId:             chainCfg.ChainID,                                 // 链 ID（confirm 时据此反查配置）
 			TokenSymbol:         chainCfg.TokenSymbol,                             // 代币符号
 			TokenContract:       normalizeCryptoAddress(chainCfg.TokenContract),   // 代币合约地址
+			TokenDecimals:       chainCfg.TokenDecimals,                           // 精度快照，确认时不可被配置变更影响
 			ReceiverAddress:     normalizeCryptoAddress(chainCfg.ReceiverAddress), // 收款地址
 			UsdtAmount:          payAmount,                                        // 应支付的代币金额
 			Status:              model.CryptoTransactionStatusPending,             // 交易状态：待确认
@@ -165,19 +194,19 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 
 	// 返回该链的支付信息，供前端构造钱包交易
 	common.ApiSuccess(c, gin.H{
-		"trade_no":         referenceId,               // 订单号，后续确认时回传
-		"payment_method":   PaymentMethodCrypto,       // 支付方式标识
-		"network":          chainCfg.Network,          // 链网络名称
-		"chain_id":         chainCfg.ChainID,          // 链 ID（EIP-155），钱包切换网络时需要
-		"token":            chainCfg.TokenSymbol,      // 代币符号（USDT）
-		"token_contract":   chainCfg.TokenContract,    // 代币合约地址，transfer 的目标地址
-		"to_address":       chainCfg.ReceiverAddress,  // 收款地址
-		"pay_amount":       payAmount,                 // 需支付的代币金额（按链精度四舍五入）
-		"decimals":         chainCfg.TokenDecimals,    // 代币精度，构造 transfer 时用于换算
-		"confirmations":    chainCfg.MinConfirmations, // 最小确认数要求
-		"amount":           plan.PriceAmount,          // 套餐美元价格
-		"display_currency": plan.Currency,             // 展示币种代码（USD / CNY）
-		"display_symbol":   currencySymbol,            // 展示币种符号（$ / ￥）
+		"trade_no":         referenceId,                      // 订单号，后续确认时回传
+		"payment_method":   PaymentMethodCrypto,              // 支付方式标识
+		"network":          chainCfg.Network,                 // 链网络名称
+		"chain_id":         chainCfg.ChainID,                 // 链 ID（EIP-155），钱包切换网络时需要
+		"token":            chainCfg.TokenSymbol,             // 代币符号（USDT）
+		"token_contract":   chainCfg.TokenContract,           // 代币合约地址，transfer 的目标地址
+		"to_address":       chainCfg.ReceiverAddress,         // 收款地址
+		"pay_amount":       payAmount,                        // 需支付的代币金额（按链精度四舍五入）
+		"decimals":         chainCfg.TokenDecimals,           // 代币精度，构造 transfer 时用于换算
+		"confirmations":    chainCfg.MinConfirmations,        // 最小确认数要求
+		"amount":           accountingPrice.InexactFloat64(), // 套餐美元价格
+		"display_currency": plan.Currency,                    // 展示币种代码（USD / CNY）
+		"display_symbol":   currencySymbol,                   // 展示币种符号（$ / ￥）
 	})
 }
 
@@ -185,6 +214,23 @@ func SubscriptionRequestCryptoPay(c *gin.Context) {
 type SubscriptionCryptoConfirmRequest struct {
 	TradeNo string `json:"trade_no"` // 订单号
 	TxHash  string `json:"tx_hash"`  // 链上交易哈希
+}
+
+// applySubscriptionCryptoTokenDecimalsSnapshot applies the token precision
+// captured on the checkout transaction.  Zero is a valid ERC-20 precision for
+// some tokens, so it must not be treated as "missing" and replaced with the
+// administrator's current chain configuration.  A pending order can outlive a
+// chain-config edit; confirmation must therefore always use the persisted
+// snapshot (including zero) to interpret UsdtAmount and transfer logs.
+func applySubscriptionCryptoTokenDecimalsSnapshot(chain *cryptoChainConfig, snapshot int) error {
+	if chain == nil {
+		return fmt.Errorf("订单代币精度错误")
+	}
+	if snapshot < 0 || snapshot > 36 {
+		return fmt.Errorf("订单代币精度错误")
+	}
+	chain.TokenDecimals = snapshot
+	return nil
 }
 
 // SubscriptionRequestCryptoConfirm 加密货币订阅充值确认（用户提交交易哈希后调用）
@@ -205,14 +251,8 @@ func SubscriptionRequestCryptoConfirm(c *gin.Context) {
 		common.ApiErrorMsg(c, "订单号和交易哈希不能为空")
 		return
 	}
-	if !strings.HasPrefix(txHash, "0x") || len(txHash) != 66 {
+	if !isValidCryptoTxHash(txHash) {
 		common.ApiErrorMsg(c, "交易哈希格式错误")
-		return
-	}
-
-	// 防止同一笔链上交易重复使用
-	if model.CryptoTxHashExists(txHash) {
-		common.ApiErrorMsg(c, "交易哈希已被使用")
 		return
 	}
 
@@ -222,10 +262,99 @@ func SubscriptionRequestCryptoConfirm(c *gin.Context) {
 		common.ApiErrorMsg(c, "加密货币交易记录不存在")
 		return
 	}
+	// A subscription confirmation is a user-scoped operation.  Without this
+	// check, anyone who learns another user's pending trade number could submit
+	// a valid transfer and cause that user's order to be fulfilled (or consume
+	// their pending inventory), while the caller receives no entitlement.
+	if cryptoTx.UserId != c.GetInt("id") || cryptoTx.SubscriptionOrderId <= 0 || cryptoTx.TopUpId != 0 {
+		common.ApiErrorMsg(c, "无权确认该订阅订单")
+		return
+	}
+	// Validate the linked order before touching the chain.  The crypto row is
+	// intentionally not sufficient authorization: a malformed/legacy row must
+	// never be used to complete a non-crypto order or an order owned by another
+	// user.
+	order := model.GetSubscriptionOrderByTradeNo(tradeNo)
+	if order == nil || order.Id != cryptoTx.SubscriptionOrderId || order.UserId != cryptoTx.UserId {
+		common.ApiErrorMsg(c, "订阅订单不存在")
+		return
+	}
+	if order.PaymentMethod != model.PaymentMethodCrypto ||
+		(strings.TrimSpace(order.PaymentProvider) != "" && order.PaymentProvider != model.PaymentProviderCrypto) {
+		common.ApiErrorMsg(c, "订单支付方式不匹配")
+		return
+	}
+	if order.Status != common.TopUpStatusPending && order.Status != common.TopUpStatusSuccess {
+		common.ApiErrorMsg(c, "订单状态错误")
+		return
+	}
+	boundHash := ""
+	if cryptoTx.TxHash != nil {
+		boundHash = strings.ToLower(strings.TrimSpace(*cryptoTx.TxHash))
+	}
+	if boundHash != "" {
+		// A completed row is a safe idempotent retry.  Do not call the RPC again:
+		// chain settings may have been rotated since checkout, and the persisted
+		// transfer metadata is already the verified evidence for this order.
+		if boundHash != txHash || cryptoTx.Status != model.CryptoTransactionStatusSuccess {
+			common.ApiErrorMsg(c, "交易哈希与订单已绑定记录不一致")
+			return
+		}
+		LockOrder(tradeNo)
+		defer UnlockOrder(tradeNo)
+		if err := model.CompleteSubscriptionCryptoOrder(tradeNo, txHash, txHash,
+			cryptoTx.PayerAddress, cryptoTx.BlockNumber, cryptoTx.Confirmations); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, gin.H{
+			"trade_no":      tradeNo,
+			"tx_hash":       txHash,
+			"from_address":  cryptoTx.PayerAddress,
+			"to_address":    cryptoTx.ReceiverAddress,
+			"block_number":  cryptoTx.BlockNumber,
+			"confirmations": cryptoTx.Confirmations,
+		})
+		return
+	}
+	if cryptoTx.Status != model.CryptoTransactionStatusPending {
+		common.ApiErrorMsg(c, "加密货币交易状态错误")
+		return
+	}
+	if order.Status != common.TopUpStatusPending {
+		// An unbound crypto row must correspond to the pending checkout.  A
+		// success order with no hash indicates an inconsistent/legacy record and
+		// must not be used as a new authorization to attach a transfer.
+		common.ApiErrorMsg(c, "订单状态错误")
+		return
+	}
+	// 防止同一笔链上交易被其他订单重复使用。当前订单重复确认时，
+	// 自身 hash 已在上面的幂等分支处理，不能被全局预检误判为重复支付。
+	if model.CryptoTxHashExistsForOtherTradeNo(txHash, tradeNo) {
+		common.ApiErrorMsg(c, "交易哈希已被使用")
+		return
+	}
 
 	chain, err := getCryptoChainByID(cryptoTx.ChainId, cryptoTx.TokenSymbol)
 	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	// The payment row is a checkout-time snapshot.  Administrators may rotate
+	// the active contract later, but an in-flight order must still be verified
+	// against the contract the user was shown when paying.  RPC/confirmation
+	// policy remains configurable on the current chain row.
+	if !isValidCryptoAddress(cryptoTx.TokenContract) {
+		common.ApiErrorMsg(c, "订单代币合约地址错误")
+		return
+	}
+	chain.TokenContract = normalizeCryptoAddress(cryptoTx.TokenContract)
+	if err := applySubscriptionCryptoTokenDecimalsSnapshot(chain, cryptoTx.TokenDecimals); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	if !isValidCryptoAddress(cryptoTx.ReceiverAddress) {
+		common.ApiErrorMsg(c, "订单收款地址错误")
 		return
 	}
 
@@ -235,7 +364,11 @@ func SubscriptionRequestCryptoConfirm(c *gin.Context) {
 		return
 	}
 	// 链上验证代币转账
-	transfer, err := verifyCryptoTransfer(chain, txHash, normalizeCryptoAddress(cryptoTx.ReceiverAddress), requiredAmount, 0)
+	// The transfer must have been mined after this specific order was created.
+	// Passing zero here used to disable the timestamp guard for subscription
+	// payments, allowing an old (otherwise valid) transfer to be replayed against
+	// a newly-created order whenever the hash was not already present locally.
+	transfer, err := verifyCryptoTransfer(chain, txHash, normalizeCryptoAddress(cryptoTx.ReceiverAddress), requiredAmount, cryptoTx.CreateTime)
 	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return
@@ -244,12 +377,12 @@ func SubscriptionRequestCryptoConfirm(c *gin.Context) {
 	// 加锁防止并发确认
 	LockOrder(tradeNo)
 	defer UnlockOrder(tradeNo)
-	// 完成订阅订单，激活用户订阅
-	if err := model.CompleteSubscriptionOrder(tradeNo, txHash, PaymentMethodCrypto); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if err := model.CompleteCryptoTransaction(tradeNo, txHash, transfer.From, transfer.BlockNumber, transfer.Confirmations); err != nil {
+	// 完成订阅订单、绑定链上交易哈希必须在同一数据库事务内提交。否则
+	// 订单已激活而 crypto_transactions 尚未标记成功时，进程崩溃/重试可能
+	// 将另一笔交易绑定到同一订阅订单。
+	if err := model.CompleteSubscriptionCryptoOrder(
+		tradeNo, txHash, txHash, transfer.From, transfer.BlockNumber, transfer.Confirmations,
+	); err != nil {
 		common.ApiError(c, err)
 		return
 	}

@@ -30,6 +30,7 @@ import User from './pages/User';
 import {
   AuthRedirect,
   PrivateRoute,
+  ProviderPermissionRoute,
   AdminRoute,
   AdminOrPermissionRoute,
   isAdmin,
@@ -220,57 +221,63 @@ function App() {
         <Route
           path='/console/provider'
           element={
-            <PrivateRoute>
+            <ProviderPermissionRoute module='provider'>
               <Provider />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route
           path='/console/provider/reward'
           element={
-            <PrivateRoute>
+            <ProviderPermissionRoute module='providerReward' allowAdmin={false}>
               <ProviderRewardPage />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route
           path='/console/provider/reward-report'
           element={
-            <PrivateRoute>
+            <ProviderPermissionRoute
+              module='providerRewardReport'
+              allowAdmin={false}
+            >
               <ProviderRewardReportPage />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route
           path='/console/provider/redemption'
           element={
-            <PrivateRoute>
+            <ProviderPermissionRoute
+              module='providerRedemption'
+              allowAdmin={false}
+            >
               <ProviderRedemptionPage />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route
           path='/console/provider/logs'
           element={
-            <PrivateRoute>
+            <ProviderPermissionRoute module='providerLogs' allowAdmin={false}>
               <ProviderLogsPage />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route
           path='/console/provider/profits'
           element={
-            <PrivateRoute>
+            <ProviderPermissionRoute module='providerProfits'>
               <ProviderProfitsRoute />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route
           path='/console/provider/users'
           element={
-            <PrivateRoute>
+            <ProviderPermissionRoute ownerOnly>
               <ProviderUsersPage />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route
@@ -278,33 +285,36 @@ function App() {
           element={
             // 服务商控制台-订阅管理页路由，本次"服务商私有订阅"特性新增。
             // 复用主站 SubscriptionsPage，由 ProviderSubscriptionPage 注入服务商接口地址。
-            <PrivateRoute>
+            <ProviderPermissionRoute
+              module='providerSubscription'
+              allowAdmin={false}
+            >
               <ProviderSubscriptionPage />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route
           path='/console/provider/withdraw'
           element={
-            <PrivateRoute>
+            <ProviderPermissionRoute module='providerWithdraw'>
               <ProviderWithdrawPage />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route
           path='/console/provider/questionSurvey'
           element={
-            <PrivateRoute>
+            <ProviderPermissionRoute module='providerQuestionSurvey'>
               <QuestionSurvey />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route
           path='/console/provider/operational'
           element={
-            <PrivateRoute>
+            <ProviderPermissionRoute module='providerOperational'>
               <Operational />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route
@@ -319,9 +329,9 @@ function App() {
         <Route
           path='/console/provider/setting'
           element={
-            <PrivateRoute>
+            <ProviderPermissionRoute ownerOnly>
               <ProviderSettingPage />
-            </PrivateRoute>
+            </ProviderPermissionRoute>
           }
         />
         <Route path='/landing' element={<LandingPage />} />

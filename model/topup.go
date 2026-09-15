@@ -21,25 +21,30 @@ import (
 // TopUp 充值记录数据模型
 // 记录用户所有的充值行为，包括在线支付、兑换码、订阅等
 type TopUp struct {
-	ProviderId      int      `json:"provider_id" gorm:"type:int;default:0;index"`
-	Id              int      `json:"id"`                                                     // 充值记录ID（主键）
-	UserId          int      `json:"user_id" gorm:"index"`                                   // 用户ID（索引）
-	Amount          int64    `json:"amount"`                                                 // 普通充值为基础额度；兑换码为内部整数额度
-	Money           float64  `json:"money"`                                                  // 支付金额（美元）
-	TradeNo         string   `json:"trade_no" gorm:"unique;type:varchar(255);index"`         // 交易号（唯一索引）
-	PaymentMethod   string   `json:"payment_method" gorm:"type:varchar(50)"`                 // 支付方式（stripe/creem/waffo/epay等）
-	PaymentProvider string   `json:"payment_provider" gorm:"type:varchar(50);default:''"`    // 支付服务商，用于区分同类支付方式的回调
-	BizType         string   `json:"biz_type" gorm:"type:varchar(32);default:payment;index"` // 业务类型（payment/subscription/redemption）
-	SourceID        int      `json:"source_id" gorm:"default:0;index"`                       // 关联源ID（订阅ID/兑换码ID等）
-	CreateTime      int64    `json:"create_time"`                                            // 创建时间（Unix时间戳）
-	CompleteTime    int64    `json:"complete_time"`                                          // 完成时间（Unix时间戳）
-	Status          string   `json:"status"`                                                 // 状态（pending/success/failed等）
-	Currency        string   `json:"currency" gorm:"type:varchar(10);default:''"`            // 原始币种代码或符号（CNY/USD/￥/$）
-	OriginalMoney   float64  `json:"original_money" gorm:"type:decimal(18,6);default:0"`     // 用户选择的原始金额（用户币种）
-	DisplayName     string   `json:"display_name" gorm:"->;-:migration;column:display_name"` // 用户昵称（从users表关联）
-	DisplayCurrency string   `json:"display_currency,omitempty" gorm:"-"`                    // 展示用币种代码（非数据库字段，由 controller 层填充）
-	DisplaySymbol   string   `json:"display_symbol,omitempty" gorm:"-"`                      // 展示用币种符号（非数据库字段，由 controller 层填充）
-	DisplayAmount   *float64 `json:"display_amount,omitempty" gorm:"-"`                      // 展示用充值额度；兑换码允许小数
+	ProviderId      int     `json:"provider_id" gorm:"type:int;default:0;index"`
+	Id              int     `json:"id"`                                                     // 充值记录ID（主键）
+	UserId          int     `json:"user_id" gorm:"index"`                                   // 用户ID（索引）
+	Amount          int64   `json:"amount"`                                                 // 普通充值为基础额度；兑换码为内部整数额度
+	Money           float64 `json:"money"`                                                  // 支付金额（美元）
+	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`         // 交易号（唯一索引）
+	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`                 // 支付方式（stripe/creem/waffo/epay等）
+	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`    // 支付服务商，用于区分同类支付方式的回调
+	BizType         string  `json:"biz_type" gorm:"type:varchar(32);default:payment;index"` // 业务类型（payment/subscription/redemption）
+	SourceID        int     `json:"source_id" gorm:"default:0;index"`                       // 关联源ID（订阅ID/兑换码ID等）
+	CreateTime      int64   `json:"create_time"`                                            // 创建时间（Unix时间戳）
+	CompleteTime    int64   `json:"complete_time"`                                          // 完成时间（Unix时间戳）
+	Status          string  `json:"status"`                                                 // 状态（pending/success/failed等）
+	Currency        string  `json:"currency" gorm:"type:varchar(10);default:''"`            // 原始币种代码或符号（CNY/USD/￥/$）
+	OriginalMoney   float64 `json:"original_money" gorm:"type:decimal(18,6);default:0"`     // 用户选择的原始金额（用户币种）
+	// Username and DisplayName are read-only values populated by the list/detail
+	// queries from the user referenced by UserId. They are deliberately kept
+	// separate: username identifies the account, while display_name is mutable
+	// profile data (nickname).
+	Username        string   `json:"username" gorm:"->;-:migration;column:username"`
+	DisplayName     string   `json:"display_name" gorm:"->;-:migration;column:display_name"`
+	DisplayCurrency string   `json:"display_currency,omitempty" gorm:"-"` // 展示用币种代码（非数据库字段，由 controller 层填充）
+	DisplaySymbol   string   `json:"display_symbol,omitempty" gorm:"-"`   // 展示用币种符号（非数据库字段，由 controller 层填充）
+	DisplayAmount   *float64 `json:"display_amount,omitempty" gorm:"-"`   // 展示用充值额度；兑换码允许小数
 }
 
 type TopUpDetails struct {
@@ -67,6 +72,10 @@ const (
 	PaymentMethodCreem        = "creem"
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
+	// PaymentMethodCrypto identifies on-chain crypto payments.  Keeping the
+	// method constant in model avoids coupling transactional helpers to the
+	// controller package.
+	PaymentMethodCrypto = "crypto"
 )
 
 const (
@@ -76,6 +85,9 @@ const (
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
+	// PaymentProviderCrypto identifies on-chain crypto payments for provider
+	// consistency checks on subscription orders.
+	PaymentProviderCrypto = "crypto"
 )
 
 // normalizeTopUpBizType 规范化业务类型
@@ -122,6 +134,7 @@ const topUpRecordAlias = "topup_records"
 
 func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
 	// 兑换码列表展示依赖原始金额和币种，因此 UNION 两侧必须保持相同字段顺序和类型。
+	// username 是账号标识，display_name 是可变昵称；两者都从同一个 user_id 关联。
 	return tx.Table("(?) AS "+topUpRecordAlias, tx.Raw(`
 		SELECT
 			t.id,
@@ -138,6 +151,7 @@ func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
 			t.source_id,
 			t.currency,
 			t.original_money,
+			COALESCE(users.username, '') AS username,
 			COALESCE(users.display_name, '') AS display_name
 		FROM top_ups AS t
 		LEFT JOIN users ON users.id = t.user_id
@@ -159,6 +173,7 @@ func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
 			0 AS source_id,
 			'' AS currency,
 			0 AS original_money,
+			COALESCE(users.username, '') AS username,
 			COALESCE(users.display_name, '') AS display_name
 		FROM topup_rebates AS tr
 		LEFT JOIN users ON users.id = tr.inviter_id
@@ -169,26 +184,53 @@ func withUserTopUpRecords(tx *gorm.DB, userId int) *gorm.DB {
 	return withAllTopUpRecords(tx).
 		Where(topUpRecordAlias+".user_id = ?", userId)
 }
-
-// withProviderTopUpRecords 服务商站长视角的账单记录范围：只保留本站记录。
-// 内部结算流水（分润/订阅收入，user_id 是站长本人）不是本站用户充值，
-// 与 SumTopUpMoneyByProvider 的排除口径一致，不进入站长账单列表。
 func withProviderTopUpRecords(tx *gorm.DB, providerId int) *gorm.DB {
 	return withAllTopUpRecords(tx).
 		Where(topUpRecordAlias+".provider_id = ?", providerId).
 		Where(topUpRecordAlias+".payment_method NOT IN ?", []string{TopUpPaymentMethodProviderProfit, TopUpPaymentMethodProviderSubscription})
 }
 
-func withTopUpRecordKeyword(query *gorm.DB, keyword string) *gorm.DB {
-	if keyword == "" {
-		return query
+func withTopUpRecordKeyword(query *gorm.DB, keyword string, bizType, payMethod, payType, status string) *gorm.DB {
+	//if keyword == "" {
+	//	return query
+	//}
+	//
+	//like := "%" + keyword + "%"
+	//return query.Where(
+	//	fmt.Sprintf("%s.trade_no LIKE ? OR COALESCE(%s.username, '') LIKE ? OR COALESCE(%s.display_name, '') LIKE ?", topUpRecordAlias, topUpRecordAlias, topUpRecordAlias),
+	//	like,
+	//	like,
+	//	like,
+	//)
+	query = query.Where(" 1=1 ")
+	if bizType != "" {
+		query = query.Where(fmt.Sprintf("  %s.biz_type = ? ", topUpRecordAlias), bizType)
 	}
-	like := "%" + keyword + "%"
-	return query.Where(
-		fmt.Sprintf("%s.trade_no LIKE ? OR COALESCE(%s.display_name, '') LIKE ?", topUpRecordAlias, topUpRecordAlias),
-		like,
-		like,
-	)
+	if payMethod != "" {
+		ps := strings.Split(payMethod, ",")
+		query = query.Where(fmt.Sprintf("  %s.payment_method IN (?)  ", topUpRecordAlias), ps)
+	}
+	// 单个充值类型（支付方式维度）筛选，与 payMethod 独立叠加（AND）
+	if payType != "" {
+		query = query.Where(fmt.Sprintf("  %s.payment_method = ? ", topUpRecordAlias), payType)
+	}
+	// 支付状态筛选（pending/success/failed/expired）
+	if status != "" {
+		query = query.Where(fmt.Sprintf("  %s.status = ? ", topUpRecordAlias), status)
+	}
+
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where(
+			fmt.Sprintf(" %s.trade_no LIKE ? OR COALESCE(%s.username, '') LIKE ? OR COALESCE(%s.display_name, '') LIKE ? ", topUpRecordAlias, topUpRecordAlias, topUpRecordAlias),
+			like,
+			like,
+			like,
+		)
+
+	}
+	return query
+
 }
 
 func withTopUpRecordOrder(query *gorm.DB) *gorm.DB {
@@ -823,7 +865,7 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 }
 
 // SearchUserTopUps 按订单号搜索某用户的充值记录
-func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func SearchUserTopUps(userId int, keyword string, payMethod, payType, status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -834,14 +876,14 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 		}
 	}()
 
-	countQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword)
+	countQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword, "", payMethod, payType, status)
 
 	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	dataQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword)
+	dataQuery := withTopUpRecordKeyword(withUserTopUpRecords(tx, userId), keyword, "", payMethod, payType, status)
 	if err = withTopUpRecordOrder(dataQuery).
 		Limit(pageInfo.GetPageSize()).
 		Offset(pageInfo.GetStartIdx()).
@@ -858,7 +900,7 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 }
 
 // SearchAllTopUps 按订单号或用户昵称搜索全平台充值记录（管理员使用）
-func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func SearchAllTopUps(keyword string, bizType string, payMethod, payType, status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -869,14 +911,14 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 		}
 	}()
 
-	countQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword)
+	countQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword, bizType, payMethod, payType, status)
 
 	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	dataQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword)
+	dataQuery := withTopUpRecordKeyword(withAllTopUpRecords(tx), keyword, bizType, payMethod, payType, status)
 	if err = withTopUpRecordOrder(dataQuery).
 		Limit(pageInfo.GetPageSize()).
 		Offset(pageInfo.GetStartIdx()).
@@ -929,7 +971,7 @@ func GetProviderTopUps(providerId int, pageInfo *common.PageInfo) (topups []*Top
 }
 
 // SearchProviderTopUps 按订单号或用户昵称搜索某服务商站点的充值记录（站长账单中心使用）
-func SearchProviderTopUps(providerId int, keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func SearchProviderTopUps(providerId int, keyword string, bizType, payMethod, payType, status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -940,13 +982,13 @@ func SearchProviderTopUps(providerId int, keyword string, pageInfo *common.PageI
 		}
 	}()
 
-	countQuery := withTopUpRecordKeyword(withProviderTopUpRecords(tx, providerId), keyword)
+	countQuery := withTopUpRecordKeyword(withProviderTopUpRecords(tx, providerId), keyword, bizType, payMethod, payType, status)
 	if err = countQuery.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	dataQuery := withTopUpRecordKeyword(withProviderTopUpRecords(tx, providerId), keyword)
+	dataQuery := withTopUpRecordKeyword(withProviderTopUpRecords(tx, providerId), keyword, bizType, payMethod, payType, status)
 	if err = withTopUpRecordOrder(dataQuery).
 		Limit(pageInfo.GetPageSize()).
 		Offset(pageInfo.GetStartIdx()).
@@ -1526,19 +1568,27 @@ func RechargeCrypto(tradeNo string, txHash string, payerAddress string, blockNum
 		if cryptoTx.TopUpId != topUp.Id {
 			return errors.New("加密货币交易记录不匹配")
 		}
-		// 幂等处理：加密货币交易已成功直接返回
+		// 幂等处理：加密货币交易已成功 only for the same hash.  A different
+		// hash must never be silently accepted as a retry, otherwise callers can
+		// mistake a failed confirmation for a newly verified transfer.
 		if cryptoTx.Status == CryptoTransactionStatusSuccess {
-			return nil
+			if cryptoTx.TxHash != nil && normalizeTxHash(*cryptoTx.TxHash) == txHash {
+				return nil
+			}
+			return ErrCryptoTransactionStatusInvalid
+		}
+		if cryptoTx.Status != CryptoTransactionStatusPending {
+			return ErrCryptoTransactionStatusInvalid
 		}
 		// 防止同一笔链上交易哈希被重复使用
 		var duplicateCount int64
 		if err := tx.Model(&CryptoTransaction{}).
-			Where("tx_hash = ? AND trade_no <> ?", txHash, tradeNo).
+			Where("LOWER(tx_hash) = LOWER(?) AND trade_no <> ?", txHash, tradeNo).
 			Count(&duplicateCount).Error; err != nil {
 			return err
 		}
 		if duplicateCount > 0 {
-			return errors.New("交易哈希已被使用")
+			return ErrCryptoTransactionHashUsed
 		}
 
 		// 计算实际到账额度
@@ -1563,6 +1613,9 @@ func RechargeCrypto(tradeNo string, txHash string, payerAddress string, blockNum
 		cryptoTx.Status = CryptoTransactionStatusSuccess
 		cryptoTx.CompleteTime = now
 		if err := tx.Save(&cryptoTx).Error; err != nil {
+			if IsCryptoTransactionHashUniqueViolation(err) {
+				return ErrCryptoTransactionHashUsed
+			}
 			return err
 		}
 
@@ -1602,7 +1655,7 @@ func RechargeCrypto(tradeNo string, txHash string, payerAddress string, blockNum
 func getTopUpDetails(query *gorm.DB) (*TopUpDetails, error) {
 	topUp := &TopUp{}
 	if err := query.
-		Select("top_ups.*, COALESCE(users.display_name, '') AS display_name").
+		Select("top_ups.*, COALESCE(users.username, '') AS username, COALESCE(users.display_name, '') AS display_name").
 		Joins("LEFT JOIN users ON users.id = top_ups.user_id").
 		First(topUp).Error; err != nil {
 		return nil, err
@@ -1646,4 +1699,24 @@ func GetTopUpDetailsByTradeNo(tradeNo string) (*TopUpDetails, error) {
 	}
 
 	return getTopUpDetails(DB.Model(&TopUp{}).Where("top_ups.trade_no = ?", tradeNo))
+}
+
+// 检测paymethod类型是否合法
+func CheckPaymethod(paymethod string) string {
+	switch paymethod {
+	case "wxpay":
+		return "wxpay"
+	case "alipay":
+		return "alipay"
+	case "lakala":
+		return "lakala"
+	case "stripe":
+		return "stripe"
+	case "crypto":
+		return "crypto"
+	default:
+		return "unknown"
+
+	}
+
 }

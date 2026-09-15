@@ -55,6 +55,18 @@ import {
 import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
+  formatSubscriptionWindowSeconds,
+  formatSubscriptionWindowType,
+  getSubscriptionQuotaWindows,
+  getSubscriptionQuotaWindowMode,
+  getSubscriptionWeeklyAmount,
+  getSubscriptionWeeklyUsed,
+  getSubscriptionWeeklyRemaining,
+  getSubscriptionWeeklyResetAt,
+  getSubscriptionFiveHourAmount,
+  getSubscriptionFiveHourUsed,
+  getSubscriptionFiveHourRemaining,
+  getSubscriptionFiveHourResetAt,
 } from '../../helpers/subscriptionFormat';
 
 const { Text } = Typography;
@@ -64,6 +76,28 @@ function getEpayMethods(payMethods = []) {
   return (payMethods || []).filter(
     (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem',
   );
+}
+
+function isPaymentResponseSuccessful(response) {
+  // Accept both an Axios response (`response.data`) and a parsed fetch
+  // payload.  Older payment endpoints signal success via
+  // `message: "success"`, while newer endpoints use `success: true`.
+  return (
+    response?.data?.success === true ||
+    response?.data?.message === 'success' ||
+    response?.success === true ||
+    response?.message === 'success'
+  );
+}
+
+function getSubscriptionPurchaseScopeKey(plan) {
+  const group = String(plan?.purchase_limit_group || '')
+    .trim()
+    .toLowerCase();
+  if (group) {
+    return `group:${Number(plan?.provider_id || 0)}:${group}`;
+  }
+  return plan?.id ? `plan:${plan.id}` : '';
 }
 
 // 提交易支付表单
@@ -109,6 +143,7 @@ const SubscriptionPlansCard = ({
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
+  enableWaffoPancakeSubscription = false,
   billingPreference,
   onChangeBillingPreference,
   activeSubscriptions = [],
@@ -198,7 +233,7 @@ const SubscriptionPlansCard = ({
         plan_id: selectedPlan.plan.id, // 套餐 ID
         display_currency: normalizedDisplayCurrency.currency, // 前端展示币种（USD/CNY），后端据此选择对应的 Stripe Price
       });
-      if (res.data?.message === 'success') {
+      if (isPaymentResponseSuccessful(res)) {
         window.open(res.data.data?.pay_link, '_blank');
         startSubscriptionRefreshPolling();
         showSuccess(t('已打开支付页面'));
@@ -227,8 +262,40 @@ const SubscriptionPlansCard = ({
       const res = await API.post('/api/subscription/creem/pay', {
         plan_id: selectedPlan.plan.id,
       });
-      if (res.data?.message === 'success') {
+      if (isPaymentResponseSuccessful(res)) {
         window.open(res.data.data?.checkout_url, '_blank');
+        startSubscriptionRefreshPolling();
+        showSuccess(t('已打开支付页面'));
+        closeBuy();
+      } else {
+        const errorMsg =
+          typeof res.data?.data === 'string'
+            ? res.data.data
+            : res.data?.message || t('支付失败');
+        showError(errorMsg);
+      }
+    } catch (e) {
+      showError(t('支付请求失败'));
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const payWaffoPancake = async () => {
+    if (!selectedPlan?.plan?.waffo_pancake_product_id) {
+      showError(t('该套餐未配置 Waffo Pancake'));
+      return;
+    }
+    setPaying(true);
+    try {
+      const res = await API.post('/api/subscription/waffo-pancake/pay', {
+        plan_id: selectedPlan.plan.id,
+      });
+      if (isPaymentResponseSuccessful(res)) {
+        const checkoutURL = res.data.data?.checkout_url;
+        if (checkoutURL) {
+          window.open(checkoutURL, '_blank');
+        }
         startSubscriptionRefreshPolling();
         showSuccess(t('已打开支付页面'));
         closeBuy();
@@ -257,7 +324,7 @@ const SubscriptionPlansCard = ({
         plan_id: selectedPlan.plan.id,
         payment_method: selectedEpayMethod,
       });
-      if (res.data?.message === 'success') {
+      if (isPaymentResponseSuccessful(res)) {
         // 拉卡拉扫码支付：返回二维码数据，跳转到二维码展示页面
         if (isLakalaQRCodePayment(res.data.url, res.data.data)) {
           const tradeNo = saveLakalaQRCodePayment(res.data.data, {
@@ -311,7 +378,9 @@ const SubscriptionPlansCard = ({
       body: JSON.stringify({ plan_id: planId, network: networkName }),
     });
     const data = await resp.json();
-    if (!data.success) throw new Error(data.message);
+    if (!isPaymentResponseSuccessful(data)) {
+      throw new Error(data.message || '支付请求失败');
+    }
     return data.data;
   };
 
@@ -328,7 +397,9 @@ const SubscriptionPlansCard = ({
       body: JSON.stringify({ trade_no: tradeNo, tx_hash: txHash }),
     });
     const data = await resp.json();
-    if (!data.success) throw new Error(data.message);
+    if (!isPaymentResponseSuccessful(data)) {
+      throw new Error(data.message || '支付请求失败');
+    }
     return data.data;
   };
 
@@ -358,6 +429,44 @@ const SubscriptionPlansCard = ({
     return map;
   }, [allSubscriptions]);
 
+  // A non-empty purchase_limit_group makes both limits span every plan in
+  // that provider scope. Mirror the backend's "strictest positive limit"
+  // rule so both K3 cards show the same remaining stock and disabled state.
+  const purchaseScopeStatsMap = useMemo(() => {
+    const map = new Map();
+    (plans || []).forEach((item) => {
+      const plan = item?.plan;
+      const key = getSubscriptionPurchaseScopeKey(plan);
+      if (!key) return;
+      const current = map.get(key) || {
+        maxPurchasePerUser: 0,
+        totalPurchaseLimit: 0,
+        issuedCount: 0,
+        reservedCount: 0,
+      };
+      const maxPerUser = Number(plan?.max_purchase_per_user || 0);
+      const totalLimit = Number(plan?.total_purchase_limit || 0);
+      if (
+        maxPerUser > 0 &&
+        (current.maxPurchasePerUser <= 0 ||
+          maxPerUser < current.maxPurchasePerUser)
+      ) {
+        current.maxPurchasePerUser = maxPerUser;
+      }
+      if (
+        totalLimit > 0 &&
+        (current.totalPurchaseLimit <= 0 ||
+          totalLimit < current.totalPurchaseLimit)
+      ) {
+        current.totalPurchaseLimit = totalLimit;
+      }
+      current.issuedCount += Number(plan?.issued_count || 0);
+      current.reservedCount += Number(plan?.reserved_count || 0);
+      map.set(key, current);
+    });
+    return map;
+  }, [plans]);
+
   const planTitleMap = useMemo(() => {
     const map = new Map();
     (plans || []).forEach((p) => {
@@ -368,8 +477,29 @@ const SubscriptionPlansCard = ({
     return map;
   }, [plans]);
 
-  const getPlanPurchaseCount = (planId) =>
-    planPurchaseCountMap.get(planId) || 0;
+  const getPlanPurchaseCount = (plan) => {
+    const targetKey = getSubscriptionPurchaseScopeKey(plan);
+    if (!targetKey || !plan?.purchase_limit_group) {
+      return planPurchaseCountMap.get(plan?.id) || 0;
+    }
+    return (allSubscriptions || []).reduce((count, summary) => {
+      const purchasedPlan = summary?.plan;
+      const planId = summary?.subscription?.plan_id;
+      const scopePlan =
+        purchasedPlan || plans.find((item) => item?.plan?.id === planId)?.plan;
+      return getSubscriptionPurchaseScopeKey(scopePlan) === targetKey
+        ? count + 1
+        : count;
+    }, 0);
+  };
+
+  const getPlanPurchaseScopeStats = (plan) =>
+    purchaseScopeStatsMap.get(getSubscriptionPurchaseScopeKey(plan)) || {
+      maxPurchasePerUser: Number(plan?.max_purchase_per_user || 0),
+      totalPurchaseLimit: Number(plan?.total_purchase_limit || 0),
+      issuedCount: Number(plan?.issued_count || 0),
+      reservedCount: Number(plan?.reserved_count || 0),
+    };
 
   const formatPlanModelLimits = (plan) => {
     const models = String(plan?.model_limits || '')
@@ -398,8 +528,8 @@ const SubscriptionPlansCard = ({
 
   // 计算单个订阅的使用进度
   const getUsagePercent = (sub) => {
-    const total = Number(sub?.subscription?.amount_total || 0);
-    const used = Number(sub?.subscription?.amount_used || 0);
+    const total = getSubscriptionWeeklyAmount(sub);
+    const used = getSubscriptionWeeklyUsed(sub);
     if (total <= 0) return 0;
     const percent = (used / total) * 100;
     if (percent > 0 && percent < 1) {
@@ -540,14 +670,39 @@ const SubscriptionPlansCard = ({
                   {allSubscriptions.map((sub, subIndex) => {
                     const isLast = subIndex === allSubscriptions.length - 1;
                     const subscription = sub.subscription;
-                    const totalAmount = Number(subscription?.amount_total || 0);
-                    const usedAmount = Number(subscription?.amount_used || 0);
+                    const quotaWindowMode = getSubscriptionQuotaWindowMode(sub);
+                    const quotaWindows = getSubscriptionQuotaWindows(sub);
+                    const weeklyAmount = getSubscriptionWeeklyAmount(sub);
+                    const weeklyUsed = getSubscriptionWeeklyUsed(sub);
+                    const weeklyRemaining = getSubscriptionWeeklyRemaining(sub);
+                    const weeklyResetAt = getSubscriptionWeeklyResetAt(sub);
+                    const fiveHourAmount = getSubscriptionFiveHourAmount(sub);
+                    const fiveHourUsed = getSubscriptionFiveHourUsed(sub);
+                    const fiveHourRemaining =
+                      getSubscriptionFiveHourRemaining(sub);
+                    const fiveHourResetAt = getSubscriptionFiveHourResetAt(sub);
+                    const totalAmount =
+                      quotaWindowMode === 'dual'
+                        ? weeklyAmount
+                        : Number(subscription?.amount_total || 0);
+                    const usedAmount =
+                      quotaWindowMode === 'dual'
+                        ? weeklyUsed
+                        : Number(subscription?.amount_used || 0);
                     const remainAmount =
-                      totalAmount > 0
-                        ? Math.max(0, totalAmount - usedAmount)
-                        : 0;
+                      quotaWindowMode === 'dual'
+                        ? weeklyRemaining
+                        : totalAmount > 0
+                          ? Math.max(0, totalAmount - usedAmount)
+                          : 0;
+                    // The summary includes an issuance-time plan snapshot,
+                    // including the title. Prefer it so a deleted/renamed
+                    // catalog plan remains identifiable to the subscriber;
+                    // fall back to the current catalog for older responses.
                     const planTitle =
-                      planTitleMap.get(subscription?.plan_id) || '';
+                      sub?.plan?.title ||
+                      planTitleMap.get(subscription?.plan_id) ||
+                      '';
                     const remainDays = getRemainingDays(sub);
                     const usagePercent = getUsagePercent(sub);
                     const now = Date.now() / 1000;
@@ -556,6 +711,10 @@ const SubscriptionPlansCard = ({
                     const isActive =
                       subscription?.status === 'active' && !isExpired;
                     const modelLimit = formatPlanModelLimits(sub?.plan);
+                    const formatResetAt = (timestamp) =>
+                      timestamp > 0
+                        ? new Date(timestamp * 1000).toLocaleString()
+                        : '';
 
                     return (
                       <div key={subscription?.id || subIndex}>
@@ -602,43 +761,88 @@ const SubscriptionPlansCard = ({
                             (subscription?.end_time || 0) * 1000,
                           ).toLocaleString()}
                         </div>
-                        {isActive && subscription?.next_reset_time > 0 && (
-                          <div className='text-xs text-gray-500 mb-2'>
-                            {t('下一次重置')}:{' '}
-                            {new Date(
-                              subscription.next_reset_time * 1000,
-                            ).toLocaleString()}
-                          </div>
-                        )}
-                        <div className='text-xs text-gray-500 mb-2'>
-                          {t('总额度')}:{' '}
-                          {totalAmount > 0 ? (
-                            <Tooltip
-                              content={`${t('原生额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
-                            >
-                              <span className='inline-flex flex-col gap-0.5 align-top'>
-                                <span>
-                                  {renderQuota(usedAmount)}/
-                                  {renderQuota(totalAmount)} · {t('剩余')}{' '}
-                                  {renderQuota(remainAmount)}
-                                </span>
-                                {usedAmount > 0 && (
-                                  <span className='text-[11px] text-gray-400'>
-                                    {t('原生额度')}: {renderNumber(usedAmount)}{' '}
-                                    / {renderNumber(totalAmount)}
-                                  </span>
+                        {isActive && quotaWindows.length > 0 ? (
+                          <>
+                            {quotaWindows.map((window, windowIndex) => (
+                              <div
+                                className='text-xs text-gray-500 mb-2'
+                                key={`${window.type}-${windowIndex}`}
+                              >
+                                {formatSubscriptionWindowType(window.type, t)}:{' '}
+                                {window.limit > 0 ? (
+                                  <>
+                                    {renderQuota(window.used)}/
+                                    {renderQuota(window.limit)} · {t('剩余')}{' '}
+                                    {renderQuota(window.remaining)}
+                                  </>
+                                ) : (
+                                  <>
+                                    {t('不限')} · {t('已用')}{' '}
+                                    {renderQuota(window.used)}
+                                  </>
                                 )}
-                              </span>
-                            </Tooltip>
-                          ) : (
-                            t('不限')
-                          )}
-                          {totalAmount > 0 && (
-                            <span className='ml-2'>
-                              {t('已用')} {usagePercent}%
-                            </span>
-                          )}
-                        </div>
+                                {window.window_seconds > 0 &&
+                                  (window.type === 'custom' ||
+                                    Number(window.duration || 1) > 1) && (
+                                    <>
+                                      {' '}
+                                      ·{' '}
+                                      {formatSubscriptionWindowSeconds(
+                                        window.window_seconds,
+                                        t,
+                                      )}
+                                    </>
+                                  )}
+                                {window.reset_at > 0 && (
+                                  <>
+                                    {' '}
+                                    · {t('重置')}{' '}
+                                    {formatResetAt(window.reset_at)}
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          <>
+                            {isActive && weeklyResetAt > 0 && (
+                              <div className='text-xs text-gray-500 mb-2'>
+                                {t('下一次重置')}:{' '}
+                                {formatResetAt(weeklyResetAt)}
+                              </div>
+                            )}
+                            <div className='text-xs text-gray-500 mb-2'>
+                              {t('总额度')}:{' '}
+                              {totalAmount > 0 ? (
+                                <Tooltip
+                                  content={`${t('原生额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
+                                >
+                                  <span className='inline-flex flex-col gap-0.5 align-top'>
+                                    <span>
+                                      {renderQuota(usedAmount)}/
+                                      {renderQuota(totalAmount)} · {t('剩余')}{' '}
+                                      {renderQuota(remainAmount)}
+                                    </span>
+                                    {usedAmount > 0 && (
+                                      <span className='text-[11px] text-gray-400'>
+                                        {t('原生额度')}:{' '}
+                                        {renderNumber(usedAmount)} /{' '}
+                                        {renderNumber(totalAmount)}
+                                      </span>
+                                    )}
+                                  </span>
+                                </Tooltip>
+                              ) : (
+                                t('不限')
+                              )}
+                              {totalAmount > 0 && (
+                                <span className='ml-2'>
+                                  {t('已用')} {usagePercent}%
+                                </span>
+                              )}
+                            </div>
+                          </>
+                        )}
                         <div className='text-xs text-gray-500 mb-2'>
                           {t('适用模型')}:{' '}
                           {modelLimit.tooltip ? (
@@ -667,17 +871,30 @@ const SubscriptionPlansCard = ({
             <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5 w-full px-1'>
               {plans.map((p, index) => {
                 const plan = p?.plan;
-                const totalAmount = Number(plan?.total_amount || 0);
+                const quotaWindowMode = getSubscriptionQuotaWindowMode(plan);
+                const quotaWindows = getSubscriptionQuotaWindows(plan);
+                const weeklyAmount = getSubscriptionWeeklyAmount(plan);
+                const totalAmount = [
+                  'weekly',
+                  'daily',
+                  'monthly',
+                  'yearly',
+                  'custom',
+                  'dual',
+                ].includes(quotaWindowMode)
+                  ? weeklyAmount
+                  : Number(plan?.total_amount || 0);
                 // 使用统一的 formatPlanPrice 格式化价格，替代旧的 getCurrencyConfig + 手动换算
                 // formatPlanPrice 内部会根据币种自动进行汇率换算（CNY 时 ×unitPrice）
                 const displayPrice = formatPlanPrice(plan?.price_amount || 0);
                 const isPopular = index === 0 && plans.length > 1;
-                const limit = Number(plan?.max_purchase_per_user || 0);
+                const purchaseScopeStats = getPlanPurchaseScopeStats(plan);
+                const limit = purchaseScopeStats.maxPurchasePerUser;
                 const limitLabel = limit > 0 ? `${t('限购')} ${limit}` : null;
-                const globalLimit = Number(plan?.total_purchase_limit || 0);
+                const globalLimit = purchaseScopeStats.totalPurchaseLimit;
                 const globalAllocated =
-                  Number(plan?.issued_count || 0) +
-                  Number(plan?.reserved_count || 0);
+                  purchaseScopeStats.issuedCount +
+                  purchaseScopeStats.reservedCount;
                 const globalRemaining = Math.max(
                   0,
                   globalLimit - globalAllocated,
@@ -694,20 +911,40 @@ const SubscriptionPlansCard = ({
                   ? `${t('升级分组')}: ${plan.upgrade_group}`
                   : null;
                 const resetLabel =
-                  formatSubscriptionResetPeriod(plan, t) === t('不重置')
-                    ? null
-                    : `${t('额度重置')}: ${formatSubscriptionResetPeriod(plan, t)}`;
+                  quotaWindowMode === 'legacy' &&
+                  formatSubscriptionResetPeriod(plan, t) !== t('不重置')
+                    ? `${t('额度重置')}: ${formatSubscriptionResetPeriod(plan, t)}`
+                    : null;
+                const quotaWindowBenefits =
+                  quotaWindowMode !== 'legacy' && quotaWindows.length > 0
+                    ? quotaWindows.map((window, windowIndex) => ({
+                        key: `${window.type}-${windowIndex}`,
+                        label:
+                          window.limit > 0
+                            ? `${formatSubscriptionWindowType(window.type, t)}: ${renderQuota(window.limit)}`
+                            : `${formatSubscriptionWindowType(window.type, t)}: ${t('不限')}`,
+                        tooltip:
+                          window.window_seconds > 0
+                            ? formatSubscriptionWindowSeconds(
+                                window.window_seconds,
+                                t,
+                              )
+                            : '',
+                      }))
+                    : [];
                 const planBenefits = [
                   {
                     label: `${t('有效期')}: ${formatSubscriptionDuration(plan, t)}`,
                   },
                   resetLabel ? { label: resetLabel } : null,
-                  totalAmount > 0
-                    ? {
-                        label: totalLabel,
-                        tooltip: `${t('原生额度')}：${totalAmount}`,
-                      }
-                    : { label: totalLabel },
+                  ...quotaWindowBenefits,
+                  quotaWindowMode === 'legacy' &&
+                    (totalAmount > 0
+                      ? {
+                          label: totalLabel,
+                          tooltip: `${t('原生额度')}：${totalAmount}`,
+                        }
+                      : { label: totalLabel }),
                   limitLabel ? { label: limitLabel } : null,
                   globalLimitLabel ? { label: globalLimitLabel } : null,
                   upgradeLabel ? { label: upgradeLabel } : null,
@@ -799,7 +1036,7 @@ const SubscriptionPlansCard = ({
 
                         {/* 购买按钮 */}
                         {(() => {
-                          const count = getPlanPurchaseCount(p?.plan?.id);
+                          const count = getPlanPurchaseCount(plan);
                           const reached = limit > 0 && count >= limit;
                           const notPurchasable =
                             Number(plan?.allow_purchase ?? 1) !== 1;
@@ -878,16 +1115,19 @@ const SubscriptionPlansCard = ({
         enableOnlineTopUp={enableOnlineTopUp}
         enableStripeTopUp={enableStripeTopUp}
         enableCreemTopUp={enableCreemTopUp}
+        enableWaffoPancakeSubscription={enableWaffoPancakeSubscription}
         purchaseLimitInfo={
           selectedPlan?.plan?.id
             ? {
-                limit: Number(selectedPlan?.plan?.max_purchase_per_user || 0),
-                count: getPlanPurchaseCount(selectedPlan?.plan?.id),
+                limit: getPlanPurchaseScopeStats(selectedPlan.plan)
+                  .maxPurchasePerUser,
+                count: getPlanPurchaseCount(selectedPlan.plan),
               }
             : null
         }
         onPayStripe={payStripe}
         onPayCreem={payCreem}
+        onPayWaffoPancake={payWaffoPancake}
         onPayEpay={payEpay}
         onPayCrypto={payCrypto}
       />

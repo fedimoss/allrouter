@@ -81,7 +81,7 @@ func sweepTimedOutTasks(ctx context.Context) {
 			continue
 		}
 		timedOutCount++
-		if !isLegacy && task.Quota != 0 {
+		if !isLegacy && taskRefundQuota(task) > 0 {
 			RefundTaskQuota(ctx, task, reason)
 		}
 	}
@@ -98,6 +98,10 @@ func TaskPollingLoop() {
 		common.SysLog("任务进度轮询开始")
 		ctx := context.TODO()
 		sweepTimedOutTasks(ctx)
+		// Terminal rows are excluded from the normal unfinished-task query. Run
+		// a bounded checkpoint recovery pass first so a funding/token partial
+		// settlement survives process restarts and eventually converges.
+		RetryPendingTaskBilling(ctx, constant.TaskQueryLimit)
 		allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
 		// During a rolling deployment, an older instance can persist the 768P
 		// source as terminal before a current instance sees it. Reclaim one recent
@@ -314,7 +318,7 @@ func updateSunoTasks(ctx context.Context, channelId int, taskIds []string, taskM
 		if responseItem.FailReason != "" || task.Status == model.TaskStatusFailure {
 			logger.LogInfo(ctx, task.TaskID+" 构建失败，"+task.FailReason)
 			task.Progress = "100%"
-			shouldRefund = task.Quota != 0 && oldStatus != model.TaskStatusFailure
+			shouldRefund = taskRefundQuota(task) > 0 && oldStatus != model.TaskStatusFailure
 		}
 		// 成功：标记消费返利终态结算（仅在首次进入 SUCCESS 时触发）。
 		if responseItem.Status == model.TaskStatusSuccess {
@@ -587,8 +591,6 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	shouldRefund := false
 	shouldSettle := false
-	quota := task.Quota
-
 	task.Status = model.TaskStatus(taskResult.Status)
 	switch taskResult.Status {
 	case model.TaskStatusSubmitted:
@@ -626,7 +628,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		task.FailReason = taskResult.Reason
 		logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
 		taskResult.Progress = taskcommon.ProgressComplete
-		if quota != 0 {
+		if taskRefundQuota(task) > 0 {
 			shouldRefund = true
 		}
 	default:

@@ -40,6 +40,9 @@ import {
 import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
+  formatSubscriptionWindowSeconds,
+  formatSubscriptionWindowType,
+  getSubscriptionQuotaWindows,
 } from '../../../helpers/subscriptionFormat';
 
 const { Text } = Typography;
@@ -50,7 +53,8 @@ const { Text } = Typography;
 const getStripePriceIdForDisplayCurrency = (plan, displayCurrency) => {
   if (!plan) return ''; // 套餐为空时返回空字符串
   const normalized = normalizeDisplayCurrency(displayCurrency); // 标准化币种配置
-  if (normalized.currency === 'CNY') { // 如果是人民币
+  if (normalized.currency === 'CNY') {
+    // 如果是人民币
     return plan.stripe_price_cny_id || ''; // 返回人民币 Stripe Price ID
   }
   return plan.stripe_price_id || ''; // 否则返回美元 Stripe Price ID
@@ -69,13 +73,16 @@ const SubscriptionPurchaseModal = ({
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
+  enableWaffoPancakeSubscription = false,
   purchaseLimitInfo = null,
   onPayStripe,
   onPayCreem,
+  onPayWaffoPancake,
   onPayEpay,
   onPayCrypto,
 }) => {
   const plan = selectedPlan?.plan; // 获取当前选中的套餐对象
+  const quotaWindows = getSubscriptionQuotaWindows(plan);
   const totalAmount = Number(plan?.total_amount || 0); // 套餐总额度（0 表示不限）
   // 标准化币种配置，确保 symbol / currency / unitPrice 等字段均有合理默认值
   const normalizedDisplayCurrency = normalizeDisplayCurrency(displayCurrency);
@@ -88,10 +95,12 @@ const SubscriptionPurchaseModal = ({
   // 只有管理员开启 Stripe 支付 且 套餐配置了对应币种的 Stripe Price ID 时才显示 Stripe 按钮
   const hasStripe = enableStripeTopUp && !!stripePriceId;
   const hasCreem = enableCreemTopUp && !!plan?.creem_product_id; // 是否启用 Creem 支付
+  const hasWaffoPancake =
+    enableWaffoPancakeSubscription && !!plan?.waffo_pancake_product_id;
   const hasEpay = enableOnlineTopUp && epayMethods.length > 0; // 是否启用易支付
-  const hasAnyPayment = hasStripe || hasCreem || hasEpay; // 是否有任意一种支付方式可用
+  const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay; // 是否有任意一种支付方式可用
   // 是否仅有易支付可用（无 Stripe / Creem），用于后续决定价格显示逻辑
-  const isEpayOnly = hasEpay && !hasStripe && !hasCreem;
+  const isEpayOnly = hasEpay && !hasStripe && !hasCreem && !hasWaffoPancake;
   // 从币种配置中读取人民币汇率，兼容驼峰和下划线两种命名
   const cnyRate = Number(
     displayCurrency?.cnyRate || displayCurrency?.cny_rate || 0,
@@ -155,38 +164,60 @@ const SubscriptionPurchaseModal = ({
                   </Text>
                 </div>
               </div>
-              {formatSubscriptionResetPeriod(plan, t) !== t('不重置') && (
-                <div className='flex justify-between items-center'>
-                  <Text strong className='text-slate-700 dark:text-slate-200'>
-                    {t('重置周期')}：
-                  </Text>
-                  <Text className='text-slate-900 dark:text-slate-100'>
-                    {formatSubscriptionResetPeriod(plan, t)}
-                  </Text>
-                </div>
-              )}
-              <div className='flex justify-between items-center'>
-                <Text strong className='text-slate-700 dark:text-slate-200'>
-                  {t('总额度')}：
-                </Text>
-                <div className='flex items-center'>
-                  <Package size={14} className='mr-1 text-slate-500' />
-                  {totalAmount > 0 ? (
-                    // <Tooltip content={`${t('原生额度')}：${totalAmount}`}>
-                    //   <Text className='text-slate-900 dark:text-slate-100'>
-                    //     {renderQuota(totalAmount)}
-                    //   </Text>
-                    // </Tooltip>
-                    <Text className='text-slate-900 dark:text-slate-100'>
-                      {renderQuota(totalAmount)}
+              {quotaWindows.length > 0 ? (
+                quotaWindows.map((window, index) => (
+                  <div
+                    className='flex justify-between items-center'
+                    key={`${window.type}-${index}`}
+                  >
+                    <Text strong className='text-slate-700 dark:text-slate-200'>
+                      {formatSubscriptionWindowType(window.type, t)}：
                     </Text>
-                  ) : (
                     <Text className='text-slate-900 dark:text-slate-100'>
-                      {t('不限')}
+                      {window.limit > 0 ? renderQuota(window.limit) : t('不限')}
+                      {window.window_seconds > 0
+                        ? ` · ${formatSubscriptionWindowSeconds(
+                            window.window_seconds,
+                            t,
+                          )}`
+                        : ''}
                     </Text>
+                  </div>
+                ))
+              ) : (
+                <>
+                  {formatSubscriptionResetPeriod(plan, t) !== t('不重置') && (
+                    <div className='flex justify-between items-center'>
+                      <Text
+                        strong
+                        className='text-slate-700 dark:text-slate-200'
+                      >
+                        {t('重置周期')}：
+                      </Text>
+                      <Text className='text-slate-900 dark:text-slate-100'>
+                        {formatSubscriptionResetPeriod(plan, t)}
+                      </Text>
+                    </div>
                   )}
-                </div>
-              </div>
+                  <div className='flex justify-between items-center'>
+                    <Text strong className='text-slate-700 dark:text-slate-200'>
+                      {t('总额度')}：
+                    </Text>
+                    <div className='flex items-center'>
+                      <Package size={14} className='mr-1 text-slate-500' />
+                      {totalAmount > 0 ? (
+                        <Text className='text-slate-900 dark:text-slate-100'>
+                          {renderQuota(totalAmount)}
+                        </Text>
+                      ) : (
+                        <Text className='text-slate-900 dark:text-slate-100'>
+                          {t('不限')}
+                        </Text>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
               {plan?.upgrade_group ? (
                 <div className='flex justify-between items-center'>
                   <Text strong className='text-slate-700 dark:text-slate-200'>
@@ -226,7 +257,7 @@ const SubscriptionPurchaseModal = ({
               </Text>
 
               {/* Stripe / Creem */}
-              {(hasStripe || hasCreem) && (
+              {(hasStripe || hasCreem || hasWaffoPancake) && (
                 <div className='flex gap-2'>
                   {hasStripe && (
                     <Button
@@ -252,6 +283,18 @@ const SubscriptionPurchaseModal = ({
                       Creem
                     </Button>
                   )}
+                  {hasWaffoPancake && (
+                    <Button
+                      theme='light'
+                      className='flex-1'
+                      icon={<IconCreditCard />}
+                      onClick={onPayWaffoPancake}
+                      loading={paying}
+                      disabled={purchaseLimitReached}
+                    >
+                      Waffo Pancake
+                    </Button>
+                  )}
                 </div>
               )}
 
@@ -273,7 +316,9 @@ const SubscriptionPurchaseModal = ({
                   <Button
                     theme='solid'
                     type='primary'
-                    onClick={selectedEpayMethod === 'crypto' ? onPayCrypto : onPayEpay}
+                    onClick={
+                      selectedEpayMethod === 'crypto' ? onPayCrypto : onPayEpay
+                    }
                     loading={selectedEpayMethod === 'crypto' ? false : paying}
                     disabled={!selectedEpayMethod || purchaseLimitReached}
                   >

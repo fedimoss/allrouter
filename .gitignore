@@ -39,3 +39,14 @@ data/
 .gocache_codex/
 docs/modelcontent/*
 .gotmp_codex/
+
+*.md
+.gotmp-review/
+.gocache-token-probe/
+.gotmp-token-trace/
+
+*.diff
+*.py
+*.tmp
+*.txt
+*.ps1

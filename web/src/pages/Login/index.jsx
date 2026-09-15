@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 import Turnstile from 'react-turnstile';
 import { Button, Checkbox, Input, Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
@@ -67,6 +72,7 @@ const brandFeatureItems = [
 
 export default function LoginPage() {
   const { t } = useTranslation();
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [, userDispatch] = useContext(UserContext);
@@ -88,6 +94,20 @@ export default function LoginPage() {
   }, [statusState?.status]);
 
   const selfUseMode = Boolean(status?.self_use_mode_enabled);
+
+  // Keep post-login navigation on an internal path only. This preserves the
+  // page that required authentication (for example, the subscription page)
+  // without allowing a crafted history state to redirect off-site.
+  const getPostLoginPath = () => {
+    const from = location.state?.from;
+    if (!from || typeof from.pathname !== 'string') return '/console';
+    if (!from.pathname.startsWith('/') || from.pathname.startsWith('//')) {
+      return '/console';
+    }
+    const search = typeof from.search === 'string' ? from.search : '';
+    const hash = typeof from.hash === 'string' ? from.hash : '';
+    return `${from.pathname}${search}${hash}`;
+  };
 
   const [turnstileEnabled, setTurnstileEnabled] = useState(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
@@ -192,7 +212,7 @@ export default function LoginPage() {
     setUserData(data);
     updateAPI();
     setShowTwoFA(false);
-    navigate('/console');
+    navigate(getPostLoginPath(), { replace: true });
   };
 
   const handleLoginSubmit = async (e) => {
@@ -234,7 +254,7 @@ export default function LoginPage() {
       setUserData(data);
       updateAPI();
       showSuccess(t('登录成功'));
-      navigate('/console');
+      navigate(getPostLoginPath(), { replace: true });
     } catch {
       showError(t('登录失败，请重试'));
     } finally {
@@ -282,7 +302,7 @@ export default function LoginPage() {
         updateAPI();
         showSuccess(t('登录成功'));
         setShowWeChatLoginModal(false);
-        navigate('/console');
+        navigate(getPostLoginPath(), { replace: true });
       } else {
         showError(message);
       }

@@ -80,8 +80,10 @@ func getScopedProviderID(c *gin.Context, mainModule, providerModule string) (int
 	}
 
 	// 服务商 owner 在主站登录: 域名上下文为主站, 回落到其名下服务商。
-	if ownedProviderID, ok := lookupOwnedProviderID(c.GetInt("id")); ok {
-		return ownedProviderID, true
+	if providerID == 0 {
+		if ownedProviderID, ok := lookupOwnedProviderID(c.GetInt("id")); ok {
+			return ownedProviderID, true
+		}
 	}
 
 	// 非属主:按域名上下文与账号归属校验模块权限。

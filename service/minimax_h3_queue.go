@@ -134,7 +134,7 @@ func failMiniMaxH3Dispatch(ctx context.Context, task *model.Task, reason string)
 		logger.LogError(ctx, fmt.Sprintf("fail MiniMax-H3 task %s failed: %v", task.TaskID, err))
 		return
 	}
-	if won && task.Quota != 0 {
+	if won && taskRefundQuota(task) > 0 {
 		RefundTaskQuota(ctx, task, reason)
 	}
 	if won {

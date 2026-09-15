@@ -68,8 +68,24 @@ func searchProviderUsers(providerId int, keyword string, group string, startIdx 
 	return users, total, nil
 }
 
+// getProviderUserAdminProvider enforces that provider user-management endpoints are
+// available only to the provider owner. The providerUsers key is intentionally
+// not grantable to new users, but old permission records must not bypass this
+// API-level ownership check.
+func getProviderUserAdminProvider(c *gin.Context) (*model.Provider, bool, bool) {
+	provider, isOwner, ok := getPermittedProvider(c, "providerUsers")
+	if !ok {
+		return nil, false, false
+	}
+	if !isOwner {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "only provider owner can manage provider users"})
+		return nil, false, false
+	}
+	return provider, true, true
+}
+
 func GetProviderUsers(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "providerUsers")
+	provider, _, ok := getProviderUserAdminProvider(c)
 	if !ok {
 		return
 	}
@@ -86,6 +102,14 @@ func GetProviderUsers(c *gin.Context) {
 
 // 服务商用户管理的树形型结构
 func GetTreeProviderUsers(c *gin.Context) {
+	// The tree endpoint is used by the owner-only provider user-management
+	// page. Keep the same tenant and ownership boundary as the other provider
+	// user handlers instead of relying on the legacy model helper to reject
+	// non-owners after it has already parsed the request.
+	provider, isOwner, ok := getProviderUserAdminProvider(c)
+	if !ok || !isOwner {
+		return
+	}
 	userId := c.GetInt("id")
 
 	if userId == 0 {
@@ -106,7 +130,7 @@ func GetTreeProviderUsers(c *gin.Context) {
 	}
 	pageInfo := common.GetPageQuery(c)
 
-	users, err := model.GetTreeChilendUsers(userId, parentId, pageInfo)
+	users, err := model.GetTreeChilendUsers(provider.Id, userId, parentId, pageInfo)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -116,7 +140,7 @@ func GetTreeProviderUsers(c *gin.Context) {
 }
 
 func SearchProviderUsers(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "providerUsers")
+	provider, _, ok := getProviderUserAdminProvider(c)
 	if !ok {
 		return
 	}
@@ -132,7 +156,7 @@ func SearchProviderUsers(c *gin.Context) {
 }
 
 func GetProviderUser(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "providerUsers")
+	provider, _, ok := getProviderUserAdminProvider(c)
 	if !ok {
 		return
 	}
@@ -150,7 +174,7 @@ func GetProviderUser(c *gin.Context) {
 }
 
 func GetProviderUserInvitees(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "providerUsers")
+	provider, _, ok := getProviderUserAdminProvider(c)
 	if !ok {
 		return
 	}
@@ -188,7 +212,7 @@ func GetProviderUserInvitees(c *gin.Context) {
 }
 
 func CreateProviderUser(c *gin.Context) {
-	provider, isOwner, ok := getPermittedProvider(c, "providerUsers")
+	provider, isOwner, ok := getProviderUserAdminProvider(c)
 	if !ok {
 		return
 	}
@@ -241,7 +265,7 @@ func CreateProviderUser(c *gin.Context) {
 }
 
 func UpdateProviderUser(c *gin.Context) {
-	provider, isOwner, ok := getPermittedProvider(c, "providerUsers")
+	provider, isOwner, ok := getProviderUserAdminProvider(c)
 	if !ok {
 		return
 	}
@@ -321,7 +345,7 @@ func UpdateProviderUser(c *gin.Context) {
 }
 
 func ManageProviderUser(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "providerUsers")
+	provider, _, ok := getProviderUserAdminProvider(c)
 	if !ok {
 		return
 	}
@@ -364,7 +388,7 @@ func ManageProviderUser(c *gin.Context) {
 }
 
 func DeleteProviderUser(c *gin.Context) {
-	provider, _, ok := getPermittedProvider(c, "providerUsers")
+	provider, _, ok := getProviderUserAdminProvider(c)
 	if !ok {
 		return
 	}

@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -58,6 +59,11 @@ func ensureSubscriptionPlanPurchasable(c *gin.Context, plan *model.SubscriptionP
 
 func respondSubscriptionCreateError(c *gin.Context, err error, fallback string) {
 	switch {
+	case errors.Is(err, model.ErrSubscriptionCheckoutChanged):
+		// The plan was edited after the payment page was prepared.  Returning a
+		// retryable, explicit message is important here: the caller must discard
+		// the stale gateway quote rather than retrying the same amount/product.
+		common.ApiErrorMsg(c, "套餐价格或支付配置已变更，请刷新后重试")
 	case errors.Is(err, model.ErrSubscriptionPlanSoldOut):
 		common.ApiErrorMsg(c, "该套餐已发放完毕")
 	case errors.Is(err, model.ErrSubscriptionPurchaseLimit):
@@ -72,6 +78,7 @@ func respondSubscriptionCreateError(c *gin.Context, err error, fallback string) 
 // buildSubscriptionPlanDTO 将单个 SubscriptionPlan 包装成统一的 DTO 结构 { plan: {...} }。
 // 统一出口结构便于前端按 record.plan.* 的方式读取字段，复用 Admin / Provider 两套接口。
 func buildSubscriptionPlanDTO(plan model.SubscriptionPlan) SubscriptionPlanDTO {
+	plan.NormalizeQuotaWindows()
 	return SubscriptionPlanDTO{Plan: plan}
 }
 
@@ -110,13 +117,14 @@ func GetSubscriptionSelf(c *gin.Context) {
 	pref := common.NormalizeBillingPreference(settingMap.BillingPreference)
 
 	// Get all subscriptions (including expired)
-	allSubscriptions, err := model.GetAllUserSubscriptions(userId)
+	providerId := c.GetInt("provider_id")
+	allSubscriptions, err := model.GetAllUserSubscriptions(userId, providerId)
 	if err != nil {
 		allSubscriptions = []model.SubscriptionSummary{}
 	}
 
 	// Get active subscriptions for backward compatibility
-	activeSubscriptions, err := model.GetAllActiveUserSubscriptions(userId)
+	activeSubscriptions, err := model.GetAllActiveUserSubscriptions(userId, providerId)
 	if err != nil {
 		activeSubscriptions = []model.SubscriptionSummary{}
 	}
@@ -126,6 +134,19 @@ func GetSubscriptionSelf(c *gin.Context) {
 		"subscriptions":      activeSubscriptions, // all active subscriptions
 		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
 	})
+}
+
+// GetSubscriptionUsage returns the active subscriptions with derived rolling
+// five-hour and weekly usage snapshots. GetSubscriptionSelf includes the same
+// fields; this focused endpoint is useful for lightweight dashboard polling.
+func GetSubscriptionUsage(c *gin.Context) {
+	userID := c.GetInt("id")
+	subscriptions, err := model.GetAllActiveUserSubscriptions(userID, c.GetInt("provider_id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"subscriptions": subscriptions})
 }
 
 func UpdateSubscriptionPreference(c *gin.Context) {
@@ -210,7 +231,7 @@ func ProviderCreateSubscriptionPlan(c *gin.Context) {
 	req.Plan.ProviderId = provider.Id
 	req.Plan.IssuedCount = 0
 	req.Plan.ReservedCount = 0
-	if !normalizeSubscriptionPlanFields(c, &req.Plan) {
+	if !normalizeSubscriptionPlanFields(c, &req.Plan, presence) {
 		return
 	}
 	if !validateSubscriptionPlanModelLimitsForProvider(c, provider.Id, req.Plan.ModelLimits) {
@@ -221,6 +242,9 @@ func ProviderCreateSubscriptionPlan(c *gin.Context) {
 	explicitAllowPurchase := req.Plan.AllowPurchase
 	explicitEnabled := req.Plan.Enabled
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := model.ValidateSubscriptionPlanPurchaseLimitsTx(tx, &req.Plan); err != nil {
+			return err
+		}
 		if err := tx.Create(&req.Plan).Error; err != nil {
 			return err
 		}
@@ -229,6 +253,11 @@ func ProviderCreateSubscriptionPlan(c *gin.Context) {
 			"provider_id":                provider.Id,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+			"quota_window_mode":          req.Plan.QuotaWindowMode,
+			"five_hour_amount":           req.Plan.FiveHourAmount,
+			"five_hour_window_seconds":   req.Plan.FiveHourWindowSeconds,
+			"weekly_amount":              req.Plan.WeeklyAmount,
+			"quota_windows":              req.Plan.QuotaWindows,
 		}
 		if presence.AllowPurchase {
 			updateMap["allow_purchase"] = explicitAllowPurchase
@@ -266,20 +295,23 @@ func ProviderUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的ID")
 		return
 	}
-	req, _, err := bindAdminUpsertSubscriptionPlanRequest(c)
+	req, presence, err := bindAdminUpsertSubscriptionPlanRequest(c)
 	if err != nil {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
 	// 先确认该套餐确实归属当前服务商，否则直接返回错误，避免越权。
 	var existing model.SubscriptionPlan
-	if err := model.DB.Select("id", "provider_id").Where("id = ? AND provider_id = ?", id, provider.Id).First(&existing).Error; err != nil {
+	if err := model.DB.Select("id", "provider_id", "purchase_limit_group").Where("id = ? AND provider_id = ?", id, provider.Id).First(&existing).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	req.Plan.Id = id
 	req.Plan.ProviderId = provider.Id
-	if !normalizeSubscriptionPlanFields(c, &req.Plan) {
+	if !presence.PurchaseLimitGroup {
+		req.Plan.PurchaseLimitGroup = existing.PurchaseLimitGroup
+	}
+	if !normalizeSubscriptionPlanFields(c, &req.Plan, presence) {
 		return
 	}
 	if !validateSubscriptionPlanModelLimitsForProvider(c, provider.Id, req.Plan.ModelLimits) {
@@ -304,22 +336,36 @@ func ProviderUpdateSubscriptionPlan(c *gin.Context) {
 		"creem_product_id":           req.Plan.CreemProductId,
 		"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 		"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
+		"purchase_limit_group":       req.Plan.PurchaseLimitGroup,
 		"total_purchase_limit":       req.Plan.TotalPurchaseLimit,
 		"total_amount":               req.Plan.TotalAmount,
 		"upgrade_group":              req.Plan.UpgradeGroup,
 		"quota_reset_period":         req.Plan.QuotaResetPeriod,
 		"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+		"quota_window_mode":          req.Plan.QuotaWindowMode,
+		"five_hour_amount":           req.Plan.FiveHourAmount,
+		"five_hour_window_seconds":   req.Plan.FiveHourWindowSeconds,
+		"weekly_amount":              req.Plan.WeeklyAmount,
+		"quota_windows":              req.Plan.QuotaWindows,
 		"updated_at":                 common.GetTimestamp(),
 	}
-	res := model.DB.Model(&model.SubscriptionPlan{}).
-		Where("id = ? AND provider_id = ? AND (? = 0 OR issued_count + reserved_count <= ?)", id, provider.Id, req.Plan.TotalPurchaseLimit, req.Plan.TotalPurchaseLimit).
-		Updates(updateMap)
-	if res.Error != nil {
-		common.ApiError(c, res.Error)
-		return
-	}
-	if res.RowsAffected == 0 {
-		respondSubscriptionCreateError(c, model.ErrSubscriptionLimitTooSmall, "更新失败")
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := model.ValidateSubscriptionPlanPurchaseLimitsTx(tx, &req.Plan); err != nil {
+			return err
+		}
+		res := tx.Model(&model.SubscriptionPlan{}).
+			Where("id = ? AND provider_id = ?", id, provider.Id).
+			Updates(updateMap)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		respondSubscriptionCreateError(c, err, "更新失败")
 		return
 	}
 	model.InvalidateSubscriptionPlanCache(id)
@@ -360,11 +406,43 @@ func ProviderUpdateSubscriptionPlanStatus(c *gin.Context) {
 
 func AdminListSubscriptionPlans(c *gin.Context) {
 	var plans []model.SubscriptionPlan
-	if err := model.DB.Order("sort_order desc, id desc").Find(&plans).Error; err != nil {
+	query := model.DB
+	// Module-authorized ordinary users are main-site delegates.  Keep private
+	// provider plans out of this global admin endpoint; full administrators may
+	// still inspect every provider's catalog as before.
+	if c.GetInt("role") < common.RoleAdminUser {
+		query = query.Where("provider_id = ?", 0)
+	}
+	if err := query.Order("sort_order desc, id desc").Find(&plans).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	common.ApiSuccess(c, buildSubscriptionPlanDTOs(plans))
+}
+
+// ensureDelegatedSubscriptionPlan restricts module-authorized ordinary users
+// to main-site plans. Provider-owned plans are managed through the provider
+// console and must never be writable/readable through the global admin routes
+// by a delegated main-site user. Full administrators retain cross-provider
+// access.
+func ensureDelegatedSubscriptionPlan(c *gin.Context, planID int) bool {
+	if planID <= 0 {
+		common.ApiErrorMsg(c, "无效的套餐ID")
+		return false
+	}
+	if c.GetInt("role") >= common.RoleAdminUser {
+		return true
+	}
+	var plan model.SubscriptionPlan
+	if err := model.DB.Select("id", "provider_id").Where("id = ?", planID).First(&plan).Error; err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if plan.ProviderId != 0 {
+		common.ApiErrorMsg(c, "无权限管理该服务商套餐")
+		return false
+	}
+	return true
 }
 
 type AdminUpsertSubscriptionPlanRequest struct {
@@ -372,8 +450,25 @@ type AdminUpsertSubscriptionPlanRequest struct {
 }
 
 type adminUpsertSubscriptionPlanPresence struct {
-	Enabled       bool
-	AllowPurchase bool
+	Enabled            bool
+	AllowPurchase      bool
+	PurchaseLimitGroup bool
+	// Duration/quota-reset presence is tracked separately from decoded zero
+	// values.  The API historically used value types, so an omitted field and
+	// an explicit `0` both decode to zero; treating both as "use the default"
+	// lets malformed plans slip through validation.  Presence lets the write
+	// boundary distinguish a deliberate zero from an omitted legacy field.
+	DurationUnit            bool
+	DurationValue           bool
+	CustomSeconds           bool
+	QuotaResetPeriod        bool
+	QuotaResetCustomSeconds bool
+	QuotaWindowMode         bool
+	QuotaWindows            bool
+	// Raw quota-window objects let validation distinguish an omitted numeric
+	// field (which may use a documented default) from an explicitly supplied
+	// zero (which is always a configuration error for a limit/duration).
+	QuotaWindowEntries []map[string]json.RawMessage
 	// ProviderId 标记请求体中是否显式传入了 provider_id 字段。
 	// AdminUpdateSubscriptionPlan 用它判断：未显式传入时需保留原归属，避免误把套餐改回主站。
 	ProviderId bool
@@ -407,7 +502,18 @@ func bindAdminUpsertSubscriptionPlanRequest(c *gin.Context) (AdminUpsertSubscrip
 	if rawReq.Plan != nil {
 		_, presence.Enabled = rawReq.Plan["enabled"]
 		_, presence.AllowPurchase = rawReq.Plan["allow_purchase"]
+		_, presence.PurchaseLimitGroup = rawReq.Plan["purchase_limit_group"]
 		_, presence.ProviderId = rawReq.Plan["provider_id"]
+		_, presence.DurationUnit = rawReq.Plan["duration_unit"]
+		_, presence.DurationValue = rawReq.Plan["duration_value"]
+		_, presence.CustomSeconds = rawReq.Plan["custom_seconds"]
+		_, presence.QuotaResetPeriod = rawReq.Plan["quota_reset_period"]
+		_, presence.QuotaResetCustomSeconds = rawReq.Plan["quota_reset_custom_seconds"]
+		_, presence.QuotaWindowMode = rawReq.Plan["quota_window_mode"]
+		if raw, ok := rawReq.Plan["quota_windows"]; ok {
+			presence.QuotaWindows = true
+			_ = common.Unmarshal(raw, &presence.QuotaWindowEntries)
+		}
 	}
 	return req, presence, nil
 }
@@ -464,9 +570,342 @@ func validateSubscriptionPlanModelLimitsForProvider(c *gin.Context, providerId i
 // normalizeSubscriptionPlanFields 规范化并校验套餐的可输入字段，Admin 与 Provider 两条路径共用。
 // 包含：标题非空、价格区间(0,9999]、币种强制 USD、模型白名单去重排序、时长单位默认、
 // 购买上限/总额度非负、升级分组存在性、重置周期合法性。返回 false 时已写入错误响应。
-func normalizeSubscriptionPlanFields(c *gin.Context, plan *model.SubscriptionPlan) bool {
+func normalizeSubscriptionQuotaWindowFields(c *gin.Context, plan *model.SubscriptionPlan, presences ...adminUpsertSubscriptionPlanPresence) bool {
 	if plan == nil {
 		common.ApiErrorMsg(c, "参数错误")
+		return false
+	}
+	rawMode := strings.ToLower(strings.TrimSpace(plan.QuotaWindowMode))
+	var presence adminUpsertSubscriptionPlanPresence
+	if len(presences) > 0 {
+		presence = presences[0]
+	}
+	// Scalar aliases are retained for backwards-compatible API clients.  They
+	// are fallback values, so accepting contradictory positive aliases would
+	// silently choose one value depending on field order and make the saved
+	// entitlement differ from what the caller requested.
+	if conflictingPositiveQuotaAliases(plan.FiveHourAmount, plan.FiveHourQuota, plan.FiveHourLimit) {
+		common.ApiErrorMsg(c, "5小时额度别名值不一致")
+		return false
+	}
+	if conflictingPositiveQuotaAliases(plan.WeeklyAmount, plan.WeeklyQuota, plan.WeeklyLimit) {
+		common.ApiErrorMsg(c, "周期额度别名值不一致")
+		return false
+	}
+	if plan.FiveHourAmount < 0 || plan.FiveHourQuota < 0 || plan.FiveHourLimit < 0 {
+		common.ApiErrorMsg(c, "5小时额度不能为负数")
+		return false
+	}
+	if plan.WeeklyAmount < 0 || plan.WeeklyQuota < 0 || plan.WeeklyLimit < 0 {
+		common.ApiErrorMsg(c, "周期额度不能为负数")
+		return false
+	}
+	if plan.FiveHourWindowSeconds < 0 {
+		common.ApiErrorMsg(c, "滚动窗口秒数不能为负数")
+		return false
+	}
+	if plan.FiveHourWindowSeconds > model.MaxSubscriptionQuotaWindowSeconds {
+		common.ApiErrorMsg(c, "滚动窗口周期过长")
+		return false
+	}
+	// NormalizeResetPeriod intentionally falls back to `never` for old rows,
+	// but accepting an unknown value from an admin request would silently turn
+	// a configured reset into a non-resetting allowance.  Reject malformed
+	// values at the write boundary while preserving empty/never semantics.
+	if !validSubscriptionResetPeriod(plan.QuotaResetPeriod) {
+		common.ApiErrorMsg(c, "额度重置周期无效")
+		return false
+	}
+	if plan.QuotaResetCustomSeconds < 0 || plan.QuotaResetCustomSeconds > model.MaxSubscriptionQuotaWindowSeconds {
+		common.ApiErrorMsg(c, "自定义重置周期超出允许范围")
+		return false
+	}
+
+	// When the array form is supplied, validate every item instead of silently
+	// dropping malformed entries.  This is important for administrators: a
+	// typo must not accidentally create an unlimited plan.
+	if len(plan.QuotaWindows) > 0 {
+		if len(plan.QuotaWindows) > 16 {
+			common.ApiErrorMsg(c, "额度窗口数量不能超过16个")
+			return false
+		}
+		normalized := make(model.SubscriptionQuotaWindowList, 0, len(plan.QuotaWindows))
+		seen := map[string]struct{}{}
+		for index, item := range plan.QuotaWindows {
+			if index < len(presence.QuotaWindowEntries) && !validateRawQuotaWindowEntry(c, presence.QuotaWindowEntries[index]) {
+				return false
+			}
+			window, ok := item.Normalize()
+			if !ok || window.Amount <= 0 || window.WindowSeconds <= 0 {
+				common.ApiErrorMsg(c, "额度窗口必须配置正数额度和周期")
+				return false
+			}
+			key := fmt.Sprintf("%s:%d:%d:%s:%s", window.Type, window.WindowSeconds, window.Amount, window.ResetMode, window.Name)
+			if _, exists := seen[key]; exists {
+				common.ApiErrorMsg(c, "额度窗口不能重复")
+				return false
+			}
+			seen[key] = struct{}{}
+			normalized = append(normalized, window)
+		}
+		plan.QuotaWindows = normalized
+		plan.QuotaWindowMode = model.SubscriptionQuotaWindowGeneric
+		return true
+	}
+
+	// Accept a compact single-window mode (daily/monthly/yearly/custom/hour)
+	// in addition to the explicit array.  NormalizeQuotaWindows materializes
+	// the equivalent generic definition and keeps persistence backward-safe.
+	compactMode := rawMode == model.SubscriptionQuotaWindowHour || rawMode == "hourly" || rawMode == "hours" ||
+		rawMode == model.SubscriptionQuotaWindowDay || rawMode == "daily" || rawMode == "days" ||
+		rawMode == "week" || rawMode == model.SubscriptionQuotaWindowMonth || rawMode == "monthly" || rawMode == "months" ||
+		rawMode == model.SubscriptionQuotaWindowYear || rawMode == "yearly" || rawMode == "years" || rawMode == "annual" || rawMode == "annually" ||
+		rawMode == model.SubscriptionQuotaWindowCustom || rawMode == "seconds" || rawMode == "second" || rawMode == "duration" ||
+		rawMode == "5h" || rawMode == "5hour" || rawMode == "5_hours" || rawMode == "five-hours"
+	if compactMode {
+		plan.NormalizeQuotaWindows()
+		if len(plan.QuotaWindows) == 0 {
+			common.ApiErrorMsg(c, "单窗口模式必须配置额度和周期")
+			return false
+		}
+		return true
+	}
+
+	// Fixed compatibility modes retain their original storage and semantics.
+	if rawMode != "" && rawMode != model.SubscriptionQuotaWindowLegacy && rawMode != model.SubscriptionQuotaWindowFiveHour &&
+		rawMode != model.SubscriptionQuotaWindowWeekly && rawMode != model.SubscriptionQuotaWindowDual && rawMode != model.SubscriptionQuotaWindowGeneric {
+		common.ApiErrorMsg(c, "额度窗口模式无效")
+		return false
+	}
+	plan.NormalizeQuotaWindows()
+	if plan.QuotaWindowMode == model.SubscriptionQuotaWindowGeneric {
+		if len(plan.QuotaWindows) == 0 {
+			common.ApiErrorMsg(c, "通用额度模式至少需要一个窗口")
+			return false
+		}
+		return true
+	}
+	if (plan.QuotaWindowMode == model.SubscriptionQuotaWindowWeekly || plan.QuotaWindowMode == model.SubscriptionQuotaWindowDual) && plan.WeeklyAmount <= 0 {
+		plan.WeeklyAmount = plan.TotalAmount
+	}
+	switch plan.QuotaWindowMode {
+	case model.SubscriptionQuotaWindowFiveHour:
+		if plan.FiveHourAmount <= 0 {
+			common.ApiErrorMsg(c, "5小时额度需大于0")
+			return false
+		}
+	case model.SubscriptionQuotaWindowWeekly:
+		if plan.WeeklyAmount <= 0 {
+			common.ApiErrorMsg(c, "每周额度需大于0")
+			return false
+		}
+	case model.SubscriptionQuotaWindowDual:
+		if plan.FiveHourAmount <= 0 || plan.WeeklyAmount <= 0 {
+			common.ApiErrorMsg(c, "双窗口模式需同时配置5小时额度和每周额度")
+			return false
+		}
+	}
+	if plan.FiveHourAmount > 0 && plan.FiveHourWindowSeconds < 60 {
+		common.ApiErrorMsg(c, "5小时窗口不能少于60秒")
+		return false
+	}
+	return true
+}
+
+func conflictingPositiveQuotaAliases(values ...int64) bool {
+	var selected int64
+	for _, value := range values {
+		if value <= 0 {
+			continue
+		}
+		if selected != 0 && selected != value {
+			return true
+		}
+		selected = value
+	}
+	return false
+}
+
+// validateRawQuotaWindowEntry preserves the distinction between an omitted
+// numeric field and an explicit zero in the JSON array.  Normalize() accepts
+// omitted fixed-window duration/seconds and derives them from the unit; an
+// explicitly zero duration, however, is a malformed administrator setting and
+// must be rejected rather than silently rewritten to one.
+func validateRawQuotaWindowEntry(c *gin.Context, raw map[string]json.RawMessage) bool {
+	if raw == nil {
+		common.ApiErrorMsg(c, "额度窗口参数无效")
+		return false
+	}
+	checkPositive := func(names ...string) bool {
+		for _, name := range names {
+			value, exists := raw[name]
+			if !exists {
+				continue
+			}
+			var number int64
+			if err := common.Unmarshal(value, &number); err != nil || number <= 0 {
+				common.ApiErrorMsg(c, "额度窗口数值必须为正整数")
+				return false
+			}
+		}
+		return true
+	}
+	// Amount aliases are always required to be positive when present.
+	if !checkPositive("amount", "limit", "quota") {
+		return false
+	}
+	// Duration aliases are positive whenever explicitly supplied.  Custom
+	// windows may omit duration because their seconds field is canonical.
+	if !checkPositive("duration", "duration_value") {
+		return false
+	}
+	// An explicitly supplied zero precision window is not the same as an
+	// omitted field.  Reject it at the API boundary instead of silently
+	// deriving a value from the unit; this keeps the persisted entitlement
+	// faithful to what an administrator submitted.  The frontend canonicalizes
+	// fixed windows before sending, while legacy clients that omit the field
+	// remain compatible.
+	if !checkPositive("window_seconds", "custom_seconds", "duration_seconds") {
+		return false
+	}
+	return true
+}
+
+func validSubscriptionResetPeriod(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", model.SubscriptionResetNever,
+		model.SubscriptionResetDaily, model.SubscriptionResetWeekly,
+		model.SubscriptionResetMonthly, model.SubscriptionResetYearly,
+		"annual", "annually", model.SubscriptionResetCustom:
+		return true
+	default:
+		return false
+	}
+}
+
+// validateSubscriptionPlanDurationFields validates the finite set of plan
+// duration units and their numeric bounds.  Keep omitted legacy fields
+// backwards-compatible (month/1), but never turn an explicitly supplied zero
+// or negative value into that default: doing so can create a plan whose
+// persisted entitlement differs from the administrator's request.
+func validateSubscriptionPlanDurationFields(c *gin.Context, plan *model.SubscriptionPlan, presence adminUpsertSubscriptionPlanPresence) bool {
+	if plan == nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return false
+	}
+	unit := strings.ToLower(strings.TrimSpace(plan.DurationUnit))
+	if unit == "" {
+		if presence.DurationUnit {
+			common.ApiErrorMsg(c, "有效期单位不能为空")
+			return false
+		}
+		unit = model.SubscriptionDurationMonth
+	}
+	switch unit {
+	case model.SubscriptionDurationYear, model.SubscriptionDurationMonth,
+		model.SubscriptionDurationDay, model.SubscriptionDurationHour,
+		model.SubscriptionDurationCustom:
+	default:
+		common.ApiErrorMsg(c, "有效期单位无效")
+		return false
+	}
+	plan.DurationUnit = unit
+
+	if plan.DurationValue < 0 {
+		common.ApiErrorMsg(c, "有效期数值必须为正整数")
+		return false
+	}
+	if plan.DurationValue == 0 {
+		if presence.DurationValue {
+			common.ApiErrorMsg(c, "有效期数值必须为正整数")
+			return false
+		}
+		// Custom plans do not use DurationValue in the end-time calculation,
+		// but retaining a canonical positive value keeps API/UI representations
+		// unambiguous and avoids zero-value surprises in future code paths.
+		plan.DurationValue = 1
+	}
+
+	// The quota-window safety horizon is also a sensible upper bound for a
+	// subscription entitlement.  It prevents calendar arithmetic from
+	// accepting values that time.Time can represent only after overflow.
+	const maxSeconds = model.MaxSubscriptionQuotaWindowSeconds
+	var unitSeconds int64
+	switch unit {
+	case model.SubscriptionDurationYear:
+		unitSeconds = 366 * 24 * 60 * 60
+	case model.SubscriptionDurationMonth:
+		unitSeconds = 31 * 24 * 60 * 60
+	case model.SubscriptionDurationDay:
+		unitSeconds = 24 * 60 * 60
+	case model.SubscriptionDurationHour:
+		unitSeconds = 60 * 60
+	}
+	if unit != model.SubscriptionDurationCustom && int64(plan.DurationValue) > maxSeconds/unitSeconds {
+		common.ApiErrorMsg(c, "有效期数值过大")
+		return false
+	}
+	if plan.CustomSeconds < 0 {
+		common.ApiErrorMsg(c, "自定义有效期秒数不能为负数")
+		return false
+	}
+	if unit == model.SubscriptionDurationCustom {
+		if plan.CustomSeconds <= 0 {
+			common.ApiErrorMsg(c, "自定义有效期秒数必须大于0")
+			return false
+		}
+		if plan.CustomSeconds > maxSeconds {
+			common.ApiErrorMsg(c, "自定义有效期秒数过大")
+			return false
+		}
+	} else if plan.CustomSeconds > 0 {
+		// custom_seconds is meaningful only for the custom unit.  Rejecting a
+		// positive value on fixed units avoids retaining a stale custom duration
+		// that could become effective if the unit is changed later.
+		common.ApiErrorMsg(c, "固定有效期不能配置自定义秒数")
+		return false
+	}
+
+	resetRaw := strings.ToLower(strings.TrimSpace(plan.QuotaResetPeriod))
+	if resetRaw == "" {
+		if presence.QuotaResetPeriod {
+			common.ApiErrorMsg(c, "额度重置周期不能为空")
+			return false
+		}
+		resetRaw = model.SubscriptionResetNever
+	}
+	if !validSubscriptionResetPeriod(resetRaw) {
+		common.ApiErrorMsg(c, "额度重置周期无效")
+		return false
+	}
+	resetPeriod := model.NormalizeResetPeriod(resetRaw)
+	if plan.QuotaResetCustomSeconds < 0 || plan.QuotaResetCustomSeconds > maxSeconds {
+		common.ApiErrorMsg(c, "自定义重置周期超出允许范围")
+		return false
+	}
+	if resetPeriod == model.SubscriptionResetCustom {
+		if plan.QuotaResetCustomSeconds <= 0 {
+			common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
+			return false
+		}
+	} else if plan.QuotaResetCustomSeconds > 0 && presence.QuotaResetCustomSeconds {
+		common.ApiErrorMsg(c, "非自定义重置周期不能配置自定义秒数")
+		return false
+	}
+	plan.QuotaResetPeriod = resetPeriod
+	return true
+}
+
+func normalizeSubscriptionPlanFields(c *gin.Context, plan *model.SubscriptionPlan, presences ...adminUpsertSubscriptionPlanPresence) bool {
+	if plan == nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return false
+	}
+	var presence adminUpsertSubscriptionPlanPresence
+	if len(presences) > 0 {
+		presence = presences[0]
+	}
+	if !validateSubscriptionPlanDurationFields(c, plan, presence) {
 		return false
 	}
 	if strings.TrimSpace(plan.Title) == "" {
@@ -497,8 +936,17 @@ func normalizeSubscriptionPlanFields(c *gin.Context, plan *model.SubscriptionPla
 		common.ApiErrorMsg(c, "全局发放上限不能为负数")
 		return false
 	}
+	purchaseLimitGroup, ok := model.NormalizeSubscriptionPurchaseLimitGroup(plan.PurchaseLimitGroup)
+	if !ok {
+		common.ApiErrorMsg(c, "共享限购组仅支持64位以内的小写字母、数字及 -_.:")
+		return false
+	}
+	plan.PurchaseLimitGroup = purchaseLimitGroup
 	if plan.TotalAmount < 0 {
 		common.ApiErrorMsg(c, "总额度不能为负数")
+		return false
+	}
+	if !normalizeSubscriptionQuotaWindowFields(c, plan, presence) {
 		return false
 	}
 	plan.UpgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
@@ -531,6 +979,19 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	req.Plan.Id = 0
 	req.Plan.IssuedCount = 0
 	req.Plan.ReservedCount = 0
+	if !validateSubscriptionPlanDurationFields(c, &req.Plan, presence) {
+		return
+	}
+	// Delegated module users operate only the main-site catalog. Do not trust a
+	// provider_id supplied in the request body to create a private plan through
+	// the global admin route.
+	if c.GetInt("role") < common.RoleAdminUser && req.Plan.ProviderId != 0 {
+		common.ApiErrorMsg(c, "无权限管理该服务商套餐")
+		return
+	}
+	if c.GetInt("role") < common.RoleAdminUser {
+		req.Plan.ProviderId = 0
+	}
 	if strings.TrimSpace(req.Plan.Title) == "" {
 		common.ApiErrorMsg(c, "套餐标题不能为空")
 		return
@@ -539,7 +1000,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "价格不能为负数")
 		return
 	}
-	if req.Plan.PriceAmount > 9999 {
+	if req.Plan.PriceAmount > 999999 {
 		common.ApiErrorMsg(c, "价格不能超过9999")
 		return
 	}
@@ -563,8 +1024,17 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "全局发放上限不能为负数")
 		return
 	}
+	purchaseLimitGroup, ok := model.NormalizeSubscriptionPurchaseLimitGroup(req.Plan.PurchaseLimitGroup)
+	if !ok {
+		common.ApiErrorMsg(c, "共享限购组仅支持64位以内的小写字母、数字及 -_.:")
+		return
+	}
+	req.Plan.PurchaseLimitGroup = purchaseLimitGroup
 	if req.Plan.TotalAmount < 0 {
 		common.ApiErrorMsg(c, "总额度不能为负数")
+		return
+	}
+	if !normalizeSubscriptionQuotaWindowFields(c, &req.Plan, presence) {
 		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
@@ -586,6 +1056,9 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	explicitAllowPurchase := req.Plan.AllowPurchase
 	explicitEnabled := req.Plan.Enabled
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := model.ValidateSubscriptionPlanPurchaseLimitsTx(tx, &req.Plan); err != nil {
+			return err
+		}
 		if err := tx.Create(&req.Plan).Error; err != nil {
 			return err
 		}
@@ -632,9 +1105,15 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的ID")
 		return
 	}
+	if !ensureDelegatedSubscriptionPlan(c, id) {
+		return
+	}
 	req, presence, err := bindAdminUpsertSubscriptionPlanRequest(c)
 	if err != nil {
 		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if !validateSubscriptionPlanDurationFields(c, &req.Plan, presence) {
 		return
 	}
 	if strings.TrimSpace(req.Plan.Title) == "" {
@@ -650,6 +1129,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 	req.Plan.Id = id
+	if c.GetInt("role") < common.RoleAdminUser && presence.ProviderId && req.Plan.ProviderId != 0 {
+		common.ApiErrorMsg(c, "无权限管理该服务商套餐")
+		return
+	}
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
 	}
@@ -670,8 +1153,17 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "全局发放上限不能为负数")
 		return
 	}
+	purchaseLimitGroup, ok := model.NormalizeSubscriptionPurchaseLimitGroup(req.Plan.PurchaseLimitGroup)
+	if !ok {
+		common.ApiErrorMsg(c, "共享限购组仅支持64位以内的小写字母、数字及 -_.:")
+		return
+	}
+	req.Plan.PurchaseLimitGroup = purchaseLimitGroup
 	if req.Plan.TotalAmount < 0 {
 		common.ApiErrorMsg(c, "总额度不能为负数")
+		return
+	}
+	if !normalizeSubscriptionQuotaWindowFields(c, &req.Plan, presence) {
 		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
@@ -688,14 +1180,28 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	}
 	// 当请求未显式传入 provider_id 时，沿用该套餐原有的归属服务商，避免管理员漏传字段
 	// 而把已有服务商私有套餐误改成主站套餐(provider_id=0)。
-	if !presence.ProviderId {
+	if !presence.ProviderId || !presence.PurchaseLimitGroup {
 		var existing model.SubscriptionPlan
-		if err := model.DB.Select("provider_id").Where("id = ?", id).First(&existing).Error; err != nil {
+		if err := model.DB.Select("provider_id", "purchase_limit_group").Where("id = ?", id).First(&existing).Error; err != nil {
 			common.ApiError(c, err)
 			return
 		}
-		req.Plan.ProviderId = existing.ProviderId
+		if !presence.ProviderId {
+			req.Plan.ProviderId = existing.ProviderId
+		}
+		if !presence.PurchaseLimitGroup {
+			req.Plan.PurchaseLimitGroup = existing.PurchaseLimitGroup
+		}
 	}
+	// Existing prerelease rows may still contain mixed-case group keys. Apply
+	// the same canonicalization after presence fallback so an unrelated update
+	// also converges the row to the cross-database group representation.
+	purchaseLimitGroup, ok = model.NormalizeSubscriptionPurchaseLimitGroup(req.Plan.PurchaseLimitGroup)
+	if !ok {
+		common.ApiErrorMsg(c, "共享限购组仅支持64位以内的小写字母、数字及 -_.:")
+		return
+	}
+	req.Plan.PurchaseLimitGroup = purchaseLimitGroup
 
 	// 统一校验套餐归属服务商合法性（含模型白名单必须来自该服务商模型广场）。
 	if !validateAdminSubscriptionPlanProvider(c, &req.Plan) {
@@ -723,26 +1229,33 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"creem_product_id":           req.Plan.CreemProductId,
 			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
+			"purchase_limit_group":       req.Plan.PurchaseLimitGroup,
 			"total_purchase_limit":       req.Plan.TotalPurchaseLimit,
 			"total_amount":               req.Plan.TotalAmount,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+			"quota_window_mode":          req.Plan.QuotaWindowMode,
+			"five_hour_amount":           req.Plan.FiveHourAmount,
+			"five_hour_window_seconds":   req.Plan.FiveHourWindowSeconds,
+			"weekly_amount":              req.Plan.WeeklyAmount,
+			"quota_windows":              req.Plan.QuotaWindows,
 			"updated_at":                 common.GetTimestamp(),
 		}
-		res := tx.Model(&model.SubscriptionPlan{}).
-			Where("id = ? AND (? = 0 OR issued_count + reserved_count <= ?)", id, req.Plan.TotalPurchaseLimit, req.Plan.TotalPurchaseLimit).
-			Updates(updateMap)
+		if err := model.ValidateSubscriptionPlanPurchaseLimitsTx(tx, &req.Plan); err != nil {
+			return err
+		}
+		res := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap)
 		if res.Error != nil {
 			return res.Error
 		}
 		if res.RowsAffected == 0 {
-			return model.ErrSubscriptionLimitTooSmall
+			return gorm.ErrRecordNotFound
 		}
 		return nil
 	})
 	if err != nil {
-		common.ApiError(c, err)
+		respondSubscriptionCreateError(c, err, "更新失败")
 		return
 	}
 	model.InvalidateSubscriptionPlanCache(id)
@@ -764,13 +1277,23 @@ func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的ID")
 		return
 	}
+	if !ensureDelegatedSubscriptionPlan(c, id) {
+		return
+	}
 	var req AdminUpdateSubscriptionPlanStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.Enabled == nil {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	if err := model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Update("enabled", *req.Enabled).Error; err != nil {
-		common.ApiError(c, err)
+	statusQuery := model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", id)
+	if c.GetInt("role") < common.RoleAdminUser {
+		statusQuery = statusQuery.Where("provider_id = ?", 0)
+	}
+	if res := statusQuery.Update("enabled", *req.Enabled); res.Error != nil {
+		common.ApiError(c, res.Error)
+		return
+	} else if res.RowsAffected == 0 {
+		common.ApiErrorMsg(c, "套餐不存在")
 		return
 	}
 	model.InvalidateSubscriptionPlanCache(id)
@@ -802,6 +1325,12 @@ func AdminBindSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
+	if !ensureDelegatedSubscriptionTarget(c, req.UserId) {
+		return
+	}
+	if !ensureDelegatedSubscriptionPlan(c, req.PlanId) {
+		return
+	}
 	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, "")
 	if err != nil {
 		common.ApiError(c, err)
@@ -828,6 +1357,9 @@ func AdminGrantAirdropSubscription(c *gin.Context) {
 	var req AdminGrantAirdropSubscriptionRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.UserId <= 0 {
 		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if !ensureDelegatedSubscriptionTarget(c, req.UserId) {
 		return
 	}
 	title, err := model.GrantAirdropSubscription(req.UserId)
@@ -877,13 +1409,71 @@ func ProviderGrantAirdropSubscription(c *gin.Context) {
 
 // ---- Admin: user subscription management ----
 
+// ensureDelegatedSubscriptionTarget restricts module-authorized ordinary users
+// to the same target scope as the user-management APIs: only ordinary users
+// belonging to the main site may be inspected or mutated. Full administrators
+// retain the existing cross-site management behavior. The route middleware
+// already checks the subscription/user module permission; this helper adds the
+// object-level check that parameterized subscription endpoints otherwise lack.
+func ensureDelegatedSubscriptionTarget(c *gin.Context, userID int) bool {
+	if userID <= 0 {
+		common.ApiErrorMsg(c, "无效的用户ID")
+		return false
+	}
+	if c.GetInt("role") >= common.RoleAdminUser {
+		return true
+	}
+	target, err := model.GetUserById(userID, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if !delegatedCanManageTarget(target) {
+		common.ApiErrorMsg(c, "无权限管理该用户订阅")
+		return false
+	}
+	return true
+}
+
+// ensureDelegatedSubscriptionID resolves the owner of a subscription before a
+// delegated administrator can mutate it. Without this check, an ordinary user
+// granted the subscription module could invalidate/delete any subscription by
+// guessing its numeric ID.
+func ensureDelegatedSubscriptionID(c *gin.Context, subscriptionID int) bool {
+	if subscriptionID <= 0 {
+		common.ApiErrorMsg(c, "无效的订阅ID")
+		return false
+	}
+	if c.GetInt("role") >= common.RoleAdminUser {
+		return true
+	}
+	var sub model.UserSubscription
+	if err := model.DB.Select("user_id").Where("id = ?", subscriptionID).First(&sub).Error; err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	return ensureDelegatedSubscriptionTarget(c, sub.UserId)
+}
+
 func AdminListUserSubscriptions(c *gin.Context) {
 	userId, _ := strconv.Atoi(c.Param("id"))
 	if userId <= 0 {
 		common.ApiErrorMsg(c, "无效的用户ID")
 		return
 	}
-	subs, err := model.GetAllUserSubscriptions(userId)
+	if !ensureDelegatedSubscriptionTarget(c, userId) {
+		return
+	}
+	var subs []model.SubscriptionSummary
+	var err error
+	if c.GetInt("role") < common.RoleAdminUser {
+		// Delegated main-site operators must not receive stale/malformed rows
+		// carrying another provider scope, even if historical data contains one.
+		subs, err = model.GetAllUserSubscriptions(userId, 0)
+	} else {
+		// Full administrators retain the intentional cross-provider view.
+		subs, err = model.GetAllUserSubscriptions(userId)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -907,9 +1497,15 @@ func AdminCreateUserSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的用户ID")
 		return
 	}
+	if !ensureDelegatedSubscriptionTarget(c, userId) {
+		return
+	}
 	var req AdminCreateUserSubscriptionRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
 		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if !ensureDelegatedSubscriptionPlan(c, req.PlanId) {
 		return
 	}
 	msg, err := model.AdminBindSubscription(userId, req.PlanId, "")
@@ -931,6 +1527,9 @@ func AdminInvalidateUserSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的订阅ID")
 		return
 	}
+	if !ensureDelegatedSubscriptionID(c, subId) {
+		return
+	}
 	msg, err := model.AdminInvalidateUserSubscription(subId)
 	if err != nil {
 		common.ApiError(c, err)
@@ -948,6 +1547,9 @@ func AdminDeleteUserSubscription(c *gin.Context) {
 	subId, _ := strconv.Atoi(c.Param("id"))
 	if subId <= 0 {
 		common.ApiErrorMsg(c, "无效的订阅ID")
+		return
+	}
+	if !ensureDelegatedSubscriptionID(c, subId) {
 		return
 	}
 	msg, err := model.AdminDeleteUserSubscription(subId)

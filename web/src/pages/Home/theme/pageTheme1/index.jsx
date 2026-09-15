@@ -232,6 +232,10 @@ const Home = () => {
   const consoleNavTarget = isLoggedIn ? '/console' : '/login';
   const pricingNavTarget =
     !isLoggedIn && pricingRequireAuth ? '/login' : '/pricing';
+  const subscriptionNavTarget = isLoggedIn ? '/console/topup' : '/login';
+  const subscriptionNavState = isLoggedIn
+    ? undefined
+    : { from: { pathname: '/console/topup' } };
   const showAgentPartnerNav = shouldShowProviderAgentPartner(
     statusState?.status,
   );
@@ -486,6 +490,9 @@ const Home = () => {
                 </Link>
                 <Link to={consoleNavTarget}>{t('控制台')}</Link>
                 <Link to={pricingNavTarget}>{t('模型广场')}</Link>
+                <Link to={subscriptionNavTarget} state={subscriptionNavState}>
+                  {t('订阅套餐')}
+                </Link>
                 <a href={docsHref} target='_blank' rel='noreferrer'>
                   {t('文档')}
                 </a>
@@ -563,6 +570,13 @@ const Home = () => {
                   >
                     {t('阅读文档')}
                   </a>
+                  <Link
+                    to={subscriptionNavTarget}
+                    state={subscriptionNavState}
+                    className='home-btn-ghost home-btn-large'
+                  >
+                    {t('订阅套餐')}
+                  </Link>
                 </div>
                 <div className='home-hero-stats'>
                   {heroStats.map((stat) => (
@@ -1160,6 +1174,14 @@ const Home = () => {
                     </li>
                     <li>
                       <Link to={pricingNavTarget}>{t('模型广场')}</Link>
+                    </li>
+                    <li>
+                      <Link
+                        to={subscriptionNavTarget}
+                        state={subscriptionNavState}
+                      >
+                        {t('订阅套餐')}
+                      </Link>
                     </li>
                     <li>
                       <Link to='/about'>{t('关于平台')}</Link>

@@ -136,6 +136,10 @@ export const useSubscriptionsData = (options = {}) => {
   return {
     // Data state
     plans,
+    // Keep the unpaginated collection available to consumers that need
+    // cross-plan calculations (for example shared purchase-limit groups).
+    // The table still renders only the current page through `plans`.
+    allPlans,
     planCount,
     loading,
 

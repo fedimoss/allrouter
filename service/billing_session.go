@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -24,94 +25,414 @@ import (
 // BillingSession 封装单次请求的预扣费/结算/退款生命周期。
 // 实现 relaycommon.BillingSettler 接口。
 type BillingSession struct {
-	relayInfo        *relaycommon.RelayInfo
-	funding          FundingSource
-	preConsumedQuota int  // 实际预扣额度（信任用户可能为 0）
-	tokenConsumed    int  // 令牌额度实际扣减量
-	fundingSettled   bool // funding.Settle 已成功，资金来源已提交
-	settled          bool // Settle 全部完成（资金 + 令牌）
-	refunded         bool // Refund 已调用
-	rebateApplied    bool
-	mu               sync.Mutex
+	relayInfo *relaycommon.RelayInfo
+	funding   FundingSource
+	// tokenQuotaAdjuster is normally nil and token changes are persisted via
+	// model.DecreaseTokenQuota/IncreaseTokenQuota.  Keeping the operation
+	// behind a small hook also lets tests exercise the two-phase settlement
+	// state machine without requiring a live token row/database.
+	tokenQuotaAdjuster func(*relaycommon.RelayInfo, int) error
+	preConsumedQuota   int  // 实际预扣额度（信任用户可能为 0）
+	tokenConsumed      int  // 令牌额度当前实际扣减量
+	fundingSettled     bool // funding.Settle 至少成功调整过一次（兼容诊断字段）
+
+	// fundingQuota/tokenQuota are the independently committed amounts on the
+	// two sides of the reservation.  They can temporarily differ when funding
+	// adjustment succeeds but token adjustment fails; retaining both values
+	// makes a retry or refund correct instead of applying the funding delta a
+	// second time.
+	fundingQuota          int
+	tokenQuota            int
+	quotaStateInitialized bool
+	settled               bool // Settle 全部完成（资金 + 令牌）
+	refunded              bool // Refund 已调用
+	// refundStarted is a terminal lifecycle fence set before the asynchronous
+	// refund releases the mutex.  Without it, Settle/SettleProgress could race
+	// the refund goroutine and charge a request after its error path had already
+	// started returning the reservation.
+	refundStarted     bool
+	refundInFlight    bool
+	refundFundingDone bool
+	refundTokenDone   bool
+	// rollback... tracks compensation after a successful settlement.  A
+	// normal Refund intentionally skips settled sessions; these markers let a
+	// caller undo a charge when a subsequent local persistence step fails,
+	// while ensuring retries never repeat a side that already completed.
+	settlementRolledBack bool
+	rollbackInFlight     bool
+	rollbackFundingDone  bool
+	rollbackTokenDone    bool
+	rebateApplied        bool
+	// SettleProgress receives an incremental delta.  If funding commits but
+	// token persistence fails, remember the logical operation so retrying the
+	// same delta targets the same absolute amount instead of adding it twice.
+	progressPending       bool
+	pendingProgressDelta  int
+	pendingProgressTarget int
+	mu                    sync.Mutex
+}
+
+// tokenQuotaRequired reports whether this billing source should reserve and
+// settle the per-API-token numeric quota.  Subscription quota is an
+// independent allowance; an enabled token with a zero balance must therefore
+// not be rejected (or driven negative) while a subscription is active.  The
+// token is still authenticated normally by middleware, including status,
+// expiry, provider, and model-limit checks.
+func (s *BillingSession) tokenQuotaRequired() bool {
+	return s != nil && s.relayInfo != nil && !s.relayInfo.IsPlayground &&
+		(s.funding == nil || s.funding.Source() != BillingSourceSubscription)
+}
+
+// initializeQuotaStateLocked initializes the independently committed sides of
+// a reservation.  It must be called with s.mu held.
+func (s *BillingSession) initializeQuotaStateLocked() {
+	if s.quotaStateInitialized {
+		return
+	}
+	s.fundingQuota = s.preConsumedQuota
+	s.tokenQuota = s.tokenConsumed
+	s.quotaStateInitialized = true
+}
+
+// applyTargetLocked moves both funding and token reservations to target.  It
+// must be called with s.mu held.  Funding is adjusted first; if token
+// adjustment then fails, the two counters remain independently recorded so a
+// retry adjusts only the side that is still behind.
+func (s *BillingSession) applyTargetLocked(target int) error {
+	if target < 0 {
+		return fmt.Errorf("actual quota must be >= 0")
+	}
+	if s.funding == nil || s.relayInfo == nil {
+		return fmt.Errorf("billing session is not initialized")
+	}
+	s.initializeQuotaStateLocked()
+
+	fundingDelta := target - s.fundingQuota
+	if fundingDelta != 0 {
+		if err := s.funding.Settle(fundingDelta); err != nil {
+			return err
+		}
+		s.fundingQuota = target
+		s.fundingSettled = true
+	}
+
+	tokenDelta := target - s.tokenQuota
+	if tokenDelta != 0 && s.tokenQuotaRequired() {
+		err := s.adjustTokenQuotaLocked(tokenDelta)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("error adjusting token quota (userId=%d, tokenId=%d, delta=%d): %s",
+				s.relayInfo.UserId, s.relayInfo.TokenId, tokenDelta, err.Error()))
+			return err
+		}
+	}
+	if s.tokenQuotaRequired() {
+		s.tokenQuota = target
+		s.tokenConsumed = target
+	} else {
+		// Subscription-funded requests do not reserve the token's numeric
+		// allowance.  Keep these bookkeeping fields at zero so a later Refund
+		// cannot accidentally credit a token that was never debited.
+		s.tokenQuota = 0
+		s.tokenConsumed = 0
+	}
+
+	// Only expose a subscription delta after both sides have committed.  This
+	// keeps log metadata consistent when a token update has to be retried.
+	if s.funding.Source() == BillingSourceSubscription {
+		committedDelta := int64(target - s.preConsumedQuota)
+		previousDelta := s.relayInfo.SubscriptionPostDelta
+		if previousDelta != committedDelta {
+			s.relayInfo.SubscriptionPostDelta = committedDelta
+		}
+	}
+	return nil
+}
+
+// adjustTokenQuotaLocked persists a relative token adjustment.  The hook is
+// intentionally optional; production sessions use the model functions while
+// tests can inject deterministic failures between funding and token commits.
+// The caller must hold s.mu.
+func (s *BillingSession) adjustTokenQuotaLocked(delta int) error {
+	if delta == 0 {
+		return nil
+	}
+	if s.tokenQuotaAdjuster != nil {
+		return s.tokenQuotaAdjuster(s.relayInfo, delta)
+	}
+	if delta > 0 {
+		return model.DecreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, delta)
+	}
+	return model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, -delta)
+}
+
+// rollbackPreConsumedTokenQuota compensates the token reservation made before
+// the funding source was pre-consumed.  Funding and token stores are separate
+// persistence systems, so this compensation is deliberately retried a few
+// times on transient database/Redis failures.  The caller must only clear its
+// token reservation state after this function succeeds; otherwise a later
+// retry would have no way to know that token quota is still outstanding.
+func (s *BillingSession) rollbackPreConsumedTokenQuota(amount int) error {
+	if amount <= 0 || s.relayInfo == nil || s.relayInfo.IsPlayground {
+		return nil
+	}
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		var err error
+		if s.tokenQuotaAdjuster != nil {
+			err = s.tokenQuotaAdjuster(s.relayInfo, -amount)
+		} else {
+			err = model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, amount)
+		}
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if attempt < 2 {
+			time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
+		}
+	}
+	return lastErr
 }
 
 // Settle 根据实际消耗额度进行结算。
-// 资金来源和令牌额度分两步提交：若资金来源已提交但令牌调整失败，
-// 会标记 fundingSettled 防止 Refund 对已提交的资金来源执行退款。
+// 资金来源和令牌额度分两步提交：若令牌调整失败，会保留未结算状态，
+// 使调用方可以重试或退款。
 func (s *BillingSession) Settle(actualQuota int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.refundStarted {
+		return fmt.Errorf("billing session refund already started")
+	}
+	if s.settled || s.settlementRolledBack || s.refunded {
+		return nil
+	}
+	// A final absolute settlement supersedes any failed progress operation.
+	// The independently tracked funding/token targets still make a retry of
+	// this final call idempotent, so stale progress metadata must not affect a
+	// subsequent SettleProgress invocation.
+	s.progressPending = false
+	if err := s.applyTargetLocked(actualQuota); err != nil {
+		return err
+	}
+	s.settled = true
+	return nil
+}
+
+// RollbackSettlement compensates a settlement that has already committed.
+//
+// BillingSettler.Refund deliberately ignores fully settled sessions because a
+// successful request must not be refunded by a late error path.  There is one
+// important exception: asynchronous submission settles the billing session
+// before inserting its local task row.  If that insert fails, no durable task
+// checkpoint exists from which a worker can recover the charge.  This explicit
+// operation is used only by that path (and equivalent persistence failures),
+// and refunds the independently committed funding/token amounts synchronously.
+// Each side is checkpointed in memory so a retry after a transient failure
+// cannot refund the other side twice.  Subscription refunds are request-ID
+// idempotent at the model layer; wallet/token operations retain the same
+// process-local side guard used by Refund.
+func (s *BillingSession) RollbackSettlement(c *gin.Context) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	if s.settlementRolledBack || s.refunded {
+		s.mu.Unlock()
+		return nil
+	}
+	if !s.settled {
+		// A partially failed settlement is still handled by the ordinary Refund
+		// state machine.  Do not run a second synchronous operation here.
+		s.mu.Unlock()
+		if s.NeedsRefund() {
+			s.Refund(c)
+		}
+		return nil
+	}
+	if s.rollbackInFlight {
+		s.mu.Unlock()
+		return fmt.Errorf("billing settlement rollback already in progress")
+	}
+	s.initializeQuotaStateLocked()
+	s.rollbackInFlight = true
+	funding := s.funding
+	fundingDone := s.rollbackFundingDone
+	tokenDone := s.rollbackTokenDone
+	tokenAmount := s.tokenQuota
+	tokenAdjuster := s.tokenQuotaAdjuster
+	relayInfo := s.relayInfo
+	// Capture immutable token fields before releasing the lock.
+	tokenID, tokenKey, playground, userID := 0, "", false, 0
+	if relayInfo != nil {
+		tokenID, tokenKey, playground, userID = relayInfo.TokenId, relayInfo.TokenKey, relayInfo.IsPlayground, relayInfo.UserId
+	}
+	s.mu.Unlock()
+
+	var firstErr error
+	if !fundingDone && funding != nil {
+		if err := funding.Refund(); err != nil {
+			firstErr = fmt.Errorf("rollback billing funding: %w", err)
+		} else {
+			s.mu.Lock()
+			s.rollbackFundingDone = true
+			s.mu.Unlock()
+		}
+	} else if funding == nil {
+		s.mu.Lock()
+		s.rollbackFundingDone = true
+		s.mu.Unlock()
+	}
+
+	if !tokenDone && tokenAmount > 0 && !playground {
+		var err error
+		if tokenAdjuster != nil {
+			err = tokenAdjuster(relayInfo, -tokenAmount)
+		} else {
+			err = model.IncreaseTokenQuota(tokenID, tokenKey, tokenAmount)
+		}
+		if err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("rollback token quota (userId=%d, tokenId=%d): %w", userID, tokenID, err)
+			}
+		} else {
+			s.mu.Lock()
+			s.rollbackTokenDone = true
+			s.mu.Unlock()
+		}
+	} else {
+		s.mu.Lock()
+		s.rollbackTokenDone = true
+		s.mu.Unlock()
+	}
+
+	s.mu.Lock()
+	s.rollbackInFlight = false
+	complete := s.rollbackFundingDone && s.rollbackTokenDone
+	if complete {
+		// Keep settled=true as a terminal guard against an accidental second
+		// Settle call; settlementRolledBack distinguishes this state from a
+		// successfully charged request for diagnostics and retries.
+		s.settlementRolledBack = true
+		s.refunded = true
+	}
+	s.mu.Unlock()
+	return firstErr
+}
+
+// SettleProgress applies an incremental amount while a long-lived realtime
+// request is still running.  The final Settle call can safely be made with
+// the cumulative actual amount; it will only adjust the remaining difference.
+// This method is intentionally outside BillingSettler so ordinary request
+// paths retain their one-shot lifecycle.
+func (s *BillingSession) SettleProgress(delta int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.refundStarted {
+		return fmt.Errorf("billing session refund already started")
+	}
 	if s.settled {
 		return nil
 	}
-	delta := actualQuota - s.preConsumedQuota
-	if delta == 0 {
-		s.settled = true
-		return nil
-	}
-	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
-	if !s.fundingSettled {
-		if err := s.funding.Settle(delta); err != nil {
-			return err
-		}
-		s.fundingSettled = true
-	}
-	// 2) 调整令牌额度
-	var tokenErr error
-	if !s.relayInfo.IsPlayground {
-		if delta > 0 {
-			tokenErr = model.DecreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, delta)
+	s.initializeQuotaStateLocked()
+	var target int
+	if s.progressPending {
+		if delta == s.pendingProgressDelta {
+			// Retry of the exact operation that partially committed.  Reuse its
+			// absolute target so the already-advanced funding side is not charged
+			// a second time.
+			target = s.pendingProgressTarget
 		} else {
-			tokenErr = model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, -delta)
+			// A caller may continue streaming after a failed chunk rather than
+			// retrying it explicitly.  Preserve the failed target and apply the
+			// new delta on top; applyTargetLocked will only adjust each side's
+			// remaining difference.
+			target = s.pendingProgressTarget + delta
 		}
-		if tokenErr != nil {
-			// 资金来源已提交，令牌调整失败只能记录日志；标记 settled 防止 Refund 误退资金
-			common.SysLog(fmt.Sprintf("error adjusting token quota after funding settled (userId=%d, tokenId=%d, delta=%d): %s",
-				s.relayInfo.UserId, s.relayInfo.TokenId, delta, tokenErr.Error()))
-		}
+	} else {
+		target = s.fundingQuota + delta
 	}
-	// 3) 更新 relayInfo 上的订阅 PostDelta（用于日志）
-	if s.funding.Source() == BillingSourceSubscription {
-		s.relayInfo.SubscriptionPostDelta += int64(delta)
+	if target < 0 {
+		target = 0
 	}
-	s.settled = true
-	return tokenErr
+	// Record the logical operation before attempting either side.  If the
+	// token side fails after funding succeeds, a retry can recover using the
+	// same target.  Clear it only after both sides commit successfully.
+	s.progressPending = true
+	s.pendingProgressDelta = delta
+	s.pendingProgressTarget = target
+	if err := s.applyTargetLocked(target); err != nil {
+		return err
+	}
+	s.progressPending = false
+	return nil
 }
 
 // Refund 退还所有预扣费，幂等安全，异步执行。
 func (s *BillingSession) Refund(c *gin.Context) {
 	s.mu.Lock()
-	if s.settled || s.refunded || !s.needsRefundLocked() {
+	if s.settled || s.refunded || s.refundInFlight || !s.needsRefundLocked() {
 		s.mu.Unlock()
 		return
 	}
-	s.refunded = true
+	s.initializeQuotaStateLocked()
+	s.refundStarted = true
+	s.refundInFlight = true
+	if s.funding == nil {
+		s.refundFundingDone = true
+	}
+	if s.relayInfo == nil || s.relayInfo.IsPlayground || s.tokenConsumed <= 0 {
+		s.refundTokenDone = true
+	}
+	// 复制需要的值到闭包中，同时避免异步退款期间读取可变字段。
+	relayInfo := s.relayInfo
+	funding := s.funding
+	tokenConsumed := s.tokenConsumed
+	fundingDone := s.refundFundingDone
+	tokenDone := s.refundTokenDone
+	tokenId, tokenKey, isPlayground, userId := 0, "", false, 0
+	if relayInfo != nil {
+		tokenId, tokenKey, isPlayground, userId = relayInfo.TokenId, relayInfo.TokenKey, relayInfo.IsPlayground, relayInfo.UserId
+	}
+	source := ""
+	if funding != nil {
+		source = funding.Source()
+	}
 	s.mu.Unlock()
 
 	logger.LogInfo(c, fmt.Sprintf("用户 %d 请求失败, 返还预扣费（token_quota=%s, funding=%s）",
-		s.relayInfo.UserId,
-		logger.FormatQuota(s.tokenConsumed),
-		s.funding.Source(),
+		userId,
+		logger.FormatQuota(tokenConsumed),
+		source,
 	))
-
-	// 复制需要的值到闭包中
-	tokenId := s.relayInfo.TokenId
-	tokenKey := s.relayInfo.TokenKey
-	isPlayground := s.relayInfo.IsPlayground
-	tokenConsumed := s.tokenConsumed
-	funding := s.funding
 
 	gopool.Go(func() {
 		// 1) 退还资金来源
-		if err := funding.Refund(); err != nil {
-			common.SysLog("error refunding billing source: " + err.Error())
-		}
-		// 2) 退还令牌额度
-		if tokenConsumed > 0 && !isPlayground {
-			if err := model.IncreaseTokenQuota(tokenId, tokenKey, tokenConsumed); err != nil {
-				common.SysLog("error refunding token quota: " + err.Error())
+		if !fundingDone && funding != nil {
+			if err := funding.Refund(); err != nil {
+				common.SysLog("error refunding billing source: " + err.Error())
+			} else {
+				s.mu.Lock()
+				s.refundFundingDone = true
+				s.mu.Unlock()
 			}
 		}
+		// 2) 退还令牌额度
+		if !tokenDone && tokenConsumed > 0 && !isPlayground {
+			if err := model.IncreaseTokenQuota(tokenId, tokenKey, tokenConsumed); err != nil {
+				common.SysLog("error refunding token quota: " + err.Error())
+			} else {
+				s.mu.Lock()
+				s.refundTokenDone = true
+				s.tokenConsumed = 0
+				s.mu.Unlock()
+			}
+		}
+		s.mu.Lock()
+		s.refundInFlight = false
+		if s.refundFundingDone && s.refundTokenDone {
+			s.refunded = true
+		}
+		s.mu.Unlock()
 	})
 }
 
@@ -123,16 +444,24 @@ func (s *BillingSession) NeedsRefund() bool {
 }
 
 func (s *BillingSession) needsRefundLocked() bool {
-	if s.settled || s.refunded || s.fundingSettled {
-		// fundingSettled 时资金来源已提交结算，不能再退预扣费
+	if s.settled || s.refunded {
+		// fundingSettled 但令牌调整失败时仍需允许回滚；只有完整结算或已退款
+		// 的会话才应在这里直接返回。
 		return false
 	}
-	if s.tokenConsumed > 0 {
+	if !s.refundTokenDone && s.tokenConsumed > 0 {
 		return true
 	}
-	// 订阅可能在 tokenConsumed=0 时仍预扣了额度
-	if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.preConsumed > 0 {
-		return true
+	if !s.refundFundingDone {
+		if wallet, ok := s.funding.(*WalletFunding); ok && wallet.consumed > 0 {
+			// Playground requests do not reserve token quota, but they can still
+			// reserve wallet quota and therefore must remain refundable.
+			return true
+		}
+		// 订阅可能在 tokenConsumed=0 时仍预扣了额度。
+		if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.preConsumed > 0 {
+			return true
+		}
 	}
 	return false
 }
@@ -184,7 +513,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	}
 
 	// ---- 1) 预扣令牌额度 ----
-	if effectiveQuota > 0 {
+	if effectiveQuota > 0 && s.tokenQuotaRequired() {
 		if err := PreConsumeTokenQuota(s.relayInfo, effectiveQuota); err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
@@ -195,26 +524,91 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	if err := s.funding.PreConsume(effectiveQuota); err != nil {
 		// 预扣费失败，回滚令牌额度
 		if s.tokenConsumed > 0 && !s.relayInfo.IsPlayground {
-			if rollbackErr := model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, s.tokenConsumed); rollbackErr != nil {
+			reserved := s.tokenConsumed
+			if rollbackErr := s.rollbackPreConsumedTokenQuota(reserved); rollbackErr != nil {
+				// Keep the reservation in memory until compensation succeeds.  The
+				// session is normally discarded after this error, so also schedule a
+				// bounded background retry to avoid silently burning token quota when
+				// the failure was transient.
 				common.SysLog(fmt.Sprintf("error rolling back token quota (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
-					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
+					s.relayInfo.UserId, s.relayInfo.TokenId, reserved, err.Error(), rollbackErr.Error()))
+				relayInfo := s.relayInfo
+				adjuster := s.tokenQuotaAdjuster
+				gopool.Go(func() {
+					for attempt := 0; attempt < 5; attempt++ {
+						var retryErr error
+						if adjuster != nil {
+							retryErr = adjuster(relayInfo, -reserved)
+						} else {
+							retryErr = model.IncreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, reserved)
+						}
+						if retryErr == nil {
+							return
+						}
+						time.Sleep(time.Duration(attempt+1) * 250 * time.Millisecond)
+					}
+					common.SysLog(fmt.Sprintf("token quota rollback retries exhausted (userId=%d, tokenId=%d, amount=%d)", relayInfo.UserId, relayInfo.TokenId, reserved))
+				})
+				return types.NewErrorWithStatusCode(fmt.Errorf("资金预扣失败且令牌额度回退失败: %w", rollbackErr), types.ErrorCodeUpdateDataError, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 			}
+			// Compensation committed; clear the in-memory reservation.
 			s.tokenConsumed = 0
+			s.tokenQuota = 0
 		}
-		// TODO: model 层应定义哨兵错误（如 ErrNoActiveSubscription），用 errors.Is 替代字符串匹配
+		// All subscription-window exhaustion errors must be classified as an
+		// unavailable subscription so subscription_first/wallet_first can fall
+		// back to the wallet.  Keep this tolerant of the legacy English error
+		// strings emitted by model while covering the fixed five-hour and
+		// aggregate-period variants as well.
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "no active subscription") || strings.Contains(errMsg, "subscription quota insufficient") {
-			return types.NewErrorWithStatusCode(fmt.Errorf("订阅额度不足或未配置订阅: %s", errMsg), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		if isSubscriptionQuotaUnavailable(errMsg) {
+			return types.NewErrorWithStatusCode(fmt.Errorf("%s", subscriptionQuotaUnavailableMessage(errMsg)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 	}
 
 	s.preConsumedQuota = effectiveQuota
+	s.fundingQuota = effectiveQuota
+	s.tokenQuota = s.tokenConsumed
+	s.quotaStateInitialized = true
 
 	// ---- 同步 RelayInfo 兼容字段 ----
 	s.syncRelayInfo()
 
 	return nil
+}
+
+func isSubscriptionQuotaUnavailable(message string) bool {
+	message = strings.ToLower(strings.TrimSpace(message))
+	if message == "" {
+		return false
+	}
+	if strings.Contains(message, "no active subscription") {
+		return true
+	}
+	// Window-specific errors are intentionally matched by their stable
+	// "subscription ... quota insufficient" shape rather than by one exact
+	// phrase, so future window types retain the same fallback behavior.
+	return strings.Contains(message, "subscription") &&
+		strings.Contains(message, "quota insufficient")
+}
+
+// subscriptionQuotaUnavailableMessage keeps the subscription fallback error
+// code stable while making the user-visible reason actionable.  A missing
+// subscription and an exhausted quota window require different remediation,
+// so they must not be reported as one ambiguous condition.
+func subscriptionQuotaUnavailableMessage(message string) string {
+	normalized := strings.ToLower(strings.TrimSpace(message))
+	switch {
+	case strings.Contains(normalized, "no active subscription"):
+		return fmt.Sprintf("未配置有效订阅: %s", message)
+	case strings.Contains(normalized, "subscription") && strings.Contains(normalized, "quota insufficient"):
+		return fmt.Sprintf("订阅窗口额度不足: %s", message)
+	default:
+		// Keep this helper safe if a future subscription-unavailable reason is
+		// added without extending the classifier above.
+		return fmt.Sprintf("订阅不可用: %s", message)
+	}
 }
 
 // shouldTrust 统一信任额度检查，适用于钱包和订阅。
@@ -395,7 +789,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	case "subscription_first":
 		fallthrough
 	default:
-		hasSub, subCheckErr := model.HasActiveUserSubscription(relayInfo.UserId)
+		hasSub, subCheckErr := model.HasActiveUserSubscription(relayInfo.UserId, relayInfo.ProviderId)
 		if subCheckErr != nil {
 			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}

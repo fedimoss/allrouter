@@ -98,6 +98,32 @@ const PAYMENT_METHOD_MAP = {
   redemption_code: '兑换码',
 };
 
+// 充值类型（支付方式维度）下拉选项；值为所选支付方式，向后端 payment_type 传单个值
+const PAYMENT_TYPE_OPTIONS = [
+  { value: 'all', label: '全部' },
+  { value: 'wxpay', label: '微信' },
+  { value: 'alipay', label: '支付宝' },
+  { value: 'redemptionCode', label: '兑换码' },
+  { value: 'stripe', label: 'Stripe' },
+];
+
+// 充值来源下拉选项；值即向后端 payment_method 传的取值
+// 在线充值 = 所有在线支付方式的并集；充值返佣 = provider_profit（服务商分润）
+const PAYMENT_SOURCE_OPTIONS = [
+  { value: 'all', label: '全部' },
+  { value: 'wxpay,alipay,redemptionCode,stripe', label: '在线充值' },
+  { value: 'provider_profit', label: '充值返佣' },
+];
+
+// 支付状态下拉选项；值与 STATUS_CONFIG / TopUp.Status 一致，向后端 status 传单个值
+const PAYMENT_STATUS_OPTIONS = [
+  { value: 'all', label: '全部' },
+  { value: 'success', label: '成功' },
+  { value: 'pending', label: '待支付' },
+  { value: 'failed', label: '失败' },
+  { value: 'expired', label: '已过期' },
+];
+
 const HISTORY_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 const amountFormatter = new Intl.NumberFormat('en-US', {
@@ -334,6 +360,9 @@ const Billing = () => {
   const [historyTotal, setHistoryTotal] = useState(0);
   const historyPageSize = 10;
   const [historyKeyword, setHistoryKeyword] = useState('');
+  const [paymentType, setPaymentType] = useState('all');
+  const [paymentSource, setPaymentSource] = useState('all');
+  const [paymentStatus, setPaymentStatus] = useState('all');
   const [detailVisible, setDetailVisible] = useState(false);
   const [orderInfo, setOrderInfo] = useState(null);
   const [commissionDetails, setCommissionDetails] = useState([]);
@@ -361,7 +390,14 @@ const Billing = () => {
     ? t('查看本站充值、充值返佣与用户账单状态。')
     : t('查看全平台充值、充值返佣与用户账单状态。');
 
-  const loadTopups = async (page, pageSize, keyword) => {
+  const loadTopups = async (
+    page,
+    pageSize,
+    keyword,
+    payType,
+    paySource,
+    status,
+  ) => {
     setHistoryLoading(true);
     try {
       const base = canViewSiteBilling
@@ -369,7 +405,19 @@ const Billing = () => {
         : '/api/user/topup/self';
       const qs =
         `p=${page}&page_size=${pageSize}` +
-        (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '');
+        (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '') +
+        // 单个充值类型（支付方式维度），'all' 表示不过滤
+        (payType && payType !== 'all'
+          ? `&payment_type=${encodeURIComponent(payType)}`
+          : '') +
+        // 充值来源：在线充值的并集取值，或 provider_profit（充值返佣），'all' 表示不过滤
+        (paySource && paySource !== 'all'
+          ? `&payment_method=${encodeURIComponent(paySource)}`
+          : '') +
+        // 支付状态（pending/success/failed/expired），'all' 表示不过滤
+        (status && status !== 'all'
+          ? `&status=${encodeURIComponent(status)}`
+          : '');
       const res = await API.get(`${base}?${qs}`);
       const { success, message, data } = res.data;
       if (success) {
@@ -433,8 +481,23 @@ const Billing = () => {
   }, [billingPeriod, t, canViewSiteBilling]);
 
   useEffect(() => {
-    loadTopups(activePage, historyPageSize, historyKeyword);
-  }, [activePage, historyPageSize, historyKeyword, canViewSiteBilling]);
+    loadTopups(
+      activePage,
+      historyPageSize,
+      historyKeyword,
+      paymentType,
+      paymentSource,
+      paymentStatus,
+    );
+  }, [
+    activePage,
+    historyPageSize,
+    historyKeyword,
+    paymentType,
+    paymentSource,
+    paymentStatus,
+      canViewSiteBilling,
+  ]);
 
   const handleAdminComplete = async (tradeNo) => {
     try {
@@ -444,7 +507,14 @@ const Billing = () => {
       const { success, message } = res.data;
       if (success) {
         Toast.success({ content: t('补单成功') });
-        await loadTopups(activePage, historyPageSize, historyKeyword);
+        await loadTopups(
+          activePage,
+          historyPageSize,
+          historyKeyword,
+          paymentType,
+          paymentSource,
+          paymentStatus,
+        );
       } else {
         Toast.error({ content: message || t('补单失败') });
       }
@@ -533,7 +603,17 @@ const Billing = () => {
 
   const renderPaymentMethod = (paymentMethod) => {
     const displayName = PAYMENT_METHOD_MAP[paymentMethod];
-    return <Text>{displayName ? t(displayName) : paymentMethod || '-'}</Text>;
+    return (
+      <>
+        <Text>
+          {displayName
+            ? t(displayName)
+            : paymentMethod === 'provider_profit'
+              ? t('服务商分润')
+              : paymentMethod || '-'}
+        </Text>
+      </>
+    );
   };
 
   const renderBizTypeTag = (record) => {
@@ -552,6 +632,33 @@ const Billing = () => {
   const periodOptionList = useMemo(
     () =>
       BILL_PERIOD_OPTIONS.map((item) => ({
+        value: item.value,
+        label: t(item.label),
+      })),
+    [t],
+  );
+
+  const paymentTypeOptionList = useMemo(
+    () =>
+      PAYMENT_TYPE_OPTIONS.map((item) => ({
+        value: item.value,
+        label: t(item.label),
+      })),
+    [t],
+  );
+
+  const paymentSourceOptionList = useMemo(
+    () =>
+      PAYMENT_SOURCE_OPTIONS.map((item) => ({
+        value: item.value,
+        label: t(item.label),
+      })),
+    [t],
+  );
+
+  const paymentStatusOptionList = useMemo(
+    () =>
+      PAYMENT_STATUS_OPTIONS.map((item) => ({
         value: item.value,
         label: t(item.label),
       })),
@@ -746,10 +853,27 @@ const Billing = () => {
 
     if (canViewSiteBilling) {
       baseColumns.splice(1, 0, {
-        title: t('用户昵称'),
-        dataIndex: 'display_name',
-        key: 'display_name',
-        render: (text) => text || '-',
+        title: t('用户名'),
+        dataIndex: 'username',
+        key: 'username',
+        render: (text, record) => {
+          const username = String(text || '').trim();
+          const displayName = String(record?.display_name || '').trim();
+          const primary = username || displayName;
+          if (!primary) {
+            return '-';
+          }
+          return (
+            <div className='flex min-w-0 flex-col'>
+              <span>{primary}</span>
+              {username && displayName && username !== displayName ? (
+                <span className='text-xs text-slate-400' title={t('用户昵称')}>
+                  {displayName}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
       });
     }
 
@@ -868,6 +992,54 @@ const Billing = () => {
             <span className='text-xs text-slate-400'>
               {t('共 {{count}} 条记录', { count: historyTotal })}
             </span>
+            <div className='flex items-center gap-2'>
+              <span className='text-xs whitespace-nowrap font-medium text-slate-400'>
+                {t('充值类型')}
+              </span>
+              <Select
+                value={paymentType}
+                optionList={paymentTypeOptionList}
+                onChange={(value) => {
+                  setPaymentType(value || 'all');
+                  setActivePage(1);
+                }}
+                placeholder={t('充值类型')}
+                className='select-bg min-w-[120px]'
+                size='small'
+              />
+            </div>
+            <div className='flex items-center gap-2'>
+              <span className='text-xs whitespace-nowrap font-medium text-slate-400'>
+                {t('充值来源')}
+              </span>
+              <Select
+                value={paymentSource}
+                optionList={paymentSourceOptionList}
+                onChange={(value) => {
+                  setPaymentSource(value || 'all');
+                  setActivePage(1);
+                }}
+                placeholder={t('充值来源')}
+                className='select-bg min-w-[120px]'
+                size='small'
+              />
+            </div>
+            <div className='flex items-center gap-2'>
+              <span className='text-xs whitespace-nowrap font-medium text-slate-400'>
+                {t('支付状态')}
+              </span>
+              <Select
+                value={paymentStatus}
+                optionList={paymentStatusOptionList}
+                onChange={(value) => {
+                  setPaymentStatus(value || 'all');
+                  setActivePage(1);
+                }}
+                placeholder={t('支付状态')}
+                className='select-bg min-w-[120px]'
+                size='small'
+              />
+            </div>
             <Input
               prefix={<IconSearch />}
               placeholder={t(

@@ -22,3 +22,15 @@ type BillingSettler interface {
 	// “ClaimPaidConsumedForRebate” 方法用于返回应触发邀请消费返利的已支付钱包部分。该方法对于每个计费会话都是幂等的。
 	ClaimPaidConsumedForRebate() int
 }
+
+// BillingRollbacker is an optional extension implemented by billing sessions
+// that need to undo a *completed* settlement.  Ordinary request failures call
+// BillingSettler.Refund before settlement and therefore do not need this
+// method.  A persistence failure can happen after Settle has committed,
+// however (for example, when an asynchronous task row cannot be inserted);
+// callers may type-assert this interface to compensate the already-settled
+// funding and token sides without weakening the one-shot BillingSettler
+// contract.
+type BillingRollbacker interface {
+	RollbackSettlement(c *gin.Context) error
+}

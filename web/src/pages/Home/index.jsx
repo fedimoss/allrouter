@@ -211,6 +211,10 @@ const Home = () => {
   const consoleNavTarget = isLoggedIn ? '/console' : '/login';
   const pricingNavTarget =
     !isLoggedIn && pricingRequireAuth ? '/login' : '/pricing';
+  const subscriptionNavTarget = isLoggedIn ? '/console/topup' : '/login';
+  const subscriptionNavState = isLoggedIn
+    ? undefined
+    : { from: { pathname: '/console/topup' } };
   const showAgentPartnerNav = shouldShowProviderAgentPartner(
     statusState?.status,
   );
@@ -507,6 +511,9 @@ const Home = () => {
               </Link>
               <Link to={consoleNavTarget}>{t('控制台')}</Link>
               <Link to={pricingNavTarget}>{t('模型广场')}</Link>
+              <Link to={subscriptionNavTarget} state={subscriptionNavState}>
+                {t('订阅套餐')}
+              </Link>
               {showAgentPartnerNav ? (
                 <Link to='/agent-partner'>{t('代理加盟')}</Link>
               ) : null}
@@ -593,6 +600,13 @@ const Home = () => {
                   >
                     {t('阅读文档')}
                   </a>
+                  <Link
+                    to={subscriptionNavTarget}
+                    state={subscriptionNavState}
+                    className='landing-v2-btn-secondary landing-v2-btn-lg'
+                  >
+                    {t('订阅套餐')}
+                  </Link>
                 </div>
               </div>
 
@@ -696,6 +710,11 @@ const Home = () => {
                   </li>
                   <li>
                     <Link to='/pricing'>{t('定价')}</Link>
+                  </li>
+                  <li>
+                    <Link to={subscriptionNavTarget} state={subscriptionNavState}>
+                      {t('订阅套餐')}
+                    </Link>
                   </li>
                 </ul>
               </div>

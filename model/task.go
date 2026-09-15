@@ -119,11 +119,13 @@ type TaskPrivateData struct {
 	MiniMaxH3OutputShortEdge   int    `json:"minimax_h3_output_short_edge,omitempty"`
 	MiniMaxH3TaskType          string `json:"minimax_h3_task_type,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
-	BillingSource     string              `json:"billing_source,omitempty"` // "wallet" 或 "subscription"
-	TokenUsageSettled bool                `json:"token_usage_settled,omitempty"`
-	SubscriptionId    int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
-	TokenId           int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
-	BillingContext    *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	BillingSource           string              `json:"billing_source,omitempty"` // "wallet" 或 "subscription"
+	TokenUsageSettled       bool                `json:"token_usage_settled,omitempty"`
+	SubscriptionId          int                 `json:"subscription_id,omitempty"`           // 订阅 ID，用于订阅退款
+	SubscriptionRequestId   string              `json:"subscription_request_id,omitempty"`   // 预扣记录 request_id
+	SubscriptionPreConsumed int64               `json:"subscription_pre_consumed,omitempty"` // 初始预扣量
+	TokenId                 int                 `json:"token_id,omitempty"`                  // 令牌 ID，用于令牌额度退款
+	BillingContext          *TaskBillingContext `json:"billing_context,omitempty"`           // 计费参数快照（用于轮询阶段重新计算）
 	// New async wallet tasks persist the funding split so terminal refunds and
 	// adjustments preserve reward/paid balance semantics.
 	WalletQuotaBreakdownRecorded bool `json:"wallet_quota_breakdown_recorded,omitempty"`
@@ -131,6 +133,18 @@ type TaskPrivateData struct {
 	WalletPaidUsed               int  `json:"wallet_paid_used,omitempty"`
 	ConsumeRebateSettled         bool `json:"consume_rebate_settled,omitempty"`
 	ProviderProfitSettled        bool `json:"provider_profit_settled,omitempty"`
+	// Billing settlement is a small two-phase state machine for asynchronous
+	// tasks.  Funding (wallet/subscription) and token quota are persisted
+	// independently because the two stores cannot be committed atomically.  If
+	// the token write fails after funding succeeds, a later poll can retry only
+	// the uncommitted side instead of charging funding twice.
+	BillingSettlementPending       bool `json:"billing_settlement_pending,omitempty"`
+	BillingSettlementTarget        int  `json:"billing_settlement_target,omitempty"`
+	BillingSettlementFundingAmount int  `json:"billing_settlement_funding_amount,omitempty"`
+	BillingSettlementTokenAmount   int  `json:"billing_settlement_token_amount,omitempty"`
+	BillingSettlementFundingDone   bool `json:"billing_settlement_funding_done,omitempty"`
+	BillingSettlementTokenDone     bool `json:"billing_settlement_token_done,omitempty"`
+	BillingRefunded                bool `json:"billing_refunded,omitempty"`
 }
 
 // MiniMaxH3RequestedShortEdge returns the requested final output resolution.
@@ -384,6 +398,58 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 		return nil
 	}
 	return tasks
+}
+
+// GetTerminalTasksForBillingRecovery returns terminal tasks whose durable
+// private-data checkpoint may need asynchronous billing recovery.  The
+// billing checkpoint is stored inside the JSON private_data column; querying
+// JSON operators would require database-specific syntax (and would not work
+// consistently on SQLite/MySQL/PostgreSQL), so this helper scans terminal
+// rows in portable, bounded batches and lets the caller inspect the decoded
+// TaskPrivateData value in Go.
+//
+// Rows are read in ascending primary-key order and the scan stops once limit
+// pending candidates have been collected or the terminal table is exhausted.
+// A batch is deliberately larger than the normal polling limit so a handful of
+// ordinary terminal rows cannot hide an older pending checkpoint.
+func GetTerminalTasksForBillingRecovery(limit int) ([]*Task, error) {
+	if DB == nil {
+		return nil, errors.New("database is not initialized")
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	const batchSize = 500
+	result := make([]*Task, 0, limit)
+	var lastID int64
+	for {
+		var batch []*Task
+		query := DB.Where("status IN ?", []TaskStatus{TaskStatusSuccess, TaskStatusFailure}).
+			Where("id > ?", lastID).
+			Order("id asc").
+			Limit(batchSize).
+			Find(&batch)
+		if query.Error != nil {
+			return result, query.Error
+		}
+		if len(batch) == 0 {
+			break
+		}
+		for _, task := range batch {
+			if task == nil || !task.PrivateData.BillingSettlementPending {
+				continue
+			}
+			result = append(result, task)
+			if len(result) >= limit {
+				return result, nil
+			}
+		}
+		lastID = batch[len(batch)-1].ID
+		if len(batch) < batchSize {
+			break
+		}
+	}
+	return result, nil
 }
 
 // ClaimMiniMaxH3UpscaleRecoveryTask finds a recently completed 1536P source
