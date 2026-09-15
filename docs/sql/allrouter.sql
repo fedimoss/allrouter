@@ -2979,7 +2979,7 @@ CREATE TABLE subscription_plans (
     id bigint NOT NULL,
     title character varying(128) NOT NULL,
     subtitle character varying(255) DEFAULT ''::character varying,
-    price_amount numeric(10,6) DEFAULT 0.000000 NOT NULL,
+    price_amount numeric(12,6) DEFAULT 0.000000 NOT NULL,
     currency character varying(8) DEFAULT 'USD'::character varying NOT NULL,
     duration_unit character varying(16) DEFAULT 'month'::character varying NOT NULL,
     duration_value bigint DEFAULT 1 NOT NULL,
