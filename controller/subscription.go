@@ -1000,7 +1000,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "价格不能为负数")
 		return
 	}
-	if req.Plan.PriceAmount > 9999 {
+	if req.Plan.PriceAmount > 999999 {
 		common.ApiErrorMsg(c, "价格不能超过9999")
 		return
 	}
