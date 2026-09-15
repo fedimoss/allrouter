@@ -2295,6 +2295,9 @@ html.dark .landing-home.landing-v2 .landing-v2-cta-box {
 }
 
 @media (max-width: 640px) {
+  .semi-layout-content {
+    padding-top: 90px !important;
+  }
   .landing-v2-nav {
     padding: 14px 16px;
   }
@@ -2356,6 +2359,9 @@ html.dark .landing-home.landing-v2 .landing-v2-cta-box {
   }
 
   /* .landing-home.landing-v2  */
+  .landing-v2-btn-primary{
+    display: none;
+  }
   .landing-v2-btn-primary,
   .landing-home.landing-v2 .landing-v2-btn-secondary,
   .landing-home.landing-v2 .landing-v2-btn-lg {
