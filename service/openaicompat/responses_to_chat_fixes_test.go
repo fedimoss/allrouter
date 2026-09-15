@@ -346,3 +346,52 @@ func TestResponsesChatCompatTopLevelAssistantContentPartConsumesReasoning(t *tes
 }
 
 // mustJSONString 已在 responses_to_chat_request_test.go 定义，此处复用。
+
+// tool 输出内嵌 input_video 块：提取为 video_url 媒体部件，tool 文本留替换标记。
+func TestResponsesChatCompatExtractsToolOutputVideo(t *testing.T) {
+	raw := []byte(`{
+		"model":"gpt-test",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"check the recording"}]},
+			{"type":"function_call","call_id":"call_rec","name":"screen_recording","arguments":"{}"},
+			{"type":"function_call_output","call_id":"call_rec","output":[
+				{"type":"text","text":"recorded"},
+				{"type":"input_video","video_url":{"url":"https://example.test/rec.mp4"}}
+			]},
+			{"type":"message","role":"user","content":"what happened"}
+		]
+	}`)
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+	chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+	require.NoError(t, err)
+
+	var toolMsg, mediaUser *dto.Message
+	for i := range chatReq.Messages {
+		m := &chatReq.Messages[i]
+		switch {
+		case m.Role == "tool" && m.ToolCallId == "call_rec":
+			toolMsg = m
+		case m.Role == "user" && m.Content != nil:
+			if parts, ok := m.Content.([]dto.MediaContent); ok && len(parts) > 0 && parts[0].Type == dto.ContentTypeText && strings.Contains(parts[0].Text, "media output of tool call call_rec") {
+				mediaUser = m
+			}
+		}
+	}
+	require.NotNil(t, toolMsg, "tool message must exist")
+	require.Contains(t, toolMsg.StringContent(), "recorded")
+	require.Contains(t, toolMsg.StringContent(), "media moved to the following user message")
+
+	require.NotNil(t, mediaUser, "synthetic media user message must exist")
+	parts := mediaUser.Content.([]dto.MediaContent)
+	foundVideo := false
+	for _, p := range parts {
+		if p.Type == dto.ContentTypeVideoUrl {
+			foundVideo = true
+			urlObj, ok := p.VideoUrl.(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, "https://example.test/rec.mp4", urlObj["url"])
+		}
+	}
+	require.True(t, foundVideo, "video part must be present")
+}

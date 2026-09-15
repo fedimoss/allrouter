@@ -156,6 +156,89 @@ func TestResponsesChatCompatMapsInputImageToObjectURL(t *testing.T) {
 	require.NotContains(t, bodyStr, `"image_url":"data:`)
 }
 
+func TestResponsesChatCompatMapsInputVideoToVideoURL(t *testing.T) {
+	// 回归测试：Responses 的 input_video 必须转成 chat/completions 的
+	// {"type":"video_url","video_url":{"url":...}}（Kimi/百炼官方对象格式），不能静默丢弃。
+	raw := []byte(`{
+		"model":"gpt-test",
+		"input":[
+			{"type":"message","role":"user","content":[
+				{"type":"input_text","text":"describe"},
+				{"type":"input_video","video_url":"https://example.test/v1.mp4"},
+				{"type":"input_video","video_url":{"url":"https://example.test/v2.mp4","fps":2}},
+				{"type":"input_video","url":"ms://file-video-1"},
+				{"type":"input_file","file_data":"data:video/mp4;base64,QUJDREVGR0g=","filename":"v3.mp4"}
+			]}
+		]
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 1)
+
+	parts, ok := chatReq.Messages[0].Content.([]dto.MediaContent)
+	require.True(t, ok)
+	require.Len(t, parts, 5)
+
+	require.Equal(t, dto.ContentTypeText, parts[0].Type)
+	require.Equal(t, "describe", parts[0].Text)
+
+	// 字符串 video_url → 包成 {"url":...} 对象
+	require.Equal(t, dto.ContentTypeVideoUrl, parts[1].Type)
+	urlObj, ok := parts[1].VideoUrl.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "https://example.test/v1.mp4", urlObj["url"])
+
+	// 对象 video_url → 原样保留（含 fps 等附加字段）
+	require.Equal(t, dto.ContentTypeVideoUrl, parts[2].Type)
+	urlObj2, ok := parts[2].VideoUrl.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "https://example.test/v2.mp4", urlObj2["url"])
+	require.Equal(t, float64(2), urlObj2["fps"])
+
+	// 部件顶层 url 简写形态 → 兜底识别
+	require.Equal(t, dto.ContentTypeVideoUrl, parts[3].Type)
+	urlObj3, ok := parts[3].VideoUrl.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "ms://file-video-1", urlObj3["url"])
+
+	// input_file 的 file_data 不再被丢弃
+	require.Equal(t, dto.ContentTypeFile, parts[4].Type)
+	fileObj, ok := parts[4].File.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "data:video/mp4;base64,QUJDREVGR0g=", fileObj["file_data"])
+	require.Equal(t, "v3.mp4", fileObj["filename"])
+}
+
+func TestResponsesChatCompatHandlesTopLevelVideoPart(t *testing.T) {
+	// 顶层（非 message 包裹）input_video 部件不应被丢弃。
+	raw := []byte(`{
+		"model":"gpt-test",
+		"input":[
+			{"type":"input_text","text":"describe this"},
+			{"type":"input_video","video_url":"https://example.test/top.mp4"}
+		]
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 2)
+
+	parts, ok := chatReq.Messages[1].Content.([]dto.MediaContent)
+	require.True(t, ok)
+	require.Len(t, parts, 1)
+	require.Equal(t, dto.ContentTypeVideoUrl, parts[0].Type)
+	urlObj, ok := parts[0].VideoUrl.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "https://example.test/top.mp4", urlObj["url"])
+}
+
 func TestResponsesChatCompatCollapsesTextOnlyContentToString(t *testing.T) {
 	// 纯文本多段 content 应折叠成字符串，避免严格上游对 user 角色 string-only content 的校验失败。
 	raw := []byte(`{
