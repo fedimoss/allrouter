@@ -169,6 +169,10 @@ func chatMediaPartFromToolPart(part map[string]any) (dto.MediaContent, bool) {
 		if audio, ok := part["input_audio"].(map[string]any); ok && len(audio) > 0 {
 			return dto.MediaContent{Type: dto.ContentTypeInputAudio, InputAudio: audio}, true
 		}
+	case "input_video":
+		if url, ok := normalizedVideoURLObject(part); ok {
+			return dto.MediaContent{Type: dto.ContentTypeVideoUrl, VideoUrl: url}, true
+		}
 	case "image":
 		if url, ok := typedImageURLObject(part); ok {
 			return dto.MediaContent{Type: dto.ContentTypeImageURL, ImageUrl: url}, true
@@ -216,6 +220,39 @@ func normalizedImageURLObject(part map[string]any) (map[string]any, bool) {
 		if detail, ok := part["detail"]; ok {
 			obj["detail"] = detail
 		}
+	}
+	return obj, true
+}
+
+// normalizedVideoURLObject 归一 input_video 的 video_url 字段：
+// 字符串 → {url:...}；对象 → 原样（要求 url 非空）；兜底部件顶层 url。
+func normalizedVideoURLObject(part map[string]any) (map[string]any, bool) {
+	raw, hasVideoURL := part["video_url"]
+	if !hasVideoURL {
+		// 兜底：顶层 url 简写形态
+		if url, ok := part["url"].(string); ok && strings.TrimSpace(url) != "" {
+			return map[string]any{"url": url}, true
+		}
+		return nil, false
+	}
+	var obj map[string]any
+	switch u := raw.(type) {
+	case string:
+		if strings.TrimSpace(u) == "" {
+			return nil, false
+		}
+		obj = map[string]any{"url": u}
+	case map[string]any:
+		url, _ := u["url"].(string)
+		if strings.TrimSpace(url) == "" {
+			return nil, false
+		}
+		obj = make(map[string]any, len(u))
+		for k, v := range u {
+			obj[k] = v
+		}
+	default:
+		return nil, false
 	}
 	return obj, true
 }
