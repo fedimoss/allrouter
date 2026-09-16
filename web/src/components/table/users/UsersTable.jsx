@@ -179,12 +179,15 @@ const UsersTable = (usersData) => {
       : columns;
   }, [compactMode, columns]);
 
+  // scroll.y 让 Semi 把表头拆成独立表头、并由表格主体接管纵向滚动。
+  // 纵向滚动不再由卡片主体承担后，横向滚动条就会停在表格底部可见处，
+  // 无需先滚到卡片底部（样式见 index.css 的 .table-fill-body）。
   return (
     <>
       <CardTable
         columns={tableColumns}
         dataSource={users}
-        scroll={compactMode ? undefined : { x: 'max-content' }}
+        scroll={compactMode ? undefined : { x: 'max-content', y: '100%' }}
         pagination={{
           total: userCount,
           onPageChange: handlePageChange,
