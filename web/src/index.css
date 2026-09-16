@@ -1307,6 +1307,53 @@ html.dark .with-pastel-balls::before {
   }
 }
 
+/* ==================== 表格内部滚动（横向滚动条常驻可见） ====================
+ * 默认布局下 .semi-card-body 是纵向滚动容器，而表格的横向滚动条属于
+ * .semi-table-body（Semi 固定 overflow: auto），其高度等于全部行内容高度，
+ * 因此必须先滚到卡片底部才能操作横向滚动条。
+ *
+ * 配合 Table 的 scroll.y，把纵向滚动下沉到表格内部：卡片主体不再滚动，
+ * 表格主体同时接管横向与纵向滚动，两条滚动条都停在表格可见区右下角，
+ * 横向滚动条始终可见；表头由 Semi 单独渲染，顺带被冻结在顶部。
+ *
+ * 只在显式声明 .table-fill-body 的页面上生效。
+ */
+.table-scroll-card.table-fill-body > .semi-card-body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 表格撑满卡片主体：主体不再溢出，也就不会自己滚出纵向滚动条 */
+.table-scroll-card.table-fill-body .semi-card-body > .semi-table-wrapper {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 把确定高度逐层传递到表格容器 */
+.table-scroll-card.table-fill-body .semi-table-wrapper > .semi-spin,
+.table-scroll-card.table-fill-body .semi-spin > .semi-spin-children,
+.table-scroll-card.table-fill-body .semi-spin-children > * {
+  height: 100%;
+  min-height: 0;
+}
+
+/* 表头占自身高度，多余空间全部留给表体滚动 */
+.table-scroll-card.table-fill-body .semi-table-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.table-scroll-card.table-fill-body .semi-table-header {
+  flex: 0 0 auto;
+}
+
+.table-scroll-card.table-fill-body .semi-table-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 /* ==================== 模型定价页面布局 ==================== */
 .pricing-layout {
   height: calc(100vh - 60px);

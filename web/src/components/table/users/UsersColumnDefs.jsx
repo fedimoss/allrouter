@@ -272,6 +272,7 @@ const renderOperations = (
     showResetPasskeyModal,
     showResetTwoFAModal,
     showUserSubscriptionsModal,
+    showUserModelDiscountModal,
     providerMode,
     t,
   },
@@ -287,6 +288,11 @@ const renderOperations = (
           node: 'item',
           name: t('订阅管理'),
           onClick: () => showUserSubscriptionsModal(record),
+        },
+        {
+          node: 'item',
+          name: t('模型专属折扣'),
+          onClick: () => showUserModelDiscountModal(record),
         },
         {
           node: 'divider',
@@ -362,13 +368,22 @@ const renderOperations = (
         </>
       )}
       {providerMode && (
-        <Button
-          type='danger'
-          size='small'
-          onClick={() => showDeleteModal(record)}
-        >
-          {t('删除')}
-        </Button>
+        <>
+          <Button
+            type='tertiary'
+            size='small'
+            onClick={() => showUserModelDiscountModal(record)}
+          >
+            {t('模型专属折扣')}
+          </Button>
+          <Button
+            type='danger'
+            size='small'
+            onClick={() => showDeleteModal(record)}
+          >
+            {t('删除')}
+          </Button>
+        </>
       )}
     </Space>
   );
@@ -388,6 +403,7 @@ export const getUsersColumns = ({
   showResetPasskeyModal,
   showResetTwoFAModal,
   showUserSubscriptionsModal,
+  showUserModelDiscountModal,
   showInviteUsersModal,
   providerMode = false,
 }) => {
@@ -470,6 +486,7 @@ export const getUsersColumns = ({
           showResetPasskeyModal,
           showResetTwoFAModal,
           showUserSubscriptionsModal,
+          showUserModelDiscountModal,
           providerMode,
           t,
         }),

@@ -47,6 +47,7 @@ token.expired: "This token has expired"
 token.exhausted: "This token quota is exhausted TokenStatusExhausted[sk-{{.Prefix}}***{{.Suffix}}]"
 token.status_unavailable: "This token status is unavailable"
 token.db_error: "Invalid token, database query error, please contact administrator"
+token.provider_conflict: "This account already has tokens on another site and cannot create tokens across sites"
 
 # Redemption messages
 redemption.name_length: "Redemption code name length must be between 1-20"
@@ -176,6 +177,7 @@ model.id_missing: "Model ID is missing"
 model.get_list_failed: "Failed to get model list, please try again later"
 model.get_failed: "Failed to get upstream models"
 model.reset_success: "Model ratio reset successful"
+model.unavailable: "The selected model is unavailable"
 
 # Vendor messages
 vendor.name_empty: "Vendor name cannot be empty"

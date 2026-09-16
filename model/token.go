@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Token struct {
@@ -35,6 +37,14 @@ type Token struct {
 	MiniMaxH3Seed      *int64         `json:"-" gorm:"column:minimax_h3_seed;type:bigint"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
+
+// tokenInsertMu closes the check-then-insert race between concurrent token
+// creations in the same process.  The database transaction below additionally
+// locks an existing token row on MySQL/PostgreSQL; the application-level lock
+// is needed when no row exists yet.  The provider-scope check is intentionally
+// kept in the model layer so every token creation path (HTTP, registration,
+// jobs, and tests) observes the same invariant.
+var tokenInsertMu sync.Mutex
 
 const miniMaxH3MaxSeed = int64(1<<31 - 1)
 
@@ -474,9 +484,59 @@ func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 }
 
 func (token *Token) Insert() error {
-	var err error
-	err = DB.Create(token).Error
-	return err
+	if token == nil || token.UserId <= 0 {
+		return errors.New("user id is required")
+	}
+
+	tokenInsertMu.Lock()
+	defer tokenInsertMu.Unlock()
+
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	rollback := func(err error) error {
+		_ = tx.Rollback()
+		return err
+	}
+
+	// Serialize token creation for this database user across application
+	// instances. The user row always exists for a real token; locking it avoids
+	// the check-then-insert race when the user has no tokens yet.
+	userQuery := tx.Model(&User{}).Select("id").Where("id = ?", token.UserId)
+	if !common.UsingSQLite {
+		userQuery = userQuery.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	var owner User
+	if err := userQuery.First(&owner).Error; err != nil {
+		return rollback(err)
+	}
+
+	// Lock an existing token row where supported.  This prevents two processes
+	// from concurrently observing different provider scopes for a user. SQLite
+	// serializes the write transaction itself and does not support FOR UPDATE.
+	query := tx.Select("id", "provider_id").
+		Where("user_id = ? AND provider_id <> ?", token.UserId, token.ProviderId).
+		Order("id").Limit(1)
+	if !common.UsingSQLite {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	var conflicting Token
+	err := query.First(&conflicting).Error
+	if err == nil {
+		return rollback(ErrTokenProviderConflict)
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return rollback(err)
+	}
+
+	if err = tx.Create(token).Error; err != nil {
+		return rollback(err)
+	}
+	if err = tx.Commit().Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 // Update Make sure your token's fields is completed, because this will update non-zero values
