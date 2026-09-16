@@ -120,6 +120,13 @@ export default function ProviderRechargeGift({ provider, adminMode }) {
     setRules((rs) => [...rs, { id: newRuleId(), threshold: null, bonus: null }]);
 
   const onSubmit = async () => {
+    // bonus 允许填 0（该档不赠送），但未填（null）视为规则未完成，给出明确提示
+    const incomplete = rules.find(
+      (r) => !(Number(r.threshold) > 0) || r.bonus === null || r.bonus === undefined,
+    );
+    if (rules.length > 0 && incomplete) {
+      return showWarning(t('请完整填写每条规则的充值金额和赠送金额（赠送可为 0）'));
+    }
     const rulesJson = serializeRules(rules);
     // 分别检测规则与开关是否变化，各自变化的才提交
     const queue = [];

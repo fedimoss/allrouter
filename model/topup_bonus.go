@@ -37,7 +37,7 @@ const (
 type TopUpGiftRule struct {
 	Id        string  `json:"id"`        // 规则稳定标识，作为幂等键
 	Threshold float64 `json:"threshold"` // 充值门槛（用户币种数值，如 10 表示 $10 或 ¥10）
-	Bonus     float64 `json:"bonus"`     // 赠送金额（用户币种数值）
+	Bonus     float64 `json:"bonus"`     // 赠送金额（用户币种数值）；允许为 0——占位档位，命中后不实际发放
 }
 
 // TopUpGiftConfig 汇总总开关与规则，供公开接口和实际赠送流程共同使用。
@@ -127,6 +127,7 @@ func releaseTopUpBonusGrant(userId int, ruleId string) {
 // GrantTopUpBonus 在用户单次充值成功后调用。
 // 按"最高命中档、每用户每档仅一次"创建一张兑换码并自动兑换给用户。
 // 币种跟随用户充值币种：USD 用户按美元折算赠送，CNY 用户按人民币折算赠送。
+// 命中档的赠送金额为 0 时（占位档位）直接跳过整个发放流程。
 // 任何错误仅记日志，绝不影响已成功的充值主流程。
 //
 // 参数：
@@ -173,9 +174,10 @@ func GrantTopUpBonus(userId int, providerId int, moneyUSD float64, tradeNo strin
 
 	// 筛选命中（threshold <= userValue）的规则，取 threshold 最大的（最高命中档）
 	// 含小容差 0.001：避免浮点还原误差让"正好等于门槛"的充值（如 CNY ¥10 还原成 9.9999）漏判
+	// bonus 允许为 0（占位档位），参与命中但后续跳过实际发放
 	matched := -1
 	for i, r := range rules {
-		if r.Id == "" || r.Threshold <= 0 || r.Bonus <= 0 {
+		if r.Id == "" || r.Threshold <= 0 || r.Bonus < 0 {
 			continue
 		}
 		if r.Threshold <= userValue+0.001 {
@@ -188,6 +190,12 @@ func GrantTopUpBonus(userId int, providerId int, moneyUSD float64, tradeNo strin
 		return
 	}
 	rule := rules[matched]
+
+	// 赠送为 0：视为"该档不赠送"的占位规则，直接结束，不占用幂等名额、
+	// 不创建兑换码、不自动兑换，也不写日志。
+	if rule.Bonus == 0 {
+		return
+	}
 
 	// 金额按 6 位小数计算；USD 直接换算，CNY 先按发放时汇率归一化为 USD。
 	bonusAmount := decimal.NewFromFloat(rule.Bonus).Round(redemptionAmountScale)

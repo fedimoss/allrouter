@@ -3019,6 +3019,7 @@
     "确认删除该分组的所有规则？": "Delete all rules for this group?",
     "确认删除该服务商？": "Delete this provider?",
     "确认删除该规则？": "Confirm delete this rule?",
+    "请完整填写每条规则的充值金额和赠送金额（赠送可为 0）": "Please fill in both the recharge amount and bonus for each rule (bonus can be 0)",
     "确认删除模型": "Confirm Delete Model",
     "确认设置并完成初始化": "Confirm settings and complete initialization",
     "确认提现": "Confirm Withdraw",

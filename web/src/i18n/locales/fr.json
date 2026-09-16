@@ -3009,6 +3009,7 @@
     "确认删除该分组的所有规则？": "Delete all rules for this group?",
     "确认删除该服务商？": "Supprimer ce fournisseur ?",
     "确认删除该规则？": "Confirm delete this rule?",
+    "请完整填写每条规则的充值金额和赠送金额（赠送可为 0）": "Veuillez renseigner le montant de recharge et le bonus de chaque règle (le bonus peut être 0)",
     "确认删除模型": "Confirm Delete Model",
     "确认设置并完成初始化": "Confirmer les paramètres et terminer l'initialisation",
     "确认提现": "Confirmer le retrait",

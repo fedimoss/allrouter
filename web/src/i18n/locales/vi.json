@@ -3284,6 +3284,7 @@
     "确认删除该分组的所有规则？": "Delete all rules for this group?",
     "确认删除该服务商？": "Xóa nhà cung cấp này?",
     "确认删除该规则？": "Confirm delete this rule?",
+    "请完整填写每条规则的充值金额和赠送金额（赠送可为 0）": "Vui lòng điền đầy đủ số tiền nạp và số tiền tặng của mỗi quy tắc (số tiền tặng có thể là 0)",
     "确认删除模型": "Confirm Delete Model",
     "确认设置并完成初始化": "Xác nhận cài đặt và hoàn tất khởi tạo",
     "确认提交": "Xác nhận gửi",
