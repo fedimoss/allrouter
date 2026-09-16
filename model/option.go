@@ -160,6 +160,21 @@ func InitOptionMap() {
 	common.OptionMap["WeChatAccountQRCodeImageURL"] = ""
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
+	douyinCard := system_setting.GetDouyinCardSettings()
+	common.OptionMap["DouyinCardApiKey"] = douyinCard.ApiKey
+	common.OptionMap["DouyinCardBaseUrl"] = douyinCard.BaseURL
+	if v, err := common.Marshal(douyinCard.Add); err == nil {
+		common.OptionMap["DouyinCardAddApi"] = string(v)
+	}
+	if v, err := common.Marshal(douyinCard.Query); err == nil {
+		common.OptionMap["DouyinCardQueryApi"] = string(v)
+	}
+	if v, err := common.Marshal(douyinCard.Update); err == nil {
+		common.OptionMap["DouyinCardUpdateApi"] = string(v)
+	}
+	if v, err := common.Marshal(douyinCard.Delete); err == nil {
+		common.OptionMap["DouyinCardDeleteApi"] = string(v)
+	}
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["RegisterGiftSubscriptionPlanId"] = strconv.Itoa(common.RegisterGiftSubscriptionPlanId)
 	common.OptionMap["AirdropSubscriptionPlanId"] = strconv.Itoa(common.AirdropSubscriptionPlanId)
@@ -341,6 +356,11 @@ func updateOptionMap(key string, value string) (err error) {
 	// 检查是否是模型配置 - 使用更规范的方式处理
 	if handleConfigUpdate(key, value) {
 		return nil // 已由配置系统处理
+	}
+
+	// 抖音私信卡片配置（大驼峰 option key）
+	if strings.HasPrefix(key, "DouyinCard") {
+		system_setting.UpdateDouyinCardFromOption(key, value)
 	}
 
 	// 处理传统配置项...

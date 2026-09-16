@@ -32,7 +32,9 @@ import {
   Radio,
   Select,
   Input,
+  Tag,
 } from '@douyinfe/semi-ui';
+import { IconTick } from '@douyinfe/semi-icons';
 const { Text } = Typography;
 import {
   API,
@@ -45,6 +47,86 @@ import {
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import CustomOAuthSetting from './CustomOAuthSetting';
+
+// 抖音私信卡片：HTTP 方法选项（Postman 风格配色，Tag 语义色自动适配明暗主题）
+const DOUYIN_HTTP_METHOD_OPTIONS = [
+  { value: 'GET', label: 'GET', color: 'green' },
+  { value: 'POST', label: 'POST', color: 'amber' },
+  { value: 'PUT', label: 'PUT', color: 'blue' },
+  { value: 'PATCH', label: 'PATCH', color: 'purple' },
+  { value: 'DELETE', label: 'DELETE', color: 'red' },
+];
+
+const DOUYIN_HTTP_METHOD_COLORS = Object.fromEntries(
+  DOUYIN_HTTP_METHOD_OPTIONS.map((opt) => [opt.value, opt.color]),
+);
+
+// 抖音私信卡片：接口 option key（JSON 值）与 UI 表单字段的映射
+const DOUYIN_CARD_ENDPOINTS = [
+  {
+    key: 'DouyinCardAddApi',
+    urlField: 'DouyinCardAddApiUrl',
+    methodField: 'DouyinCardAddApiMethod',
+    defaultMethod: 'POST',
+  },
+  {
+    key: 'DouyinCardQueryApi',
+    urlField: 'DouyinCardQueryApiUrl',
+    methodField: 'DouyinCardQueryApiMethod',
+    defaultMethod: 'GET',
+  },
+  {
+    key: 'DouyinCardUpdateApi',
+    urlField: 'DouyinCardUpdateApiUrl',
+    methodField: 'DouyinCardUpdateApiMethod',
+    defaultMethod: 'PUT',
+  },
+  {
+    key: 'DouyinCardDeleteApi',
+    urlField: 'DouyinCardDeleteApiUrl',
+    methodField: 'DouyinCardDeleteApiMethod',
+    defaultMethod: 'DELETE',
+  },
+];
+
+// 解析接口 option 的 JSON 值（{"url","method"}）；兼容历史标量格式（整串视为 url）
+function parseDouyinCardEndpoint(raw, defaultMethod) {
+  if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+    try {
+      const o = JSON.parse(raw);
+      return { url: o.url || '', method: o.method || defaultMethod };
+    } catch (e) {
+      // 非法 JSON 时落入下方兼容分支
+    }
+  }
+  return { url: typeof raw === 'string' ? raw : '', method: defaultMethod };
+}
+
+const renderDouyinMethodTag = (value) => (
+  <Tag
+    color={DOUYIN_HTTP_METHOD_COLORS[value] || 'grey'}
+    type='light'
+    shape='circle'
+    style={{ fontWeight: 600, letterSpacing: 0.3 }}
+  >
+    {value}
+  </Tag>
+);
+
+const renderDouyinMethodOption = (option) => (
+  <div
+    role='option'
+    aria-selected={option.selected}
+    className={`douyin-card-method-option${
+      option.focused ? ' douyin-card-method-option--focused' : ''
+    }`}
+    onClick={option.onClick}
+    onMouseEnter={option.onMouseEnter}
+  >
+    {renderDouyinMethodTag(String(option?.value ?? ''))}
+    {option.selected && <IconTick className='douyin-card-method-tick' />}
+  </div>
+);
 
 const defaultInputs = {
   PasswordLoginEnabled: '',
@@ -80,6 +162,17 @@ const defaultInputs = {
   TurnstileCheckEnabled: '',
   TurnstileSiteKey: '',
   TurnstileSecretKey: '',
+  DouyinCardApiKey: '',
+  DouyinCardBaseUrl: '',
+  // 接口在 option 表中按 JSON 存储（{"url","method"}），UI 拆成路径/方法两个表单字段
+  DouyinCardAddApiUrl: '',
+  DouyinCardAddApiMethod: 'POST',
+  DouyinCardQueryApiUrl: '',
+  DouyinCardQueryApiMethod: 'GET',
+  DouyinCardUpdateApiUrl: '',
+  DouyinCardUpdateApiMethod: 'PUT',
+  DouyinCardDeleteApiUrl: '',
+  DouyinCardDeleteApiMethod: 'DELETE',
   RegisterEnabled: '',
   'passkey.enabled': '',
   'passkey.rp_display_name': '',
@@ -221,11 +314,25 @@ const SystemSetting = () => {
             item.value = parseFloat(item.value);
             break;
           default:
+            // 历史数据可能存有后端把 nil 格式化成的 "<nil>" 字面量，显示为空
+            if (item.value === '<nil>') {
+              item.value = '';
+            }
             break;
         }
         newInputs[item.key] = item.value;
       });
       const mergedInputs = { ...defaultInputs, ...newInputs };
+      // 接口 option 的 JSON 值拆成 url/method 两个 UI 表单字段
+      for (const ep of DOUYIN_CARD_ENDPOINTS) {
+        const parsed = parseDouyinCardEndpoint(
+          mergedInputs[ep.key],
+          ep.defaultMethod,
+        );
+        delete mergedInputs[ep.key];
+        mergedInputs[ep.urlField] = parsed.url;
+        mergedInputs[ep.methodField] = parsed.method;
+      }
       setInputs(mergedInputs);
       setOriginInputs(mergedInputs);
       // 同步模式布尔到本地状态
@@ -733,6 +840,61 @@ const SystemSetting = () => {
       await updateOptions(options);
     }
   };
+
+  const submitDouyinCard = async () => {
+    const options = [];
+
+    for (const key of ['DouyinCardApiKey', 'DouyinCardBaseUrl']) {
+      const value = inputs[key] ?? '';
+      const origin = originInputs[key] ?? '';
+      if (key === 'DouyinCardApiKey' && value === '') {
+        // 敏感字段不回显，留空表示不修改，跳过以免覆盖
+        continue;
+      }
+      if (value !== origin) {
+        options.push({ key, value });
+      }
+    }
+
+    // 接口：路径 + 方法合并为一个 JSON option（{"url","method"}）
+    for (const ep of DOUYIN_CARD_ENDPOINTS) {
+      const url = (inputs[ep.urlField] ?? '').trim();
+      const method = inputs[ep.methodField] ?? '';
+      const changed =
+        url !== (originInputs[ep.urlField] ?? '') ||
+        method !== (originInputs[ep.methodField] ?? '');
+      if (changed) {
+        options.push({ key: ep.key, value: JSON.stringify({ url, method }) });
+      }
+    }
+
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
+  };
+
+  // 嵌在接口输入框 prefix 里的方法下拉（选中项与下拉选项均为彩色胶囊）。
+  // 用普通 Select 手动绑定表单值：Form.Select 会在 prefix 里生成独立的
+  // 表单域包装（label + 外层容器），导致错位遮挡。
+  const DouyinMethodSelect = ({ optionKey }) => (
+    <Select
+      className='douyin-card-method-select'
+      optionList={DOUYIN_HTTP_METHOD_OPTIONS}
+      value={inputs[optionKey]}
+      onChange={(value) => {
+        formApiRef.current?.setValue(optionKey, value);
+        setInputs((prev) => ({ ...prev, [optionKey]: value }));
+      }}
+      // 阻止聚焦事件冒泡到 Input 包裹层，否则点击方法下拉时
+      // 整个接口输入框会误显示聚焦态边框
+      onFocus={(e) => e.stopPropagation()}
+      dropdownStyle={{ minWidth: 122 }}
+      renderSelectedItem={(option) =>
+        renderDouyinMethodTag(String(option?.value ?? ''))
+      }
+      renderOptionItem={renderDouyinMethodOption}
+    />
+  );
 
   const submitLinuxDOOAuth = async () => {
     const options = [];
@@ -2007,6 +2169,82 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitTurnstile}>
                     {t('保存 Turnstile 设置')}
+                  </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('抖音私信卡片')}>
+                  <Text>{t('用以支持抖音私信卡片管理')}</Text>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='DouyinCardApiKey'
+                        label={t('API Key')}
+                        type='password'
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='DouyinCardBaseUrl'
+                        label={t('基础URL')}
+                        placeholder={t('例如：https://api.example.com')}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='DouyinCardAddApiUrl'
+                        label={t('添加接口')}
+                        placeholder={t('例如：/api/card/add')}
+                        prefix={
+                          <DouyinMethodSelect optionKey='DouyinCardAddApiMethod' />
+                        }
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='DouyinCardQueryApiUrl'
+                        label={t('查询接口')}
+                        placeholder={t('例如：/api/card/query')}
+                        prefix={
+                          <DouyinMethodSelect optionKey='DouyinCardQueryApiMethod' />
+                        }
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='DouyinCardUpdateApiUrl'
+                        label={t('修改接口')}
+                        placeholder={t('例如：/api/card/update')}
+                        prefix={
+                          <DouyinMethodSelect optionKey='DouyinCardUpdateApiMethod' />
+                        }
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='DouyinCardDeleteApiUrl'
+                        label={t('删除接口')}
+                        placeholder={t('例如：/api/card/delete')}
+                        prefix={
+                          <DouyinMethodSelect optionKey='DouyinCardDeleteApiMethod' />
+                        }
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitDouyinCard}>
+                    {t('保存抖音私信卡片设置')}
                   </Button>
                 </Form.Section>
               </Card>
