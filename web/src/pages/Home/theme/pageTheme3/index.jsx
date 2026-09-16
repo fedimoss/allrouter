@@ -241,18 +241,23 @@ const BrandLockup = ({ logo, name }) => (
 const VideoLayer = () => {
   const videoRef = useRef(null);
   const [fallback, setFallback] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
+    // 手机端不加载远程 HLS 流：弱网下会长时间黑屏挡住首屏，且很费流量。
+    // 直接沿用 .video-layer 自带的渐变背景，视觉上仍然成立。
+    if (isMobile) return undefined;
+
     const video = videoRef.current;
     if (!video) return undefined;
     let destroyed = false;
     let hls;
     const tryPlay = () => video.play().catch(() => undefined);
 
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = VIDEO_SRC;
-      video.addEventListener('loadedmetadata', tryPlay, { once: true });
-    } else if (Hls.isSupported()) {
+    // Prefer hls.js: desktop Chrome/Edge report canPlayType() === 'maybe' for
+    // HLS but fail to play it natively (MEDIA_ERR_SRC_NOT_SUPPORTED). Only
+    // fall back to the native path when MSE is unavailable (e.g. iOS Safari).
+    if (Hls.isSupported()) {
       hls = new Hls({ enableWorker: false, lowLatencyMode: false });
       hls.loadSource(VIDEO_SRC);
       hls.attachMedia(video);
@@ -260,6 +265,16 @@ const VideoLayer = () => {
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (data?.fatal) setFallback(true);
       });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = VIDEO_SRC;
+      video.addEventListener('loadedmetadata', tryPlay, { once: true });
+      video.addEventListener(
+        'error',
+        () => {
+          if (!destroyed) setFallback(true);
+        },
+        { once: true },
+      );
     } else {
       setFallback(true);
     }
@@ -269,11 +284,13 @@ const VideoLayer = () => {
       video.removeEventListener('loadedmetadata', tryPlay);
       if (hls) hls.destroy();
     };
-  }, []);
+  }, [isMobile]);
+
+  const hideVideo = fallback || isMobile;
 
   return (
     <div
-      className={`video-layer ${fallback ? 'video-layer--fallback' : ''}`}
+      className={`video-layer ${hideVideo ? 'video-layer--fallback' : ''}`}
       aria-hidden='true'
     >
       <video ref={videoRef} muted loop playsInline preload='auto' />

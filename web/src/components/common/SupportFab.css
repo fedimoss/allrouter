@@ -202,19 +202,19 @@
 
 /* ---------------- t3 首页：底部偏移避让首页内容 ---------------- */
 
-@media (width < 640px) {
+@media (max-width: 639.98px) {
   .support-fab--t3 .fab {
     bottom: 140px;
   }
 }
 
-@media (width >= 640px) and (width < 900px) {
+@media (min-width: 640px) and (max-width: 899.98px) {
   .support-fab--t3 .fab {
     bottom: 168px;
   }
 }
 
-@media (width >= 900px) and (width < 1300px) {
+@media (min-width: 900px) and (max-width: 1299.98px) {
   .support-fab--t3 .fab {
     bottom: 180px;
   }
@@ -222,7 +222,7 @@
 
 /* ---------------- 窄屏：弹窗宽度兜底 + 3 列降级 ---------------- */
 
-@media (width < 560px) {
+@media (max-width: 559.98px) {
   .support-fab .fab-qr--multi {
     right: 52px;
   }
