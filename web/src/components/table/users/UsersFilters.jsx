@@ -29,6 +29,8 @@ const UsersFilters = ({
   activePage,
   pageSize,
   groupOptions,
+  providerOptions,
+  providerMode,
   loading,
   searching,
   t,
@@ -71,6 +73,37 @@ const UsersFilters = ({
             size='small'
           />
         </div>
+        {!providerMode && (
+          <div className='w-full md:w-40'>
+            <Form.Input
+              field='searchIp'
+              placeholder={t('注册 IP')}
+              showClear
+              pure
+              size='small'
+            />
+          </div>
+        )}
+        {providerOptions.length > 0 && (
+          <div className='w-full md:w-48'>
+            <Form.Select
+              field='searchProviderId'
+              placeholder={t('服务商站点')}
+              optionList={providerOptions}
+              filter
+              onChange={(value) => {
+                // Provider change triggers automatic search
+                setTimeout(() => {
+                  searchUsers(1, pageSize);
+                }, 100);
+              }}
+              className='w-full'
+              showClear
+              pure
+              size='small'
+            />
+          </div>
+        )}
         <div className='w-full md:w-48'>
           <Form.Select
             field='searchGroup'

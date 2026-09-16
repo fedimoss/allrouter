@@ -344,7 +344,12 @@ func delegatedCanManageTarget(target *model.User) bool {
 
 func GetAllUsers(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.GetAllUsers(pageInfo)
+	//根据ip 服务商站点查询用户
+	ip := c.Query("ipClient")
+
+	providerId := c.Query("provider_id")
+
+	users, total, err := model.GetAllUsers(ip, providerId, pageInfo)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -360,8 +365,11 @@ func GetAllUsers(c *gin.Context) {
 func SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
+	//根据ip 服务商站点查询用户
+	ip := c.Query("ipClient")
+	providerId := c.Query("provider_id")
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsers(keyword, group, ip, providerId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return

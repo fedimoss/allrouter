@@ -35,6 +35,7 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
   const pageSize = ITEMS_PER_PAGE;
   const [searching, setSearching] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
+  const [providerOptions, setProviderOptions] = useState([]);
   const [userCount, setUserCount] = useState(0);
 
   // Modal states
@@ -48,6 +49,8 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
   const formInitValues = {
     searchKeyword: '',
     searchGroup: '',
+    searchIp: '',
+    searchProviderId: '',
   };
 
   // Form API reference
@@ -59,6 +62,8 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
     return {
       searchKeyword: formValues.searchKeyword || '',
       searchGroup: formValues.searchGroup || '',
+      searchIp: formValues.searchIp || '',
+      searchProviderId: formValues.searchProviderId || '',
     };
   };
 
@@ -73,9 +78,16 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
   // Load users data
   const loadUsers = async (startIdx, pageSize) => {
     setLoading(true);
+    // 主站用户列表支持按注册 IP / 服务商站点过滤（providerMode 下接口不支持）
+    const { searchIp, searchProviderId } = getFormValues();
+    const filters =
+      normalizedApiPrefix === '/api/user'
+        ? (searchIp ? `&ipClient=${encodeURIComponent(searchIp)}` : '') +
+          (searchProviderId ? `&provider_id=${encodeURIComponent(searchProviderId)}` : '')
+        : '';
     const listUrl =
       normalizedApiPrefix === '/api/user'
-        ? `${normalizedApiPrefix}/?p=${startIdx}&page_size=${pageSize}`
+        ? `${normalizedApiPrefix}/?p=${startIdx}&page_size=${pageSize}${filters}`
         : `${normalizedApiPrefix}?p=${startIdx}&page_size=${pageSize}`;
     const res = await API.get(listUrl);
     const { success, message, data } = res.data;
@@ -103,15 +115,27 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
       searchKeyword = formValues.searchKeyword;
       searchGroup = formValues.searchGroup;
     }
+    const { searchIp, searchProviderId } = getFormValues();
 
-    if (searchKeyword === '' && searchGroup === '') {
+    if (
+      searchKeyword === '' &&
+      searchGroup === '' &&
+      searchIp === '' &&
+      searchProviderId === ''
+    ) {
       // If keyword is blank, load files instead
       await loadUsers(startIdx, pageSize);
       return;
     }
     setSearching(true);
+    // 主站用户搜索接口支持按注册 IP / 服务商站点过滤（providerMode 下接口不支持）
+    const filters =
+      normalizedApiPrefix === '/api/user'
+        ? (searchIp ? `&ipClient=${encodeURIComponent(searchIp)}` : '') +
+          (searchProviderId ? `&provider_id=${encodeURIComponent(searchProviderId)}` : '')
+        : '';
     const res = await API.get(
-      `${normalizedApiPrefix}/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`,
+      `${normalizedApiPrefix}/search?keyword=${searchKeyword}&group=${searchGroup}${filters}&p=${startIdx}&page_size=${pageSize}`,
     );
     const { success, message, data } = res.data;
     if (success) {
@@ -196,8 +220,13 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
-    const { searchKeyword, searchGroup } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '') {
+    const { searchKeyword, searchGroup, searchIp, searchProviderId } = getFormValues();
+    if (
+      searchKeyword === '' &&
+      searchGroup === '' &&
+      searchIp === '' &&
+      searchProviderId === ''
+    ) {
       loadUsers(page, pageSize).then();
     } else {
       searchUsers(page, pageSize, searchKeyword, searchGroup).then();
@@ -219,8 +248,13 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
 
   // Refresh data
   const refresh = async (page = activePage) => {
-    const { searchKeyword, searchGroup } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '') {
+    const { searchKeyword, searchGroup, searchIp, searchProviderId } = getFormValues();
+    if (
+      searchKeyword === '' &&
+      searchGroup === '' &&
+      searchIp === '' &&
+      searchProviderId === ''
+    ) {
       await loadUsers(page, pageSize);
     } else {
       await searchUsers(page, pageSize, searchKeyword, searchGroup);
@@ -248,6 +282,28 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
     }
   };
 
+  // Fetch providers data（主站管理员的"服务商站点"下拉，取自服务商管理列表接口）
+  const fetchProviders = async () => {
+    if (providerMode) {
+      return;
+    }
+    try {
+      const res = await API.get('/api/provider/admin');
+      if (res === undefined) {
+        return;
+      }
+      const providers = res.data?.data || [];
+      setProviderOptions(
+        (Array.isArray(providers) ? providers : []).map((provider) => ({
+          label: provider.name ? `${provider.name} (#${provider.id})` : `#${provider.id}`,
+          value: String(provider.id),
+        })),
+      );
+    } catch (error) {
+      // 服务商管理模块未授权时静默忽略，不影响用户列表正常使用
+    }
+  };
+
   // Modal control functions
   const closeAddUser = () => {
     setShowAddUser(false);
@@ -268,6 +324,7 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
         showError(reason);
       });
     fetchGroups().then();
+    fetchProviders().then();
   }, []);
 
   return {
@@ -279,6 +336,7 @@ export const useUsersData = ({ apiPrefix = '/api/user', providerMode = false } =
     userCount,
     searching,
     groupOptions,
+    providerOptions,
     apiPrefix: normalizedApiPrefix,
     providerMode,
 

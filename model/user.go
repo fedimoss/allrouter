@@ -419,7 +419,7 @@ func fillUserProviderNames(tx *gorm.DB, users []*User) error {
 	return nil
 }
 
-func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err error) {
+func GetAllUsers(ip, providerId string, pageInfo *common.PageInfo) (users []*User, total int64, err error) {
 	// Start transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -430,6 +430,12 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 			tx.Rollback()
 		}
 	}()
+	if ip != "" {
+		tx = tx.Where(" register_ip = ? ", ip)
+	}
+	if providerId != "" {
+		tx = tx.Where(" provider_id = ? ", providerId)
+	}
 
 	// Get total count within transaction
 	err = tx.Unscoped().Model(&User{}).Count(&total).Error //包括软删除的数据
@@ -614,7 +620,7 @@ func GetUsersWelfareQuota(userIds []int) (map[int]int64, error) {
 	return m, nil
 }
 
-func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, ip string, providerId string, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -633,6 +639,14 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 	// 构建基础查询
 	query := tx.Unscoped().Model(&User{})
 
+	// 根据ip 服务商站点过滤，与关键字/分组过滤独立叠加（AND）
+	if ip != "" {
+		query = query.Where(" register_ip = ? ", ip)
+	}
+	if providerId != "" {
+		query = query.Where(" provider_id = ? ", providerId)
+	}
+
 	// 构建搜索条件
 	likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"
 
@@ -648,7 +662,7 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 			query = query.Where(likeCondition,
 				keywordInt, "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
 		}
-	} else {
+	} else if keyword != "" {
 		// 非数字关键字，只搜索字符串字段
 		if group != "" {
 			query = query.Where("("+likeCondition+") AND "+commonGroupCol+" = ?",
@@ -657,6 +671,8 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 			query = query.Where(likeCondition,
 				"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
 		}
+	} else if group != "" {
+		query = query.Where(commonGroupCol+" = ?", group)
 	}
 
 	// 获取总数
