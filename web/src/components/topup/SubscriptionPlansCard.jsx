@@ -900,8 +900,7 @@ const SubscriptionPlansCard = ({
                   globalLimit - globalAllocated,
                 );
                 const globalLimitLabel =
-                  globalLimit > 0
-                    ? `${t('剩余')} ${globalRemaining} ${t('份')}`
+                  globalLimit > 0 ? null // ? `${t('剩余')} ${globalRemaining} ${t('份')}`
                     : null;
                 const totalLabel =
                   totalAmount > 0

@@ -51,6 +51,7 @@ const UsersPage = ({ apiPrefix = '/api/user', providerMode = false }) => {
     activePage,
     pageSize,
     groupOptions,
+    providerOptions,
     loading,
     searching,
 
@@ -105,6 +106,8 @@ const UsersPage = ({ apiPrefix = '/api/user', providerMode = false }) => {
               activePage={activePage}
               pageSize={pageSize}
               groupOptions={groupOptions}
+              providerOptions={providerOptions}
+              providerMode={providerMode}
               loading={loading}
               searching={searching}
               t={t}
