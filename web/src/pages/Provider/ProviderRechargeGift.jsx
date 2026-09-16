@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   InputNumber,
@@ -26,7 +26,7 @@ import {
   Switch,
   Typography,
 } from '@douyinfe/semi-ui';
-import { IconPlus, IconDelete } from '@douyinfe/semi-icons';
+import { IconPlus, IconDelete, IconHandle } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess, showWarning } from '../../helpers';
 import {
@@ -118,6 +118,31 @@ export default function ProviderRechargeGift({ provider, adminMode }) {
   const removeRule = (id) => setRules((rs) => rs.filter((r) => r.id !== id));
   const addRule = () =>
     setRules((rs) => [...rs, { id: newRuleId(), threshold: null, bonus: null }]);
+
+  // 拖拽排序：dragId 是被拖动规则 id，松手时已完成位置交换（onDragOver 实时预览）。
+  // 数组顺序即保存与充值页档位展示顺序，与主站 SettingsRechargeGift 保持对称。
+  const dragIdRef = useRef(null);
+  const [dragId, setDragId] = useState(null);
+  const onDragStart = (id) => {
+    dragIdRef.current = id;
+    setDragId(id);
+  };
+  const onDragOver = (id) => {
+    if (id === dragIdRef.current) return;
+    setRules((rs) => {
+      const from = rs.findIndex((r) => r.id === dragIdRef.current);
+      const to = rs.findIndex((r) => r.id === id);
+      if (from < 0 || to < 0 || from === to) return rs;
+      const next = [...rs];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+  const onDragEnd = () => {
+    dragIdRef.current = null;
+    setDragId(null);
+  };
 
   const onSubmit = async () => {
     // bonus 允许填 0（该档不赠送），但未填（null）视为规则未完成，给出明确提示
@@ -247,7 +272,35 @@ export default function ProviderRechargeGift({ provider, adminMode }) {
             </Text>
           )}
           {rules.map((r) => (
-            <div key={r.id} className='flex items-center gap-2'>
+            <div
+              key={r.id}
+              className='flex items-center gap-2'
+              onDragOver={(e) => {
+                e.preventDefault();
+                onDragOver(r.id);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                onDragEnd();
+              }}
+              onDragEnd={onDragEnd}
+              style={
+                dragId === r.id
+                  ? { opacity: 0.5, background: 'var(--semi-color-fill-0)', borderRadius: 8 }
+                  : undefined
+              }
+            >
+              {/* 拖拽手柄：拖动此图标调整规则顺序，顺序即充值页档位展示顺序 */}
+              <IconHandle
+                style={{
+                  cursor: 'grab',
+                  color: 'var(--semi-color-text-2)',
+                  flexShrink: 0,
+                }}
+                draggable
+                onDragStart={() => onDragStart(r.id)}
+                onDragEnd={onDragEnd}
+              />
               <Text
                 type='tertiary'
                 size='small'
