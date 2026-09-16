@@ -396,7 +396,7 @@ const Invitation = () => {
 
       {/* 顶部统计卡片 */}
       <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
-        {/* 待提取收益 */}
+        {/* 待转入余额 */}
         <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
           <img
             src={walletImg}
@@ -405,11 +405,11 @@ const Invitation = () => {
           />
           <div className='flex items-start justify-between mb-3'>
             <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
-              {t('待提取收益')}
+              {t('待转入余额')}
             </span>
           </div>
           <div className='dark:text-cyan-300 mb-1 text-[color:var(--theme-primary)] font-[900] text-[30px] leading-[30px]'>
-            {/* 使用后端转换值 + 用户币种符号展示待提取收益 */}
+            {/* 使用后端转换值 + 用户币种符号展示待转入余额 */}
             {formatDisplayMoney(affQuotaDisplay, displaySymbol)}
           </div>
           {/* <Text type='tertiary' className='mt-2' size='small' style={{display:'block'}}>
@@ -480,7 +480,7 @@ const Invitation = () => {
           <Wallet className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
           <div className='flex items-start justify-between mb-3'>
             <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
-              {t('被邀请人累计充值')}
+              {t('被邀请人充值总额')}
             </span>
           </div>
           <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
@@ -492,7 +492,7 @@ const Invitation = () => {
           <Gift className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
           <div className='flex items-start justify-between mb-3'>
             <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
-              {t('被邀请人当前余额')}
+              {t('被邀请人剩余余额')}
             </span>
           </div>
           <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
@@ -504,7 +504,7 @@ const Invitation = () => {
           <TrendingUp className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
           <div className='flex items-start justify-between mb-3'>
             <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
-              {t('被邀请人累计消耗')}
+              {t('被邀请人消耗总额')}
             </span>
           </div>
           <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
