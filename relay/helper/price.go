@@ -141,6 +141,18 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 	}
 
+	// 用户模型专属折扣：仅按 token 倍率计费的模型支持（按次/阶梯表达式计费不支持）。
+	// 折扣与分组倍率叠加；只作用于输入输出 token 部分，缓存不参与；
+	// 结算时仅当资金来源为账户余额（非订阅）时生效。预扣额度按原价计算，结算时多退少补。
+	userDiscount := model.UserModelDiscountNone
+	if !usePrice && info.UserProviderId == info.ProviderId {
+		var err error
+		userDiscount, err = model.GetUserModelDiscount(info.UserId, info.OriginModelName)
+		if err != nil {
+			return types.PriceData{}, fmt.Errorf("failed to load user model discount: %w", err)
+		}
+	}
+
 	priceData := types.PriceData{
 		FreeModel:            freeModel,
 		ModelPrice:           modelPrice,
@@ -156,6 +168,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		CacheCreation5mRatio: cacheCreationRatio5m,
 		CacheCreation1hRatio: cacheCreationRatio1h,
 		QuotaToPreConsume:    preConsumedQuota,
+		UserDiscount:         userDiscount,
 	}
 
 	if common.DebugEnabled {

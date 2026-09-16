@@ -1339,6 +1339,35 @@ function formatRatioValue(value, digits = 6) {
   return Number(num.toFixed(digits));
 }
 
+function normalizeUserModelDiscount(value) {
+  const discount = Number(value);
+  if (!Number.isFinite(discount) || discount <= 0 || discount >= 1) {
+    return 1;
+  }
+  return discount;
+}
+
+function getUserModelDiscountText(value) {
+  const discount = normalizeUserModelDiscount(value);
+  if (discount === 1) {
+    return null;
+  }
+  return i18next.t('用户专属折扣 {{discount}}x', {
+    discount: formatRatioValue(discount),
+  });
+}
+
+function getUserModelDiscountCalculationText(value) {
+  const discount = normalizeUserModelDiscount(value);
+  if (discount === 1) {
+    return null;
+  }
+  return i18next.t(
+    '折扣计算：输入输出 Token 费用 × {{discount}}x；缓存及附加费用不打折',
+    { discount: formatRatioValue(discount) },
+  );
+}
+
 function renderDisplayAmountFromUsd(usdAmount, digits = 6) {
   const roundedUsdAmount = roundUsdAmountByQuotaUnit(usdAmount || 0);
   return renderQuotaWithAmount(Number(roundedUsdAmount.toFixed(digits)));
@@ -1429,6 +1458,7 @@ function renderPriceSimpleCore({
   isSystemPromptOverride = false,
   displayMode = 'price',
   outputMode = 'text',
+  userModelDiscount,
 }) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -1581,6 +1611,16 @@ function renderPriceSimpleCore({
           text: i18next.t('图片输入: {{imageRatio}}', {
             imageRatio: imageRatio,
           }),
+        });
+      }
+    }
+
+    if (modelPrice === -1) {
+      const userDiscountText = getUserModelDiscountText(userModelDiscount);
+      if (userDiscountText) {
+        segments.push({
+          tone: 'primary',
+          text: userDiscountText,
         });
       }
     }
@@ -1906,6 +1946,7 @@ export function renderModelPrice(
   imageGenerationCallPrice = 0,
   displayMode = 'price',
   actualQuota,
+  userModelDiscount,
 ) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -1949,19 +1990,25 @@ export function renderModelPrice(
     const completionRatioPrice = modelRatio * 2.0 * completionRatio;
     const cacheRatioPrice = modelRatio * 2.0 * cacheRatio;
     const imageRatioPrice = modelRatio * 2.0 * imageRatio;
-    let effectiveInputTokens =
-      inputTokens - cacheTokens + cacheTokens * cacheRatio;
-    if (image && imageOutputTokens > 0) {
-      effectiveInputTokens =
-        inputTokens - imageOutputTokens + imageOutputTokens * imageRatio;
-    }
-    if (audioInputTokens > 0) {
-      effectiveInputTokens -= audioInputTokens;
-    }
+    const effectiveUserDiscount = normalizeUserModelDiscount(userModelDiscount);
+    const hasSeparateAudioInput = audioInputTokens > 0 && audioInputPrice > 0;
+    const discountedInputTokens = Math.max(
+      inputTokens -
+        cacheTokens -
+        (image && imageOutputTokens > 0 ? imageOutputTokens : 0) -
+        (hasSeparateAudioInput ? audioInputTokens : 0),
+      0,
+    );
     const price =
-      (effectiveInputTokens / 1000000) * inputRatioPrice * groupRatio +
+      ((discountedInputTokens / 1000000) * inputRatioPrice +
+        (completionTokens / 1000000) * completionRatioPrice) *
+        effectiveUserDiscount *
+        groupRatio +
+      (cacheTokens / 1000000) * cacheRatioPrice * groupRatio +
+      (image && imageOutputTokens > 0
+        ? (imageOutputTokens / 1000000) * imageRatioPrice * groupRatio
+        : 0) +
       (audioInputTokens / 1000000) * audioInputPrice * groupRatio +
-      (completionTokens / 1000000) * completionRatioPrice * groupRatio +
       (webSearchCallCount / 1000) * webSearchPrice * groupRatio +
       (fileSearchCallCount / 1000) * fileSearchPrice * groupRatio +
       imageGenerationCallPrice * groupRatio;
@@ -2064,6 +2111,38 @@ export function renderModelPrice(
         : '',
     ].join('');
 
+    let billingFormula = buildBillingText(
+      '{{inputDesc}} + {{outputDesc}}{{extraServices}} = {{symbol}}{{total}}',
+      {
+        inputDesc,
+        outputDesc,
+        extraServices,
+        symbol,
+        total: formatBillingDisplayTotalByQuota(actualQuota, price, rate),
+      },
+    );
+    if (effectiveUserDiscount < 1) {
+      const discountedCharges = [
+        `${i18next.t('输入')} ${discountedInputTokens} tokens / 1M tokens * ${symbol}${formatBillingDisplayPrice(inputRatioPrice, rate)}`,
+        `${i18next.t('输出')} ${completionTokens} tokens / 1M tokens * ${symbol}${formatBillingDisplayPrice(completionRatioPrice, rate)}`,
+      ].join(' + ');
+      const nonDiscountedCharges = [
+        cacheTokens > 0
+          ? `${i18next.t('缓存读取')} ${cacheTokens} tokens / 1M tokens * ${symbol}${formatBillingDisplayPrice(cacheRatioPrice, rate)} * ${ratioLabel} ${groupRatio}`
+          : '',
+        image && imageOutputTokens > 0
+          ? `${i18next.t('图片输入')} ${imageOutputTokens} tokens / 1M tokens * ${symbol}${formatBillingDisplayPrice(imageRatioPrice, rate)} * ${ratioLabel} ${groupRatio}`
+          : '',
+        hasSeparateAudioInput
+          ? `${i18next.t('音频输入')} ${audioInputTokens} tokens / 1M tokens * ${symbol}${formatBillingDisplayPrice(audioInputPrice, rate)} * ${ratioLabel} ${groupRatio}`
+          : '',
+      ]
+        .filter(Boolean)
+        .map((charge) => ` + ${charge}`)
+        .join('');
+      billingFormula = `(${discountedCharges}) * ${getUserModelDiscountText(userModelDiscount)} * ${ratioLabel} ${groupRatio}${nonDiscountedCharges}${extraServices} = ${symbol}${formatBillingDisplayTotalByQuota(actualQuota, price, rate)}`;
+    }
+
     const billingLines = [
       buildBillingPriceText(
         '输入价格：{{symbol}}{{price}} / 1M tokens{{audioPrice}}',
@@ -2125,16 +2204,8 @@ export function renderModelPrice(
             rate,
           })
         : null,
-      buildBillingText(
-        '{{inputDesc}} + {{outputDesc}}{{extraServices}} = {{symbol}}{{total}}',
-        {
-          inputDesc,
-          outputDesc,
-          extraServices,
-          symbol,
-          total: formatBillingDisplayTotalByQuota(actualQuota, price, rate),
-        },
-      ),
+      getUserModelDiscountCalculationText(userModelDiscount),
+      billingFormula,
     ];
 
     return renderBillingArticle(billingLines);
@@ -2241,6 +2312,7 @@ export function renderModelPrice(
         ratioType: ratioLabel,
         ratio: groupRatio,
       }),
+      getUserModelDiscountText(userModelDiscount),
     ]
       .filter(Boolean)
       .join('，'),
@@ -2342,7 +2414,7 @@ export function renderModelPrice(
         )
       : null,
     buildBillingText('合计：{{total}}', {
-      total: renderDisplayAmountFromUsd(totalAmount),
+      total: renderDisplayTotalAmountByQuota(actualQuota, totalAmount),
     }),
   ]);
 }
@@ -2361,6 +2433,7 @@ export function renderLogContent(
   fileSearch = false,
   fileSearchCallCount = 0,
   displayMode = 'price',
+  userModelDiscount,
 ) {
   const {
     ratio,
@@ -2427,6 +2500,10 @@ export function renderLogContent(
       },
     );
     parts.push(getGroupRatioText(groupRatio, user_group_ratio));
+    const userDiscountText = getUserModelDiscountText(userModelDiscount);
+    if (userDiscountText) {
+      parts.push(userDiscountText);
+    }
     return joinBillingSummary(parts);
   }
 
@@ -2438,41 +2515,51 @@ export function renderLogContent(
       ratio,
     });
   } else {
+    const userDiscountText = getUserModelDiscountText(userModelDiscount);
     if (image) {
-      return i18next.t(
-        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，图片输入倍率 {{imageRatio}}，{{ratioType}} {{ratio}}',
-        {
-          modelRatio: modelRatio,
-          cacheRatio: cacheRatio,
-          completionRatio: completionRatio,
-          imageRatio: imageRatio,
-          ratioType: ratioLabel,
-          ratio,
-        },
-      );
+      return joinBillingSummary([
+        i18next.t(
+          '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，图片输入倍率 {{imageRatio}}，{{ratioType}} {{ratio}}',
+          {
+            modelRatio: modelRatio,
+            cacheRatio: cacheRatio,
+            completionRatio: completionRatio,
+            imageRatio: imageRatio,
+            ratioType: ratioLabel,
+            ratio,
+          },
+        ),
+        userDiscountText,
+      ]);
     } else if (webSearch) {
-      return i18next.t(
-        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}，Web 搜索调用 {{webSearchCallCount}} 次',
-        {
-          modelRatio: modelRatio,
-          cacheRatio: cacheRatio,
-          completionRatio: completionRatio,
-          ratioType: ratioLabel,
-          ratio,
-          webSearchCallCount,
-        },
-      );
+      return joinBillingSummary([
+        i18next.t(
+          '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}，Web 搜索调用 {{webSearchCallCount}} 次',
+          {
+            modelRatio: modelRatio,
+            cacheRatio: cacheRatio,
+            completionRatio: completionRatio,
+            ratioType: ratioLabel,
+            ratio,
+            webSearchCallCount,
+          },
+        ),
+        userDiscountText,
+      ]);
     } else {
-      return i18next.t(
-        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}',
-        {
-          modelRatio: modelRatio,
-          cacheRatio: cacheRatio,
-          completionRatio: completionRatio,
-          ratioType: ratioLabel,
-          ratio,
-        },
-      );
+      return joinBillingSummary([
+        i18next.t(
+          '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}',
+          {
+            modelRatio: modelRatio,
+            cacheRatio: cacheRatio,
+            completionRatio: completionRatio,
+            ratioType: ratioLabel,
+            ratio,
+          },
+        ),
+        userDiscountText,
+      ]);
     }
   }
 }
@@ -2957,6 +3044,7 @@ export function renderModelPriceSimple(
   provider = 'openai',
   displayMode = 'price',
   outputMode = 'text',
+  userModelDiscount,
 ) {
   return renderPriceSimpleCore({
     modelRatio,
@@ -2976,6 +3064,7 @@ export function renderModelPriceSimple(
     isSystemPromptOverride,
     displayMode,
     outputMode,
+    userModelDiscount,
   });
 }
 
@@ -2995,6 +3084,7 @@ export function renderAudioModelPrice(
   cacheRatio = 1.0,
   displayMode = 'price',
   actualQuota,
+  userModelDiscount,
 ) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -3037,19 +3127,32 @@ export function renderAudioModelPrice(
     audioRatio = parseFloat(audioRatio).toFixed(6);
     const inputRatioPrice = modelRatio * 2.0;
     const completionRatioPrice = modelRatio * 2.0 * completionRatio;
-    const textPrice =
+    const effectiveUserDiscount = normalizeUserModelDiscount(userModelDiscount);
+    const undiscountedTextPrice =
       ((inputTokens - cacheTokens + cacheTokens * cacheRatio) / 1000000) *
         inputRatioPrice *
         groupRatio +
       (completionTokens / 1000000) * completionRatioPrice * groupRatio;
-    const audioPrice =
+    const undiscountedAudioPrice =
       (audioInputTokens / 1000000) * inputRatioPrice * audioRatio * groupRatio +
       (audioCompletionTokens / 1000000) *
         inputRatioPrice *
         audioRatio *
         audioCompletionRatio *
         groupRatio;
+    const textPrice = undiscountedTextPrice * effectiveUserDiscount;
+    const audioPrice = undiscountedAudioPrice * effectiveUserDiscount;
     const totalPrice = textPrice + audioPrice;
+    const audioCharges = [
+      `${i18next.t('文字输入')} ${inputTokens} tokens / 1M tokens * ${symbol}${formatBillingDisplayPrice(inputRatioPrice, rate)}`,
+      `${i18next.t('文字输出')} ${completionTokens} tokens / 1M tokens * ${symbol}${formatBillingDisplayPrice(completionRatioPrice, rate)}`,
+      `${i18next.t('音频输入')} ${audioInputTokens} tokens / 1M tokens * ${symbol}${formatBillingDisplayPrice(audioRatio * inputRatioPrice, rate)}`,
+      `${i18next.t('音频输出')} ${audioCompletionTokens} tokens / 1M tokens * ${symbol}${formatBillingDisplayPrice(audioRatio * audioCompletionRatio * inputRatioPrice, rate)}`,
+    ].join(' + ');
+    const audioBillingFormula =
+      effectiveUserDiscount < 1
+        ? `(${audioCharges}) * ${getUserModelDiscountText(userModelDiscount)} * ${ratioLabel} ${groupRatio} = ${symbol}${formatBillingDisplayTotalByQuota(actualQuota, totalPrice, rate)}`
+        : null;
 
     return renderBillingArticle([
       buildBillingPriceText('输入价格：{{symbol}}{{price}} / 1M tokens', {
@@ -3082,33 +3185,38 @@ export function renderAudioModelPrice(
         usdAmount: inputRatioPrice * audioRatio * audioCompletionRatio,
         rate,
       }),
-      buildBillingText(
-        '文字提示 {{input}} tokens / 1M tokens * {{symbol}}{{textInputPrice}} + 文字补全 {{completion}} tokens / 1M tokens * {{symbol}}{{textCompPrice}} + 音频提示 {{audioInput}} tokens / 1M tokens * {{symbol}}{{audioInputPrice}} + 音频补全 {{audioCompletion}} tokens / 1M tokens * {{symbol}}{{audioCompPrice}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
-        {
-          input: inputTokens,
-          completion: completionTokens,
-          audioInput: audioInputTokens,
-          audioCompletion: audioCompletionTokens,
-          textInputPrice: formatBillingDisplayPrice(inputRatioPrice, rate),
-          textCompPrice: formatBillingDisplayPrice(completionRatioPrice, rate),
-          audioInputPrice: formatBillingDisplayPrice(
-            audioRatio * inputRatioPrice,
-            rate,
-          ),
-          audioCompPrice: formatBillingDisplayPrice(
-            audioRatio * audioCompletionRatio * inputRatioPrice,
-            rate,
-          ),
-          ratioType: ratioLabel,
-          ratio: groupRatio,
-          symbol,
-          total: formatBillingDisplayTotalByQuota(
-            actualQuota,
-            totalPrice,
-            rate,
-          ),
-        },
-      ),
+      getUserModelDiscountCalculationText(userModelDiscount),
+      audioBillingFormula ||
+        buildBillingText(
+          '文字提示 {{input}} tokens / 1M tokens * {{symbol}}{{textInputPrice}} + 文字补全 {{completion}} tokens / 1M tokens * {{symbol}}{{textCompPrice}} + 音频提示 {{audioInput}} tokens / 1M tokens * {{symbol}}{{audioInputPrice}} + 音频补全 {{audioCompletion}} tokens / 1M tokens * {{symbol}}{{audioCompPrice}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
+          {
+            input: inputTokens,
+            completion: completionTokens,
+            audioInput: audioInputTokens,
+            audioCompletion: audioCompletionTokens,
+            textInputPrice: formatBillingDisplayPrice(inputRatioPrice, rate),
+            textCompPrice: formatBillingDisplayPrice(
+              completionRatioPrice,
+              rate,
+            ),
+            audioInputPrice: formatBillingDisplayPrice(
+              audioRatio * inputRatioPrice,
+              rate,
+            ),
+            audioCompPrice: formatBillingDisplayPrice(
+              audioRatio * audioCompletionRatio * inputRatioPrice,
+              rate,
+            ),
+            ratioType: ratioLabel,
+            ratio: groupRatio,
+            symbol,
+            total: formatBillingDisplayTotalByQuota(
+              actualQuota,
+              totalPrice,
+              rate,
+            ),
+          },
+        ),
     ]);
   }
 
@@ -3177,6 +3285,7 @@ export function renderAudioModelPrice(
         ratio: groupRatio,
       },
     ),
+    getUserModelDiscountCalculationText(userModelDiscount),
     buildBillingText(
       '普通输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
       {
@@ -3296,6 +3405,7 @@ export function renderClaudeModelPrice(
   cacheCreationRatio1h = 1.0,
   displayMode = 'price',
   actualQuota,
+  userModelDiscount,
 ) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -3342,20 +3452,22 @@ export function renderClaudeModelPrice(
     const cacheCreationRatioPrice = modelRatio * 2.0 * cacheCreationRatio;
     const cacheCreationRatioPrice5m = modelRatio * 2.0 * cacheCreationRatio5m;
     const cacheCreationRatioPrice1h = modelRatio * 2.0 * cacheCreationRatio1h;
+    const effectiveUserDiscount = normalizeUserModelDiscount(userModelDiscount);
     const hasSplitCacheCreation =
       cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
     const legacyCacheCreationTokens = hasSplitCacheCreation
       ? 0
       : cacheCreationTokens;
-    const effectiveInputTokens =
-      inputTokens +
-      cacheTokens * cacheRatio +
-      legacyCacheCreationTokens * cacheCreationRatio +
-      cacheCreationTokens5m * cacheCreationRatio5m +
-      cacheCreationTokens1h * cacheCreationRatio1h;
     const price =
-      (effectiveInputTokens / 1000000) * inputRatioPrice * groupRatio +
-      (completionTokens / 1000000) * completionRatioPrice * groupRatio;
+      ((inputTokens / 1000000) * inputRatioPrice +
+        (completionTokens / 1000000) * completionRatioPrice) *
+        effectiveUserDiscount *
+        groupRatio +
+      ((cacheTokens / 1000000) * cacheRatioPrice +
+        (legacyCacheCreationTokens / 1000000) * cacheCreationRatioPrice +
+        (cacheCreationTokens5m / 1000000) * cacheCreationRatioPrice5m +
+        (cacheCreationTokens1h / 1000000) * cacheCreationRatioPrice1h) *
+        groupRatio;
     const inputUnitPrice = inputRatioPrice * rate;
     const completionUnitPrice = completionRatioPrice * rate;
     const cacheUnitPrice = cacheRatioPrice * rate;
@@ -3444,6 +3556,27 @@ export function renderClaudeModelPrice(
     );
 
     const breakdownText = breakdownSegments.join(' + ');
+    let claudeBillingFormula = buildBillingText(
+      '{{breakdown}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
+      {
+        breakdown: breakdownText,
+        ratioType: ratioLabel,
+        ratio: groupRatio,
+        symbol,
+        total: formatBillingDisplayTotalByQuota(actualQuota, price, rate),
+      },
+    );
+    if (effectiveUserDiscount < 1) {
+      const discountedCharges = [
+        `${i18next.t('输入')} ${inputTokens} tokens / 1M tokens * ${symbol}${inputUnitPrice.toFixed(6)}`,
+        `${i18next.t('输出')} ${completionTokens} tokens / 1M tokens * ${symbol}${completionUnitPrice.toFixed(6)}`,
+      ].join(' + ');
+      const nonDiscountedCharges = breakdownSegments
+        .slice(1, -1)
+        .map((charge) => ` + ${charge} * ${ratioLabel} ${groupRatio}`)
+        .join('');
+      claudeBillingFormula = `(${discountedCharges}) * ${getUserModelDiscountText(userModelDiscount)} * ${ratioLabel} ${groupRatio}${nonDiscountedCharges} = ${symbol}${formatBillingDisplayTotalByQuota(actualQuota, price, rate)}`;
+    }
 
     return renderBillingArticle([
       buildBillingPriceText('输入价格：{{symbol}}{{price}} / 1M tokens', {
@@ -3496,16 +3629,8 @@ export function renderClaudeModelPrice(
             },
           )
         : null,
-      buildBillingText(
-        '{{breakdown}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
-        {
-          breakdown: breakdownText,
-          ratioType: ratioLabel,
-          ratio: groupRatio,
-          symbol,
-          total: formatBillingDisplayTotalByQuota(actualQuota, price, rate),
-        },
-      ),
+      getUserModelDiscountCalculationText(userModelDiscount),
+      claudeBillingFormula,
     ]);
   }
 
@@ -3586,6 +3711,7 @@ export function renderClaudeModelPrice(
       : buildBillingText('缓存创建倍率 {{cacheCreationRatio}}', {
           cacheCreationRatio: cacheCreationRatioValue,
         }),
+    getUserModelDiscountCalculationText(userModelDiscount),
     buildBillingText(
       '普通输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
       {
@@ -3712,6 +3838,7 @@ export function renderClaudeLogContent(
   cacheCreationTokens1h = 0,
   cacheCreationRatio1h = 1.0,
   displayMode = 'price',
+  userModelDiscount,
 ) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -3777,6 +3904,10 @@ export function renderClaudeLogContent(
       },
     );
     parts.push(getGroupRatioText(groupRatio, user_group_ratio));
+    const userDiscountText = getUserModelDiscountText(userModelDiscount);
+    if (userDiscountText) {
+      parts.push(userDiscountText);
+    }
     return joinBillingSummary(parts);
   }
 
@@ -3837,6 +3968,7 @@ export function renderClaudeLogContent(
         ratioType: ratioLabel,
         ratio: groupRatio,
       }),
+      getUserModelDiscountText(userModelDiscount),
     ];
 
     return parts.join('，');

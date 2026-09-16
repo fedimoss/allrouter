@@ -474,8 +474,17 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 			}
 		}
 
-		promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio).Add(cachedCreationTokensWithRatio)
 		completionQuota := dCompletionTokens.Mul(dCompletionRatio)
+		// 用户模型专属折扣：仅作用于输入输出 token 部分（非缓存 prompt + completion），
+		// 缓存读/写、图片 token、音频、按次工具附加费不参与；
+		// 仅余额支付生效（订阅支付不参与），与分组倍率叠加。
+		// 预扣已按原价锁定，此处只影响结算额，多退少补由 BillingSession 兜底。
+		if userDiscount := effectiveUserDiscount(relayInfo); userDiscount < 1 {
+			dUserDiscount := decimal.NewFromFloat(userDiscount)
+			baseTokens = baseTokens.Mul(dUserDiscount)
+			completionQuota = completionQuota.Mul(dUserDiscount)
+		}
+		promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio).Add(cachedCreationTokensWithRatio)
 		quotaCalculateDecimal := promptQuota.Add(completionQuota).Mul(ratio)
 		// 缓存部分（读+写）的额度小计：与总额使用相同的倍率（模型倍率×分组倍率）
 		// 与 OtherRatios，供服务商"缓存单独折扣"拆分使用

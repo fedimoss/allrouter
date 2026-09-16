@@ -55,6 +55,7 @@ const (
 	MsgTokenExhausted            = "token.exhausted"
 	MsgTokenStatusUnavailable    = "token.status_unavailable"
 	MsgTokenDbError              = "token.db_error"
+	MsgTokenProviderConflict     = "token.provider_conflict"
 )
 
 // Redemption related messages
@@ -191,6 +192,7 @@ const (
 	MsgModelGetListFailed = "model.get_list_failed"
 	MsgModelGetFailed     = "model.get_failed"
 	MsgModelResetSuccess  = "model.reset_success"
+	MsgModelUnavailable   = "model.unavailable"
 )
 
 // Vendor related messages

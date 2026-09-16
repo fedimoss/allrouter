@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -237,6 +238,10 @@ func AddToken(c *gin.Context) {
 	}
 	err = cleanToken.Insert()
 	if err != nil {
+		if errors.Is(err, model.ErrTokenProviderConflict) {
+			common.ApiErrorI18n(c, i18n.MsgTokenProviderConflict)
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}
