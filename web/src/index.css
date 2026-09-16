@@ -4207,3 +4207,79 @@ html.dark .dashboard-stats-v3__footer-row strong {
     padding-top: 16px;
   }
 }
+
+/* ==================== 抖音私信卡片：接口方法选择器 ==================== */
+/* Postman 风格：方法下拉嵌在接口输入框左侧，选中项与下拉选项均为彩色胶囊 */
+
+.douyin-card-method-select {
+  width: 122px;
+  /* 限制在 wrapper 内容区内（内容区高 30px），避免盖住外层聚焦边框 */
+  height: 30px;
+  align-self: center;
+  margin-right: 10px;
+  padding-right: 8px;
+  position: relative;
+  justify-content: space-between;
+  align-items: center;
+  /* Semi 默认 overflow:auto：内容 1px 溢出时会出现 30px 高的滚动条，
+     在 Windows 经典滚动条下渲染为一对 ▲/▼ 步进箭头。本选择器不需要
+     自身滚动（选项列表在 portal 中滚动），隐藏之。仅作用于本选择器 */
+  overflow: hidden;
+}
+
+/* 方法选择器与接口路径之间的分隔线：上下各缩进 6px，不顶满输入框高度 */
+.douyin-card-method-select::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--semi-color-border);
+}
+
+.douyin-card-method-select .semi-select-selection,
+.douyin-card-method-select .semi-select-selection:hover,
+.douyin-card-method-select.semi-select-focus .semi-select-selection {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  min-height: 30px;
+  margin-left: 0;
+  padding-left: 10px;
+}
+
+.douyin-card-method-select .semi-select-selection-content {
+  display: flex;
+  align-items: center;
+}
+
+/* 下拉选项：彩色胶囊 + 选中勾 */
+.douyin-card-method-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 4px;
+  padding: 6px 12px;
+  border-radius: var(--semi-border-radius-small);
+  cursor: pointer;
+}
+
+.douyin-card-method-option:hover,
+.douyin-card-method-option--focused {
+  background: var(--semi-color-fill-0);
+}
+
+.douyin-card-method-tick {
+  color: var(--semi-color-primary);
+  flex-shrink: 0;
+}
+
+/* 抖音私信卡片接口输入框：聚焦时只保留外层 wrapper 的聚焦边框。
+   Semi 默认会给内层 input 再画一层聚焦边框（.semi-input:focus），
+   因为这些输入框内嵌了方法选择器 prefix，内外两层轮廓会错位重叠 */
+.semi-input-wrapper input[id^='DouyinCard']:focus {
+  border: none;
+  background-color: transparent;
+}

@@ -271,8 +271,21 @@ func UpdateOption(c *gin.Context) {
 		option.Value = common.Interface2String(option.Value.(float64))
 	case int:
 		option.Value = common.Interface2String(option.Value.(int))
+	case nil:
+		// 请求体缺失 value 时不应存入 fmt 的 "<nil>" 字面量
+		option.Value = ""
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
+	}
+	// 抖音私信卡片接口 key 的 value 为 JSON，落库前校验格式
+	if strings.HasPrefix(option.Key, "DouyinCard") {
+		if err := system_setting.ValidateDouyinCardOption(option.Key, option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	}
 	switch option.Key {
 	case "GitHubOAuthEnabled":
