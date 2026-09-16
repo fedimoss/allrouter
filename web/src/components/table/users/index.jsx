@@ -84,6 +84,7 @@ const UsersPage = ({ apiPrefix = '/api/user', providerMode = false }) => {
 
       <CardPro
         type='type1'
+        className='table-fill-body'
         descriptionArea={
           <UsersDescription
             compactMode={compactMode}

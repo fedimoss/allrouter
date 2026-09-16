@@ -223,7 +223,7 @@ const Invitation = () => {
       key: 'status',
       render: (row, record) => {
         return (
-          <span
+          <div
             className='text-[color:var(--theme-primary)] bg-[color:var(--theme-primary-20)] border border-[color:var(--theme-primary)] rounded-md px-3 py-1 text-[14px] font-bold cursor-pointer'
             onClick={() => {
               setSelectedInvite(record);
@@ -231,7 +231,7 @@ const Invitation = () => {
             }}
           >
             {t('查看')}
-          </span>
+          </div>
         );
       },
     },
@@ -358,16 +358,17 @@ const Invitation = () => {
       title: t('消费返利'),
       dataIndex: 'status',
       key: 'status',
+      width: 90,
       render: (_, record) => (
-        <span
-          className='text-[color:var(--theme-primary-btn-color)] bg-[color:var(--theme-primary-20)] border border-[color:var(--theme-primary)] rounded-md px-3 py-1 text-[14px] font-bold cursor-pointer'
+        <div
+          className='text-[color:var(--theme-primary-btn-color)] bg-[color:var(--theme-primary-20)] border border-[color:var(--theme-primary)] rounded-md text-center px-3 py-1 text-[14px] font-bold cursor-pointer'
           onClick={() => {
             setSelectedInvite(record);
             setOpenInviteDetail(true);
           }}
         >
           {t('查看')}
-        </span>
+        </div>
       ),
     },
   ];

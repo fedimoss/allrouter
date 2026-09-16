@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Button,
   Form,
@@ -27,7 +27,7 @@ import {
   Switch,
   Typography,
 } from '@douyinfe/semi-ui';
-import { IconPlus, IconDelete } from '@douyinfe/semi-icons';
+import { IconPlus, IconDelete, IconHandle } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess, showWarning } from '../../../helpers';
 import {
@@ -86,7 +86,43 @@ export default function SettingsRechargeGift(props) {
   const addRule = () =>
     setRules((rs) => [...rs, { id: newRuleId(), threshold: null, bonus: null }]);
 
+  // 拖拽排序：dragId 是被拖动规则 id，overId 是当前悬停目标行 id。
+  // 松手时把被拖动行移动到悬停行位置，数组顺序即保存与展示顺序。
+  const dragIdRef = useRef(null);
+  const [dragId, setDragId] = useState(null);
+  const [overId, setOverId] = useState(null);
+  const onDragStart = (id) => {
+    dragIdRef.current = id;
+    setDragId(id);
+  };
+  const onDragOver = (id) => {
+    if (id === dragIdRef.current) return;
+    setOverId(id);
+    // 实时预览：拖动经过某行时立即交换位置，所见即最终顺序
+    setRules((rs) => {
+      const from = rs.findIndex((r) => r.id === dragIdRef.current);
+      const to = rs.findIndex((r) => r.id === id);
+      if (from < 0 || to < 0 || from === to) return rs;
+      const next = [...rs];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+  const onDragEnd = () => {
+    dragIdRef.current = null;
+    setDragId(null);
+    setOverId(null);
+  };
+
   const onSubmit = async () => {
+    // bonus 允许填 0（该档不赠送），但未填（null）视为规则未完成，给出明确提示
+    const incomplete = rules.find(
+      (r) => !(Number(r.threshold) > 0) || r.bonus === null || r.bonus === undefined,
+    );
+    if (rules.length > 0 && incomplete) {
+      return showWarning(t('请完整填写每条规则的充值金额和赠送金额（赠送可为 0）'));
+    }
     const rulesJson = serializeRules(rules);
     // 分别检测"启用开关"与"规则列表"是否变化，各自变化的才提交
     const queue = [];
@@ -197,7 +233,35 @@ export default function SettingsRechargeGift(props) {
               </Text>
             )}
             {rules.map((r) => (
-              <div key={r.id} className='flex items-center gap-2'>
+              <div
+                key={r.id}
+                className='flex items-center gap-2'
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  onDragOver(r.id);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  onDragEnd();
+                }}
+                onDragEnd={onDragEnd}
+                style={
+                  dragId === r.id
+                    ? { opacity: 0.5, background: 'var(--semi-color-fill-0)', borderRadius: 8 }
+                    : undefined
+                }
+              >
+                {/* 拖拽手柄：拖动此图标调整规则顺序，顺序即充值页档位展示顺序 */}
+                <IconHandle
+                  style={{
+                    cursor: 'grab',
+                    color: 'var(--semi-color-text-2)',
+                    flexShrink: 0,
+                  }}
+                  draggable
+                  onDragStart={() => onDragStart(r.id)}
+                  onDragEnd={onDragEnd}
+                />
                 <Text
                   type='tertiary'
                   size='small'

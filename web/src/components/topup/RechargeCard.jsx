@@ -284,7 +284,7 @@ const RechargeCard = ({
                   Number.isFinite(rule.threshold) &&
                   rule.threshold > 0 &&
                   Number.isFinite(rule.bonus) &&
-                  rule.bonus > 0,
+                  rule.bonus >= 0,
               )
           : [];
         const timed = data.timed || {};

@@ -159,6 +159,11 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.DELETE("/:id", controller.DeleteUser)
 				adminRoute.DELETE("/:id/reset_passkey", controller.AdminResetPasskey)
 
+				// 用户模型专属折扣：仅余额支付生效；只折扣输入输出 token，缓存/按次/阶梯表达式计费不参与
+				adminRoute.GET("/:id/model_discounts", controller.AdminGetUserModelDiscounts)
+				adminRoute.PUT("/:id/model_discounts", controller.AdminUpsertUserModelDiscount)
+				adminRoute.DELETE("/:id/model_discounts", controller.AdminDeleteUserModelDiscount)
+
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
@@ -443,6 +448,9 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.GET("/tree/users", controller.GetTreeProviderUsers) //服务商用户管理---tree型结构
 			providerRoute.GET("/users/search", controller.SearchProviderUsers)
 			providerRoute.GET("/users/:id/invitees", controller.GetProviderUserInvitees)
+			providerRoute.GET("/users/:id/model_discounts", controller.ProviderGetUserModelDiscounts)
+			providerRoute.PUT("/users/:id/model_discounts", controller.ProviderUpsertUserModelDiscount)
+			providerRoute.DELETE("/users/:id/model_discounts", controller.ProviderDeleteUserModelDiscount)
 			providerRoute.GET("/users/:id", controller.GetProviderUser)
 			providerRoute.POST("/users", controller.CreateProviderUser)
 			providerRoute.PUT("/users", controller.UpdateProviderUser)

@@ -471,6 +471,7 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
           'claude',
           billingDisplayMode,
           'segments',
+          other?.user_model_discount,
         )
       : renderModelPriceSimple(
           other.model_ratio,
@@ -491,6 +492,7 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
           'openai',
           billingDisplayMode,
           'segments',
+          other?.user_model_discount,
         ),
   };
 }

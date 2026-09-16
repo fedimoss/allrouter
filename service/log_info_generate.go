@@ -79,6 +79,10 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
+	// 用户模型专属折扣：仅在余额支付且折扣生效（<1）时记录，便于账单核对
+	if d := effectiveUserDiscount(relayInfo); d < 1 {
+		other["user_model_discount"] = d
+	}
 	return other
 }
 
