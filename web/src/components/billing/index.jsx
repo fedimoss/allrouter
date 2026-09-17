@@ -875,6 +875,23 @@ const Billing = () => {
           );
         },
       });
+      // 邮箱列：平台账单与分站账单都能看到（同一接口返回 email 字段）
+      baseColumns.splice(2, 0, {
+        title: t('邮箱'),
+        dataIndex: 'email',
+        key: 'email',
+        render: (text) => {
+          const email = String(text || '').trim();
+          if (!email) {
+            return '-';
+          }
+          return (
+            <span className='text-slate-600' title={email}>
+              {email}
+            </span>
+          );
+        },
+      });
     }
 
     return baseColumns;

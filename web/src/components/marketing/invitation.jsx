@@ -62,6 +62,7 @@ import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { isAdmin } from '../../helpers/utils';
 import TransferModal from '../topup/modals/TransferModal';
 import InviteDetailModal from './modals/InviteDetailModal';
+import InviteBillingModal from './modals/InviteBillingModal';
 import bannerImg from '../../../public/invite-banner.png';
 import walletImg from '../../../public/wallet-balance.png';
 import houseImg from '../../../public/house.png';
@@ -77,6 +78,7 @@ const Invitation = () => {
   const [affLink, setAffLink] = useState('');
   const [openTransfer, setOpenTransfer] = useState(false);
   const [openInviteDetail, setOpenInviteDetail] = useState(false);
+  const [openInviteBilling, setOpenInviteBilling] = useState(false);
   const [selectedInvite, setSelectedInvite] = useState(null);
   const [expandedFaq, setExpandedFaq] = useState(null);
   const [inviteList, setInviteList] = useState([
@@ -97,6 +99,7 @@ const Invitation = () => {
     topup_quota: 0,
     quota: 0,
     used_quota: 0,
+    rebate_quota: 0,
   });
   const affFetchedRef = useRef(false);
 
@@ -308,6 +311,23 @@ const Invitation = () => {
       render: (text) => <Text strong>{text || '-'}</Text>,
     },
     {
+      title: t('邮箱'),
+      dataIndex: 'invitee_email',
+      key: 'invitee_email',
+      render: (text) => {
+        const email = String(text || '').trim();
+        if (!email) {
+          return '-';
+        }
+        // 长邮箱省略显示，悬停展示完整内容
+        return (
+          <span className='block max-w-[180px] truncate' title={email}>
+            {email}
+          </span>
+        );
+      },
+    },
+    {
       title: t('注册时间'),
       dataIndex: 'register_time',
       key: 'register_time',
@@ -365,6 +385,23 @@ const Invitation = () => {
           onClick={() => {
             setSelectedInvite(record);
             setOpenInviteDetail(true);
+          }}
+        >
+          {t('查看')}
+        </div>
+      ),
+    },
+    {
+      title: t('账单详情'),
+      dataIndex: 'billing',
+      key: 'billing',
+      width: 90,
+      render: (_, record) => (
+        <div
+          className='text-[color:var(--theme-primary-btn-color)] bg-[color:var(--theme-primary-20)] border border-[color:var(--theme-primary)] rounded-md text-center px-3 py-1 text-[14px] font-bold cursor-pointer'
+          onClick={() => {
+            setSelectedInvite(record);
+            setOpenInviteBilling(true);
           }}
         >
           {t('查看')}
@@ -476,112 +513,125 @@ const Invitation = () => {
         </div>
       </div>
 
-      <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
-        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
-          <Wallet className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
-          <div className='flex items-start justify-between mb-3'>
-            <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
-              {t('被邀请人充值总额')}
-            </span>
-          </div>
-          <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
-            {formatDisplayMoney(inviteeSummary.topup_quota || 0, displaySymbol)}
+      {/* 邀请链接卡片 */}
+      <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-6'>
+        <div className='flex items-center gap-2 mb-4'>
+          <div strong className='font-bold text-[20px]'>
+            {t('您的专属邀请链接')}
           </div>
         </div>
-
-        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
-          <Gift className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
-          <div className='flex items-start justify-between mb-3'>
-            <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
-              {t('被邀请人剩余余额')}
-            </span>
-          </div>
-          <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
-            {formatDisplayMoney(inviteeSummary.quota || 0, displaySymbol)}
-          </div>
+        <div className='flex gap-2'>
+          <Input
+            value={affLink}
+            size='large'
+            readonly
+            className='flex-1 !rounded-lg dark:bg-slate-900 dark:border-slate-700'
+            placeholder={t('加载中...')}
+            style={{ fontSize: '16px' }}
+          />
+          <Button
+            theme='solid'
+            size='large'
+            onClick={handleAffLinkClick}
+            icon={<Copy size={14} />}
+            className='!rounded-lg'
+            style={{
+              background: 'var(--theme-gradient-135)',
+              borderColor: 'transparent',
+              color: 'var(--theme-primary-btn-color)',
+            }}
+          >
+            {t('复制链接')}
+          </Button>
         </div>
+        {/* <div className='mt-3 flex items-start gap-2'>
+          <Info
+            size={14}
+            className='text-slate-400 mt-0.5 flex-shrink-0'
+          />
+          <Text type='tertiary' size='small'>
+            {t('好友通过此链接注册并首次充值后，奖励将自动发放。')}
+          </Text>
+        </div> */}
 
-        <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
-          <TrendingUp className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
-          <div className='flex items-start justify-between mb-3'>
-            <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
-              {t('被邀请人消耗总额')}
-            </span>
-          </div>
-          <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
-            {formatDisplayMoney(inviteeSummary.used_quota || 0, displaySymbol)}
-          </div>
+        {/* 分享按钮 */}
+        <div className='flex items-center gap-3 mt-8'>
+          <span className='text-sm text-slate-500 dark:text-slate-400'>
+            {t('快速分享：')}
+          </span>
+          <Button
+            size='large'
+            type='tertiary'
+            className='!rounded-lg'
+            icon={<SiWechat size={18} />}
+          ></Button>
+          <Button
+            size='large'
+            type='tertiary'
+            className='!rounded-lg'
+            icon={<SiX size={18} />}
+          ></Button>
+          <Button
+            size='large'
+            type='tertiary'
+            className='!rounded-lg'
+            icon={<Mail size={18} />}
+          ></Button>
         </div>
       </div>
 
       {/* 主内容区：左右布局 */}
       <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'grid-cols-3'}`}>
-        {/* 左侧：邀请链接 + 邀请明细 */}
+        {/* 左侧：被邀请人统计卡片 + 邀请明细 */}
         <div className={isMobile ? '' : 'col-span-2'}>
-          {/* 邀请链接卡片 */}
-          <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-6'>
-            <div className='flex items-center gap-2 mb-4'>
-              <div strong className='font-bold text-[20px]'>
-                {t('您的专属邀请链接')}
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-6'>
+            <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
+              <Wallet className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
+              <div className='flex items-start justify-between mb-3'>
+                <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
+                  {t('被邀请人充值总额')}
+                </span>
+              </div>
+              <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
+                {formatDisplayMoney(inviteeSummary.topup_quota || 0, displaySymbol)}
               </div>
             </div>
-            <div className='flex gap-2'>
-              <Input
-                value={affLink}
-                size='large'
-                readonly
-                className='flex-1 !rounded-lg dark:bg-slate-900 dark:border-slate-700'
-                placeholder={t('加载中...')}
-                style={{ fontSize: '16px' }}
-              />
-              <Button
-                theme='solid'
-                size='large'
-                onClick={handleAffLinkClick}
-                icon={<Copy size={14} />}
-                className='!rounded-lg'
-                style={{
-                  background: 'var(--theme-gradient-135)',
-                  borderColor: 'transparent',
-                  color: 'var(--theme-primary-btn-color)',
-                }}
-              >
-                {t('复制链接')}
-              </Button>
-            </div>
-            {/* <div className='mt-3 flex items-start gap-2'>
-              <Info
-                size={14}
-                className='text-slate-400 mt-0.5 flex-shrink-0'
-              />
-              <Text type='tertiary' size='small'>
-                {t('好友通过此链接注册并首次充值后，奖励将自动发放。')}
-              </Text>
-            </div> */}
 
-            {/* 分享按钮 */}
-            <div className='flex items-center gap-3 mt-8'>
-              <span className='text-sm text-slate-500 dark:text-slate-400'>
-                {t('快速分享：')}
-              </span>
-              <Button
-                size='large'
-                type='tertiary'
-                className='!rounded-lg'
-                icon={<SiWechat size={18} />}
-              ></Button>
-              <Button
-                size='large'
-                type='tertiary'
-                className='!rounded-lg'
-                icon={<SiX size={18} />}
-              ></Button>
-              <Button
-                size='large'
-                type='tertiary'
-                className='!rounded-lg'
-                icon={<Mail size={18} />}
-              ></Button>
+            <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
+              <Gift className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
+              <div className='flex items-start justify-between mb-3'>
+                <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
+                  {t('被邀请人剩余余额')}
+                </span>
+              </div>
+              <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
+                {formatDisplayMoney(inviteeSummary.quota || 0, displaySymbol)}
+              </div>
+            </div>
+
+            <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
+              <TrendingUp className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
+              <div className='flex items-start justify-between mb-3'>
+                <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
+                  {t('被邀请人消耗总额')}
+                </span>
+              </div>
+              <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
+                {formatDisplayMoney(inviteeSummary.used_quota || 0, displaySymbol)}
+              </div>
+            </div>
+
+            <div className='bg-white dark:bg-semi-color-bg-1 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 relative min-h-[180px]'>
+              <ArrowLeftRight className='absolute bottom-5 right-5 z-0 text-slate-200 dark:text-slate-700' size={48} />
+              <div className='flex items-start justify-between mb-3'>
+                <span className='text-[14px] text-[#94A3B8] dark:text-slate-400'>
+                  {t('被邀请人累计返佣')}
+                </span>
+              </div>
+              {/* 使用后端转换值 + 用户币种符号展示被邀请人累计返佣 */}
+              <div className='dark:text-semi-color-text-0 mb-1 font-[900] text-[#475569] text-[30px] leading-[30px] relative z-10'>
+                {formatDisplayMoney(inviteeSummary.rebate_quota || 0, displaySymbol)}
+              </div>
             </div>
           </div>
 
@@ -703,6 +753,15 @@ const Invitation = () => {
         t={t}
         visible={openInviteDetail}
         onClose={() => setOpenInviteDetail(false)}
+        inviteeId={selectedInvite?.invitee_id}
+        inviteeName={selectedInvite?.invitee_name}
+      />
+
+      {/* 账单弹窗 */}
+      <InviteBillingModal
+        t={t}
+        visible={openInviteBilling}
+        onClose={() => setOpenInviteBilling(false)}
         inviteeId={selectedInvite?.invitee_id}
         inviteeName={selectedInvite?.invitee_name}
       />

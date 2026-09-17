@@ -497,10 +497,22 @@ func getInviteeFinancialSummary(inviterId *int, displayInfo model.DisplayCurrenc
 	if err != nil {
 		return nil, err
 	}
+	// 被邀请人消费返佣总额: 普通用户按自己作为邀请人汇总, 管理员汇总全平台。
+	// 口径与返利明细弹窗一致(含一、二级返佣), rebate_quota 为内部额度, 统一换算为展示币种。
+	var rebateQuotaSum int64
+	if inviterId == nil {
+		rebateQuotaSum, err = model.SumAllConsumeRebateQuota()
+	} else {
+		rebateQuotaSum, err = model.SumConsumeRebateQuotaByInviter(*inviterId)
+	}
+	if err != nil {
+		return nil, err
+	}
 	return gin.H{
-		"topup_quota": convertUsdToDisplay(summary.TopupFiatMoney+cryptoUsdtToUsd(summary.TopupCryptoMoney), displayInfo),
-		"quota":       convertQuotaToDisplay(int(summary.QuotaSum), displayInfo),
-		"used_quota":  convertQuotaToDisplay(int(summary.UsedQuotaSum), displayInfo),
+		"topup_quota":  convertUsdToDisplay(summary.TopupFiatMoney+cryptoUsdtToUsd(summary.TopupCryptoMoney), displayInfo),
+		"quota":        convertQuotaToDisplay(int(summary.QuotaSum), displayInfo),
+		"used_quota":   convertQuotaToDisplay(int(summary.UsedQuotaSum), displayInfo),
+		"rebate_quota": convertQuotaToDisplay(int(rebateQuotaSum), displayInfo), // 被邀请人累计返佣
 	}, nil
 }
 
@@ -540,6 +552,7 @@ func GetUserAffRecords(c *gin.Context) {
 			"inviter_id":         record.InviterId,
 			"invitee_id":         record.InviteeId,
 			"invitee_name":       record.InviteeName,
+			"invitee_email":      record.InviteeEmail,
 			"register_time":      record.RegisterTime,
 			"reward_quota":       convertQuotaToDisplay(record.RewardQuota, displayInfo),
 			"invitee_quota":      convertQuotaToDisplay(record.InviteeQuota, displayInfo),     // 被邀请人余额
@@ -636,6 +649,7 @@ func GetSelfAffRecords(c *gin.Context) {
 			"inviter_id":         record.InviterId,
 			"invitee_id":         record.InviteeId,
 			"invitee_name":       record.InviteeName,
+			"invitee_email":      record.InviteeEmail,
 			"register_time":      record.RegisterTime,
 			"reward_quota":       convertQuotaToDisplay(record.RewardQuota, displayInfo),
 			"invitee_quota":      convertQuotaToDisplay(record.InviteeQuota, displayInfo),     // 被邀请人余额

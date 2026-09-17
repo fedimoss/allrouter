@@ -175,6 +175,8 @@ func SetApiRouter(router *gin.Engine) {
 			userBillingRoute.Use(middleware.UserAuth())
 			{
 				userBillingRoute.GET("/topup", controller.GetAllTopUps)
+				// 邀请明细页查看被邀请人的充值记录，非管理员仅能查询自己直接邀请的用户
+				userBillingRoute.GET("/topup/invitee", controller.GetInviteeTopUps)
 				userBillingRoute.POST("/topup/detail", controller.GetUserTopupDetails)
 				// 补单是资金入账操作，仅限主站管理员与被授权用户，不对分站开放
 				userBillingRoute.POST("/topup/complete", middleware.AdminOrModuleAuth("billing", "user"), controller.AdminCompleteTopUp)

@@ -40,7 +40,11 @@ type TopUp struct {
 	// queries from the user referenced by UserId. They are deliberately kept
 	// separate: username identifies the account, while display_name is mutable
 	// profile data (nickname).
-	Username        string   `json:"username" gorm:"->;-:migration;column:username"`
+	Username string `json:"username" gorm:"->;-:migration;column:username"`
+	// Email is likewise read-only, populated by the list queries from the user
+	// referenced by UserId (provider billing shows it as a contact column).
+	Email string `json:"email" gorm:"->;-:migration;column:email"`
+	// DisplayName likewise identifies the mutable nickname of that user.
 	DisplayName     string   `json:"display_name" gorm:"->;-:migration;column:display_name"`
 	DisplayCurrency string   `json:"display_currency,omitempty" gorm:"-"` // 展示用币种代码（非数据库字段，由 controller 层填充）
 	DisplaySymbol   string   `json:"display_symbol,omitempty" gorm:"-"`   // 展示用币种符号（非数据库字段，由 controller 层填充）
@@ -152,7 +156,8 @@ func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
 			t.currency,
 			t.original_money,
 			COALESCE(users.username, '') AS username,
-			COALESCE(users.display_name, '') AS display_name
+			COALESCE(users.display_name, '') AS display_name,
+			COALESCE(users.email, '') AS email
 		FROM top_ups AS t
 		LEFT JOIN users ON users.id = t.user_id
 
@@ -174,7 +179,8 @@ func withAllTopUpRecords(tx *gorm.DB) *gorm.DB {
 			'' AS currency,
 			0 AS original_money,
 			COALESCE(users.username, '') AS username,
-			COALESCE(users.display_name, '') AS display_name
+			COALESCE(users.display_name, '') AS display_name,
+			COALESCE(users.email, '') AS email
 		FROM topup_rebates AS tr
 		LEFT JOIN users ON users.id = tr.inviter_id
 	`))
