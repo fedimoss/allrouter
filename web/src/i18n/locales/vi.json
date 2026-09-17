@@ -5294,6 +5294,7 @@
     "折扣": "Chiết khấu",
     "折扣必须在 1 到 10 之间": "Chiết khấu phải nằm trong khoảng từ 1 đến 10",
     "折扣计算：输入输出 Token 费用 × {{discount}}x；缓存及附加费用不打折": "Cách tính chiết khấu: phí token đầu vào/đầu ra × {{discount}}x; bộ nhớ đệm và phí bổ sung không được giảm giá",
+    "折扣后计费：(输入输出费用 {{discountableAmount}} × {{discount}}x + 缓存及附加费用 {{nonDiscountedAmount}}) × {{ratioType}} {{ratio}} = {{total}}": "Tính phí sau chiết khấu: (phí đầu vào/đầu ra {{discountableAmount}} × {{discount}}x + bộ nhớ đệm và phí bổ sung {{nonDiscountedAmount}}) × {{ratioType}} {{ratio}} = {{total}}",
     "这笔钱是怎么算出来的": "Reward/Gift Deduction",
     "这次调用主站真实模型产生的成本，也就是服务商使用主站资源的成本。": "Main-site Cost",
     "这个公式比较复杂，下面的简化表单没法完整还原，请在表达式编辑模式下修改。": "这个公式比较复杂，下面的简化表单没法完整还原，请在表达式编辑模式下修改。",

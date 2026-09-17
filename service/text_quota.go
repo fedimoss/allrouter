@@ -57,8 +57,14 @@ type textQuotaSummary struct {
 	ImageGenerationCallPrice float64
 	ToolCallSurchargeQuota   decimal.Decimal
 	// CacheQuotaComponent 倍率计费下缓存部分（缓存读+缓存写，含5m/1h分档）
-	// 在最终 Quota 中占用的额度小计；按次计费（UsePrice）与阶梯表达式计费下为 0
+	// 在最终 Quota 中占用的额度小计；按次计费（UsePrice）下为 0，动态表达式
+	// 结算时由表达式分项结果回填。
 	CacheQuotaComponent decimal.Decimal
+	// DiscountableQuotaComponent is the undiscounted input/output subtotal.
+	// Provider-user discounts are applied to its provider-priced counterpart so
+	// the main-site import cost remains unchanged.
+	DiscountableQuotaComponent decimal.Decimal
+	DiscountableTokens         int
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -173,6 +179,60 @@ func applyProviderPricingQuota(ctx *gin.Context, baseQuota int, cacheQuota decim
 		providerQuota = 0
 	}
 	return providerQuota, importCostQuota, true
+}
+
+func providerDiscountableUserQuota(ctx *gin.Context, baseDiscountableQuota decimal.Decimal, usePrice bool, groupRatio float64, nonCacheUnitCount decimal.Decimal) decimal.Decimal {
+	if baseDiscountableQuota.IsNegative() {
+		return decimal.Zero
+	}
+	importRatio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderImportPriceRatio)
+	if importRatio <= 0 {
+		importRatio = 1
+	}
+	result := baseDiscountableQuota.Mul(decimal.NewFromFloat(importRatio))
+	if common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType) == model.ProviderPricingTypeDelta {
+		if usePrice {
+			result = result.Add(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaPrice)).
+				Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+				Mul(decimal.NewFromFloat(groupRatio)))
+		} else {
+			result = result.Add(decimal.NewFromFloat(common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaRatio)).
+				Mul(nonCacheUnitCount).
+				Mul(decimal.NewFromFloat(groupRatio)))
+		}
+	} else {
+		ratio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderPricingRatio)
+		if ratio == 0 {
+			ratio = 1
+		}
+		result = result.Mul(decimal.NewFromFloat(ratio))
+	}
+	if result.IsNegative() {
+		return decimal.Zero
+	}
+	return result
+}
+
+func applyProviderUserDiscount(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, providerQuota int, baseDiscountableQuota decimal.Decimal, usePrice bool, groupRatio float64, nonCacheUnitCount int) int {
+	discount := effectiveUserDiscount(relayInfo)
+	if discount >= 1 || providerQuota <= 0 {
+		return providerQuota
+	}
+	discountable := providerDiscountableUserQuota(
+		ctx,
+		baseDiscountableQuota,
+		usePrice,
+		groupRatio,
+		decimal.NewFromInt(int64(nonCacheUnitCount)),
+	)
+	total := decimal.NewFromInt(int64(providerQuota))
+	if discountable.GreaterThan(total) {
+		discountable = total
+	}
+	finalQuota, _ := common.QuotaFromDecimalChecked(total.
+		Sub(discountable).
+		Add(discountable.Mul(decimal.NewFromFloat(discount))))
+	return finalQuota
 }
 
 func ApplyProviderPricingDisplay(ctx *gin.Context, modelRatio float64, modelPrice float64) (displayModelRatio float64, displayModelPrice float64, applied bool) {
@@ -297,6 +357,14 @@ func applyTieredTextBilling(relayInfo *relaycommon.RelayInfo, usage *dto.Usage, 
 	// the quota that is actually settled.
 	var finalClamp *common.QuotaClamp
 	summary.Quota, finalClamp = composeTieredTextQuota(relayInfo, summary, quota, result)
+	if result != nil {
+		snap := relayInfo.TieredBillingSnapshot
+		summary.CacheQuotaComponent = decimal.NewFromFloat(result.CacheQuotaBeforeGroup).
+			Mul(decimal.NewFromFloat(snap.GroupRatio))
+		summary.DiscountableQuotaComponent = decimal.NewFromFloat(result.DiscountableQuotaBeforeGroup).
+			Mul(decimal.NewFromFloat(snap.GroupRatio))
+		summary.DiscountableTokens = int(result.DiscountableTokens)
+	}
 	if relayInfo != nil {
 		relayInfo.QuotaClamp = finalClamp
 	}
@@ -479,7 +547,15 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		// 缓存读/写、图片 token、音频、按次工具附加费不参与；
 		// 仅余额支付生效（订阅支付不参与），与分组倍率叠加。
 		// 预扣已按原价锁定，此处只影响结算额，多退少补由 BillingSession 兜底。
-		if userDiscount := effectiveUserDiscount(relayInfo); userDiscount < 1 {
+		undiscountedInputOutput := baseTokens.Add(completionQuota).Mul(ratio)
+		undiscountedInputOutput = relayInfo.PriceData.ApplyOtherRatiosToDecimal(undiscountedInputOutput)
+		summary.DiscountableQuotaComponent = undiscountedInputOutput
+		summary.DiscountableTokens = int(baseTokens.IntPart()) + summary.CompletionTokens
+		userDiscount := effectiveUserDiscount(relayInfo)
+		if relayInfo.ProviderId > 0 {
+			userDiscount = 1
+		}
+		if userDiscount < 1 {
 			dUserDiscount := decimal.NewFromFloat(userDiscount)
 			baseTokens = baseTokens.Mul(dUserDiscount)
 			completionQuota = completionQuota.Mul(dUserDiscount)
@@ -557,13 +633,21 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	providerOwnerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
 	providerPublicModel := common.GetContextKeyString(ctx, constant.ContextKeyProviderPublicModel)
 	if providerId > 0 && providerPublicModel != "" {
-		// 阶梯表达式计费结果是一个整体总额，无法拆出缓存部分，保持统一折扣
 		cacheQuotaComponent := summary.CacheQuotaComponent
-		if tieredBillingApplied {
-			cacheQuotaComponent = decimal.Zero
-		}
 		providerQuota, importCostQuota, _ := ApplyProviderPricingQuota(ctx, baseQuota, cacheQuotaComponent, relayInfo.PriceData.UsePrice, summary.GroupRatio, summary.TotalTokens, summary.NonCacheTokens)
-		summary.Quota = providerQuota
+		discountableTokens := summary.DiscountableTokens
+		if discountableTokens <= 0 {
+			discountableTokens = summary.NonCacheTokens
+		}
+		summary.Quota = applyProviderUserDiscount(
+			ctx,
+			relayInfo,
+			providerQuota,
+			summary.DiscountableQuotaComponent,
+			relayInfo.PriceData.UsePrice,
+			summary.GroupRatio,
+			discountableTokens,
+		)
 		if summary.Quota < 0 {
 			summary.Quota = 0
 		}
@@ -735,7 +819,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["input_tokens_total"] = usage.InputTokens
 	}
 	if tieredBillingApplied {
-		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+		InjectTieredBillingInfo(ctx, other, relayInfo, tieredResult)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 

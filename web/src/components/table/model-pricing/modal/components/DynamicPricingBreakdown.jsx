@@ -103,6 +103,7 @@ export default function DynamicPricingBreakdown({
   title,
   description,
   priceMultiplier = 1,
+  cachePriceMultiplier,
   providerPricingType = '',
   providerDeltaModelRatio = 0,
 }) {
@@ -110,6 +111,11 @@ export default function DynamicPricingBreakdown({
   const normalizedPriceMultiplier = Number.isFinite(Number(priceMultiplier))
     ? Math.max(0, Number(priceMultiplier))
     : 1;
+  const normalizedCachePriceMultiplier = Number.isFinite(
+    Number(cachePriceMultiplier),
+  )
+    ? Math.max(0, Number(cachePriceMultiplier))
+    : normalizedPriceMultiplier;
   const heading = title || t('动态计费');
   const subtitle =
     description === false
@@ -118,6 +124,8 @@ export default function DynamicPricingBreakdown({
   const displayExpr = extractBillingDisplayScale(billingExpr || '');
   const finalPriceMultiplier =
     normalizedPriceMultiplier * displayExpr.multiplier;
+  const finalCachePriceMultiplier =
+    normalizedCachePriceMultiplier * displayExpr.multiplier;
   const { billingExpr: baseExpr, requestRuleExpr: ruleExpr } =
     splitBillingExprAndRequestRules(displayExpr.billingExpr);
 
@@ -145,7 +153,11 @@ export default function DynamicPricingBreakdown({
     );
   }
 
-  const priceFields = BILLING_PRICING_VARS.map((v) => [v.field, v.shortLabel]);
+  const priceFields = BILLING_PRICING_VARS.map((v) => [
+    v.field,
+    v.shortLabel,
+    v.group,
+  ]);
 
   const tierColumns = [
     {
@@ -184,9 +196,12 @@ export default function DynamicPricingBreakdown({
         label: tier.label,
         condSummary: formatConditionSummary(tier.conditions, t),
         ...Object.fromEntries(
-          priceFields.map(([field]) => [
+          priceFields.map(([field, , group]) => [
             field,
-            (tier[field] || 0) * finalPriceMultiplier,
+            (tier[field] || 0) *
+              (group === 'cache'
+                ? finalCachePriceMultiplier
+                : finalPriceMultiplier),
           ]),
         ),
       }))
