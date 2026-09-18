@@ -5787,6 +5787,9 @@
     "Worker地址": "Adresse du Worker",
     "Worker密钥": "Clé du Worker",
     "Workspace": "Espace de travail",
-    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X peut aussi être inférieur à 1 pour appliquer une remise. Pour augmenter uniquement le prix de sortie ou ajouter des frais fixes, écrivez directement la formule de facturation complète."
+    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X peut aussi être inférieur à 1 pour appliquer une remise. Pour augmenter uniquement le prix de sortie ou ajouter des frais fixes, écrivez directement la formule de facturation complète.",
+    "继续支付": "Continuer le paiement",
+    "继续支付失败": "Échec de la reprise du paiement",
+    "请在订阅页面继续完成加密货币支付": "Continuez le paiement en cryptomonnaie sur la page d’abonnement"
   }
 }

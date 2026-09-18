@@ -43,6 +43,7 @@ import {
   CalendarCheck2,
   CheckCircle,
   Coins,
+  CreditCard,
   Gift,
   Wallet,
   BarChart3,
@@ -62,6 +63,11 @@ import {
 } from '../../helpers/utils';
 import { StatusContext } from '../../context/Status';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
+import {
+  isLakalaQRCodePayment,
+  saveLakalaQRCodePayment,
+  LAKALA_QRCODE_ROUTE,
+} from '../../helpers/lakalaPayment';
 
 const { Text } = Typography;
 
@@ -366,6 +372,7 @@ const Billing = () => {
   const [detailVisible, setDetailVisible] = useState(false);
   const [orderInfo, setOrderInfo] = useState(null);
   const [commissionDetails, setCommissionDetails] = useState([]);
+  const [resumingId, setResumingId] = useState(null);
 
   // 站点维度用域名租户上下文判断（/api/status 的 site_provider_id），与运营数据页一致
   const [statusState] = useContext(StatusContext);
@@ -616,6 +623,78 @@ const Billing = () => {
     );
   };
 
+  const submitEpayForm = ({ url, params }) => {
+    const form = document.createElement('form');
+    form.action = url;
+    form.method = 'POST';
+    form.target = '_blank';
+    Object.entries(params || {}).forEach(([key, value]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = value;
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  };
+
+  const resumePayment = async (record) => {
+    if (!record?.source_id || resumingId) return;
+    setResumingId(record.id);
+    try {
+      const res = await API.post(
+        `/api/subscription/orders/${record.source_id}/resume`,
+      );
+      const payload = res.data?.data;
+      if (!res.data?.success || !payload) {
+        Toast.error({ content: res.data?.message || t('继续支付失败') });
+        return;
+      }
+      let successMessage = t('已打开支付页面');
+      if (payload.kind === 'form') {
+        submitEpayForm({ url: payload.url, params: payload.data });
+      } else if (payload.kind === 'redirect' && payload.checkout_url) {
+        window.open(payload.checkout_url, '_blank', 'noopener,noreferrer');
+      } else if (
+        payload.kind === 'qrcode' &&
+        isLakalaQRCodePayment(payload.url, payload.data)
+      ) {
+        const tradeNo = saveLakalaQRCodePayment(payload.data, {
+          returnTo: '/console/billing',
+          successPath: '/console/billing?pay=success',
+        });
+        window.open(
+          `${LAKALA_QRCODE_ROUTE}?trade_no=${encodeURIComponent(tradeNo)}`,
+          '_blank',
+          'noopener,noreferrer',
+        );
+      } else if (payload.kind === 'crypto') {
+        successMessage = t('请在订阅页面继续完成加密货币支付');
+        sessionStorage.setItem(
+          'resume_subscription_order',
+          JSON.stringify(payload),
+        );
+        window.open(
+          '/console/topup?resume_subscription=1',
+          '_blank',
+          'noopener,noreferrer',
+        );
+      } else {
+        Toast.error({ content: t('继续支付失败') });
+        return;
+      }
+      Toast.success({ content: successMessage });
+    } catch (error) {
+      Toast.error({
+        content: error?.response?.data?.message || t('继续支付失败'),
+      });
+    } finally {
+      setResumingId(null);
+    }
+  };
+
   const renderBizTypeTag = (record) => {
     const config = getTopupBizTypeConfig(record);
     const inviteRebate = isInviteRebateTopup(record);
@@ -824,6 +903,24 @@ const Billing = () => {
         align: 'left',
         render: (_, record) => (
           <div className='flex items-center justify-start gap-2'>
+            {!canViewSiteBilling &&
+            record.source_id &&
+            isSubscriptionTopup(record) &&
+            record.status === 'pending' ? (
+              <Tooltip content={t('继续支付')}>
+                <Button
+                  size='small'
+                  type='tertiary'
+                  theme='borderless'
+                  icon={<CreditCard size={16} />}
+                  loading={resumingId === record.id}
+                  onClick={() => resumePayment(record)}
+                  style={{ color: '#475569' }}
+                >
+                  {t('继续支付')}
+                </Button>
+              </Tooltip>
+            ) : null}
             {canManageBilling && record.status === 'pending' ? (
               <Tooltip content={t('补单')}>
                 <Button

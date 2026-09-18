@@ -197,7 +197,8 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
 			subscriptionRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCryptoPay) // 加密货币订阅
 			subscriptionRoute.POST("/crypto/confirm", controller.SubscriptionRequestCryptoConfirm)                         // 加密货币订阅确认
-			subscriptionRoute.GET("/lakala/status", controller.GetSubscriptionLakalaStatus)                                // 拉卡拉订阅订单状态轮询
+			subscriptionRoute.POST("/orders/:id/resume", middleware.CriticalRateLimit(), controller.ResumeSubscriptionOrder)
+			subscriptionRoute.GET("/lakala/status", controller.GetSubscriptionLakalaStatus) // 拉卡拉订阅订单状态轮询
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminOrModuleAuth("subscription"))
