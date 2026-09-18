@@ -1686,6 +1686,7 @@
     "基础信息": "This record comes from one model call by a provider user. The system first charges the user by provider pricing, then calculates the provider-borne cost and bookable profit based on the real main-site model cost.",
     "基础用户": "Basic user",
     "基础URL": "URL cơ bản",
+    "基础URL未配置": "URL cơ bản chưa được cấu hình",
     "基于典型场景估算": "Ước tính dựa trên các tình huống điển hình",
     "基于浏览器环境展示当前设备、语言与主题信息。": "Hiển thị thông tin thiết bị, ngôn ngữ và chủ đề dựa trên môi trường trình duyệt.",
     "激活": "Kích hoạt",

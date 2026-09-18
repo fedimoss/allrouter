@@ -633,6 +633,8 @@ func SetApiRouter(router *gin.Engine) {
 			douyinCardRoute.POST("/", controller.AddDouyinCard)
 			douyinCardRoute.PUT("/", controller.UpdateDouyinCard)
 			douyinCardRoute.DELETE("/:id", controller.DeleteDouyinCard)
+			// 基础URL（只读）：供控制台「复制」按钮拼接卡片链接 {基础URL}/?id={卡片ID}
+			douyinCardRoute.GET("/base_url", controller.GetDouyinCardBaseUrl)
 			// 卡片图片上传（私信卡片 Logo / 推广链接微信头像、二维码）：
 			// 保存在本站 static/card 目录，返回 URL 由前端随卡片数据提交给外部接口
 			douyinCardRoute.POST("/upload", middleware.RequestBodyLimit(controller.DouyinCardImageBodyLimit), controller.UploadDouyinCardImage)

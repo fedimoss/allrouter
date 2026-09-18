@@ -247,3 +247,23 @@ func TestGetDouyinCardsBuildsQueryBody(t *testing.T) {
 	require.Equal(t, float64(2), page["pageNo"])
 	require.Equal(t, float64(20), page["pageSize"])
 }
+
+// TestGetDouyinCardBaseUrl 基础URL只读接口：返回去掉末尾斜杠与空白的基础URL，
+// 供控制台「复制」按钮拼接卡片链接。
+func TestGetDouyinCardBaseUrl(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	s := system_setting.GetDouyinCardSettings()
+	oldBase := s.BaseURL
+	defer func() { s.BaseURL = oldBase }()
+	s.BaseURL = " https://api.example.com/ "
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/douyin_card/base_url", nil)
+
+	GetDouyinCardBaseUrl(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Body.String(), `"baseUrl":"https://api.example.com"`)
+}

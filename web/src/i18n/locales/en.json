@@ -1608,6 +1608,7 @@
     "基础信息": "Basic Information",
     "基础用户": "Basic user",
     "基础URL": "Base URL",
+    "基础URL未配置": "Base URL is not configured",
     "基于典型场景估算": "Typical Scenario Estimation",
     "基于浏览器环境展示当前设备、语言与主题信息。": "Show current device, language, and theme information based on browser environment.",
     "即时结算": "Instant settlement",

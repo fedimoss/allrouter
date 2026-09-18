@@ -46,6 +46,7 @@ import PhonePreview, { useViewportHeight, WechatPreview } from './PhonePreview';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import {
+  copy,
   createCardProPagination,
   timestamp2string,
 } from '../../../helpers/utils';
@@ -259,6 +260,8 @@ const DouyinCardsTable = () => {
   const pageSize = ITEMS_PER_PAGE;
   const [totalCount, setTotalCount] = useState(0);
   const [keyword, setKeyword] = useState('');
+  // 系统设置「抖音私信卡片 → 基础URL」，「复制」按钮用它拼接 {基础URL}/?id={卡片ID}
+  const [baseUrl, setBaseUrl] = useState('');
 
   // 编辑弹窗状态
   const [showEdit, setShowEdit] = useState(false);
@@ -365,6 +368,20 @@ const DouyinCardsTable = () => {
     loadCards(activePage, pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePage, pageSize]);
+
+  // 「复制」按钮需要基础URL，页面加载时取一次；
+  // 拿不到时点「复制」会提示基础URL未配置，这里不必额外报错
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await API.get('/api/douyin_card/base_url');
+        const { success, data } = res.data || {};
+        if (success) setBaseUrl(data?.baseUrl || '');
+      } catch (e) {
+        // 忽略：全局拦截器已提示
+      }
+    })();
+  }, []);
 
   const handlePageChange = (page) => setActivePage(page);
 
@@ -490,6 +507,18 @@ const DouyinCardsTable = () => {
     }
   };
 
+  // 复制卡片链接：系统设置「抖音私信卡片 → 基础URL」+ /?id= + 本行主键
+  const copyCardLink = async (record) => {
+    if (!baseUrl) {
+      showError(t('基础URL未配置'));
+      return;
+    }
+    const id = pickField(record, ['id', 'card_id']);
+    const ok = await copy(`${baseUrl}/?id=${id}`);
+    if (ok) showSuccess(t('复制成功'));
+    else showError(t('复制失败'));
+  };
+
   const deleteCard = async (record) => {
     const id = pickField(record, ['id', 'card_id']);
     if (id === '' || id === undefined) {
@@ -599,9 +628,17 @@ const DouyinCardsTable = () => {
       // 与渠道/令牌等页的移动端一致（桌面保留表头，方便对照）
       title: isMobile ? '' : t('操作'),
       key: 'operate',
-      width: 140,
+      width: 165,
       render: (v, record) => (
         <div className='flex gap-1'>
+          {/* 复制卡片链接：{基础URL}/?id={本行id} */}
+          <Button
+            size='small'
+            theme='borderless'
+            onClick={() => copyCardLink(record)}
+          >
+            {t('复制')}
+          </Button>
           <Button
             size='small'
             theme='borderless'

@@ -1602,6 +1602,7 @@
     "基础信息": "Basic Information",
     "基础用户": "Basic user",
     "基础URL": "URL de base",
+    "基础URL未配置": "L'URL de base n'est pas configurée",
     "基于典型场景估算": "Estimation basée sur les situations typiques",
     "基于浏览器环境展示当前设备、语言与主题信息。": "Affiche les informations actuelles sur l'appareil, la langue et le thème dans un environnement de navigateur.",
     "即时结算": "Règlement instantané",

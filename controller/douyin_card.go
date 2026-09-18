@@ -194,6 +194,14 @@ func douyinCardProxy(c *gin.Context, endpoint system_setting.DouyinCardEndpoint,
 	c.Data(resp.StatusCode, contentType, respBody)
 }
 
+// GetDouyinCardBaseUrl 返回抖音私信卡片配置中的基础URL（去掉末尾斜杠），
+// 供控制台「复制」按钮拼接卡片链接：{基础URL}/?id={卡片ID}。
+// 基础URL属于管理配置，不需要整表下发 option，故单独开只读接口挂在现有分组下。
+func GetDouyinCardBaseUrl(c *gin.Context) {
+	base := strings.TrimRight(strings.TrimSpace(system_setting.GetDouyinCardSettings().BaseURL), "/")
+	common.ApiSuccess(c, gin.H{"baseUrl": base})
+}
+
 // GetDouyinCards 查询卡片列表（查询接口）
 // 查询接口以 JSON 请求体调用外部服务（系统设置中该接口的方法需配置为 POST）：
 //
