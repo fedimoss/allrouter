@@ -7347,3 +7347,23 @@ COMMIT;
 
 
 ALTER TABLE provider_configs ADD COLUMN import_cache_price_ratio DECIMAL(10,6) NOT NULL DEFAULT 0;
+
+
+CREATE TABLE IF NOT EXISTS user_model_discounts (
+                                                    id SERIAL PRIMARY KEY,
+                                                    user_id INTEGER NOT NULL,
+                                                    model_name VARCHAR(255) NOT NULL,
+    discount NUMERIC(10,6) NOT NULL DEFAULT 1,
+    created_at BIGINT NOT NULL DEFAULT 0,
+    updated_at BIGINT NOT NULL DEFAULT 0
+    );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_model_discounts_user_model
+    ON user_model_discounts(user_id, model_name);
+
+COMMENT ON TABLE user_model_discounts IS '指定用户指定模型专属折扣表（仅余额支付生效；只折扣输入输出 token，缓存不参与）';
+COMMENT ON COLUMN user_model_discounts.user_id IS '用户 ID';
+COMMENT ON COLUMN user_model_discounts.model_name IS '模型名（前端请求模型名）';
+COMMENT ON COLUMN user_model_discounts.discount IS '专属折扣，范围 (0,1]，1 表示不打折';
+COMMENT ON COLUMN user_model_discounts.created_at IS '创建时间戳';
+COMMENT ON COLUMN user_model_discounts.updated_at IS '更新时间戳';

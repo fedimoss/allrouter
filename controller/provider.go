@@ -131,7 +131,7 @@ type providerBaseModelChannelPrice struct {
 	CompletionRatio  float64 `json:"completion_ratio"`
 	GroupRatio       float64 `json:"group_ratio"`
 	ImportPriceRatio float64 `json:"import_price_ratio"`
-	// ImportCachePriceRatio 缓存部分实际使用的成本折扣（未单独配置时等于 import_price_ratio）
+	// ImportCachePriceRatio 缓存部分实际使用的成本折扣（未单独配置时按主站原价 1）
 	ImportCachePriceRatio float64            `json:"import_cache_price_ratio"`
 	OriginalPrice         float64            `json:"original_price"`
 	CompletionPrice       float64            `json:"completion_price"`

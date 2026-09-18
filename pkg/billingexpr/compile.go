@@ -39,30 +39,32 @@ var (
 
 // compileEnvPrototypeV1 is the v1 type-checking prototype used at compile time.
 var compileEnvPrototypeV1 = map[string]interface{}{
-	"p":       float64(0),
-	"c":       float64(0),
-	"len":     float64(0),
-	"cr":      float64(0),
-	"cc":      float64(0),
-	"cc1h":    float64(0),
-	"img":     float64(0),
-	"img_o":   float64(0),
-	"ai":      float64(0),
-	"ao":      float64(0),
-	"tier":    func(string, float64) float64 { return 0 },
-	"header":  func(string) string { return "" },
-	"param":   func(string) interface{} { return nil },
-	"has":     func(interface{}, string) bool { return false },
-	"hour":    func(string) int { return 0 },
-	"minute":  func(string) int { return 0 },
-	"weekday": func(string) int { return 0 },
-	"month":   func(string) int { return 0 },
-	"day":     func(string) int { return 0 },
-	"max":     math.Max,
-	"min":     math.Min,
-	"abs":     math.Abs,
-	"ceil":    math.Ceil,
-	"floor":   math.Floor,
+	"p":         float64(0),
+	"c":         float64(0),
+	"billing_p": float64(0),
+	"billing_c": float64(0),
+	"len":       float64(0),
+	"cr":        float64(0),
+	"cc":        float64(0),
+	"cc1h":      float64(0),
+	"img":       float64(0),
+	"img_o":     float64(0),
+	"ai":        float64(0),
+	"ao":        float64(0),
+	"tier":      func(string, float64) float64 { return 0 },
+	"header":    func(string) string { return "" },
+	"param":     func(string) interface{} { return nil },
+	"has":       func(interface{}, string) bool { return false },
+	"hour":      func(string) int { return 0 },
+	"minute":    func(string) int { return 0 },
+	"weekday":   func(string) int { return 0 },
+	"month":     func(string) int { return 0 },
+	"day":       func(string) int { return 0 },
+	"max":       math.Max,
+	"min":       math.Min,
+	"abs":       math.Abs,
+	"ceil":      math.Ceil,
+	"floor":     math.Floor,
 }
 
 func getCompileEnv(version int) map[string]interface{} {
@@ -93,7 +95,12 @@ func compileFromCacheByHash(exprStr, hash string) (*vm.Program, error) {
 	cacheMu.RUnlock()
 
 	version, body := ParseExprVersion(exprStr)
-	prog, err := expr.Compile(body, expr.Env(getCompileEnv(version)), expr.AsFloat64())
+	prog, err := expr.Compile(
+		body,
+		expr.Env(getCompileEnv(version)),
+		expr.Patch(tierPriceVariablePatcher{}),
+		expr.AsFloat64(),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("expr compile error: %w", err)
 	}
@@ -133,10 +140,49 @@ func extractUsedVars(prog *vm.Program) map[string]bool {
 	ast.Find(node, func(n ast.Node) bool {
 		if id, ok := n.(*ast.IdentifierNode); ok {
 			vars[id.Value] = true
+			if id.Value == "billing_p" {
+				vars["p"] = true
+			}
+			if id.Value == "billing_c" {
+				vars["c"] = true
+			}
 		}
 		return false
 	})
 	return vars
+}
+
+// tierPriceVariablePatcher keeps p/c in conditions untouched and redirects
+// only the price argument of tier(name, price) to the billable token values.
+// Visual expressions therefore retain their original tier selection while
+// settlement can discount the input/output price components independently.
+type tierPriceVariablePatcher struct{}
+
+func (tierPriceVariablePatcher) Visit(node *ast.Node) {
+	call, ok := (*node).(*ast.CallNode)
+	if !ok || len(call.Arguments) != 2 {
+		return
+	}
+	callee, ok := call.Callee.(*ast.IdentifierNode)
+	if !ok || callee.Value != "tier" {
+		return
+	}
+	ast.Walk(&call.Arguments[1], billingIdentifierPatcher{})
+}
+
+type billingIdentifierPatcher struct{}
+
+func (billingIdentifierPatcher) Visit(node *ast.Node) {
+	id, ok := (*node).(*ast.IdentifierNode)
+	if !ok {
+		return
+	}
+	switch id.Value {
+	case "p":
+		ast.Patch(node, &ast.IdentifierNode{Value: "billing_p"})
+	case "c":
+		ast.Patch(node, &ast.IdentifierNode{Value: "billing_c"})
+	}
 }
 
 // UsedVars returns the set of identifier names referenced by an expression.

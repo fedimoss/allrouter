@@ -1875,7 +1875,6 @@ export default function TieredPricingEditor({
           onChange={handleModeSwitch}
         >
           <Radio value='visual'>{t('可视化编辑')}</Radio>
-          <Radio value='raw'>{t('表达式编辑')}</Radio>
         </RadioGroup>
       </div>
 
@@ -2062,7 +2061,6 @@ export default function TieredPricingEditor({
         </div>
       </Card>
 
-      <LlmPromptHelper t={t} model={model} />
     </div>
   );
 }

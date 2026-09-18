@@ -144,13 +144,9 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	// 用户模型专属折扣：仅按 token 倍率计费的模型支持（按次/阶梯表达式计费不支持）。
 	// 折扣与分组倍率叠加；只作用于输入输出 token 部分，缓存不参与；
 	// 结算时仅当资金来源为账户余额（非订阅）时生效。预扣额度按原价计算，结算时多退少补。
-	userDiscount := model.UserModelDiscountNone
-	if !usePrice && info.UserProviderId == info.ProviderId {
-		var err error
-		userDiscount, err = model.GetUserModelDiscount(info.UserId, info.OriginModelName)
-		if err != nil {
-			return types.PriceData{}, fmt.Errorf("failed to load user model discount: %w", err)
-		}
+	userDiscount, err := loadUserModelDiscount(info, !usePrice)
+	if err != nil {
+		return types.PriceData{}, err
 	}
 
 	priceData := types.PriceData{
@@ -176,6 +172,23 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 	info.PriceData = priceData
 	return priceData, nil
+}
+
+func loadUserModelDiscount(info *relaycommon.RelayInfo, supported bool) (float64, error) {
+	if !supported || info == nil || info.UserProviderId != info.ProviderId {
+		return model.UserModelDiscountNone, nil
+	}
+	discountModel := info.OriginModelName
+	// Provider-user discounts are configured against the public model name,
+	// while relay billing runs against the mapped main-site base model.
+	if info.ProviderId > 0 && strings.TrimSpace(info.ProviderPublicModel) != "" {
+		discountModel = info.ProviderPublicModel
+	}
+	discount, err := model.GetUserModelDiscount(info.UserId, discountModel)
+	if err != nil {
+		return model.UserModelDiscountNone, fmt.Errorf("failed to load user model discount: %w", err)
+	}
+	return discount, nil
 }
 
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
@@ -326,6 +339,10 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 	if err != nil {
 		return types.PriceData{}, fmt.Errorf("model %s tiered expr run failed: %w", info.OriginModelName, err)
 	}
+	userDiscount, err := loadUserModelDiscount(info, true)
+	if err != nil {
+		return types.PriceData{}, err
+	}
 
 	// Expression coefficients are $/1M tokens prices; convert to quota the same way per-call billing does.
 	quotaBeforeGroup := rawCost / 1_000_000 * common.QuotaPerUnit
@@ -353,6 +370,7 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		EstimatedTier:             trace.MatchedTier,
 		QuotaPerUnit:              common.QuotaPerUnit,
 		ExprVersion:               billingexpr.ExprVersion(exprStr),
+		UserDiscount:              userDiscount,
 	}
 	info.TieredBillingSnapshot = snapshot
 	info.BillingRequestInput = &requestInput
@@ -361,6 +379,8 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		FreeModel:         freeModel,
 		GroupRatioInfo:    groupRatioInfo,
 		QuotaToPreConsume: preConsumedQuota,
+		UserDiscount:      userDiscount,
+		BillingMode:       billing_setting.BillingModeTieredExpr,
 	}
 
 	logger.LogDebug(c, "model_price_helper_tiered result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f tier=%s", info.OriginModelName, preConsumedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, trace.MatchedTier)
