@@ -20,6 +20,27 @@ import (
 	"gorm.io/gorm"
 )
 
+func firstBillingSource(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	source := strings.TrimSpace(values[0])
+	if source == "wallet" || source == "subscription" {
+		return source
+	}
+	return ""
+}
+
+// billingSource is stored in the JSON Other column for consume logs.
+func applyBillingSourceFilter(tx *gorm.DB, column, source string) *gorm.DB {
+	if source == "" {
+		return tx
+	}
+	// JSON_EXTRACT is not portable across all supported databases; matching the
+	// serialized key/value keeps this filter compatible with SQLite, MySQL and
+	// PostgreSQL while remaining parameterized.
+	return tx.Where(column+" LIKE ?", "%\"billing_source\":\""+source+"\"%")
+}
 func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm.DB, error) {
 	if value == "" {
 		return tx, nil
@@ -460,12 +481,16 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, billingSource ...string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
 	} else {
 		tx = LOG_DB.Where("logs.type = ?", logType)
+	}
+
+	if source := firstBillingSource(billingSource); source != "" {
+		tx = applyBillingSourceFilter(tx, "logs.other", source)
 	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
@@ -574,7 +599,7 @@ func GetAdminCallLogs(startTimestamp int64, endTimestamp int64, modelName string
 	return logs, total, nil
 }
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, billingSource ...string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.user_id = ?", userId)
@@ -582,6 +607,10 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
 	}
 	tx = excludeProviderCostLogs(tx, "logs.billing_side")
+
+	if source := firstBillingSource(billingSource); source != "" {
+		tx = applyBillingSourceFilter(tx, "logs.other", source)
+	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err
@@ -619,7 +648,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	return logs, total, err
 }
 
-func GetProviderUserLogs(providerId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, group string, requestId string) (logs []*Log, total int64, err error) {
+func GetProviderUserLogs(providerId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, group string, requestId string, billingSource ...string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.provider_id = ?", providerId)
@@ -627,6 +656,10 @@ func GetProviderUserLogs(providerId int, logType int, startTimestamp int64, endT
 		tx = LOG_DB.Where("logs.provider_id = ? and logs.type = ?", providerId, logType)
 	}
 	tx = tx.Where("(logs.billing_side = ? OR logs.billing_side = ? OR logs.billing_side IS NULL)", "", "provider_user")
+
+	if source := firstBillingSource(billingSource); source != "" {
+		tx = applyBillingSourceFilter(tx, "logs.other", source)
+	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err
@@ -670,7 +703,7 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func sumUsageStats(userId *int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, includeProviderCost bool) (stat Stat, err error) {
+func sumUsageStats(userId *int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, includeProviderCost bool, billingSource ...string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(SUM(quota), 0) quota")
 	rpmTpmQuery := LOG_DB.Table("logs").Select("COUNT(*) rpm, COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(completion_tokens), 0) tpm")
 
@@ -681,6 +714,11 @@ func sumUsageStats(userId *int, startTimestamp int64, endTimestamp int64, modelN
 	if !includeProviderCost {
 		tx = excludeProviderCostLogs(tx, "billing_side")
 		rpmTpmQuery = excludeProviderCostLogs(rpmTpmQuery, "billing_side")
+	}
+
+	if source := firstBillingSource(billingSource); source != "" {
+		tx = applyBillingSourceFilter(tx, "other", source)
+		rpmTpmQuery = applyBillingSourceFilter(rpmTpmQuery, "other", source)
 	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
@@ -737,14 +775,14 @@ func sumUsageStats(userId *int, startTimestamp int64, endTimestamp int64, modelN
 
 // SumUsedQuota serves the administrator's all-log view, which intentionally
 // includes provider cost entries to match GetAllLogs.
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
-	return sumUsageStats(nil, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, true)
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, billingSource ...string) (stat Stat, err error) {
+	return sumUsageStats(nil, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, true, billingSource...)
 }
 
 // SumUserUsedQuota matches the user-visible log list: it is scoped by the
 // immutable user ID and excludes synthetic provider cost entries.
-func SumUserUsedQuota(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, channel int, group string) (stat Stat, err error) {
-	return sumUsageStats(&userId, startTimestamp, endTimestamp, modelName, "", tokenName, channel, group, false)
+func SumUserUsedQuota(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, channel int, group string, billingSource ...string) (stat Stat, err error) {
+	return sumUsageStats(&userId, startTimestamp, endTimestamp, modelName, "", tokenName, channel, group, false, billingSource...)
 }
 
 func SumAdminCallUsedQuota(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
@@ -803,7 +841,7 @@ func SumAdminCallUsedQuota(startTimestamp int64, endTimestamp int64, modelName s
 	return stat, nil
 }
 
-func SumProviderUserUsedQuota(providerId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, group string) (stat Stat, err error) {
+func SumProviderUserUsedQuota(providerId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, group string, billingSource ...string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
 
@@ -811,6 +849,11 @@ func SumProviderUserUsedQuota(providerId int, logType int, startTimestamp int64,
 	rpmTpmQuery = rpmTpmQuery.Where("provider_id = ?", providerId)
 	tx = tx.Where("(billing_side = ? OR billing_side = ? OR billing_side IS NULL)", "", "provider_user")
 	rpmTpmQuery = rpmTpmQuery.Where("(billing_side = ? OR billing_side = ? OR billing_side IS NULL)", "", "provider_user")
+	if source := firstBillingSource(billingSource); source != "" {
+		tx = applyBillingSourceFilter(tx, "other", source)
+		rpmTpmQuery = applyBillingSourceFilter(rpmTpmQuery, "other", source)
+	}
+
 	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
 		return stat, err
 	}

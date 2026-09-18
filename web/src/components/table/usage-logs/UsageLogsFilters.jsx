@@ -193,6 +193,26 @@ const LogsFilters = ({
               </div>
             )}
 
+            {!isAdminCallScope && (
+              <div className='usage-logs-v2-filter-item'>
+                <div className='usage-logs-v2-filter-label'>{t('计费来源')}</div>
+                <Form.Select
+                  field='billing_source'
+                  placeholder={t('计费来源')}
+                  size='large'
+                  showClear
+                  pure
+                  className='usage-logs-v2-control'
+                  onChange={() => {
+                    setTimeout(() => refresh(), 0);
+                  }}
+                >
+                  <Form.Select.Option value=''>{t('全部')}</Form.Select.Option>
+                  <Form.Select.Option value='wallet'>{t('钱包')}</Form.Select.Option>
+                  <Form.Select.Option value='subscription'>{t('订阅')}</Form.Select.Option>
+                </Form.Select>
+              </div>
+            )}
             {(isAdminUser || isProviderScope) && (
               <>
                 {isAdminUser && (
