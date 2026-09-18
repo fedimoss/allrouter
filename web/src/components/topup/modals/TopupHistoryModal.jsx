@@ -26,12 +26,13 @@ import {
   Empty,
   Input,
   Tag,
+  Button,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
-import { CheckCircle, Coins, Gift } from 'lucide-react';
+import { CheckCircle, Coins, Gift, CreditCard } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string, formatDisplayMoney } from '../../../helpers';
 import {
@@ -40,6 +41,11 @@ import {
   isInviteRebateTopup,
   isSubscriptionTopup,
 } from '../../../helpers/topup';
+import {
+  isLakalaQRCodePayment,
+  saveLakalaQRCodePayment,
+  LAKALA_QRCODE_ROUTE,
+} from '../../../helpers/lakalaPayment';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const { Text } = Typography;
 
@@ -69,6 +75,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [keyword, setKeyword] = useState('');
+  const [resumingId, setResumingId] = useState(null);
   const isMobile = useIsMobile();
 
   const loadTopups = async (currentPage, currentPageSize) => {
@@ -106,6 +113,78 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const handleKeywordChange = (value) => {
     setKeyword(value);
     setPage(1);
+  };
+
+  const submitEpayForm = ({ url, params }) => {
+    const form = document.createElement('form');
+    form.action = url;
+    form.method = 'POST';
+    form.target = '_blank';
+    Object.entries(params || {}).forEach(([key, value]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = value;
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  };
+
+  const resumePayment = async (record) => {
+    if (!record?.source_id || resumingId) return;
+    setResumingId(record.id);
+    try {
+      const res = await API.post(
+        `/api/subscription/orders/${record.source_id}/resume`,
+      );
+      const payload = res.data?.data;
+      if (!res.data?.success || !payload) {
+        Toast.error({ content: res.data?.message || t('继续支付失败') });
+        return;
+      }
+      let successMessage = t('已打开支付页面');
+      if (payload.kind === 'form') {
+        submitEpayForm({ url: payload.url, params: payload.data });
+      } else if (payload.kind === 'redirect' && payload.checkout_url) {
+        window.open(payload.checkout_url, '_blank', 'noopener,noreferrer');
+      } else if (
+        payload.kind === 'qrcode' &&
+        isLakalaQRCodePayment(payload.url, payload.data)
+      ) {
+        const tradeNo = saveLakalaQRCodePayment(payload.data, {
+          returnTo: '/console/topup',
+          successPath: '/console/topup?pay=success',
+        });
+        window.open(
+          `${LAKALA_QRCODE_ROUTE}?trade_no=${encodeURIComponent(tradeNo)}`,
+          '_blank',
+          'noopener,noreferrer',
+        );
+      } else if (payload.kind === 'crypto') {
+        successMessage = t('请在订阅页面继续完成加密货币支付');
+        sessionStorage.setItem(
+          'resume_subscription_order',
+          JSON.stringify(payload),
+        );
+        window.open(
+          '/console/topup?resume_subscription=1',
+          '_blank',
+          'noopener,noreferrer',
+        );
+      } else {
+        Toast.error({ content: t('继续支付失败') });
+        return;
+      }
+      Toast.success({ content: successMessage });
+    } catch (error) {
+      Toast.error({
+        content: error?.response?.data?.message || t('继续支付失败'),
+      });
+    } finally {
+      setResumingId(null);
+    }
   };
 
   // 渲染状态徽章
@@ -185,7 +264,10 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
             return (
               <span className='inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'>
                 <Gift size={14} />
-                <Text strong className='!text-emerald-600 dark:!text-emerald-300'>
+                <Text
+                  strong
+                  className='!text-emerald-600 dark:!text-emerald-300'
+                >
                   +{amount}
                 </Text>
               </span>
@@ -206,16 +288,14 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         render: (money, record) => {
           const normalizedMoney = Number(money || 0);
           if (normalizedMoney <= 0) {
-            return <Text type="tertiary">-</Text>;
+            return <Text type='tertiary'>-</Text>;
           }
           // 优先使用后端返回的币种符号，Stripe 默认 $，其他默认 ¥
           const paySymbol =
             record.display_symbol ||
-            (record.payment_method === "stripe" ? "$" : "¥");
+            (record.payment_method === 'stripe' ? '$' : '¥');
           return (
-            <Text type='danger'>
-              {formatDisplayMoney(money, paySymbol)}
-            </Text>
+            <Text type='danger'>{formatDisplayMoney(money, paySymbol)}</Text>
           );
         },
       },
@@ -233,8 +313,25 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       key: 'create_time',
       render: (time) => timestamp2string(time),
     });
+    baseColumns.push({
+      title: t('操作'),
+      key: 'actions',
+      render: (_, record) =>
+        isSubscriptionTopup(record) && record.status === 'pending' ? (
+          <Button
+            theme='light'
+            type='primary'
+            size='small'
+            icon={<CreditCard size={14} />}
+            loading={resumingId === record.id}
+            onClick={() => resumePayment(record)}
+          >
+            {t('继续支付')}
+          </Button>
+        ) : null,
+    });
     return baseColumns;
-  }, [t]);
+  }, [t, resumingId]);
 
   return (
     <Modal
