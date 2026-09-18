@@ -184,10 +184,44 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		ModelRatio: modelRatio,
 		GroupRatio: actualGroupRatio,
 
-		UserDiscount: effectiveUserDiscount(relayInfo),
+		UserDiscount: func() float64 {
+			if relayInfo.ProviderId > 0 {
+				return 1
+			}
+			return effectiveUserDiscount(relayInfo)
+		}(),
 	}
 
 	quota, clamp := calculateAudioQuota(quotaInfo)
+	var tieredResult *billingexpr.TieredResult
+	var tieredParams billingexpr.TokenParams
+	if snap := relayInfo.TieredBillingSnapshot; snap != nil {
+		usedVars := billingexpr.UsedVars(snap.ExprString)
+		tieredParams = BuildTieredRealtimeTokenParams(usage, usedVars)
+		if ok, tieredQuota, result := TryTieredSettle(relayInfo, tieredParams); ok {
+			quota = tieredQuota
+			tieredResult = result
+			clamp = nil
+			if result != nil {
+				clamp = result.Clamp
+			}
+		}
+	}
+	if relayInfo.ProviderId > 0 {
+		cacheQuota := decimal.Zero
+		discountableQuota := decimal.NewFromInt(int64(quota))
+		discountableTokens := usage.TotalTokens
+		nonCacheTokens := usage.TotalTokens
+		if tieredResult != nil {
+			cacheQuota = decimal.NewFromFloat(tieredResult.CacheQuotaBeforeGroup).Mul(decimal.NewFromFloat(actualGroupRatio))
+			discountableQuota = decimal.NewFromFloat(tieredResult.DiscountableQuotaBeforeGroup).Mul(decimal.NewFromFloat(actualGroupRatio))
+			discountableTokens = int(tieredResult.DiscountableTokens)
+			nonCacheTokens = tieredNonCacheTokenCount(usage.TotalTokens, tieredParams)
+		}
+		if providerQuota, _, applied := ApplyProviderPricingQuota(ctx, quota, cacheQuota, relayInfo.PriceData.UsePrice, actualGroupRatio, usage.TotalTokens, nonCacheTokens); applied {
+			quota = applyProviderUserDiscount(ctx, relayInfo, providerQuota, discountableQuota, relayInfo.PriceData.UsePrice, actualGroupRatio, discountableTokens)
+		}
+	}
 	noteQuotaClamp(relayInfo, clamp)
 
 	if relayInfo.BillingSource != BillingSourceSubscription && userQuota < quota {
@@ -223,7 +257,8 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	if snap := relayInfo.TieredBillingSnapshot; snap != nil {
 		tieredUsedVars = billingexpr.UsedVars(snap.ExprString)
 	}
-	tieredOk, tieredQuota, tieredRes := TryTieredSettle(relayInfo, BuildTieredRealtimeTokenParams(usage, tieredUsedVars))
+	tieredParams := BuildTieredRealtimeTokenParams(usage, tieredUsedVars)
+	tieredOk, tieredQuota, tieredRes := TryTieredSettle(relayInfo, tieredParams)
 	if tieredOk {
 		tieredResult = tieredRes
 	}
@@ -259,7 +294,12 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		ModelRatio: modelRatio,
 		GroupRatio: groupRatio,
 
-		UserDiscount: effectiveUserDiscount(relayInfo),
+		UserDiscount: func() float64 {
+			if relayInfo.ProviderId > 0 {
+				return 1
+			}
+			return effectiveUserDiscount(relayInfo)
+		}(),
 	}
 
 	quota, clamp := calculateAudioQuota(quotaInfo)
@@ -277,8 +317,18 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
 	providerOwnerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
 	if totalTokens != 0 {
-		if providerQuota, importCostQuota, applied := ApplyProviderPricingQuota(ctx, baseQuota, decimal.Zero, usePrice, groupRatio, totalTokens, totalTokens); applied {
-			quota = providerQuota
+		cacheQuota := decimal.Zero
+		discountableQuota := decimal.NewFromInt(int64(baseQuota))
+		discountableTokens := totalTokens
+		nonCacheTokens := totalTokens
+		if tieredResult != nil {
+			cacheQuota = decimal.NewFromFloat(tieredResult.CacheQuotaBeforeGroup).Mul(decimal.NewFromFloat(groupRatio))
+			discountableQuota = decimal.NewFromFloat(tieredResult.DiscountableQuotaBeforeGroup).Mul(decimal.NewFromFloat(groupRatio))
+			discountableTokens = int(tieredResult.DiscountableTokens)
+			nonCacheTokens = tieredNonCacheTokenCount(totalTokens, tieredParams)
+		}
+		if providerQuota, importCostQuota, applied := ApplyProviderPricingQuota(ctx, baseQuota, cacheQuota, usePrice, groupRatio, totalTokens, nonCacheTokens); applied {
+			quota = applyProviderUserDiscount(ctx, relayInfo, providerQuota, discountableQuota, usePrice, groupRatio, discountableTokens)
 			common.SetContextKey(ctx, constant.ContextKeyProviderBaseQuota, importCostQuota)
 			common.SetContextKey(ctx, constant.ContextKeyProviderUserQuota, quota)
 		}
@@ -335,7 +385,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	other := GenerateWssOtherInfo(ctx, relayInfo, usage, displayModelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), displayModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredOk {
-		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+		InjectTieredBillingInfo(ctx, other, relayInfo, tieredResult)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	if providerId > 0 {
@@ -389,7 +439,8 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		tieredUsedVars = billingexpr.UsedVars(snap.ExprString)
 	}
 	var tieredResult *billingexpr.TieredResult
-	tieredOk, tieredQuota, tieredRes := TryTieredSettle(relayInfo, BuildTieredTokenParams(usage, false, tieredUsedVars))
+	tieredParams := BuildTieredTokenParams(usage, false, tieredUsedVars)
+	tieredOk, tieredQuota, tieredRes := TryTieredSettle(relayInfo, tieredParams)
 	if tieredOk {
 		tieredResult = tieredRes
 	}
@@ -425,7 +476,12 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		ModelRatio: modelRatio,
 		GroupRatio: groupRatio,
 
-		UserDiscount: effectiveUserDiscount(relayInfo),
+		UserDiscount: func() float64 {
+			if relayInfo.ProviderId > 0 {
+				return 1
+			}
+			return effectiveUserDiscount(relayInfo)
+		}(),
 	}
 
 	quota, clamp := calculateAudioQuota(quotaInfo)
@@ -443,8 +499,18 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	providerId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId)
 	providerOwnerUserId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderOwnerUserId)
 	if totalTokens != 0 {
-		if providerQuota, importCostQuota, applied := ApplyProviderPricingQuota(ctx, baseQuota, decimal.Zero, usePrice, groupRatio, totalTokens, totalTokens); applied {
-			quota = providerQuota
+		cacheQuota := decimal.Zero
+		discountableQuota := decimal.NewFromInt(int64(baseQuota))
+		discountableTokens := totalTokens
+		nonCacheTokens := totalTokens
+		if tieredResult != nil {
+			cacheQuota = decimal.NewFromFloat(tieredResult.CacheQuotaBeforeGroup).Mul(decimal.NewFromFloat(groupRatio))
+			discountableQuota = decimal.NewFromFloat(tieredResult.DiscountableQuotaBeforeGroup).Mul(decimal.NewFromFloat(groupRatio))
+			discountableTokens = int(tieredResult.DiscountableTokens)
+			nonCacheTokens = tieredNonCacheTokenCount(totalTokens, tieredParams)
+		}
+		if providerQuota, importCostQuota, applied := ApplyProviderPricingQuota(ctx, baseQuota, cacheQuota, usePrice, groupRatio, totalTokens, nonCacheTokens); applied {
+			quota = applyProviderUserDiscount(ctx, relayInfo, providerQuota, discountableQuota, usePrice, groupRatio, discountableTokens)
 			common.SetContextKey(ctx, constant.ContextKeyProviderBaseQuota, importCostQuota)
 			common.SetContextKey(ctx, constant.ContextKeyProviderUserQuota, quota)
 		}
@@ -502,7 +568,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	other := GenerateAudioOtherInfo(ctx, relayInfo, usage, displayModelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), displayModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredOk {
-		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+		InjectTieredBillingInfo(ctx, other, relayInfo, tieredResult)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	if providerId > 0 {

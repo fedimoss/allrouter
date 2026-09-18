@@ -175,6 +175,8 @@ func SetApiRouter(router *gin.Engine) {
 			userBillingRoute.Use(middleware.UserAuth())
 			{
 				userBillingRoute.GET("/topup", controller.GetAllTopUps)
+				// 邀请明细页查看被邀请人的充值记录，非管理员仅能查询自己直接邀请的用户
+				userBillingRoute.GET("/topup/invitee", controller.GetInviteeTopUps)
 				userBillingRoute.POST("/topup/detail", controller.GetUserTopupDetails)
 				// 补单是资金入账操作，仅限主站管理员与被授权用户，不对分站开放
 				userBillingRoute.POST("/topup/complete", middleware.AdminOrModuleAuth("billing", "user"), controller.AdminCompleteTopUp)
@@ -195,7 +197,8 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
 			subscriptionRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCryptoPay) // 加密货币订阅
 			subscriptionRoute.POST("/crypto/confirm", controller.SubscriptionRequestCryptoConfirm)                         // 加密货币订阅确认
-			subscriptionRoute.GET("/lakala/status", controller.GetSubscriptionLakalaStatus)                                // 拉卡拉订阅订单状态轮询
+			subscriptionRoute.POST("/orders/:id/resume", middleware.CriticalRateLimit(), controller.ResumeSubscriptionOrder)
+			subscriptionRoute.GET("/lakala/status", controller.GetSubscriptionLakalaStatus) // 拉卡拉订阅订单状态轮询
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminOrModuleAuth("subscription"))
@@ -621,6 +624,21 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.PUT("/:id/name", controller.UpdateDeploymentName)
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
+		}
+
+		// 抖音私信卡片管理：数据在外部服务，本地仅代理转发（Bearer API Key 由系统设置提供）
+		douyinCardRoute := apiRouter.Group("/douyin_card")
+		douyinCardRoute.Use(middleware.AdminAuth())
+		{
+			douyinCardRoute.GET("/", controller.GetDouyinCards)
+			douyinCardRoute.POST("/", controller.AddDouyinCard)
+			douyinCardRoute.PUT("/", controller.UpdateDouyinCard)
+			douyinCardRoute.DELETE("/:id", controller.DeleteDouyinCard)
+			// 基础URL（只读）：供控制台「复制」按钮拼接卡片链接 {基础URL}/?id={卡片ID}
+			douyinCardRoute.GET("/base_url", controller.GetDouyinCardBaseUrl)
+			// 卡片图片上传（私信卡片 Logo / 推广链接微信头像、二维码）：
+			// 保存在本站 static/card 目录，返回 URL 由前端随卡片数据提交给外部接口
+			douyinCardRoute.POST("/upload", middleware.RequestBodyLimit(controller.DouyinCardImageBodyLimit), controller.UploadDouyinCardImage)
 		}
 
 		// 支付对账

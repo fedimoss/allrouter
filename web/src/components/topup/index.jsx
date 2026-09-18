@@ -114,6 +114,8 @@ const TopUp = () => {
     useState('subscription_first');
   const [activeSubscriptions, setActiveSubscriptions] = useState([]);
   const [allSubscriptions, setAllSubscriptions] = useState([]);
+  const [pendingSubscriptionOrders, setPendingSubscriptionOrders] =
+    useState([]);
 
   // 预设充值额度选项
   const [presetAmounts, setPresetAmounts] = useState([]);
@@ -436,6 +438,7 @@ const TopUp = () => {
         // All subscriptions (including expired)
         const allSubs = res.data.data?.all_subscriptions || [];
         setAllSubscriptions(allSubs);
+        setPendingSubscriptionOrders(res.data.data?.pending_orders || []);
       }
     } catch (e) {
       // ignore
@@ -895,6 +898,7 @@ const TopUp = () => {
           onChangeBillingPreference={updateBillingPreference}
           activeSubscriptions={activeSubscriptions}
           allSubscriptions={allSubscriptions}
+          pendingSubscriptionOrders={pendingSubscriptionOrders}
           reloadSubscriptionSelf={getSubscriptionSelf}
         />
         {/* <InvitationCard

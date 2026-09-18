@@ -2973,6 +2973,10 @@ const ProviderPage = () => {
                                   Number(record.group_ratio || 1) *
                                   Number(record.import_price_ratio || 1)
                                 }
+                                cachePriceMultiplier={
+                                  Number(record.group_ratio || 1) *
+                                  Number(record.import_cache_price_ratio || 1)
+                                }
                                 t={t}
                               />
                             </div>

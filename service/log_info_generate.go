@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
@@ -276,7 +277,7 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 // InjectTieredBillingInfo overlays tiered billing fields onto an existing
 // module-specific other map. Call this after GenerateTextOtherInfo /
 // GenerateClaudeOtherInfo / etc. when the request used tiered_expr billing.
-func InjectTieredBillingInfo(other map[string]interface{}, relayInfo *relaycommon.RelayInfo, result *billingexpr.TieredResult) {
+func InjectTieredBillingInfo(ctx *gin.Context, other map[string]interface{}, relayInfo *relaycommon.RelayInfo, result *billingexpr.TieredResult) {
 	if relayInfo == nil || other == nil {
 		return
 	}
@@ -286,7 +287,48 @@ func InjectTieredBillingInfo(other map[string]interface{}, relayInfo *relaycommo
 	}
 	other["billing_mode"] = "tiered_expr"
 	other["expr_b64"] = base64.StdEncoding.EncodeToString([]byte(snap.ExprString))
+	providerId := relayInfo.ProviderId
+	if ctx != nil {
+		if contextProviderId := common.GetContextKeyInt(ctx, constant.ContextKeyProviderId); contextProviderId > 0 {
+			providerId = contextProviderId
+		}
+	}
+	if providerId > 0 && ctx != nil {
+		importRatio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderImportPriceRatio)
+		if importRatio <= 0 {
+			importRatio = 1
+		}
+		cacheImportRatio := providerEffectiveCacheImportRatio(ctx)
+		pricingType := common.GetContextKeyString(ctx, constant.ContextKeyProviderPricingType)
+		nonCacheMultiplier := importRatio
+		other["provider_import_price_ratio"] = importRatio
+		other["provider_import_cache_price_ratio"] = cacheImportRatio
+		other["provider_pricing_type"] = pricingType
+		if pricingType == model.ProviderPricingTypeDelta {
+			other["provider_delta_model_ratio"] = common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaRatio)
+			other["provider_delta_model_price"] = common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderDeltaPrice)
+		} else {
+			pricingRatio := common.GetContextKeyFloat64(ctx, constant.ContextKeyProviderPricingRatio)
+			if pricingRatio == 0 {
+				pricingRatio = 1
+			}
+			nonCacheMultiplier *= pricingRatio
+			other["provider_pricing_ratio"] = pricingRatio
+		}
+		displayExpr := billingexpr.ScaleVisualPriceTerms(snap.ExprString, nonCacheMultiplier, cacheImportRatio)
+		other["provider_display_expr_b64"] = base64.StdEncoding.EncodeToString([]byte(displayExpr))
+	}
 	if result != nil {
 		other["matched_tier"] = result.MatchedTier
+		other["tiered_original_quota_before_group"] = result.OriginalQuotaBeforeGroup
+		other["tiered_discountable_quota_before_group"] = result.DiscountableQuotaBeforeGroup
+		other["tiered_cache_quota_before_group"] = result.CacheQuotaBeforeGroup
+		// Provider-user discounts are applied after provider pricing. These two
+		// expression-stage fields would otherwise misleadingly report 1x/zero;
+		// the final discount remains available as user_model_discount.
+		if providerId <= 0 {
+			other["tiered_discount_amount_before_group"] = result.DiscountAmountBeforeGroup
+			other["tiered_applied_user_discount"] = result.AppliedUserDiscount
+		}
 	}
 }

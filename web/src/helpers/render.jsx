@@ -95,6 +95,7 @@ import {
   FileCheck,
   AlignEndHorizontal,
   ClipboardPen,
+  IdCard,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -158,6 +159,8 @@ export function getLucideIcon(key, selected = false) {
       return <Dock {...commonProps} color={iconColor} />;
     case 'channel':
       return <Layers {...commonProps} color={iconColor} />;
+    case 'douyinCard':
+      return <IdCard {...commonProps} color={iconColor} />;
     case 'redemption':
       return <Ticket {...commonProps} color={iconColor} />;
     case 'questionSurvey':
@@ -2899,16 +2902,25 @@ export const normalizeLabel = (label) => {
 export function renderTieredModelPrice(opts) {
   const {
     expr_b64: exprB64,
+    provider_display_expr_b64: providerDisplayExprB64,
     matched_tier: matchedTier,
     group_ratio: groupRatio,
     cache_tokens: cacheTokens = 0,
     cache_creation_tokens: cacheCreationTokens = 0,
     cache_creation_tokens_5m: cacheCreationTokens5m = 0,
     cache_creation_tokens_1h: cacheCreationTokens1h = 0,
+    user_model_discount: userModelDiscount,
+    user_group_ratio: userGroupRatio,
+    tiered_original_quota_before_group: originalQuotaBeforeGroup,
+    tiered_discountable_quota_before_group: discountableQuotaBeforeGroup,
+    provider_id: providerId,
+    provider_pricing_type: providerPricingType,
+    provider_delta_model_ratio: providerDeltaModelRatio,
+    actualQuota,
   } = opts;
   let exprStr = '';
   try {
-    exprStr = decodeFromBase64(exprB64);
+    exprStr = decodeFromBase64(providerDisplayExprB64 || exprB64);
   } catch {
     // ignore
   }
@@ -2952,12 +2964,65 @@ export function renderTieredModelPrice(opts) {
       ),
   ];
 
+  const deltaModelRatio = Number(providerDeltaModelRatio);
+  if (
+    providerPricingType === 'delta' &&
+    Number.isFinite(deltaModelRatio) &&
+    deltaModelRatio !== 0
+  ) {
+    lines.push(
+      `${i18next.t('Token 模型加价倍率')} +${formatRatioValue(deltaModelRatio)}`,
+    );
+  }
+
+  const userDiscountText = getUserModelDiscountText(userModelDiscount);
+  if (userDiscountText) {
+    lines.push(userDiscountText);
+    const discount = normalizeUserModelDiscount(userModelDiscount);
+    const originalQuota = Number(originalQuotaBeforeGroup);
+    const discountableQuota = Number(discountableQuotaBeforeGroup);
+    const quotaPerUnit = getQuotaPerUnit();
+    const canRenderExactDiscountFormula =
+      !providerId &&
+      discount < 1 &&
+      Number.isFinite(originalQuota) &&
+      Number.isFinite(discountableQuota) &&
+      discountableQuota >= 0 &&
+      discountableQuota <= originalQuota &&
+      Number.isFinite(quotaPerUnit) &&
+      quotaPerUnit > 0;
+    if (canRenderExactDiscountFormula) {
+      const nonDiscountedQuota = originalQuota - discountableQuota;
+      const { ratio, label } = getEffectiveRatio(groupRatio, userGroupRatio);
+      const discountedUsd = discountableQuota / quotaPerUnit;
+      const nonDiscountedUsd = nonDiscountedQuota / quotaPerUnit;
+      const calculatedUsd =
+        (discountedUsd * discount + nonDiscountedUsd) * ratio;
+      lines.push(
+        i18next.t(
+          '折扣后计费：(输入输出费用 {{discountableAmount}} × {{discount}}x + 缓存及附加费用 {{nonDiscountedAmount}}) × {{ratioType}} {{ratio}} = {{total}}',
+          {
+            discountableAmount: `${symbol}${formatBillingDisplayPrice(discountedUsd, rate)}`,
+            discount: formatRatioValue(discount),
+            nonDiscountedAmount: `${symbol}${formatBillingDisplayPrice(nonDiscountedUsd, rate)}`,
+            ratioType: label,
+            ratio,
+            total: `${symbol}${formatBillingDisplayTotalByQuota(actualQuota, calculatedUsd, rate)}`,
+          },
+        ),
+      );
+    } else {
+      lines.push(getUserModelDiscountCalculationText(userModelDiscount));
+    }
+  }
+
   return renderBillingArticle(lines);
 }
 
 export function renderTieredModelPriceSimple(opts) {
   const {
     expr_b64: exprB64,
+    provider_display_expr_b64: providerDisplayExprB64,
     matched_tier: matchedTier,
     group_ratio: groupRatio,
     user_group_ratio,
@@ -2967,10 +3032,13 @@ export function renderTieredModelPriceSimple(opts) {
     cache_creation_tokens: cacheCreationTokens = 0,
     displayMode = 'price',
     outputMode = 'segments',
+    user_model_discount: userModelDiscount,
+    provider_pricing_type: providerPricingType,
+    provider_delta_model_ratio: providerDeltaModelRatio,
   } = opts;
   let exprStr = '';
   try {
-    exprStr = decodeFromBase64(exprB64);
+    exprStr = decodeFromBase64(providerDisplayExprB64 || exprB64);
   } catch {
     // ignore
   }
@@ -2988,6 +3056,11 @@ export function renderTieredModelPriceSimple(opts) {
         text: getGroupRatioText(groupRatio, user_group_ratio),
       },
     ];
+
+    const userDiscountText = getUserModelDiscountText(userModelDiscount);
+    if (userDiscountText) {
+      segments.push({ tone: 'secondary', text: userDiscountText });
+    }
 
     if (!tier) {
       segments.push({
@@ -3016,6 +3089,17 @@ export function renderTieredModelPriceSimple(opts) {
             }),
           });
         }
+      }
+      const deltaModelRatio = Number(providerDeltaModelRatio);
+      if (
+        providerPricingType === 'delta' &&
+        Number.isFinite(deltaModelRatio) &&
+        deltaModelRatio !== 0
+      ) {
+        segments.push({
+          tone: 'secondary',
+          text: `${i18next.t('Token 模型加价倍率')} +${formatRatioValue(deltaModelRatio)}`,
+        });
       }
     }
 

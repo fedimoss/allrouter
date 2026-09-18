@@ -626,7 +626,10 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
           } else if (isTaskLog && other?.model_price === -1) {
             content = renderTaskBillingProcess(other, logs[i].content);
           } else if (other?.billing_mode === 'tiered_expr') {
-            content = renderTieredModelPrice(other);
+            content = renderTieredModelPrice({
+              ...other,
+              actualQuota: logs[i].quota,
+            });
           } else if (other?.ws || other?.audio) {
             content = renderAudioModelPrice(
               other?.text_input,

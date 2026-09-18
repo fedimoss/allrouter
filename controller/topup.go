@@ -540,6 +540,63 @@ func GetUserTopUps(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+// GetInviteeTopUps 获取指定被邀请人的充值记录（邀请明细页「账单」弹窗使用）。
+// 权限：管理员与邀请明细列表口径一致，可查看任意用户；
+// 普通用户仅能查看自己直接邀请的用户，避免越权查看他人账单。
+// query 参数 "user_id": 被邀请人 ID
+func GetInviteeTopUps(c *gin.Context) {
+	inviteeId, err := strconv.Atoi(c.Query("user_id"))
+	if err != nil || inviteeId <= 0 {
+		common.ApiErrorMsg(c, "invalid user_id")
+		return
+	}
+
+	// 非管理员需校验邀请关系：只能查看自己直接邀请的用户
+	if c.GetInt("role") < common.RoleAdminUser {
+		invitee, err := model.GetUserById(inviteeId, false)
+		if err != nil {
+			common.ApiErrorMsg(c, "用户不存在")
+			return
+		}
+		if invitee.InviterId != c.GetInt("id") {
+			common.ApiErrorMsg(c, "无权查看该用户的账单")
+			return
+		}
+	}
+
+	pageInfo := common.GetPageQuery(c)
+	keyword := c.Query("keyword")
+	//支付方式（在线充值/充值返佣等来源，逗号分隔）
+	payMethod := c.Query("payment_method")
+	//单个充值类型（支付方式维度）
+	payType := c.Query("payment_type")
+	//支付状态（pending/success/failed/expired）
+	status := c.Query("status")
+
+	var (
+		topups []*model.TopUp
+		total  int64
+	)
+	if keyword != "" || payMethod != "" || payType != "" || status != "" {
+		topups, total, err = model.SearchUserTopUps(inviteeId, keyword, payMethod, payType, status, pageInfo)
+	} else {
+		topups, total, err = model.GetUserTopUps(inviteeId, pageInfo)
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 展示币种按查看者（当前登录用户）的时区解析，与邀请明细列表口径一致
+	displayInfo := getDisplayCurrencyForUser(c)
+	applyTopUpDisplayCurrency(topups, displayInfo)
+	applyCryptoTokenSymbol(topups)
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(topups)
+	common.ApiSuccess(c, pageInfo)
+}
+
 // GetAllTopUps 获取充值记录：主站管理员/被授权用户看全平台，
 // 服务商站长与被授权的分站成员看本站范围（provider_id>0）。
 func GetAllTopUps(c *gin.Context) {
