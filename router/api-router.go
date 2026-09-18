@@ -625,6 +625,19 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
 
+		// 抖音私信卡片管理：数据在外部服务，本地仅代理转发（Bearer API Key 由系统设置提供）
+		douyinCardRoute := apiRouter.Group("/douyin_card")
+		douyinCardRoute.Use(middleware.AdminAuth())
+		{
+			douyinCardRoute.GET("/", controller.GetDouyinCards)
+			douyinCardRoute.POST("/", controller.AddDouyinCard)
+			douyinCardRoute.PUT("/", controller.UpdateDouyinCard)
+			douyinCardRoute.DELETE("/:id", controller.DeleteDouyinCard)
+			// 卡片图片上传（私信卡片 Logo / 推广链接微信头像、二维码）：
+			// 保存在本站 static/card 目录，返回 URL 由前端随卡片数据提交给外部接口
+			douyinCardRoute.POST("/upload", middleware.RequestBodyLimit(controller.DouyinCardImageBodyLimit), controller.UploadDouyinCardImage)
+		}
+
 		// 支付对账
 		wechatTradeBillRoute := apiRouter.Group("/wechat_trade_bill")
 		wechatTradeBillRoute.Use(middleware.AdminOrModuleAuth("reconciliation"))

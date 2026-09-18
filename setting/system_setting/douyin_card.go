@@ -13,12 +13,15 @@ type DouyinCardEndpoint struct {
 }
 
 type DouyinCardSettings struct {
-	ApiKey  string
-	BaseURL string
-	Add     DouyinCardEndpoint
-	Query   DouyinCardEndpoint
-	Update  DouyinCardEndpoint
-	Delete  DouyinCardEndpoint
+	ApiKey string
+	// WxAppPageURL 微信小程序页面地址：新建/修改卡片时统一作为卡片跳转链接
+	// （link 字段）提交给外部服务，卡片表单不再逐卡片填写
+	WxAppPageURL string
+	BaseURL      string
+	Add          DouyinCardEndpoint
+	Query        DouyinCardEndpoint
+	Update       DouyinCardEndpoint
+	Delete       DouyinCardEndpoint
 }
 
 // 默认配置：四个接口按 REST 习惯预置请求方法
@@ -45,6 +48,8 @@ func UpdateDouyinCardFromOption(key, value string) bool {
 	switch key {
 	case "DouyinCardApiKey":
 		s.ApiKey = value
+	case "DouyinCardWxAppPageUrl":
+		s.WxAppPageURL = value
 	case "DouyinCardBaseUrl":
 		s.BaseURL = value
 	case "DouyinCardAddApi":

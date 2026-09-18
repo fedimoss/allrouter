@@ -95,6 +95,7 @@ import {
   FileCheck,
   AlignEndHorizontal,
   ClipboardPen,
+  IdCard,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -158,6 +159,8 @@ export function getLucideIcon(key, selected = false) {
       return <Dock {...commonProps} color={iconColor} />;
     case 'channel':
       return <Layers {...commonProps} color={iconColor} />;
+    case 'douyinCard':
+      return <IdCard {...commonProps} color={iconColor} />;
     case 'redemption':
       return <Ticket {...commonProps} color={iconColor} />;
     case 'questionSurvey':

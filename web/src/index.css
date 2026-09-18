@@ -1354,6 +1354,62 @@ html.dark .with-pastel-balls::before {
   min-height: 0;
 }
 
+/* ==================== 抖音卡片管理：空数据撑满卡片 ====================
+ * .table-scroll-card 已把卡片定为视口定高，但空数据时 Semi 的
+ * .semi-table-placeholder 只占自然高度，卡片下半部留白。
+ * 参照 .table-fill-body 的高度链，把高度沿 semi-table 各层传下去，
+ * 让空占位撑满剩余空间并垂直居中（仅作用于抖音卡片页，有数据时占位符不渲染，不影响列表）。
+ */
+.douyin-cards-card .semi-card-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.douyin-cards-card .semi-card-body > .semi-table-wrapper {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 高度链：wrapper → spin → spin-children → 表格滚动容器 */
+.douyin-cards-card .semi-table-wrapper > .semi-spin,
+.douyin-cards-card .semi-spin > .semi-spin-children,
+.douyin-cards-card .semi-spin-children > .semi-table-scroll-position-left {
+  height: 100%;
+  min-height: 0;
+}
+
+.douyin-cards-card .semi-table-scroll-position-left > .semi-table-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.douyin-cards-card .semi-table-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 空数据占位：撑满表体剩余高度并居中，插画不再贴着表头 */
+.douyin-cards-card .semi-table-placeholder {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 手机端没有 .semi-table-placeholder（CardTable 直接把 empty 渲染出来），
+ * 用同一套「撑满 + 居中」让空态在定高卡片里垂直居中 */
+@media (max-width: 767px) {
+  .douyin-cards-card .douyin-cards-empty {
+    flex: 1 1 auto;
+    align-items: center;
+    min-height: 0;
+  }
+}
+
 /* ==================== 模型定价页面布局 ==================== */
 .pricing-layout {
   height: calc(100vh - 60px);

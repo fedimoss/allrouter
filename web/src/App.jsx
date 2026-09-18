@@ -47,6 +47,7 @@ import { StatusContext } from './context/Status';
 import PasswordResetForm from './components/auth/PasswordResetForm';
 import PasswordResetConfirm from './components/auth/PasswordResetConfirm';
 import Channel from './pages/Channel';
+import DouyinCard from './pages/DouyinCard';
 import Token from './pages/Token';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
@@ -349,6 +350,14 @@ function App() {
             <AdminOrPermissionRoute module='channel'>
               <Channel />
             </AdminOrPermissionRoute>
+          }
+        />
+        <Route
+          path='/console/douyinCard'
+          element={
+            <AdminRoute>
+              <DouyinCard />
+            </AdminRoute>
           }
         />
         <Route
