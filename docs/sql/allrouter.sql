@@ -7367,3 +7367,46 @@ COMMENT ON COLUMN user_model_discounts.model_name IS '模型名（前端请求�
 COMMENT ON COLUMN user_model_discounts.discount IS '专属折扣，范围 (0,1]，1 表示不打折';
 COMMENT ON COLUMN user_model_discounts.created_at IS '创建时间戳';
 COMMENT ON COLUMN user_model_discounts.updated_at IS '更新时间戳';
+
+
+
+BEGIN;
+
+ALTER TABLE subscription_orders
+    ADD COLUMN IF NOT EXISTS provider_id bigint NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS payment_provider varchar(50) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS payment_product_id varchar(128) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS plan_snapshot text,
+    ADD COLUMN IF NOT EXISTS stock_status varchar(16) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS stock_expires_at bigint NOT NULL DEFAULT 0;
+
+-- Historical pending orders created before inventory reservation fields were
+-- introduced must remain resumable until their normal reservation timeout.
+UPDATE subscription_orders
+SET stock_status = 'reserved',
+    stock_expires_at = CASE
+                           WHEN stock_expires_at > 0 THEN stock_expires_at
+                           ELSE COALESCE(create_time, floor(extract(epoch FROM now()))::bigint) + 2700
+        END
+WHERE status = 'pending'
+  AND stock_status = '';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'chk_subscription_orders_stock_status'
+          AND conrelid = 'subscription_orders'::regclass
+    ) THEN
+ALTER TABLE subscription_orders
+    ADD CONSTRAINT chk_subscription_orders_stock_status
+        CHECK (stock_status IN ('', 'reserved', 'issued', 'released'));
+END IF;
+END
+$$;
+
+CREATE INDEX IF NOT EXISTS idx_subscription_orders_resume_lookup
+    ON subscription_orders (user_id, provider_id, status, stock_status, stock_expires_at, create_time DESC);
+
+COMMIT;
