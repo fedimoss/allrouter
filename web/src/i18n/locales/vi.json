@@ -3867,6 +3867,7 @@
     "输出价格：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (补全倍率: {{completionRatio}})": "Giá đầu ra: {{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (Tỷ lệ hoàn thành: {{completionRatio}})",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "Giá đầu ra: {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{total}} / 1M tokens": "Giá đầu ra: {{symbol}}{{total}} / 1M tokens",
+    "所属用户": "Người dùng sở hữu",
     "输入": "Đầu vào",
     "输入 {{price}} / 1M tokens": "Đầu vào {{price}} / 1M tokens",
     "输入 $/1M tokens": "Nhập $/1M tokens",

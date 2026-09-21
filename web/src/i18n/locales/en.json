@@ -3582,6 +3582,7 @@
     "输出价格：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (补全倍率: {{completionRatio}})": "Output price: {{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (Completion ratio: {{completionRatio}})",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "Output Price: {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{total}} / 1M tokens": "Output Price: {{symbol}}{{total}} / 1M tokens",
+    "所属用户": "Owner",
     "输入": "Input",
     "输入 {{input}} tokens / 1M tokens * {{symbol}}{{price}}": "Input {{input}} tokens / 1M tokens * {{symbol}}{{price}}",
     "输入 {{price}} / 1M tokens": "Input {{price}} / 1M tokens",

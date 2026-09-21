@@ -3584,6 +3584,7 @@
     "输出价格：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (补全倍率: {{completionRatio}})": "Цена вывода: {{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M токенов (коэффициент вывода: {{completionRatio}})",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "Цена вывода: {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{total}} / 1M tokens": "Цена вывода: {{symbol}}{{total}} / 1M tokens",
+    "所属用户": "Владелец",
     "输入": "Ввод",
     "输入 {{price}} / 1M tokens": "Вход {{price}} / 1M tokens",
     "输入 $/1M tokens": "Введите $/1M tokens",

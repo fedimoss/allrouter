@@ -461,6 +461,10 @@ func GetUserOAuths(c *gin.Context) {
 		total int64
 		err   error
 	)
+	if userId == 0 {
+		common.ApiError(c, errors.New("user is not found"))
+		return
+	}
 
 	var modelInt int64
 	if modelType != "" {
@@ -482,6 +486,34 @@ func GetUserOAuths(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+// GetAllUserOAuths returns all users' OAuth files to administrators.
+func GetAllUserOAuths(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	var modelInt int64
+	if modelType := strings.TrimSpace(c.Query("modeType")); modelType != "" {
+		parsedModelType, err := strconv.ParseInt(modelType, 10, 64)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		modelInt = parsedModelType
+	}
+
+	oauths, total, err := model.GetAllCliOAuthPages(
+		pageInfo,
+		modelInt,
+		strings.TrimSpace(c.Query("keyWord")),
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(oauths)
+	common.ApiSuccess(c, pageInfo)
+}
+
 // 删除认证文件
 // /v0/management/delete-oauth delete
 func DeleteOAuth(c *gin.Context) {
@@ -495,7 +527,14 @@ func DeleteOAuth(c *gin.Context) {
 		common.ApiError(c, errors.New("oauthId is not found"))
 		return
 	}
-	dinfo, err := model.DeleteCliOAuth(userId, oauthId)
+	// 管理员可删除任意用户的认证文件
+	var dinfo *model.DeleteCliInfo
+	var err error
+	if c.GetInt("role") >= common.RoleAdminUser {
+		dinfo, err = model.DeleteCliOAuthAdmin(oauthId)
+	} else {
+		dinfo, err = model.DeleteCliOAuth(userId, oauthId)
+	}
 	if dinfo == nil || err != nil {
 		common.ApiError(c, err)
 		return
@@ -534,7 +573,14 @@ func DownloadOauth(c *gin.Context) {
 		common.ApiError(c, errors.New("oauthId is not found"))
 		return
 	}
-	clioath, err := model.GetOAuthByIdAndUserId(userId, oauthId)
+	// 管理员可下载任意用户的认证文件
+	var clioath *model.CliOAuth
+	var err error
+	if c.GetInt("role") >= common.RoleAdminUser {
+		clioath, err = model.GetOAuthByIdAdmin(oauthId)
+	} else {
+		clioath, err = model.GetOAuthByIdAndUserId(userId, oauthId)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return

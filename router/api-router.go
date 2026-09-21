@@ -652,10 +652,12 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		//CLI Proxy API接口集成进allrouter中
 		voRoute := apiRouter.Group("/v0")
-		voRoute.Use(middleware.UserAuth())
+		//voRoute.Use(middleware.UserAuth())
 		{
+
 			//
 			managementRoute := voRoute.Group("/management")
+			managementRoute.Use(middleware.UserAuth())
 			//managementRoute.Use(middleware.CriticalRateLimit()) //关键接口限流中间件”，用来防刷、防爆破
 			managementRoute.GET("/qwen-auth-url", controller.GetQwenAuthUrl)
 			managementRoute.GET("/codex-auth-url", controller.GetCodexAuthUrl)
@@ -671,6 +673,15 @@ func SetApiRouter(router *gin.Engine) {
 			managementRoute.GET("/downloadoauth", middleware.CriticalRateLimit(), controller.DownloadOauth)
 			managementRoute.POST("/auth-files/status", middleware.CriticalRateLimit(), controller.UpdateAuthFileStatus)
 			managementRoute.GET("/get-oauth-success-count", middleware.CriticalRateLimit(), controller.GetUserAuthSuccessCount)
+		}
+		//voRoute := apiRouter.Group("/v0/admin")
+		voAdminRoute := voRoute.Group("/admin")
+		{
+			voAdminRoute.Use(middleware.AdminAuth())
+			adminManagementRoute := voAdminRoute.Group("/management")
+			//商家入驻文件所有列表
+			adminManagementRoute.GET("/useroauths", middleware.CriticalRateLimit(), controller.GetAllUserOAuths)
+
 		}
 
 	}

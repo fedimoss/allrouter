@@ -30,7 +30,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
-import { API, getRelativeTime, showError, showSuccess } from '../../../helpers';
+import { API, getRelativeTime, isAdmin, showError, showSuccess } from '../../../helpers';
 
 const PAGE_SIZE = 10;
 
@@ -87,6 +87,8 @@ const MODE_PROVIDER_MAP = {
 
 const CertificationList = () => {
   const { t } = useTranslation();
+  // 管理员查看全平台用户的认证文件，普通用户仅看自己的
+  const [userIsAdmin] = useState(() => isAdmin());
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState([]);
   const [searchText, setSearchText] = useState('');
@@ -128,7 +130,10 @@ const CertificationList = () => {
           (providerFilter !== 'all'
             ? `&modelType=${encodeURIComponent(providerFilter)}`
             : '');
-        const endpoint = `/api/v0/management/useroauths?${qs}`;
+        // 管理员走 admin 接口查看全平台记录（含 user_name），普通用户走自身接口
+        const endpoint = userIsAdmin
+          ? `/api/v0/admin/management/useroauths?${qs}`
+          : `/api/v0/management/useroauths?${qs}`;
         const res = await API.get(endpoint);
         const { success, message, data } = res?.data || {};
         if (!success) {
@@ -148,6 +153,7 @@ const CertificationList = () => {
               return {
                 id: item.id,
                 fileName: item.id,
+                userName: item.user_name || '',
                 provider,
                 providerShort,
                 successRate: 100,
@@ -169,7 +175,7 @@ const CertificationList = () => {
       }
     };
     loadData();
-  }, [page, providerFilter, searchKeyword, t]);
+  }, [page, providerFilter, searchKeyword, userIsAdmin, t]);
 
   const normalizedRows = useMemo(() => rows, [rows]);
 
@@ -451,7 +457,11 @@ const CertificationList = () => {
                               {/* <Copy size={14} className='text-[#8ca0b8]' /> */}
                             </div>
                             <div>
-                              <span className='text-[#64748B] text-[12px] font-[400]'>{t('OAuth 凭据')}</span>
+                              <span className='text-[#64748B] text-[12px] font-[400]'>
+                                {userIsAdmin && row.userName
+                                  ? `${t('所属用户')}：${row.userName}`
+                                  : t('OAuth 凭据')}
+                              </span>
                             </div>
                           </div>
                         </div>

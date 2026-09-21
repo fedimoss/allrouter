@@ -3546,6 +3546,7 @@
     "输出价格：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (补全倍率: {{completionRatio}})": "補完料金：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (補完倍率：{{completionRatio}})",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "補完料金：{{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{total}} / 1M tokens": "補完料金：{{symbol}}{{total}} / 1M tokens",
+    "所属用户": "所有ユーザー",
     "输入": "入力",
     "输入 {{price}} / 1M tokens": "入力 {{price}} / 1M tokens",
     "输入 $/1M tokens": "$/1M tokens を入力",
