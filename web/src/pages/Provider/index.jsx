@@ -2059,7 +2059,7 @@ const ProviderPage = () => {
     {
       title: t('渠道'),
       dataIndex: 'channel_name',
-      render: (name, record) => name || `#${record.channel_id}`,
+      render: (name, record,index) => name || `渠道${index}`,
     },
     {
       title: t('分组'),
@@ -2928,7 +2928,7 @@ const ProviderPage = () => {
                   </Text>
                   {selectedBaseModelUsesDynamicPricing ? (
                     <div style={{ marginTop: 12 }}>
-                      {selectedDynamicBaseModelPrices.map((record) => (
+                      {selectedDynamicBaseModelPrices.map((record,index) => (
                         <div
                           key={`${record.model_name}-${record.channel_id}-${record.group}-dynamic`}
                           style={{
@@ -2940,7 +2940,7 @@ const ProviderPage = () => {
                         >
                           <Space style={{ marginBottom: 12 }} wrap>
                             <Text strong>
-                              {record.channel_name || `#${record.channel_id}`}
+                              {record.channel_name || `渠道${index}`}
                             </Text>
                             <Tag color='blue'>{record.group || '-'}</Tag>
                             <Tag color='amber'>{t('动态计费')}</Tag>

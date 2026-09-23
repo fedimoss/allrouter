@@ -1530,9 +1530,9 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 			}
 		}
 		result = append(result, providerBaseModelChannelPrice{
-			ModelName:             modelName,
-			ChannelId:             ability.ChannelId,
-			ChannelName:           ability.ChannelName,
+			ModelName: modelName,
+			ChannelId: ability.ChannelId,
+			//ChannelName:           ability.ChannelName,
 			ChannelType:           ability.ChannelType,
 			Group:                 ability.Group,
 			QuotaType:             quotaType,
