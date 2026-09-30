@@ -51,6 +51,9 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}
+	if channel != nil && channel.Type == constant.ChannelTypeAnthropic {
+		return string(constant.EndpointTypeAnthropic)
+	}
 
 	// 对于 Codex 和 Responses Chat 渠道，使用 OpenAI Response 端点
 	if channel != nil && (channel.Type == constant.ChannelTypeCodex || channel.Type == constant.ChannelTypeResponsesChat) {
@@ -385,6 +388,17 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 				context:     c,
 				localErr:    errors.New("invalid response compaction request type"),
 				newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
+	case relayconstant.RelayModeUnknown:
+		// Native Anthropic Messages test request.
+		if claudeReq, ok := request.(*dto.ClaudeRequest); ok {
+			convertedRequest, err = adaptor.ConvertClaudeRequest(c, info, claudeReq)
+		} else {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid Claude request type"),
+				newAPIError: types.NewError(errors.New("invalid Claude request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	default:
@@ -750,7 +764,23 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Model: model,
 				Input: testResponsesInput,
 			}
-		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
+		case constant.EndpointTypeAnthropic:
+			// Anthropic channels must be tested with the native Messages DTO.
+			// Using the OpenAI DTO here sent max_tokens=16 and caused generic 502s.
+			// Use a normal native budget for compatibility with Messages upstreams.
+			maxTokens := uint(1024)
+			return &dto.ClaudeRequest{
+				Model:  model,
+				Stream: lo.ToPtr(isStream),
+				Messages: []dto.ClaudeMessage{
+					{
+						Role:    "user",
+						Content: "hi",
+					},
+				},
+				MaxTokens: &maxTokens,
+			}
+		case constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest
 			maxTokens := uint(16)
 			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {

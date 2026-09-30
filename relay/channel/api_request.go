@@ -12,6 +12,7 @@ import (
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
+	projectconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -47,13 +48,17 @@ const (
 	headerPassthroughRegexPrefixV2 = "regex:"
 	// 上游请求使用的安全 User-Agent 标识，用于替换被屏蔽的客户端 SDK User-Agent
 	upstreamSafeUserAgent = "Mozilla/5.0"
+	// Some Anthropic-compatible gateways reject browser User-Agents (including
+	// the historical `Mozilla/5.0` fallback) but accept a normal CLI client.
+	// Keep this provider-specific fallback separate from the generic policy.
+	anthropicSafeUserAgent = "curl/8.0.0"
 )
 
 // allowedUserAgentMarkers 允许透传到上游的 User-Agent 特征。
 // 默认保留浏览器类 UA；SDK/CLI/脚本类 UA（openai-python、openai-java、okhttp、
 // curl、Go-http-client 等）很难穷举，统一替换为通用浏览器 UA，避免被上游按 UA 拒绝。
 // Codex 与 Claude Code 是需要保留身份特征的官方/CLI 类客户端，因此作为显式例外保留。
-var allowedUserAgentMarkers = []string{
+var browserUserAgentMarkers = []string{
 	"mozilla/",
 	"chrome/",
 	"safari/",
@@ -62,11 +67,17 @@ var allowedUserAgentMarkers = []string{
 	"edg/",
 	"opera/",
 	"opr/",
+}
 
+var allowedUserAgentMarkers = append(append([]string{}, browserUserAgentMarkers...),
 	"codex",
+	// Claude Code sends the official CLI identifier as `claude-cli/...`.
+	// Keep this marker in addition to `claude-code`, since the latter is
+	// commonly used by SDKs but does not match the actual Claude Code UA.
+	"claude-cli",
 	"claude-code",
 	"claude code",
-}
+)
 
 var passthroughSkipHeaderNamesLower = map[string]struct{}{
 	// RFC 7230 hop-by-hop headers.
@@ -324,10 +335,47 @@ func shouldRewriteUserAgent(userAgent string) bool {
 	return true
 }
 
+func isBrowserUserAgent(userAgent string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(userAgent))
+	if normalized == "" {
+		return false
+	}
+	for _, marker := range browserUserAgentMarkers {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func isAnthropicRelay(info *common.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	return info.ChannelMeta.ChannelType == projectconstant.ChannelTypeAnthropic || info.ChannelMeta.ApiType == projectconstant.APITypeAnthropic
+}
+
 // applyUpstreamUserAgentPolicy 对上游请求应用 User-Agent 策略
 // 如果当前 User-Agent 不是浏览器类 UA，则替换为安全的通用浏览器 User-Agent。
-func applyUpstreamUserAgentPolicy(header http.Header) {
+// Anthropic-compatible gateways are handled specially: those gateways may
+// reject browser UAs, so an empty/browser/unknown SDK UA is replaced with a
+// CLI-style UA while explicit Claude/Codex markers are preserved.
+func applyUpstreamUserAgentPolicy(header http.Header, relayInfos ...*common.RelayInfo) {
 	if header == nil {
+		return
+	}
+	var info *common.RelayInfo
+	if len(relayInfos) > 0 {
+		info = relayInfos[0]
+	}
+	if isAnthropicRelay(info) {
+		userAgent := header.Get("User-Agent")
+		// Keep explicit Claude/Codex markers, but never send a browser UA to
+		// Anthropic-compatible gateways: this class of upstream is known to
+		// return 502 for Mozilla/Chrome while accepting a CLI-style UA.
+		if isBrowserUserAgent(userAgent) || shouldRewriteUserAgent(userAgent) {
+			header.Set("User-Agent", anthropicSafeUserAgent)
+		}
 		return
 	}
 	if shouldRewriteUserAgent(header.Get("User-Agent")) {
@@ -368,7 +416,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
 	// 应用上游 User-Agent 策略，屏蔽 SDK 标识
-	applyUpstreamUserAgentPolicy(req.Header)
+	applyUpstreamUserAgentPolicy(req.Header, info)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
@@ -402,7 +450,7 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
 	// 应用上游 User-Agent 策略，屏蔽 SDK 标识
-	applyUpstreamUserAgentPolicy(req.Header)
+	applyUpstreamUserAgentPolicy(req.Header, info)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
@@ -430,7 +478,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		targetHeader.Set(key, value)
 	}
 	// 应用上游 User-Agent 策略，屏蔽 SDK 标识
-	applyUpstreamUserAgentPolicy(targetHeader)
+	applyUpstreamUserAgentPolicy(targetHeader, info)
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
 	if err != nil {
