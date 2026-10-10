@@ -665,6 +665,8 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 		return nil
 	}
 
+	logger.LogInfo(ctx, fmt.Sprintf("AutoDL attempting result upload: task=%s sourceUrl=%s attempt=%d", task.TaskID, result.Url, task.PrivateData.AutoDLResultUploadFailures+1))
+
 	persistedURL, err := service.PersistAutoDLResult(ctx, result.Url, task.PrivateData.PublicBaseURL)
 	if err == nil {
 		task.PrivateData.AutoDLResultUploadFailures = 0
@@ -679,7 +681,7 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 	if failures >= resultUploadLimit {
 		result.Status = model.TaskStatusFailure
 		result.Progress = "100%"
-		result.Reason = fmt.Sprintf("upload AutoDL result failed after %d attempts: %v", resultUploadLimit, err)
+		result.Reason = fmt.Sprintf("upload AutoDL result failed after %d attempts: %v", resultUploadLimit, service.SanitizeURLError(err))
 		logger.LogError(ctx, fmt.Sprintf("AutoDL result upload permanently failed: task=%s attempts=%d error=%v", task.TaskID, failures, err))
 		return nil
 	}
