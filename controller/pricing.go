@@ -207,6 +207,7 @@ func GetPricing(c *gin.Context) {
 	pricing = applyProviderPricingView(providerId, pricing)
 	usableGroup, groupRatio, autoGroups := getPricingVisibilityContext(c)
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
+	sortConfig := readPricingSortConfig(providerId)
 
 	c.JSON(200, gin.H{
 		"success":            true,
@@ -216,6 +217,7 @@ func GetPricing(c *gin.Context) {
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
 		"auto_groups":        autoGroups,
+		"sort_config":        sortConfig,
 		"pricing_version":    "b2c5fbb11278d477f8141196fd56208a",
 	})
 }

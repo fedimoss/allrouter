@@ -1114,6 +1114,13 @@ export function useModelPricingEditorState({
 
       for (const model of models) {
         if (model.billingMode === 'tiered_expr') {
+          if (!model.billingExpr?.trim()) {
+            throw new Error(
+              t('{{model}} 的计费表达式为空，请检查档位和时段配置。', {
+                model: model.name,
+              }),
+            );
+          }
           const finalBillingExpr = combineBillingExpr(
             model.billingExpr,
             model.requestRuleExpr,

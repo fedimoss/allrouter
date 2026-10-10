@@ -36,6 +36,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/provider/public_config", controller.GetProviderPublicConfig)
 		apiRouter.GET("/web_colors", controller.GetWebColors) // 获取网站主题色（无需登录）
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
+		apiRouter.PUT("/pricing/sort", middleware.UserAuth(), controller.UpdatePricingSort)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)

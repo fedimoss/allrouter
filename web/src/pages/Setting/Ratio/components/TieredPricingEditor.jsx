@@ -27,18 +27,15 @@ import {
   Radio,
   RadioGroup,
   Select,
+  Switch,
   Tag,
   TextArea,
   Typography,
 } from '@douyinfe/semi-ui';
 import { IconCopy, IconDelete, IconPlus } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../../helpers/render';
-import { copy, showSuccess } from '../../../../helpers';
-import {
-  BILLING_EXTRA_VARS,
-  BILLING_CACHE_VAR_MAP,
-  BILLING_CONDITION_VARS,
-} from '../../../../constants';
+import { copy, showError, showSuccess } from '../../../../helpers';
+import { BILLING_EXTRA_VARS } from '../../../../constants';
 import {
   createEmptyCondition,
   createEmptyTimeCondition,
@@ -62,6 +59,22 @@ import {
   COMMON_TIMEZONES,
 } from './requestRuleExpr';
 
+import {
+  CACHE_MODE_GENERIC,
+  CACHE_MODE_TIMED,
+  WEEKDAY_KEYS,
+  createTimeSchedule,
+  getTimeScheduleError,
+  getTierCacheMode,
+  normalizeVisualTier,
+  normalizeVisualConfig,
+  createDefaultVisualConfig,
+  generateExprFromVisualConfig,
+  tryParseVisualConfig,
+  hasTierConditions,
+  createBillingTimeEnv,
+} from './tieredPricingExpr';
+
 const { Text } = Typography;
 
 const PRICE_SUFFIX = '$/1M tokens';
@@ -80,9 +93,6 @@ const VAR_OPTIONS = [
   { value: 'c', label: 'c (输出)' },
 ];
 
-const CACHE_MODE_TIMED = 'timed';
-const CACHE_MODE_GENERIC = 'generic';
-
 function formatTokenHint(n) {
   if (n == null || n === '' || Number.isNaN(Number(n))) return '';
   const v = Number(n);
@@ -90,187 +100,6 @@ function formatTokenHint(n) {
   if (v >= 1000000) return `= ${(v / 1000000).toLocaleString()}M tokens`;
   if (v >= 1000) return `= ${(v / 1000).toLocaleString()}K tokens`;
   return `= ${v.toLocaleString()} tokens`;
-}
-
-// ---------------------------------------------------------------------------
-// Expr generation from visual config (multi-condition)
-// ---------------------------------------------------------------------------
-
-function buildConditionStr(conditions) {
-  if (!conditions || conditions.length === 0) return '';
-  return conditions
-    .filter((c) => c.var && c.op && c.value != null && c.value !== '')
-    .map((c) => `${c.var} ${c.op} ${c.value}`)
-    .join(' && ');
-}
-
-const CACHE_VAR_MAP = BILLING_CACHE_VAR_MAP;
-
-function getTierCacheMode(tier) {
-  if (tier?.cache_mode === CACHE_MODE_TIMED) {
-    return CACHE_MODE_TIMED;
-  }
-  if (tier?.cache_mode === CACHE_MODE_GENERIC) {
-    return CACHE_MODE_GENERIC;
-  }
-  return Number(tier?.cache_create_1h_unit_cost) > 0
-    ? CACHE_MODE_TIMED
-    : CACHE_MODE_GENERIC;
-}
-
-function normalizeVisualTier(tier = {}) {
-  return {
-    ...tier,
-    conditions: Array.isArray(tier.conditions) ? tier.conditions : [],
-    cache_mode: getTierCacheMode(tier),
-  };
-}
-
-function createDefaultVisualConfig() {
-  return {
-    tiers: [
-      normalizeVisualTier({
-        conditions: [],
-        input_unit_cost: 0,
-        output_unit_cost: 0,
-        label: 'base',
-        cache_mode: CACHE_MODE_GENERIC,
-      }),
-    ],
-  };
-}
-
-function normalizeVisualConfig(config) {
-  if (!config || !Array.isArray(config.tiers) || config.tiers.length === 0) {
-    return createDefaultVisualConfig();
-  }
-  return {
-    ...config,
-    tiers: config.tiers.map((tier) => normalizeVisualTier(tier)),
-  };
-}
-
-function buildTierBodyExpr(tier) {
-  const parts = [];
-  const ic = Number(tier.input_unit_cost) || 0;
-  const oc = Number(tier.output_unit_cost) || 0;
-  parts.push(`p * ${ic}`);
-  parts.push(`c * ${oc}`);
-  for (const cv of CACHE_VAR_MAP) {
-    const v = Number(tier[cv.field]) || 0;
-    if (v !== 0) parts.push(`${cv.exprVar} * ${v}`);
-  }
-  return parts.join(' + ');
-}
-
-function generateExprFromVisualConfig(config) {
-  if (!config || !config.tiers || config.tiers.length === 0)
-    return 'p * 0 + c * 0';
-  const tiers = config.tiers;
-
-  if (tiers.length === 1) {
-    const t = tiers[0];
-    const label = t.label || 'default';
-    const body = `tier("${label}", ${buildTierBodyExpr(t)})`;
-    const cond = buildConditionStr(t.conditions);
-    if (cond) {
-      return `${cond} ? ${body} : p * 0 + c * 0`;
-    }
-    return body;
-  }
-
-  const parts = [];
-  for (let i = 0; i < tiers.length; i++) {
-    const t = tiers[i];
-    const label = t.label || `第${i + 1}档`;
-    const body = `tier("${label}", ${buildTierBodyExpr(t)})`;
-    const cond = buildConditionStr(t.conditions);
-
-    if (i < tiers.length - 1 && cond) {
-      parts.push(`${cond} ? ${body}`);
-    } else {
-      parts.push(body);
-    }
-  }
-  return parts.join(' : ');
-}
-
-// ---------------------------------------------------------------------------
-// Reverse-parse an Expr string back into visual config
-// ---------------------------------------------------------------------------
-
-function tryParseVisualConfig(exprStr) {
-  if (!exprStr) return null;
-  try {
-    const versionMatch = exprStr.match(/^v\d+:([\s\S]*)$/);
-    if (versionMatch) exprStr = versionMatch[1];
-    const cacheVarNames = CACHE_VAR_MAP.map((cv) => cv.exprVar);
-    const optCacheStr = cacheVarNames
-      .map((v) => `(?:\\s*\\+\\s*${v}\\s*\\*\\s*([\\d.eE+-]+))?`)
-      .join('');
-
-    // Body pattern: p * X + c * Y [+ cr * A] [+ cc * B] [+ cc1h * C]
-    const bodyPat = `p\\s*\\*\\s*([\\d.eE+-]+)\\s*\\+\\s*c\\s*\\*\\s*([\\d.eE+-]+)${optCacheStr}`;
-
-    // Single-tier: tier("label", body)
-    const singleRe = new RegExp(`^tier\\("([^"]*)",\\s*${bodyPat}\\)$`);
-    const simple = exprStr.match(singleRe);
-    if (simple) {
-      const tier = {
-        conditions: [],
-        input_unit_cost: Number(simple[2]),
-        output_unit_cost: Number(simple[3]),
-        label: simple[1],
-      };
-      CACHE_VAR_MAP.forEach((cv, i) => {
-        const val = simple[4 + i];
-        if (val != null) tier[cv.field] = Number(val);
-      });
-      return normalizeVisualConfig({ tiers: [normalizeVisualTier(tier)] });
-    }
-
-    // Multi-tier: cond1 ? tier(body) : cond2 ? tier(body) : tier(body)
-    const condGroup = `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`;
-    const tierRe = new RegExp(
-      `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*${bodyPat}\\)`,
-      'g',
-    );
-    const tiers = [];
-    let match;
-    while ((match = tierRe.exec(exprStr)) !== null) {
-      const condStr = match[1] || '';
-      const conditions = [];
-      if (condStr) {
-        const condParts = condStr.split(/\s*&&\s*/);
-        for (const cp of condParts) {
-          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/);
-          if (cm) {
-            conditions.push({ var: cm[1], op: cm[2], value: Number(cm[3]) });
-          }
-        }
-      }
-      const tier = {
-        conditions,
-        input_unit_cost: Number(match[3]),
-        output_unit_cost: Number(match[4]),
-        label: match[2],
-      };
-      CACHE_VAR_MAP.forEach((cv, i) => {
-        const val = match[5 + i];
-        if (val != null) tier[cv.field] = Number(val);
-      });
-      tiers.push(normalizeVisualTier(tier));
-    }
-    if (tiers.length === 0) return null;
-
-    const cfg = normalizeVisualConfig({ tiers });
-    const regenerated = generateExprFromVisualConfig(cfg);
-    if (regenerated.replace(/\s+/g, '') !== exprStr.replace(/\s+/g, ''))
-      return null;
-    return cfg;
-  } catch {
-    return null;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -514,6 +343,163 @@ function ExtendedPriceBlock({ tier, index, onUpdate, t }) {
 // Visual Tier Card (multi-condition)
 // ---------------------------------------------------------------------------
 
+function TimeScheduleEditor({ schedule, onChange, t }) {
+  const error = getTimeScheduleError(schedule);
+  const updateRange = (index, field, value) => {
+    onChange({
+      ...schedule,
+      ranges: schedule.ranges.map((range, i) =>
+        i === index ? { ...range, [field]: value } : range,
+      ),
+    });
+  };
+  const timeLabel = (hour) => `${String(hour).padStart(2, '0')}:00`;
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Switch
+          size='small'
+          checked={!!schedule}
+          aria-label={t('按星期和时段匹配')}
+          onChange={(checked) =>
+            onChange(checked ? createTimeSchedule() : null)
+          }
+        />
+        <Text size='small'>{t('按星期和时段匹配')}</Text>
+      </div>
+      {schedule && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 12,
+            borderRadius: 6,
+            background: 'var(--semi-color-fill-0)',
+          }}
+        >
+          <div className='text-xs text-gray-500 mb-3'>
+            {t('多个时段满足任意一个即可；星期和时段同时满足才命中。')}
+          </div>
+          <Text size='small' style={{ display: 'block', marginBottom: 4 }}>
+            {t('时区')}
+          </Text>
+          <Select
+            size='small'
+            value={schedule.timezone}
+            filter
+            allowCreate
+            aria-label={t('时区')}
+            style={{ width: '100%', marginBottom: 8 }}
+            onChange={(timezone) => onChange({ ...schedule, timezone })}
+          >
+            {COMMON_TIMEZONES.map(({ value }) => (
+              <Select.Option key={value} value={value}>
+                {value}
+              </Select.Option>
+            ))}
+          </Select>
+          <Text size='small' style={{ display: 'block', marginBottom: 4 }}>
+            {t('适用星期')}
+          </Text>
+          <Select
+            size='small'
+            multiple
+            value={schedule.weekdays}
+            aria-label={t('适用星期')}
+            style={{ width: '100%', marginBottom: 8 }}
+            onChange={(weekdays) => onChange({ ...schedule, weekdays })}
+          >
+            {[1, 2, 3, 4, 5, 6, 0].map((day) => (
+              <Select.Option key={day} value={day}>
+                {t(WEEKDAY_KEYS[day])}
+              </Select.Option>
+            ))}
+          </Select>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) 32px',
+              gap: 6,
+              alignItems: 'center',
+            }}
+          >
+            <Text size='small'>{t('开始时间')}</Text>
+            <Text size='small'>{t('结束时间')}</Text>
+            <span />
+            {schedule.ranges.map((range, index) => (
+              <React.Fragment key={index}>
+                <Select
+                  size='small'
+                  value={range.start}
+                  aria-label={t('开始时间')}
+                  style={{ width: '100%' }}
+                  onChange={(value) => updateRange(index, 'start', value)}
+                >
+                  {Array.from({ length: 24 }, (_, hour) => (
+                    <Select.Option key={hour} value={hour}>
+                      {timeLabel(hour)}
+                    </Select.Option>
+                  ))}
+                </Select>
+                <Select
+                  size='small'
+                  value={range.end}
+                  aria-label={t('结束时间')}
+                  style={{ width: '100%' }}
+                  onChange={(value) => updateRange(index, 'end', value)}
+                >
+                  {Array.from({ length: 25 }, (_, hour) => (
+                    <Select.Option key={hour} value={hour}>
+                      {timeLabel(hour)}
+                    </Select.Option>
+                  ))}
+                </Select>
+                <Button
+                  icon={<IconDelete />}
+                  type='danger'
+                  theme='borderless'
+                  size='small'
+                  aria-label={t('删除时段')}
+                  onClick={() =>
+                    onChange({
+                      ...schedule,
+                      ranges: schedule.ranges.filter((_, i) => i !== index),
+                    })
+                  }
+                />
+              </React.Fragment>
+            ))}
+          </div>
+          <Button
+            icon={<IconPlus />}
+            theme='borderless'
+            size='small'
+            style={{ marginTop: 6 }}
+            onClick={() =>
+              onChange({
+                ...schedule,
+                ranges: [...schedule.ranges, { start: 9, end: 18 }],
+              })
+            }
+          >
+            {t('添加时段')}
+          </Button>
+          <div className='text-xs text-gray-500 mt-2'>
+            {t(
+              '时段包含开始、不包含结束；结束早于开始表示跨午夜，星期按当前日期判断。',
+            )}
+          </div>
+          {error && (
+            <Text type='danger' size='small'>
+              {t(error)}
+            </Text>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function VisualTierCard({
   tier,
   index,
@@ -587,6 +573,14 @@ function VisualTierCard({
               {t('兜底档')}
             </Tag>
           ) : null}
+          {tier.label === 'peak' || tier.label === 'off_peak' ? (
+            <Tag
+              color={tier.label === 'peak' ? 'orange' : 'green'}
+              size='small'
+            >
+              {tier.label === 'peak' ? t('忙时') : t('闲时')}
+            </Tag>
+          ) : null}
         </div>
         {!isOnly ? (
           <Button
@@ -646,6 +640,11 @@ function VisualTierCard({
               {t('添加条件')}
             </Button>
           )}
+          <TimeScheduleEditor
+            schedule={tier.time_schedule}
+            onChange={(schedule) => onUpdate(index, 'time_schedule', schedule)}
+            t={t}
+          />
         </div>
       ) : (
         <div
@@ -714,8 +713,7 @@ function VisualEditor({ visualConfig, onChange, t }) {
     const newTiers = [...tiers];
     if (
       newTiers.length > 0 &&
-      (!newTiers[newTiers.length - 1].conditions ||
-        newTiers[newTiers.length - 1].conditions.length === 0)
+      !hasTierConditions(newTiers[newTiers.length - 1])
     ) {
       newTiers[newTiers.length - 1] = {
         ...newTiers[newTiers.length - 1],
@@ -739,6 +737,7 @@ function VisualEditor({ visualConfig, onChange, t }) {
       next[next.length - 1] = {
         ...next[next.length - 1],
         conditions: [],
+        time_schedule: null,
       };
     }
     onChange({ ...config, tiers: next });
@@ -749,7 +748,7 @@ function VisualEditor({ visualConfig, onChange, t }) {
       <Banner
         type='info'
         description={t(
-          '每个档位可设置 0~2 个条件（对 len、p 和 c），最后一档为兜底档无需条件。len 为输入上下文总长度（含缓存），推荐用于阶梯条件。',
+          '档位从上到下匹配，最后一档为兜底档。每档可设置 token 条件和星期、时段；不满足前面条件的时间自动使用兜底档价格。len 为输入上下文总长度（含缓存）。',
         )}
         style={{ marginBottom: 12 }}
       />
@@ -784,6 +783,16 @@ function VisualEditor({ visualConfig, onChange, t }) {
 // ---------------------------------------------------------------------------
 
 const PRESET_GROUPS = [
+  {
+    group: '分时计费',
+    presets: [
+      {
+        key: 'deepseek-v4-flash-peak',
+        label: 'DeepSeek V4 Flash',
+        expr: '(hour("UTC") >= 1 && hour("UTC") < 4 || hour("UTC") >= 6 && hour("UTC") < 10) && weekday("UTC") >= 1 && weekday("UTC") <= 5 ? tier("peak", p * 0.44 + c * 1.32 + cr * 0.015) : tier("off_peak", p * 0.22 + c * 0.66 + cr * 0.015)',
+      },
+    ],
+  },
   {
     group: '固定价格',
     presets: [
@@ -1150,7 +1159,7 @@ function CacheTokenEstimatorInputs({
 // Cost estimator (works with any Expr string)
 // ---------------------------------------------------------------------------
 
-function evalExprLocally(exprStr, p, c, extraTokenValues) {
+function evalExprLocally(exprStr, p, c, extraTokenValues, previewDate) {
   try {
     let matchedTier = '';
     const tierFn = (name, value) => {
@@ -1171,13 +1180,14 @@ function evalExprLocally(exprStr, p, c, extraTokenValues) {
       abs: Math.abs,
       ceil: Math.ceil,
       floor: Math.floor,
+      ...createBillingTimeEnv(previewDate),
     };
     for (const field of EXTRA_ESTIMATOR_FIELDS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0;
     }
     const fn = new Function(
       ...Object.keys(env),
-      `"use strict"; return (${exprStr});`,
+      `"use strict"; return (${exprStr.replace(/^\s*v1:/, '')});`,
     );
     return { cost: fn(...Object.values(env)), matchedTier, error: null };
   } catch (e) {
@@ -1694,6 +1704,7 @@ export default function TieredPricingEditor({
   const currentExpr = model?.billingExpr || '';
 
   const [editorMode, setEditorMode] = useState('visual');
+  const [initializedModelName, setInitializedModelName] = useState(model?.name);
   const [visualConfig, setVisualConfig] = useState(null);
   const [rawExpr, setRawExpr] = useState('');
   const [promptTokens, setPromptTokens] = useState(200000);
@@ -1705,6 +1716,9 @@ export default function TieredPricingEditor({
   const [imageOutputTokens, setImageOutputTokens] = useState(0);
   const [audioInputTokens, setAudioInputTokens] = useState(0);
   const [audioOutputTokens, setAudioOutputTokens] = useState(0);
+  const [previewTime, setPreviewTime] = useState(() =>
+    new Date().toISOString().slice(0, 16),
+  );
 
   const currentRequestRuleExpr = requestRuleExpr || '';
   const parsedRequestRuleGroups = useMemo(
@@ -1733,14 +1747,15 @@ export default function TieredPricingEditor({
   );
 
   useEffect(() => {
+    setInitializedModelName(model?.name);
     const parsed = tryParseVisualConfig(currentExpr);
     if (parsed) {
       setEditorMode('visual');
       setVisualConfig(parsed);
-      setRawExpr(currentExpr);
+      setRawExpr(combineBillingExpr(currentExpr, currentRequestRuleExpr));
     } else if (currentExpr) {
       setEditorMode('raw');
-      setRawExpr(currentExpr);
+      setRawExpr(combineBillingExpr(currentExpr, currentRequestRuleExpr));
       setVisualConfig(null);
     } else {
       setEditorMode('visual');
@@ -1750,12 +1765,29 @@ export default function TieredPricingEditor({
   }, [model?.name]);
 
   const effectiveExpr = useMemo(() => {
+    if (initializedModelName !== model?.name) return currentExpr;
     if (editorMode === 'visual') {
+      if (!visualConfig) return currentExpr;
       return generateExprFromVisualConfig(visualConfig);
     }
     const { billingExpr } = splitBillingExprAndRequestRules(rawExpr);
     return billingExpr;
-  }, [editorMode, visualConfig, rawExpr]);
+  }, [
+    editorMode,
+    visualConfig,
+    rawExpr,
+    currentExpr,
+    initializedModelName,
+    model?.name,
+  ]);
+
+  const canUseVisualPricing = useMemo(() => {
+    const { billingExpr } = splitBillingExprAndRequestRules(rawExpr);
+    return tryParseVisualConfig(billingExpr) !== null;
+  }, [rawExpr]);
+  const usesTimeFunctions = /\b(hour|minute|weekday|month|day)\s*\(/.test(
+    effectiveExpr,
+  );
 
   useEffect(() => {
     if (effectiveExpr !== currentExpr) {
@@ -1783,22 +1815,36 @@ export default function TieredPricingEditor({
         const { billingExpr, requestRuleExpr: ruleStr } =
           splitBillingExprAndRequestRules(rawExpr);
         const parsed = tryParseVisualConfig(billingExpr);
-        if (parsed) {
-          setVisualConfig(parsed);
-        } else {
-          setVisualConfig(createDefaultVisualConfig());
+        if (!parsed) {
+          showError(
+            t(
+              '这个公式比较复杂，下面的简化表单没法完整还原，请在表达式编辑模式下修改。',
+            ),
+          );
+          return;
         }
+        setVisualConfig(parsed);
         const parsedGroups = tryParseRequestRuleExpr(ruleStr);
         setRequestRuleGroups(parsedGroups || []);
         onRequestRuleExprChange(ruleStr);
       } else {
         const expr = generateExprFromVisualConfig(visualConfig);
-        const ruleExpr = buildRequestRuleExpr(requestRuleGroups);
+        const ruleExpr = canUseVisualRules
+          ? buildRequestRuleExpr(requestRuleGroups)
+          : currentRequestRuleExpr;
         setRawExpr(combineBillingExpr(expr, ruleExpr) || expr);
       }
       setEditorMode(newMode);
     },
-    [rawExpr, visualConfig, requestRuleGroups, onRequestRuleExprChange],
+    [
+      rawExpr,
+      visualConfig,
+      requestRuleGroups,
+      canUseVisualRules,
+      currentRequestRuleExpr,
+      onRequestRuleExprChange,
+      t,
+    ],
   );
 
   const applyPreset = useCallback(
@@ -1809,6 +1855,7 @@ export default function TieredPricingEditor({
       setRawExpr(combined);
       const parsed = tryParseVisualConfig(preset.expr);
       if (parsed) {
+        setEditorMode('visual');
         setVisualConfig(parsed);
       } else {
         setEditorMode('raw');
@@ -1845,6 +1892,7 @@ export default function TieredPricingEditor({
       promptTokens,
       completionTokens,
       extraTokenValues,
+      new Date(`${previewTime}Z`),
     );
     if (!result.error) {
       result.cost =
@@ -1863,6 +1911,7 @@ export default function TieredPricingEditor({
     imageOutputTokens,
     audioInputTokens,
     audioOutputTokens,
+    previewTime,
   ]);
 
   return (
@@ -1874,8 +1923,25 @@ export default function TieredPricingEditor({
           value={editorMode}
           onChange={handleModeSwitch}
         >
-          <Radio value='visual'>{t('可视化编辑')}</Radio>
+          <Radio
+            value='visual'
+            disabled={editorMode === 'raw' && !canUseVisualPricing}
+          >
+            {t('可视化编辑')}
+          </Radio>
+          <Radio value='raw'>{t('表达式编辑')}</Radio>
         </RadioGroup>
+        {editorMode === 'raw' && !canUseVisualPricing && (
+          <Text
+            type='secondary'
+            size='small'
+            style={{ display: 'block', marginTop: 8 }}
+          >
+            {t(
+              '这个公式比较复杂，下面的简化表单没法完整还原，请在表达式编辑模式下修改。',
+            )}
+          </Text>
+        )}
       </div>
 
       <PresetSection applyPreset={applyPreset} t={t} />
@@ -1982,6 +2048,27 @@ export default function TieredPricingEditor({
         <div className='text-xs text-gray-500 mb-3'>
           {t('输入 Token 数量，查看按当前配置的预计费用（不含分组倍率）。')}
         </div>
+        {usesTimeFunctions && (
+          <div style={{ marginBottom: 12 }}>
+            <Text size='small' style={{ display: 'block', marginBottom: 4 }}>
+              {t('模拟时间（UTC）')}
+            </Text>
+            <Input
+              type='datetime-local'
+              value={previewTime}
+              aria-label={t('模拟时间（UTC）')}
+              onChange={setPreviewTime}
+              style={{ width: '100%' }}
+            />
+            <Text
+              size='small'
+              type='secondary'
+              style={{ display: 'block', marginTop: 4 }}
+            >
+              {t('用于预览档位，实际计费按所选时区的当前时间计算。')}
+            </Text>
+          </div>
+        )}
         <div
           style={{
             display: 'grid',
@@ -2060,7 +2147,6 @@ export default function TieredPricingEditor({
           )}
         </div>
       </Card>
-
     </div>
   );
 }
