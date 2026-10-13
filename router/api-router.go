@@ -263,6 +263,10 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.GET("/get_version_log/:id", controller.GetVersionLogById)               // 获取版本日志详情
 			optionRoute.PUT("/update_version_log/:id", controller.UpdateVersionLogById)         // 更新版本日志详情
 			optionRoute.DELETE("/delete_version_log/:id", controller.DeleteVersionLogById)      // 删除版本日志
+			// 微信服务号配置（主站管理员）
+			optionRoute.GET("/wechat_official_config", controller.GetWechatOfficialConfig)
+			optionRoute.POST("/wechat_official_config", controller.SaveWechatOfficialConfig)
+			optionRoute.DELETE("/wechat_official_config", controller.DeleteWechatOfficialConfig)
 		}
 
 		// Telegram webhook 管理接口（管理员）
@@ -496,6 +500,10 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.POST("/withdraw/cancel", controller.CancelProviderWithdrawRequest)  // 取消提现申请
 			providerRoute.GET("/options/:id", controller.GetProviderOptions)                  // 获取服务商配置
 			providerRoute.PUT("/options/:id", controller.UpdateProviderOption)                // 更新服务商配置
+			// 微信服务号配置（服务商管理员）
+			providerRoute.GET("/wechat_official_config", controller.GetWechatOfficialConfig)
+			providerRoute.POST("/wechat_official_config", controller.SaveWechatOfficialConfig)
+			providerRoute.DELETE("/wechat_official_config", controller.DeleteWechatOfficialConfig)
 			// 服务商 owner 问卷管理（本站记录）
 			providerRoute.GET("/questionnaires", controller.GetProviderUserQuestionnaires)
 			providerRoute.DELETE("/questionnaires/:id", controller.DeleteProviderUserQuestionnaire)

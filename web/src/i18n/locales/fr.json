@@ -5821,6 +5821,21 @@
     "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X peut aussi être inférieur à 1 pour appliquer une remise. Pour augmenter uniquement le prix de sortie ou ajouter des frais fixes, écrivez directement la formule de facturation complète.",
     "继续支付": "Continuer le paiement",
     "继续支付失败": "Échec de la reprise du paiement",
-    "请在订阅页面继续完成加密货币支付": "Continuez le paiement en cryptomonnaie sur la page d’abonnement"
+    "请在订阅页面继续完成加密货币支付": "Continuez le paiement en cryptomonnaie sur la page d’abonnement",
+    "微信配置": "Configuration WeChat",
+    "微信服务号配置": "Configuration du compte officiel WeChat",
+    "请输入微信公众号 AppId": "Saisissez l’AppId du compte officiel WeChat",
+    "请输入微信公众号 AppSecret": "Saisissez l’AppSecret du compte officiel WeChat",
+    "留空则保持原值不变": "Laissez vide pour conserver la valeur enregistrée",
+    "首次配置时 AppSecret 不能为空": "L’AppSecret est obligatoire lors de la configuration initiale",
+    "AppId 不能为空": "L’AppId est obligatoire",
+    "删除配置": "Supprimer la configuration",
+    "更换 AppId 时需同时填写对应的 AppSecret。": "Saisissez l’AppSecret correspondant lorsque vous modifiez l’AppId.",
+    "保存服务号凭据。修改 AppSecret 时填写新值，留空保留已保存的密钥。更换 AppId 时需同时填写对应的 AppSecret。": "Enregistrez les identifiants de votre compte officiel. Saisissez un nouvel AppSecret pour le remplacer ou laissez ce champ vide pour conserver le secret enregistré. Toute modification de l’AppId nécessite l’AppSecret correspondant.",
+    "微信登录仍需单独配置，此处保存凭据不会自动开启微信登录。": "La connexion WeChat nécessite une configuration distincte. Enregistrer les identifiants ici ne l’active pas automatiquement.",
+    "删除后将清除当前站点保存的 AppId 和 AppSecret。": "La suppression effacera l’AppId et l’AppSecret enregistrés pour ce site.",
+    "微信服务号配置已保存并启用。": "La configuration du compte officiel WeChat est enregistrée et activée.",
+    "微信服务号配置已保存，当前已禁用。": "La configuration du compte officiel WeChat est enregistrée et actuellement désactivée.",
+    "仅超级管理员可以管理系统设置。": "Seuls les super administrateurs peuvent gérer les paramètres système."
   }
 }

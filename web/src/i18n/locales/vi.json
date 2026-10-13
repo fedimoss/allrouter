@@ -6302,6 +6302,21 @@
     "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X cũng có thể nhỏ hơn 1 để dùng làm mức giảm giá. Nếu muốn chỉ tăng giá đầu ra hoặc thêm phí cố định, hãy nhập trực tiếp công thức tính phí đầy đủ.",
     "继续支付": "Tiếp tục thanh toán",
     "继续支付失败": "Không thể tiếp tục thanh toán",
-    "请在订阅页面继续完成加密货币支付": "Tiếp tục thanh toán bằng tiền mã hóa trên trang đăng ký"
+    "请在订阅页面继续完成加密货币支付": "Tiếp tục thanh toán bằng tiền mã hóa trên trang đăng ký",
+    "微信配置": "Cấu hình WeChat",
+    "微信服务号配置": "Cấu hình tài khoản chính thức WeChat",
+    "请输入微信公众号 AppId": "Nhập AppId của tài khoản chính thức WeChat",
+    "请输入微信公众号 AppSecret": "Nhập AppSecret của tài khoản chính thức WeChat",
+    "留空则保持原值不变": "Để trống để giữ giá trị đã lưu",
+    "首次配置时 AppSecret 不能为空": "Phải nhập AppSecret khi cấu hình lần đầu",
+    "AppId 不能为空": "Phải nhập AppId",
+    "删除配置": "Xóa cấu hình",
+    "更换 AppId 时需同时填写对应的 AppSecret。": "Khi thay đổi AppId, hãy nhập AppSecret tương ứng.",
+    "保存服务号凭据。修改 AppSecret 时填写新值，留空保留已保存的密钥。更换 AppId 时需同时填写对应的 AppSecret。": "Lưu thông tin xác thực của tài khoản chính thức. Nhập AppSecret mới để thay thế hoặc để trống để giữ khóa bí mật đã lưu. Khi thay đổi AppId, cũng phải nhập AppSecret tương ứng.",
+    "微信登录仍需单独配置，此处保存凭据不会自动开启微信登录。": "Đăng nhập WeChat cần được thiết lập riêng. Lưu thông tin xác thực tại đây không tự động bật đăng nhập WeChat.",
+    "删除后将清除当前站点保存的 AppId 和 AppSecret。": "Việc xóa sẽ loại bỏ AppId và AppSecret đã lưu cho trang web này.",
+    "微信服务号配置已保存并启用。": "Cấu hình tài khoản chính thức WeChat đã được lưu và bật.",
+    "微信服务号配置已保存，当前已禁用。": "Cấu hình tài khoản chính thức WeChat đã được lưu và hiện đang tắt.",
+    "仅超级管理员可以管理系统设置。": "Chỉ siêu quản trị viên mới có thể quản lý cài đặt hệ thống."
   }
 }
