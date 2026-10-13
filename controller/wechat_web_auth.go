@@ -11,41 +11,102 @@ package controller
 //
 // 前端页面（web/src/pages/WechatScan）流程：
 //  1. 页面加载时判断 URL 是否带 code；
-//  2. 没有 code → 跳转微信授权链接（snsapi_base 静默授权）；
+//  2. 没有 code → 向后端要授权链接（按当前站点取 appid）并跳转；
 //  3. 微信回调本页面并带上 code → 前端调 /api/wechat/web_auth/token；
-//  4. 后端用 code 换 openid，按 openid 查用户，返回要展示的信息。
+//  4. 后端按当前站点取 appid/secret，用 code 换 openid；
+//  5. 该 openid 在当前站点没有账号时创建账号（复用 User.Insert，自带赠送额度等），
+//     已有账号则直接返回，最后把展示信息返回给页面渲染。
 //
-// 说明：体验阶段返回固定文案；接入真实业务时，把 buildWechatWebAuthPayload 里的内容
-// 改为根据 model 查询结果动态生成即可（代码中已标注位置）。
+// 多站点说明（重要）：
+//   - 主站与分站各自配置自己的服务号，凭据统一存在 wechat_official_configs 表，
+//     以 provider_id 区分：主站 provider_id=0，分站为对应 providers.id。
+//   - 当前请求属于哪个站点，由 middleware.TenantResolver 按域名解析后写入上下文
+//     (constant.ContextKeyProviderId)，这里直接读取，不再自己解析域名。
+//   - 因此同一个微信用户在 A 站与 B 站会各自拿到（各自服务号下的）openid，进而各自建号。
 
 import (
+	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-// wechatWebAuthAppID / wechatWebAuthSecret 是网页授权所需的服务号凭据。
-// 与消息推送、二维码等其它微信能力使用的是同一个服务号，但此处独立成常量，
-// 便于单独替换；正式接入时应统一收敛到同一处配置。
+// WechatScanEntry 是扫码入口（GET /wechat/scan），用于在“加载前端之前”决定去向：
+//   - URL 上没有 code：说明用户刚扫码，直接 302 跳到微信授权链接。
+//     好处是这一次请求完全不下载前端资源，省掉整包 JS 的加载，跳转更快、白屏更短。
+//   - URL 上带 code：说明已从微信授权回调回来，交给前端 SPA 处理（渲染页面、调接口取数）。
+//   - URL 上带 debug=1：调试直通，不跳授权也不取数，直接返回 SPA 页面，
+//     方便在普通浏览器里打开本页调试样式（页面会用演示数据渲染）。
+//
+// 该入口只做跳转判断，不参与取数，因此不依赖前端是否已加载。
+func WechatScanEntry(c *gin.Context) {
+	// 调试直通：?debug=1 时直接渲染页面，避免在浏览器里被 302 跳到微信授权页而无法查看页面。
+	if strings.TrimSpace(c.Query("debug")) != "" {
+		c.Next()
+		return
+	}
+
+	// 已带 code：把请求交回 SPA（由 web/dist 的 index.html 承接，前端再调 web_auth/token）。
+	if strings.TrimSpace(c.Query("code")) != "" {
+		c.Next()
+		return
+	}
+
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	config, err := loadWechatWebAuthConfig(providerId)
+	if err != nil {
+		// 配置缺失/停用时不跳微信，直接把原因告诉用户，避免跳到微信再失败。
+		c.String(http.StatusOK, "扫码服务暂不可用：%s", err.Error())
+		return
+	}
+
+	// 回调地址固定为当前扫码入口本身，用请求 Host 组装，与前端 window.location.origin 行为一致，
+	// 确保落在已配置的网页授权域名下。
+	redirectURI := "https://" + c.Request.Host + "/wechat/scan"
+
+	authorizeURL, err := service.BuildWechatOAuth2AuthorizeURL(config.AppId, redirectURI, "", "")
+	if err != nil {
+		logger.LogError(c.Request.Context(), "wechat scan build authorize url failed: "+err.Error())
+		c.String(http.StatusOK, "扫码服务暂不可用：%s", err.Error())
+		return
+	}
+	c.Redirect(http.StatusFound, authorizeURL)
+}
+
+// 新建微信用户的默认值。
 const (
-	wechatWebAuthAppID  = "wx_placeholder_appid"
-	wechatWebAuthSecret = "placeholder_appsecret"
+	// wechatWebAuthUsernamePrefix 随机用户名/显示名前缀，便于后台辨认来源。
+	wechatWebAuthUsernamePrefix = "wx_"
+	// wechatWebAuthUsernameRandomLen 随机部分长度：前缀 3 + 随机 13 = 16，处于用户名上限 20 以内。
+	wechatWebAuthUsernameRandomLen = 13
+	// wechatWebAuthPasswordRandomLen 随机密码长度，需落在 User.Password 校验的 8-20 之间。
+	wechatWebAuthPasswordRandomLen = 16
+	// wechatWebAuthMaxGenerateAttempts 生成唯一用户名时的最大重试次数，避免极端情况下死循环。
+	wechatWebAuthMaxGenerateAttempts = 5
+	// wechatWebAuthDefaultTokenName 扫码用户默认令牌的名称，同名令牌会被复用。
+	wechatWebAuthDefaultTokenName = "default"
+	// wechatWebAuthDefaultTokenGroup 默认令牌的分组。
+	wechatWebAuthDefaultTokenGroup = "default"
 )
 
-// WechatWebAuthToken 用网页授权 code 换取 openid，并按 openid 查询用户信息。
+// WechatWebAuthToken 用网页授权 code 换取 openid，并按当前站点查询/创建用户。
 //
 // 请求：GET /api/wechat/web_auth/token?code=xxx
 //
 // 返回 data 字段：
 //   - openid   ：当前用户的 openid（snsapi_base 静默授权只能拿到它）。
-//   - found    ：该 openid 是否已绑定站内用户。
-//   - user_*   ：绑定用户的基础信息（未绑定时为空）。
-//   - base_url / api_key：当前体验阶段固定展示的内容。
+//   - found    ：调用前该 openid 在当前站点是否已有账号。
+//   - created  ：本次是否新建了账号。
+//   - username / password：账号与密码（password 仅在新建时返回一次，已存在时为空）。
+//   - site_url / api_key：站点根地址与真实令牌 key（前端按协议再拼出各自的 Base URL）。
 func WechatWebAuthToken(c *gin.Context) {
 	code := strings.TrimSpace(c.Query("code"))
 	if code == "" {
@@ -53,10 +114,20 @@ func WechatWebAuthToken(c *gin.Context) {
 		return
 	}
 
+	// 当前请求归属哪个站点：主站为 0，分站为 provider.id。
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+
+	config, err := loadWechatWebAuthConfig(providerId)
+	if err != nil {
+		logger.LogError(c.Request.Context(), "wechat web auth load config failed: "+err.Error())
+		common.ApiError(c, err)
+		return
+	}
+
 	token, err := service.NewWechatOAuth2Service().ExchangeCodeForToken(
 		c.Request.Context(),
-		wechatWebAuthAppID,
-		wechatWebAuthSecret,
+		config.AppId,
+		config.AppSecret,
 		code,
 	)
 	if err != nil {
@@ -71,43 +142,164 @@ func WechatWebAuthToken(c *gin.Context) {
 		return
 	}
 
-	// 按 openid 查站内用户（wechat_id 绑定的用户）。
-	var user model.User
-	found := model.IsWeChatIdAlreadyTaken(token.OpenID)
-	if found {
-		user.WeChatId = token.OpenID
-		if err := user.FillUserByWeChatId(); err != nil {
-			logger.LogError(c.Request.Context(), "wechat web auth fill user failed: "+err.Error())
-			common.ApiError(c, err)
-			return
-		}
+	user, created, plainPassword, err := findOrCreateWechatUser(c, providerId, token.OpenID)
+	if err != nil {
+		logger.LogError(c.Request.Context(), "wechat web auth find or create user failed: "+err.Error())
+		common.ApiError(c, err)
+		return
 	}
 
-	common.ApiSuccess(c, buildWechatWebAuthPayload(token.OpenID, found, &user))
+	apiKey, err := ensureWechatDefaultToken(user.Id, providerId)
+	if err != nil {
+		logger.LogError(c.Request.Context(), "wechat web auth ensure default token failed: "+err.Error())
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, buildWechatWebAuthPayload(c, token.OpenID, user, created, plainPassword, apiKey))
+}
+
+// ensureWechatDefaultToken 保证该用户在当前站点存在名为 default、分组为 default 的令牌，并返回其 key。
+// 已存在则复用（取最早创建的一条），不存在则新建一个永不过期、不限额度的令牌。
+func ensureWechatDefaultToken(userId int, providerId int) (string, error) {
+	existing, err := model.GetTokenByUserIdProviderAndName(userId, providerId, wechatWebAuthDefaultTokenName)
+	if err == nil && existing != nil {
+		return existing.Key, nil
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", err
+	}
+
+	key, err := common.GenerateKey()
+	if err != nil {
+		return "", err
+	}
+	now := common.GetTimestamp()
+	token := &model.Token{
+		ProviderId:         providerId,
+		UserId:             userId,
+		Key:                key,
+		Status:             common.UserStatusEnabled,
+		Name:               wechatWebAuthDefaultTokenName,
+		CreatedTime:        now,
+		AccessedTime:       now,
+		ExpiredTime:        -1, // 永不过期
+		RemainQuota:        0,
+		UnlimitedQuota:     true,
+		ModelLimitsEnabled: false,
+		Group:              wechatWebAuthDefaultTokenGroup,
+	}
+	if err := token.Insert(); err != nil {
+		return "", err
+	}
+	return token.Key, nil
+}
+
+// loadWechatWebAuthConfig 读取当前站点的服务号凭据（wechat_official_configs，按 provider_id）。
+// 未配置或未启用时返回明确错误，避免用错站点的 appid 换 openid。
+func loadWechatWebAuthConfig(providerId int) (*model.WechatOfficialConfig, error) {
+	config, err := model.GetWechatConfigByProvider(providerId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("当前站点尚未配置微信服务号（AppID/AppSecret）")
+		}
+		return nil, err
+	}
+	if strings.TrimSpace(config.AppId) == "" || strings.TrimSpace(config.AppSecret) == "" {
+		return nil, errors.New("当前站点微信服务号配置不完整（AppID/AppSecret）")
+	}
+	if !config.Enabled {
+		return nil, errors.New("当前站点微信服务号配置已停用")
+	}
+	return config, nil
+}
+
+// findOrCreateWechatUser 按 (provider_id, openid) 查询用户；不存在则创建。
+// 返回：用户、是否本次新建、新建时的明文密码（已存在时为空串）。
+//
+// 创建走 model.User.Insert，复用其内部的赠送额度 / 赠送订阅 / 奖励流水 / 邀请记录等逻辑，
+// 不能自己 DB.Create，否则会漏掉站点级的新用户奖励。
+func findOrCreateWechatUser(c *gin.Context, providerId int, openID string) (*model.User, bool, string, error) {
+	existing, err := model.GetUserByProviderAndWeChatId(providerId, openID)
+	if err == nil && existing != nil {
+		return existing, false, "", nil
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, "", err
+	}
+
+	username, err := generateUniqueWechatUsername()
+	if err != nil {
+		return nil, false, "", err
+	}
+	// 密码随机生成；用户不感知，仅在创建时回显一次，库中存的是哈希。
+	plainPassword := common.GetRandomString(wechatWebAuthPasswordRandomLen)
+
+	user := &model.User{
+		ProviderId:  providerId,
+		WeChatId:    openID,
+		Username:    username,
+		DisplayName: username, // 与 username 相同
+		Password:    plainPassword,
+		// email 留空：微信扫码拿不到邮箱。空值会跳过邮箱唯一性校验，
+		// 也避免用随机假邮箱占用全局 email 唯一索引。
+		Email:      "",
+		Role:       common.RoleCommonUser,
+		Status:     common.UserStatusEnabled,
+		RegisterIp: getRegistrationIP(c),
+	}
+
+	if err := user.Insert(0); err != nil {
+		return nil, false, "", err
+	}
+	return user, true, plainPassword, nil
+}
+
+// generateUniqueWechatUsername 生成全局唯一的随机用户名（同时用作 display_name）。
+// 用户名在库中是全局唯一（UserIdentityConflictFieldsGlobally 不带 provider），
+// 因此必须生成后校验、冲突则重试。
+func generateUniqueWechatUsername() (string, error) {
+	for i := 0; i < wechatWebAuthMaxGenerateAttempts; i++ {
+		candidate := wechatWebAuthUsernamePrefix + common.GetRandomString(wechatWebAuthUsernameRandomLen)
+		usernameConflict, _, err := model.UserIdentityConflictFieldsGlobally(0, candidate, "")
+		if err != nil {
+			return "", err
+		}
+		if !usernameConflict {
+			return candidate, nil
+		}
+	}
+	return "", errors.New("生成唯一用户名失败，请重试")
 }
 
 // buildWechatWebAuthPayload 组装返回给前端的展示数据。
 //
-// 体验阶段：base_url / api_key 固定显示。
-// 接入真实业务时：把 base_url / api_key 换成按 user 查询到的真实配置即可。
-func buildWechatWebAuthPayload(openID string, found bool, user *model.User) gin.H {
-	payload := gin.H{
-		"openid":   openID,
-		"found":    found,
-		"base_url": "https://allrouter.ai/v1",
-		"api_key":  "123456789",
+// site_url 取当前请求域名（即用户扫码访问的站点域名）；api_key 为真实令牌 key。
+// 各协议实际使用的 Base URL 由前端按 SDK 规则拼接（OpenAI 系列含 /v1，Anthropic 不含），
+// 因此这里只返回站点根地址，避免把某个协议的路径规则写死在服务端。
+// password 仅在本次新建账号时返回（明文只此一次，库中为哈希，之后无法再取回）。
+func buildWechatWebAuthPayload(c *gin.Context, openID string, user *model.User, created bool, plainPassword string, apiKey string) gin.H {
+	return gin.H{
+		"openid":       openID,
+		"found":        !created,
+		"created":      created,
+		"site_url":     wechatWebAuthSiteURL(c),
+		"api_key":      apiKey,
+		"username":     user.Username,
+		"password":     plainPassword,
+		"user_id":      user.Id,
+		"display_name": user.DisplayName,
+		"email":        user.Email,
 	}
-	if found && user != nil {
-		payload["user_id"] = user.Id
-		payload["username"] = user.Username
-		payload["display_name"] = user.DisplayName
-		payload["email"] = user.Email
-	}
-	return payload
 }
 
-// WechatWebAuthDebugConfig 返回网页授权跳转链接，便于前端在未配置 AppID 时给出提示，
-// 也方便管理员人工核对授权地址是否正确。
+// wechatWebAuthSiteURL 用当前请求 Host 组装站点根地址（不含任何 API 路径）。
+// 与 302 回调地址保持同一来源，确保展示的地址与用户实际访问的站点一致。
+func wechatWebAuthSiteURL(c *gin.Context) string {
+	return "https://" + c.Request.Host
+}
+
+// WechatWebAuthDebugConfig 返回当前站点的网页授权跳转链接，便于前端跳转与管理员核对。
 //
 // 请求：GET /api/wechat/web_auth/config?redirect_uri=xxx
 func WechatWebAuthDebugConfig(c *gin.Context) {
@@ -116,13 +308,21 @@ func WechatWebAuthDebugConfig(c *gin.Context) {
 		common.ApiErrorMsg(c, "缺少 redirect_uri 参数")
 		return
 	}
-	authorizeURL, err := service.BuildWechatOAuth2AuthorizeURL(wechatWebAuthAppID, redirectURI, "", "")
+
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	config, err := loadWechatWebAuthConfig(providerId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	authorizeURL, err := service.BuildWechatOAuth2AuthorizeURL(config.AppId, redirectURI, "", "")
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	common.ApiSuccess(c, gin.H{
-		"appid":         wechatWebAuthAppID,
+		"appid":         config.AppId,
 		"authorize_url": authorizeURL,
 	})
 }

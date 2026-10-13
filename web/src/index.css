@@ -4386,3 +4386,13 @@ html.dark .dashboard-stats-v3__footer-row strong {
   border: none;
   background-color: transparent;
 }
+
+/* 微信扫码页的 API 分段按钮组：加大圆角，与页面内 code 取值块（border-radius: 6px）保持一致。
+   Semi 默认圆角为 --semi-border-radius-small(3px)，这里统一覆盖容器与每个按钮。
+   className 由 web/src/pages/WechatScan/index.jsx 的 RadioGroup 指定。 */
+.wechat-scan-api-switch,
+.wechat-scan-api-switch .semi-radio-buttonRadioGroup,
+.wechat-scan-api-switch .semi-radio-addon-buttonRadio,
+.wechat-scan-api-switch .semi-radio-inner {
+  border-radius: 6px;
+}

@@ -1545,6 +1545,23 @@ func IsWeChatIdAlreadyTaken(wechatId string) bool {
 	return DB.Unscoped().Where("wechat_id = ?", wechatId).Find(&User{}).RowsAffected == 1
 }
 
+// GetUserByProviderAndWeChatId 按 (provider_id, wechat_id) 查询用户。
+//
+// 与 IsWeChatIdAlreadyTaken（全局判定）不同，本方法带站点维度：主站与分站各自配置
+// 自己的服务号，同一微信用户在不同站点可能各自拥有账号，因此判定必须限定在站点内，
+// 否则分站扫码会命中主站账号而无法建号。
+// 未找到时返回 gorm.ErrRecordNotFound，调用方据此进入创建流程。
+func GetUserByProviderAndWeChatId(providerId int, wechatId string) (*User, error) {
+	if strings.TrimSpace(wechatId) == "" {
+		return nil, errors.New("wechat id 为空！")
+	}
+	var user User
+	if err := DB.Where("provider_id = ? AND wechat_id = ?", providerId, wechatId).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func IsGitHubIdAlreadyTaken(githubId string) bool {
 	return DB.Unscoped().Where("github_id = ?", githubId).Find(&User{}).RowsAffected == 1
 }

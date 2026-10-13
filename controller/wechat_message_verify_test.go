@@ -122,7 +122,8 @@ func TestReceiveWechatMessageRepliesOnScan(t *testing.T) {
 	// 明文模式下应回明文 XML 文本消息。
 	resp := rec.Body.String()
 	require.Contains(t, resp, "<MsgType><![CDATA[text]]></MsgType>")
-	require.Contains(t, resp, "https://allrouter.ai/v1")
+	// 引用常量而非硬编码文案，避免文案调整后测试失效。
+	require.Contains(t, resp, wechatScanReplyContent)
 	// 回复方向：发给用户 openid，来自公众号。
 	require.Contains(t, resp, "<ToUserName><![CDATA[openid_x]]></ToUserName>")
 	require.Contains(t, resp, "<FromUserName><![CDATA[gh_abc]]></FromUserName>")
