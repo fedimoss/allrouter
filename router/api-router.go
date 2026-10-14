@@ -63,6 +63,20 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/telegram/webhook", anonymousRequestBodyLimit, controller.TelegramWebhook)
 		apiRouter.POST("/telegram/miniapp/bind", anonymousRequestBodyLimit, controller.TelegramMiniAppBind)
 
+		// 微信服务号「消息与事件推送」服务器接入端点（公开，微信服务器不带登录态）：
+		//   GET  ：微信提交服务器配置时的 URL 校验，需原样返回 echostr；
+		//   POST ：接收消息/事件推送（关注/取关、扫描带参二维码等），当前仅打印到控制台。
+		// Token / EncodingAESKey 见 service.NewWechatMessageConfig()，目前是占位符。
+		apiRouter.GET("/wechat/message", controller.VerifyWechatServer)
+		apiRouter.POST("/wechat/message", anonymousRequestBodyLimit, controller.ReceiveWechatMessage)
+
+		// 微信「普通链接二维码 + 网页授权(snsapi_base)」方案（公开，扫码后由网页直接调用）：
+		//   GET /api/wechat/web_auth/token  ：用网页授权 code 换 openid，并返回要展示的信息；
+		//   GET /api/wechat/web_auth/config ：返回网页授权跳转链接，便于前端/管理员核对。
+		// AppID / Secret 见 controller/wechat_web_auth.go，目前是占位符。
+		apiRouter.GET("/wechat/web_auth/token", controller.WechatWebAuthToken)
+		apiRouter.GET("/wechat/web_auth/config", controller.WechatWebAuthDebugConfig)
+
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
 
@@ -547,6 +561,19 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminWithdrawRoute.GET("/withdraw/list", controller.AdminGetProviderWithdrawList)            // 提现申请列表
 			providerAdminWithdrawRoute.GET("/withdraw/dashboard", controller.AdminGetProviderWithdrawDashboard)  // 提现申请数据概览
 			providerAdminWithdrawRoute.POST("/withdraw/approve", controller.AdminApproveProviderWithdrawRequest) // 提现申请审核
+		}
+
+		// 微信二维码：主站管理员(role>=管理员)与分站站长(provider owner)可调用。
+		// 具体鉴权由 controller 内部负责（与 UpdatePricingSort 一致）。
+		//
+		// 【测试/正式切换】下面两条路由二选一：
+		//   - 正式环境：保留“永久二维码”那行，注释掉“临时二维码”那行（当前状态）。
+		//   - 联调测试：注释掉“永久二维码”那行，启用“临时二维码”那行（有效期为 10 分钟）。
+		wechatQRCodeRoute := apiRouter.Group("/wechat")
+		wechatQRCodeRoute.Use(middleware.UserAuth())
+		{
+			wechatQRCodeRoute.POST("/qrcode", controller.CreateWechatPermanentQRCode) // 生成永久二维码（正式环境）
+			//wechatQRCodeRoute.POST("/qrcode", controller.CreateWechatTemporaryQRCode) // 生成临时二维码（10 分钟过期，仅联调测试）
 		}
 
 		// 运营数据模块接口

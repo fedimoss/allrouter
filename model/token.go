@@ -114,6 +114,22 @@ func GetAllUserTokensInProvider(userId int, providerId int, startIdx int, num in
 	return tokens, err
 }
 
+// GetTokenByUserIdProviderAndName 按 (user_id, provider_id, name) 查询令牌，取最早创建的一条。
+//
+// 用于“扫码后复用同名 default 令牌”：同一用户在同一站点若已存在指定名称的令牌，
+// 直接复用，避免重复创建。未找到时返回 gorm.ErrRecordNotFound。
+func GetTokenByUserIdProviderAndName(userId int, providerId int, name string) (*Token, error) {
+	if userId <= 0 || strings.TrimSpace(name) == "" {
+		return nil, errors.New("user id 或令牌名称为空")
+	}
+	var token Token
+	if err := DB.Where("user_id = ? AND provider_id = ? AND name = ?", userId, providerId, name).
+		Order("id asc").First(&token).Error; err != nil {
+		return nil, err
+	}
+	return &token, nil
+}
+
 // sanitizeLikePattern 校验并清洗用户输入的 LIKE 搜索模式。
 // 规则：
 //  1. 转义 ! 和 _（使用 ! 作为 ESCAPE 字符，兼容 MySQL/PostgreSQL/SQLite）
