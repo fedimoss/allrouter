@@ -30,13 +30,20 @@ import {
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess, showWarning } from '../../helpers';
 
-const emptyConfig = { app_id: '', has_app_secret: false, enabled: true };
+const emptyConfig = {
+  app_id: '',
+  qrcode_url: '',
+  has_app_secret: false,
+  enabled: true,
+};
 
-const WechatOfficialSetting = ({ provider = false }) => {
+const WechatOfficialSetting = ({ provider = false, endpointOverride = '' }) => {
   const { t } = useTranslation();
-  const endpoint = provider
-    ? '/api/provider/wechat_official_config'
-    : '/api/option/wechat_official_config';
+  const endpoint =
+    endpointOverride ||
+    (provider
+      ? '/api/provider/wechat_official_config'
+      : '/api/option/wechat_official_config');
   const formApiRef = useRef(null);
   const [config, setConfig] = useState(emptyConfig);
   const [loaded, setLoaded] = useState(false);
@@ -52,6 +59,7 @@ const WechatOfficialSetting = ({ provider = false }) => {
     setConfig(nextConfig);
     formApiRef.current?.setValues({
       app_id: nextConfig.app_id,
+      qrcode_url: nextConfig.qrcode_url || '',
       app_secret: '',
       enabled: nextConfig.enabled,
     });
@@ -117,6 +125,7 @@ const WechatOfficialSetting = ({ provider = false }) => {
         endpoint,
         {
           app_id: appId,
+          qrcode_url: String(values.qrcode_url || '').trim(),
           app_secret: appSecret,
           enabled: values.enabled !== false,
         },
@@ -165,13 +174,6 @@ const WechatOfficialSetting = ({ provider = false }) => {
         )}
         style={{ marginBottom: 16 }}
       />
-      <Banner
-        type='info'
-        description={t(
-          '微信登录仍需单独配置，此处保存凭据不会自动开启微信登录。',
-        )}
-        style={{ marginBottom: 16 }}
-      />
       {loadError && (
         <Banner
           type='danger'
@@ -189,7 +191,12 @@ const WechatOfficialSetting = ({ provider = false }) => {
           getFormApi={(api) => {
             formApiRef.current = api;
           }}
-          initValues={{ app_id: '', app_secret: '', enabled: true }}
+          initValues={{
+            app_id: '',
+            qrcode_url: '',
+            app_secret: '',
+            enabled: true,
+          }}
           onSubmit={handleSave}
           disabled={busy || !loaded}
           labelPosition='left'
@@ -224,6 +231,12 @@ const WechatOfficialSetting = ({ provider = false }) => {
                     },
                   ]
             }
+          />
+          <Form.Input
+            field='qrcode_url'
+            label={t('微信公众号二维码图片链接')}
+            placeholder={t('微信公众号二维码图片链接')}
+            maxLength={2048}
           />
           <Form.Switch field='enabled' label={t('启用')} />
           <Space style={{ marginTop: 16 }}>

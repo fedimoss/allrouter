@@ -45,7 +45,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/oauth/email/bind", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.EmailBind)
 		// Non-standard OAuth (WeChat, Telegram) - keep original routes
 		apiRouter.GET("/oauth/wechat", middleware.CriticalRateLimit(), controller.WeChatAuth)
-		apiRouter.POST("/oauth/wechat/bind", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.WeChatBind)
+		apiRouter.POST("/oauth/wechat/bind", middleware.UserAuth(), middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.WeChatBind)
 		apiRouter.GET("/oauth/telegram/login", middleware.CriticalRateLimit(), controller.TelegramLogin)
 		apiRouter.GET("/oauth/telegram/bind", middleware.CriticalRateLimit(), controller.TelegramBind)
 		// Standard OAuth providers (GitHub, Discord, OIDC, LinuxDO) - unified route
@@ -508,6 +508,9 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.PUT("/:id/enable", controller.AdminEnableProvider)
 			providerAdminRoute.POST("/logo", controller.AdminUploadProviderLogo)
 			providerAdminRoute.PUT("/:id/config", controller.AdminUpsertProviderConfig)
+			providerAdminRoute.GET("/:id/wechat_official_config", controller.GetWechatOfficialConfig)
+			providerAdminRoute.POST("/:id/wechat_official_config", controller.SaveWechatOfficialConfig)
+			providerAdminRoute.DELETE("/:id/wechat_official_config", controller.DeleteWechatOfficialConfig)
 			providerAdminRoute.GET("/:id/options", controller.AdminGetProviderOptions)
 			providerAdminRoute.PUT("/:id/options", controller.AdminUpdateProviderOption)
 			providerAdminRoute.PUT("/:id/nav_modules", controller.AdminUpdateProviderNavModules)

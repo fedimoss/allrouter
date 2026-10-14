@@ -862,6 +862,14 @@ func GetSelf(c *gin.Context) {
 
 	// 获取展示币种信息，计算各项展示金额
 	displayInfo := getDisplayCurrencyForUser(c)
+	wechatId := user.WeChatId
+	if providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId); providerId > 0 {
+		if scopedWechatId, scopeErr := model.GetWechatIdForUserInProvider(providerId, user); scopeErr != nil {
+			common.SysLog("failed to load provider-scoped WeChat identity: " + scopeErr.Error())
+		} else {
+			wechatId = scopedWechatId
+		}
+	}
 	var allUsersTotalTokenUsed int64
 	if userRole == common.RoleRootUser || userRole == common.RoleAdminUser {
 		if total, err := model.SumAllUsersTotalTokenUsed(); err == nil {
@@ -887,7 +895,7 @@ func GetSelf(c *gin.Context) {
 		"github_id":                 user.GitHubId,
 		"discord_id":                user.DiscordId,
 		"oidc_id":                   user.OidcId,
-		"wechat_id":                 user.WeChatId,
+		"wechat_id":                 wechatId,
 		"telegram_id":               user.TelegramId,
 		"group":                     user.Group,
 		"quota":                     user.Quota,                                           // 原始内部额度（前端按 display_rate 换算展示）

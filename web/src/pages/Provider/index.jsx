@@ -67,6 +67,7 @@ import {
   SUPPORT_QRCODE_MAX_COUNT,
 } from '../../helpers';
 import ProviderRewardModal from './ProviderRewardModal';
+import WechatOfficialSetting from '../../components/settings/WechatOfficialSetting';
 import DynamicPricingBreakdown from '../../components/table/model-pricing/modal/components/DynamicPricingBreakdown';
 import { useNavigate } from 'react-router-dom';
 
@@ -489,6 +490,8 @@ const ProviderPage = () => {
   const [providerModalVisible, setProviderModalVisible] = useState(false);
   const [domainModalVisible, setDomainModalVisible] = useState(false);
   const [configModalVisible, setConfigModalVisible] = useState(false);
+  const [wechatConfigModalVisible, setWechatConfigModalVisible] =
+    useState(false);
   const [pricingModalVisible, setPricingModalVisible] = useState(false);
   const [pricingListVisible, setPricingListVisible] = useState(false);
   const [rewardModalVisible, setRewardModalVisible] = useState(false);
@@ -859,6 +862,12 @@ const ProviderPage = () => {
   const openConfigModal = (provider) => {
     setCurrentProvider(provider);
     setConfigModalVisible(true);
+  };
+
+  const openWechatConfigModal = (provider) => {
+    if (!adminMode || !provider?.id) return;
+    setCurrentProvider(provider);
+    setWechatConfigModalVisible(true);
   };
 
   const fetchProviderSmtpConfig = async (provider) => {
@@ -1356,9 +1365,7 @@ const ProviderPage = () => {
           status: Number(values.status),
           import_price_ratio: discountToRatio(discountValue),
           import_cache_price_ratio:
-            cacheDiscountValue === 0
-              ? 0
-              : discountToRatio(cacheDiscountValue),
+            cacheDiscountValue === 0 ? 0 : discountToRatio(cacheDiscountValue),
         }
       : { name: values.name };
     const res =
@@ -1763,10 +1770,7 @@ const ProviderPage = () => {
                   <Text>{mainDiscount}</Text>
                   <Text type='tertiary' size='small'>
                     {t('缓存')}
-                    {formatProviderDiscount(
-                      config.import_cache_price_ratio,
-                      t,
-                    )}
+                    {formatProviderDiscount(config.import_cache_price_ratio, t)}
                   </Text>
                 </Space>
               );
@@ -1849,6 +1853,14 @@ const ProviderPage = () => {
               <Button size='small' onClick={() => openConfigModal(record)}>
                 {t('页面配置')}
               </Button>
+              {adminMode ? (
+                <Button
+                  size='small'
+                  onClick={() => openWechatConfigModal(record)}
+                >
+                  {t('微信配置')}
+                </Button>
+              ) : null}
               {canManageProviderSmtp(record) ? (
                 <Button size='small' onClick={() => openSmtpModal(record)}>
                   {t('邮箱配置')}
@@ -2059,7 +2071,7 @@ const ProviderPage = () => {
     {
       title: t('渠道'),
       dataIndex: 'channel_name',
-      render: (name, record,index) => name || `渠道${index}`,
+      render: (name, record, index) => name || `渠道${index}`,
     },
     {
       title: t('分组'),
@@ -2659,6 +2671,21 @@ const ProviderPage = () => {
       </Modal>
 
       <Modal
+        title={`${currentProvider?.name || ''} - ${t('微信服务号配置')}`}
+        visible={wechatConfigModalVisible}
+        onCancel={() => setWechatConfigModalVisible(false)}
+        footer={null}
+        width={760}
+        destroyOnClose
+      >
+        {currentProvider?.id ? (
+          <WechatOfficialSetting
+            endpointOverride={`/api/provider/admin/${currentProvider.id}/wechat_official_config`}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
         title={`${currentProvider?.name || ''} - ${t('邮箱配置')}`}
         visible={canManageProviderSmtp(currentProvider) && smtpModalVisible}
         onCancel={closeSmtpModal}
@@ -2928,7 +2955,7 @@ const ProviderPage = () => {
                   </Text>
                   {selectedBaseModelUsesDynamicPricing ? (
                     <div style={{ marginTop: 12 }}>
-                      {selectedDynamicBaseModelPrices.map((record,index) => (
+                      {selectedDynamicBaseModelPrices.map((record, index) => (
                         <div
                           key={`${record.model_name}-${record.channel_id}-${record.group}-dynamic`}
                           style={{

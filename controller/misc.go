@@ -49,6 +49,7 @@ func GetStatus(c *gin.Context) {
 	cs := console_setting.GetConsoleSetting()
 	// 倒计时加载可能触发旧配置写回，必须在下方持有 OptionMap 读锁之前完成，避免锁升级死锁。
 	providerId := resolveProviderId(c)
+	wechatLoginEnabled, wechatQRCode := getWechatLoginStatus(common.GetContextKeyInt(c, constant.ContextKeyProviderId))
 	topUpGiftTimed, err := model.LoadTopUpGiftTimedConfig(providerId)
 	if err != nil {
 		common.ApiError(c, err)
@@ -97,8 +98,8 @@ func GetStatus(c *gin.Context) {
 		"qq_support_list":       common.ParseSupportQRCodes(common.QQSupportQrcode),
 		"telegram_support_list": common.ParseSupportQRCodes(common.TelegramSupport),
 		"footer_html":           common.Footer,
-		"wechat_qrcode":         common.WeChatAccountQRCodeImageURL,
-		"wechat_login":          common.WeChatAuthEnabled,
+		"wechat_qrcode":         wechatQRCode,
+		"wechat_login":          wechatLoginEnabled,
 		"server_address":        system_setting.ServerAddress,
 		"turnstile_check":       common.TurnstileCheckEnabled,
 		"turnstile_site_key":    common.TurnstileSiteKey,
