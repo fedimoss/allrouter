@@ -31,6 +31,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -148,11 +149,25 @@ func WechatWebAuthToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 被封禁的账号不能建立登录态，与 completeWechatLogin 保持同一套准入判断。
+	if user.Status != common.UserStatusEnabled {
+		logger.LogWarn(c.Request.Context(), "wechat web auth user is disabled")
+		common.ApiErrorMsg(c, "用户已被封禁")
+		return
+	}
 
 	apiKey, err := ensureWechatDefaultToken(user.Id, providerId)
 	if err != nil {
 		logger.LogError(c.Request.Context(), "wechat web auth ensure default token failed: "+err.Error())
 		common.ApiError(c, err)
+		return
+	}
+
+	// 扫码即登录：拿到 openid 已唯一确定用户，无需再走用户名密码登录。
+	// 这里直接建立 session，用户停留在本页即可点顶栏导航进入站内其它页面。
+	if err := establishUserSession(c, user, false); err != nil {
+		logger.LogError(c.Request.Context(), "wechat web auth establish session failed: "+err.Error())
+		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}
 
@@ -278,19 +293,22 @@ func generateUniqueWechatUsername() (string, error) {
 // 各协议实际使用的 Base URL 由前端按 SDK 规则拼接（OpenAI 系列含 /v1，Anthropic 不含），
 // 因此这里只返回站点根地址，避免把某个协议的路径规则写死在服务端。
 // password 仅在本次新建账号时返回（明文只此一次，库中为哈希，之后无法再取回）。
+//
+// 同时并入 buildLoginUserPayload 的登录用户字段：扫码即登录，前端据此写入
+// localStorage.user（路由守卫、角色与模块权限都读它）。
 func buildWechatWebAuthPayload(c *gin.Context, openID string, user *model.User, created bool, plainPassword string, apiKey string) gin.H {
-	return gin.H{
-		"openid":       openID,
-		"found":        !created,
-		"created":      created,
-		"site_url":     wechatWebAuthSiteURL(c),
-		"api_key":      apiKey,
-		"username":     user.Username,
-		"password":     plainPassword,
-		"user_id":      user.Id,
-		"display_name": user.DisplayName,
-		"email":        user.Email,
-	}
+	payload := buildLoginUserPayload(
+		user,
+		common.GetContextKeyInt(c, constant.ContextKeyProviderId),
+	)
+	payload["openid"] = openID
+	payload["found"] = !created
+	payload["created"] = created
+	payload["site_url"] = wechatWebAuthSiteURL(c)
+	payload["api_key"] = apiKey
+	payload["password"] = plainPassword
+	payload["email"] = user.Email
+	return payload
 }
 
 // wechatWebAuthSiteURL 用当前请求 Host 组装站点根地址（不含任何 API 路径）。
