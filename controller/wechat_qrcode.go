@@ -1,17 +1,21 @@
 package controller
 
 import (
+	"context"
 	"encoding/base64"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // wechatQRCodeRequest 是生成二维码接口的统一请求体，永久/临时两种模式共用。
@@ -43,7 +47,7 @@ func canCreateWechatQRCode(c *gin.Context) bool {
 //
 // 正式环境使用该方法：二维码无过期时间，但同一公众号最多 10 万个。
 func CreateWechatPermanentQRCode(c *gin.Context) {
-	request, accessToken, ok := prepareWechatQRCodeCall(c)
+	request, _, accessToken, ok := prepareWechatQRCodeCall(c)
 	if !ok {
 		return
 	}
@@ -63,7 +67,6 @@ func CreateWechatPermanentQRCode(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-
 	// 返回成功响应
 	common.ApiSuccess(c, gin.H{
 		"ticket":          result.Ticket,
@@ -77,7 +80,7 @@ func CreateWechatPermanentQRCode(c *gin.Context) {
 //
 // 仅用于联调测试。临时二维码数量不限，适合反复调试；正式环境请改用永久二维码。
 func CreateWechatTemporaryQRCode(c *gin.Context) {
-	request, accessToken, ok := prepareWechatQRCodeCall(c)
+	request, _, accessToken, ok := prepareWechatQRCodeCall(c)
 	if !ok {
 		return
 	}
@@ -110,32 +113,90 @@ func CreateWechatTemporaryQRCode(c *gin.Context) {
 
 // prepareWechatQRCodeCall 完成永久/临时二维码两个入口的公共前置步骤：
 // 鉴权、解析请求、准备 access_token。任一步失败时已写出响应并返回 ok=false。
-func prepareWechatQRCodeCall(c *gin.Context) (*wechatQRCodeRequest, string, bool) {
+func prepareWechatQRCodeCall(c *gin.Context) (*wechatQRCodeRequest, *model.WechatOfficialConfig, string, bool) {
 	if !canCreateWechatQRCode(c) {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
 			"message": "无权限生成二维码",
 		})
-		return nil, "", false
+		return nil, nil, "", false
+	}
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	config, err := model.GetWechatConfigByProvider(providerId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "请先保存微信公众号 AppId 和 AppSecret")
+		} else {
+			common.ApiError(c, err)
+		}
+		return nil, nil, "", false
+	}
+	if strings.TrimSpace(config.AppId) == "" || strings.TrimSpace(config.AppSecret) == "" {
+		common.ApiErrorMsg(c, "请先填写完整的微信公众号 AppId 和 AppSecret")
+		return nil, nil, "", false
 	}
 
 	// 解析请求参数
 	request, ok := parseWechatQRCodeRequest(c)
 	if !ok {
-		return nil, "", false
+		return nil, nil, "", false
 	}
 
 	// 准备 access_token
 	accessToken := strings.TrimSpace(request.AccessToken)
 	if accessToken == "" {
-		token, err := service.NewWechatAccessTokenService().GetAccessToken(c.Request.Context())
+		accessTokenService := service.NewWechatAccessTokenService()
+		accessTokenService.SetCredentials(config.AppId, config.AppSecret)
+		token, err := accessTokenService.GetAccessToken(c.Request.Context())
 		if err != nil {
 			common.ApiError(c, err)
-			return nil, "", false
+			return nil, nil, "", false
 		}
 		accessToken = token.AccessToken
 	}
-	return request, accessToken, true
+	return request, config, accessToken, true
+}
+
+func persistWechatQRCode(config *model.WechatOfficialConfig, result *service.WechatPermanentQRCode) error {
+	if config == nil || result == nil || len(result.Image) == 0 {
+		return errors.New("微信二维码生成结果为空")
+	}
+	mimeType := strings.TrimSpace(result.ImageMimeType)
+	if separator := strings.IndexByte(mimeType, ';'); separator >= 0 {
+		mimeType = strings.TrimSpace(mimeType[:separator])
+	}
+	if mimeType == "" {
+		mimeType = "image/jpeg"
+	} else if !strings.HasPrefix(strings.ToLower(mimeType), "image/") {
+		return errors.New("微信二维码图片响应类型无效")
+	}
+	qrcodeURL := "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(result.Image)
+	if err := model.UpdateWechatConfigQRCode(config.ProviderId, qrcodeURL); err != nil {
+		return err
+	}
+	config.QRCodeURL = qrcodeURL
+	return nil
+}
+
+func getGeneratedWechatQRCodeURL(qrcodeURL string) string {
+	qrcodeURL = strings.TrimSpace(qrcodeURL)
+	if !strings.HasPrefix(strings.ToLower(qrcodeURL), "data:image/") {
+		return ""
+	}
+	return qrcodeURL
+}
+
+func createWechatPermanentQRCodeForConfig(ctx context.Context, config *model.WechatOfficialConfig, scene string) (*service.WechatPermanentQRCode, error) {
+	if config == nil || strings.TrimSpace(config.AppId) == "" || strings.TrimSpace(config.AppSecret) == "" {
+		return nil, errors.New("微信公众号配置不完整")
+	}
+	accessTokenService := service.NewWechatAccessTokenService()
+	accessTokenService.SetCredentials(config.AppId, config.AppSecret)
+	accessToken, err := accessTokenService.GetAccessToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return service.CreateWechatPermanentQRCode(ctx, accessToken.AccessToken, &service.WechatPermanentQRCodeRequest{SceneStr: scene})
 }
 
 // parseWechatQRCodeRequest 解析请求参数：以 JSON 请求体为主，

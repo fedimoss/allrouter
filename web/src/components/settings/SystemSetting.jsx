@@ -564,39 +564,6 @@ const SystemSetting = () => {
     }
   };
 
-  const submitWeChat = async () => {
-    const options = [];
-
-    if (originInputs['WeChatServerAddress'] !== inputs.WeChatServerAddress) {
-      options.push({
-        key: 'WeChatServerAddress',
-        value: removeTrailingSlash(inputs.WeChatServerAddress),
-      });
-    }
-    if (
-      originInputs['WeChatAccountQRCodeImageURL'] !==
-      inputs.WeChatAccountQRCodeImageURL
-    ) {
-      options.push({
-        key: 'WeChatAccountQRCodeImageURL',
-        value: inputs.WeChatAccountQRCodeImageURL,
-      });
-    }
-    if (
-      originInputs['WeChatServerToken'] !== inputs.WeChatServerToken &&
-      inputs.WeChatServerToken !== ''
-    ) {
-      options.push({
-        key: 'WeChatServerToken',
-        value: inputs.WeChatServerToken,
-      });
-    }
-
-    if (options.length > 0) {
-      await updateOptions(options);
-    }
-  };
-
   const submitGitHubOAuth = async () => {
     const options = [];
 
@@ -1383,15 +1350,6 @@ const SystemSetting = () => {
                         {t('允许通过 Linux DO 账户登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
-                        field='WeChatAuthEnabled'
-                        noLabel
-                        onChange={(e) =>
-                          handleCheckboxChange('WeChatAuthEnabled', e)
-                        }
-                      >
-                        {t('允许通过微信登录 & 注册')}
-                      </Form.Checkbox>
-                      <Form.Checkbox
                         field="['oidc.enabled']"
                         noLabel
                         onChange={(e) =>
@@ -1856,39 +1814,6 @@ const SystemSetting = () => {
               </Card>
 
               <CustomOAuthSetting serverAddress={inputs.ServerAddress} />
-
-              <Card>
-                <Form.Section text={t('配置 WeChat Server')}>
-                  <Text>{t('用以支持通过微信进行登录注册')}</Text>
-                  <Row
-                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-                  >
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='WeChatServerAddress'
-                        label={t('WeChat Server 服务器地址')}
-                      />
-                    </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='WeChatServerToken'
-                        label={t('WeChat Server 访问凭证')}
-                        type='password'
-                        placeholder={t('敏感信息不会发送到前端显示')}
-                      />
-                    </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='WeChatAccountQRCodeImageURL'
-                        label={t('微信公众号二维码图片链接')}
-                      />
-                    </Col>
-                  </Row>
-                  <Button onClick={submitWeChat}>
-                    {t('保存 WeChat Server 设置')}
-                  </Button>
-                </Form.Section>
-              </Card>
 
               <Card>
                 <Form.Section text={t('配置 Telegram 机器人')}>

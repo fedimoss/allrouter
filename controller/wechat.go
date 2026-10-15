@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -24,6 +26,13 @@ type wechatLoginResponse struct {
 	AppId   string `json:"app_id"`
 }
 
+const wechatLoginSessionTTLSeconds = int64(300)
+
+type wechatLoginPollRequest struct {
+	State    string `json:"state"`
+	Timezone string `json:"timezone"`
+}
+
 func getWechatConfigForSite(providerId int) (*model.WechatOfficialConfig, error) {
 	config, err := model.GetWechatConfigByProvider(providerId)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -32,13 +41,39 @@ func getWechatConfigForSite(providerId int) (*model.WechatOfficialConfig, error)
 	if err != nil {
 		return nil, err
 	}
-	if providerId == 0 && !common.WeChatAuthEnabled {
-		return nil, errors.New("管理员未开启通过微信登录以及注册")
-	}
-	if !config.Enabled || config.AppId == "" || config.AppSecret == "" || strings.TrimSpace(common.WeChatServerAddress) == "" {
+	if !config.Enabled || config.AppId == "" || config.AppSecret == "" {
 		return nil, errors.New("当前站点尚未启用微信登录或配置不完整")
 	}
 	return config, nil
+}
+
+func getWechatServerAddress(config *model.WechatOfficialConfig) string {
+	if config == nil {
+		return ""
+	}
+	address := strings.TrimSpace(config.ServerAddress)
+	if address == "" && config.ProviderId == 0 {
+		address = strings.TrimSpace(common.WeChatServerAddress)
+	}
+	return address
+}
+
+func getWechatServerToken(config *model.WechatOfficialConfig) string {
+	if config == nil {
+		return ""
+	}
+	token := strings.TrimSpace(config.ServerToken)
+	if token == "" && config.ProviderId == 0 {
+		token = strings.TrimSpace(common.WeChatServerToken)
+	}
+	return token
+}
+
+func isWechatLoginConfigReady(config *model.WechatOfficialConfig) bool {
+	return config != nil &&
+		config.Enabled &&
+		strings.TrimSpace(config.AppId) != "" &&
+		strings.TrimSpace(config.AppSecret) != ""
 }
 
 func getWechatLoginStatus(providerId int) (bool, string) {
@@ -49,15 +84,8 @@ func getWechatLoginStatus(providerId int) (bool, string) {
 		}
 		return false, ""
 	}
-	qrcodeURL := strings.TrimSpace(config.QRCodeURL)
-	if providerId == 0 && qrcodeURL == "" {
-		qrcodeURL = strings.TrimSpace(common.WeChatAccountQRCodeImageURL)
-	}
-	enabled := config.Enabled && config.AppId != "" && config.AppSecret != "" &&
-		strings.TrimSpace(common.WeChatServerAddress) != "" && qrcodeURL != ""
-	if providerId == 0 && !common.WeChatAuthEnabled {
-		enabled = false
-	}
+	qrcodeURL := getGeneratedWechatQRCodeURL(config.QRCodeURL)
+	enabled := isWechatLoginConfigReady(config)
 	return enabled, qrcodeURL
 }
 
@@ -68,7 +96,14 @@ func getWeChatIdByCode(code string, config *model.WechatOfficialConfig) (string,
 	if config == nil || config.AppId == "" || config.AppSecret == "" {
 		return "", errors.New("微信公众号配置不完整")
 	}
-	endpoint, err := url.Parse(strings.TrimRight(strings.TrimSpace(common.WeChatServerAddress), "/") + "/api/wechat/user")
+	serverAddress := getWechatServerAddress(config)
+	serverToken := getWechatServerToken(config)
+	// Keep old main-site installations working until their site-level server
+	// settings are migrated. A provider must always use its own server.
+	if serverAddress == "" {
+		return "", errors.New("当前站点未配置微信登录服务地址")
+	}
+	endpoint, err := url.Parse(strings.TrimRight(serverAddress, "/") + "/api/wechat/user")
 	if err != nil {
 		return "", err
 	}
@@ -79,7 +114,7 @@ func getWeChatIdByCode(code string, config *model.WechatOfficialConfig) (string,
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", common.WeChatServerToken)
+	req.Header.Set("Authorization", serverToken)
 	req.Header.Set("X-WeChat-App-Id", config.AppId)
 	req.Header.Set("X-WeChat-App-Secret", config.AppSecret)
 	req.Header.Set("X-WeChat-Provider-Id", strconv.Itoa(config.ProviderId))
@@ -111,6 +146,160 @@ func getWeChatIdByCode(code string, config *model.WechatOfficialConfig) (string,
 	return res.Data, nil
 }
 
+// getWechatOpenIDByOAuthCode exchanges a code issued by WeChat's official
+// account web authorization endpoint. It deliberately uses the credentials
+// loaded for the current site; the legacy WeChat Server is not involved.
+func getWechatOpenIDByOAuthCode(ctx context.Context, code string, config *model.WechatOfficialConfig) (string, error) {
+	if config == nil || strings.TrimSpace(config.AppId) == "" || strings.TrimSpace(config.AppSecret) == "" {
+		return "", errors.New("微信公众号配置不完整")
+	}
+	token, err := service.NewWechatOAuth2Service().ExchangeCodeForToken(
+		ctx,
+		config.AppId,
+		config.AppSecret,
+		code,
+	)
+	if err != nil {
+		return "", err
+	}
+	if token.IsSnapshotUser == 1 {
+		return "", errors.New("当前微信授权来自快照模式，无法用于登录")
+	}
+	return token.OpenID, nil
+}
+
+// WeChatLoginQR creates a short-lived, site-scoped state and returns the
+// official-account web authorization URL to encode as a QR code in the UI.
+func WeChatLoginQR(c *gin.Context) {
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	config, err := getWechatConfigForSite(providerId)
+	if err != nil || !isWechatLoginConfigReady(config) {
+		common.ApiErrorMsg(c, "当前站点尚未启用微信登录或配置不完整")
+		return
+	}
+
+	baseURL := strings.TrimRight(getRequestBaseURLForEmail(c), "/")
+	callbackURL := baseURL + "/api/oauth/wechat/callback"
+	parsedCallback, err := url.Parse(callbackURL)
+	if err != nil || parsedCallback.Scheme != "https" || parsedCallback.Host == "" {
+		common.ApiErrorMsg(c, "微信网页登录回调地址必须使用 HTTPS，请检查本站域名配置")
+		return
+	}
+
+	state, err := common.GenerateRandomCharsKey(48)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	authorizeURL, err := service.BuildWechatOAuth2AuthorizeURL(config.AppId, callbackURL, "snsapi_base", state)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	expiresAt := common.GetTimestamp() + wechatLoginSessionTTLSeconds
+	if err := model.CreateWechatLoginSession(providerId, state, expiresAt); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"state":         state,
+		"authorize_url": authorizeURL,
+		"expires_in":    wechatLoginSessionTTLSeconds,
+	})
+}
+
+// WeChatLoginCallback completes the mobile WeChat authorization and marks
+// the desktop browser's one-time login state as ready to consume.
+func WeChatLoginCallback(c *gin.Context) {
+	state := strings.TrimSpace(c.Query("state"))
+	code := strings.TrimSpace(c.Query("code"))
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	if state == "" || code == "" {
+		c.Redirect(http.StatusFound, "/login?wechat=expired")
+		return
+	}
+
+	loginSession, err := model.GetWechatLoginSession(providerId, state)
+	if err != nil || loginSession.Status != model.WechatLoginSessionPending || loginSession.ExpiresAt <= common.GetTimestamp() {
+		c.Redirect(http.StatusFound, "/login?wechat=expired")
+		return
+	}
+	config, err := getWechatConfigForSite(providerId)
+	if err != nil {
+		c.Redirect(http.StatusFound, "/login?wechat=error")
+		return
+	}
+	openID, err := getWechatOpenIDByOAuthCode(c.Request.Context(), code, config)
+	if err != nil {
+		common.SysLog("wechat OAuth callback failed: " + err.Error())
+		c.Redirect(http.StatusFound, "/login?wechat=error")
+		return
+	}
+	updated, err := model.ScanWechatLoginSession(providerId, state, openID, common.GetTimestamp())
+	if err != nil || !updated {
+		if err != nil {
+			common.SysLog("wechat OAuth session update failed: " + err.Error())
+		}
+		c.Redirect(http.StatusFound, "/login?wechat=expired")
+		return
+	}
+	c.Redirect(http.StatusFound, "/wechat/login/confirm?state="+url.QueryEscape(state))
+}
+
+func WeChatLoginConfirm(c *gin.Context) {
+	var req struct {
+		State string `json:"state"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil || strings.TrimSpace(req.State) == "" {
+		common.ApiErrorMsg(c, "无效的微信登录状态")
+		return
+	}
+	confirmed, err := model.ConfirmWechatLoginSession(
+		common.GetContextKeyInt(c, constant.ContextKeyProviderId),
+		req.State,
+		common.GetTimestamp(),
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !confirmed {
+		common.ApiErrorMsg(c, "微信登录二维码已过期，请重新获取")
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+// WeChatLoginPoll consumes an authorized state on the desktop browser and
+// establishes the normal site session there.
+func WeChatLoginPoll(c *gin.Context) {
+	var req wechatLoginPollRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil || strings.TrimSpace(req.State) == "" {
+		common.ApiErrorMsg(c, "无效的微信登录状态")
+		return
+	}
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	status, err := model.GetWechatLoginSessionStatus(providerId, req.State, common.GetTimestamp())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if status != model.WechatLoginSessionAuthorized {
+		common.ApiSuccess(c, gin.H{"status": status})
+		return
+	}
+	openID, found, err := model.ConsumeWechatLoginSession(providerId, req.State, common.GetTimestamp())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !found {
+		common.ApiSuccess(c, gin.H{"status": model.WechatLoginSessionConsumed})
+		return
+	}
+	completeWechatLogin(c, providerId, openID, req.Timezone)
+}
+
 func WeChatAuth(c *gin.Context) {
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	config, err := getWechatConfigForSite(providerId)
@@ -130,11 +319,15 @@ func WeChatAuth(c *gin.Context) {
 		})
 		return
 	}
+	completeWechatLogin(c, providerId, wechatId, c.Query("timezone"))
+}
+
+func completeWechatLogin(c *gin.Context, providerId int, wechatId string, timezone string) {
 	user := model.User{
 		WeChatId:   wechatId,
 		ProviderId: providerId,
 		// 微信登录不经过统一 OAuth state，需直接从本次请求接收并校验注册时区。
-		Timezone: normalizeRegistrationTimezone(c.Query("timezone")),
+		Timezone: normalizeRegistrationTimezone(timezone),
 	}
 	if model.IsWeChatIdAlreadyTakenInProvider(providerId, wechatId) {
 		if err := user.FillUserByWeChatIdInProvider(providerId, wechatId); err != nil {

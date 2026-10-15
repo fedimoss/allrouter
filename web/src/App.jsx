@@ -84,6 +84,7 @@ import ProviderWithdrawPage from './pages/Provider/Withdraw';
 import ProviderSettingPage from './pages/Provider/Setting';
 import LandingPage from './pages/LandingPage';
 import WechatScan from './pages/WechatScan';
+import WechatLoginConfirm from './pages/WechatLoginConfirm';
 // 服务商私有订阅管理页（复用主站订阅组件，注入服务商接口）。
 import ProviderSubscriptionPage from './pages/Provider/Subscription';
 import OAuth2Callback from './components/auth/OAuth2Callback';
@@ -338,6 +339,10 @@ function App() {
         />
         <Route path='/landing' element={<LandingPage />} />
          <Route path='/wechat/scan' element={<WechatScan />} />
+        <Route
+          path='/wechat/login/confirm'
+          element={<WechatLoginConfirm />}
+        />
         <Route
           path='/console/subscription'
           element={

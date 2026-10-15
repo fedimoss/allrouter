@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,27 +15,40 @@ import (
 )
 
 type wechatOfficialConfigRequest struct {
-	AppId     string  `json:"app_id" binding:"required"`
-	AppSecret string  `json:"app_secret"`
-	QRCodeURL *string `json:"qrcode_url"`
-	Enabled   *bool   `json:"enabled"`
+	AppId         string  `json:"app_id" binding:"required"`
+	AppSecret     string  `json:"app_secret"`
+	ServerAddress *string `json:"server_address"`
+	ServerToken   string  `json:"server_token"`
+	Enabled       *bool   `json:"enabled"`
 }
 
 type wechatOfficialConfigResponse struct {
-	ProviderId   int    `json:"provider_id"`
-	AppId        string `json:"app_id"`
-	QRCodeURL    string `json:"qrcode_url"`
-	HasAppSecret bool   `json:"has_app_secret"`
-	Enabled      bool   `json:"enabled"`
+	ProviderId     int    `json:"provider_id"`
+	AppId          string `json:"app_id"`
+	ServerAddress  string `json:"server_address"`
+	HasServerToken bool   `json:"has_server_token"`
+	QRCodeURL      string `json:"qrcode_url"`
+	HasAppSecret   bool   `json:"has_app_secret"`
+	Enabled        bool   `json:"enabled"`
 }
 
 func respondWechatOfficialConfig(c *gin.Context, config *model.WechatOfficialConfig) {
+	serverAddress := config.ServerAddress
+	hasServerToken := config.ServerToken != ""
+	if config.ProviderId == 0 {
+		if strings.TrimSpace(serverAddress) == "" {
+			serverAddress = common.WeChatServerAddress
+		}
+		hasServerToken = hasServerToken || strings.TrimSpace(common.WeChatServerToken) != ""
+	}
 	common.ApiSuccess(c, wechatOfficialConfigResponse{
-		ProviderId:   config.ProviderId,
-		AppId:        config.AppId,
-		QRCodeURL:    config.QRCodeURL,
-		HasAppSecret: config.AppSecret != "",
-		Enabled:      config.Enabled,
+		ProviderId:     config.ProviderId,
+		AppId:          config.AppId,
+		ServerAddress:  serverAddress,
+		HasServerToken: hasServerToken,
+		QRCodeURL:      getGeneratedWechatQRCodeURL(config.QRCodeURL),
+		HasAppSecret:   config.AppSecret != "",
+		Enabled:        config.Enabled,
 	})
 }
 
@@ -73,19 +87,17 @@ func SaveWechatOfficialConfig(c *gin.Context) {
 
 	req.AppId = strings.TrimSpace(req.AppId)
 	req.AppSecret = strings.TrimSpace(req.AppSecret)
-	if req.QRCodeURL != nil {
-		*req.QRCodeURL = strings.TrimSpace(*req.QRCodeURL)
+	serverAddress := ""
+	if req.ServerAddress != nil {
+		serverAddress = strings.TrimRight(strings.TrimSpace(*req.ServerAddress), "/")
 	}
+	req.ServerToken = strings.TrimSpace(req.ServerToken)
 	if req.AppId == "" {
 		common.ApiErrorMsg(c, "app_id is required")
 		return
 	}
-	if len(req.AppId) > 255 || len(req.AppSecret) > 512 {
-		common.ApiErrorMsg(c, "app_id or app_secret exceeds the maximum length")
-		return
-	}
-	if req.QRCodeURL != nil && len(*req.QRCodeURL) > 2048 {
-		common.ApiErrorMsg(c, "qrcode_url exceeds the maximum length")
+	if len(req.AppId) > 255 || len(req.AppSecret) > 512 || len(serverAddress) > 2048 || len(req.ServerToken) > 512 {
+		common.ApiErrorMsg(c, "configuration field exceeds the maximum length")
 		return
 	}
 
@@ -99,13 +111,20 @@ func SaveWechatOfficialConfig(c *gin.Context) {
 				return
 			}
 			config := &model.WechatOfficialConfig{
-				ProviderId: providerId,
-				AppId:      req.AppId,
-				AppSecret:  req.AppSecret,
-				Enabled:    req.Enabled == nil || *req.Enabled,
+				ProviderId:    providerId,
+				AppId:         req.AppId,
+				AppSecret:     req.AppSecret,
+				ServerAddress: serverAddress,
+				ServerToken:   req.ServerToken,
+				Enabled:       req.Enabled == nil || *req.Enabled,
 			}
-			if req.QRCodeURL != nil {
-				config.QRCodeURL = *req.QRCodeURL
+			if providerId == 0 {
+				if req.ServerAddress == nil && config.ServerAddress == "" {
+					config.ServerAddress = strings.TrimRight(strings.TrimSpace(common.WeChatServerAddress), "/")
+				}
+				if config.ServerToken == "" {
+					config.ServerToken = strings.TrimSpace(common.WeChatServerToken)
+				}
 			}
 			if err := model.CreateWechatConfig(config); err != nil {
 				common.ApiError(c, err)
@@ -123,6 +142,13 @@ func SaveWechatOfficialConfig(c *gin.Context) {
 		return
 	}
 
+	// Changing credentials invalidates the generated image until a QR code for
+	// the new official account is generated.
+	credentialsChanged := existingConfig.AppId != req.AppId || req.AppSecret != "" && existingConfig.AppSecret != req.AppSecret
+	if credentialsChanged {
+		existingConfig.QRCodeURL = ""
+	}
+
 	// 更新配置；省略 enabled 时保留原值。
 	existingConfig.AppId = req.AppId
 	if req.Enabled != nil {
@@ -132,8 +158,19 @@ func SaveWechatOfficialConfig(c *gin.Context) {
 	if req.AppSecret != "" {
 		existingConfig.AppSecret = req.AppSecret
 	}
-	if req.QRCodeURL != nil {
-		existingConfig.QRCodeURL = *req.QRCodeURL
+	if req.ServerAddress != nil {
+		existingConfig.ServerAddress = serverAddress
+	}
+	if req.ServerToken != "" {
+		existingConfig.ServerToken = req.ServerToken
+	}
+	if providerId == 0 {
+		if req.ServerAddress == nil && existingConfig.ServerAddress == "" {
+			existingConfig.ServerAddress = strings.TrimRight(strings.TrimSpace(common.WeChatServerAddress), "/")
+		}
+		if existingConfig.ServerToken == "" {
+			existingConfig.ServerToken = strings.TrimSpace(common.WeChatServerToken)
+		}
 	}
 
 	if err := model.UpdateWechatConfig(existingConfig); err != nil {
@@ -142,6 +179,47 @@ func SaveWechatOfficialConfig(c *gin.Context) {
 	}
 
 	respondWechatOfficialConfig(c, existingConfig)
+}
+
+// GenerateWechatOfficialQRCode creates a permanent QR code for the selected
+// site's official account. Credentials are loaded from that site's database
+// record and never accepted from the client. The image is cached as a data URL
+// so the login page can render it without a second public file endpoint.
+func GenerateWechatOfficialQRCode(c *gin.Context) {
+	providerId := determineWechatConfigProviderId(c)
+	if providerId < 0 {
+		return
+	}
+	config, err := model.GetWechatConfigByProvider(providerId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "请先保存微信公众号 AppId 和 AppSecret")
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	if strings.TrimSpace(config.AppId) == "" || strings.TrimSpace(config.AppSecret) == "" {
+		common.ApiErrorMsg(c, "请先填写完整的微信公众号 AppId 和 AppSecret")
+		return
+	}
+	if getGeneratedWechatQRCodeURL(config.QRCodeURL) != "" {
+		respondWechatOfficialConfig(c, config)
+		return
+	}
+
+	// Use one stable scene value per site so scans can always be attributed to
+	// the correct site. The saved image makes this endpoint idempotent.
+	result, err := createWechatPermanentQRCodeForConfig(c.Request.Context(), config, fmt.Sprintf("new-api-login-%d", providerId))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := persistWechatQRCode(config, result); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	respondWechatOfficialConfig(c, config)
 }
 
 // DeleteWechatOfficialConfig 删除微信服务号配置
@@ -166,6 +244,7 @@ func determineWechatConfigProviderId(c *gin.Context) int {
 	if route == "" {
 		route = c.Request.URL.Path
 	}
+	route = strings.TrimSuffix(route, "/qrcode")
 	siteProviderId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 
 	switch {

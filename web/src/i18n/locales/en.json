@@ -3416,6 +3416,7 @@
     "生成数量必须大于0": "Generation quantity must be greater than 0",
     "生成完成": "Generation complete",
     "生成完成后，视频会显示在这里。": "The generated video will appear here.",
+    "生成微信公众号二维码": "Generate WeChat Official Account QR Code",
     "生成新的备用码": "Generate new backup codes",
     "生成音乐": "generate music",
     "生成中": "Generating",
@@ -5877,6 +5878,14 @@
     "删除后将清除当前站点保存的 AppId 和 AppSecret。": "Deleting will remove the AppId and AppSecret saved for this site.",
     "微信服务号配置已保存并启用。": "WeChat Official Account configuration is saved and enabled.",
     "微信服务号配置已保存，当前已禁用。": "WeChat Official Account configuration is saved and currently disabled.",
-    "仅超级管理员可以管理系统设置。": "Only super administrators can manage system settings."
+    "仅超级管理员可以管理系统设置。": "Only super administrators can manage system settings.",
+    "请使用微信扫描二维码，在手机端确认授权后将自动登录。": "Scan the QR code with WeChat and confirm on your phone to log in automatically.",
+    "确认在此设备登录": "Confirm login on this device",
+    "已确认，请返回发起登录的页面。": "Confirmed. Return to the page where you started login.",
+    "微信登录二维码已过期，请重新获取。": "The WeChat login QR code has expired. Please get a new one.",
+    "已扫码，请在手机上确认登录。": "Scanned. Confirm the login on your phone.",
+    "请确认使用当前微信账号登录此设备。": "Confirm that you want to use this WeChat account to log in on this device.",
+    "确认失败，请重新扫码。": "Confirmation failed. Please scan the QR code again.",
+    "微信授权失败，请重试。": "WeChat authorization failed. Please try again."
   }
 }

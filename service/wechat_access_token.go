@@ -15,8 +15,8 @@
 //   - 不同应用类型的 access_token 互相隔离，且只能调用对应应用类型的接口。
 //   - AppSecret 属于账号级密钥，泄露风险高；调用方 IP 需在微信后台白名单内，否则会返回
 //     40164（IP 不在白名单）。
-//   - appid / secret 的正式来源尚未确定，当前使用下方占位常量；确定来源后通过
-//     SetCredentials 注入即可，无需改动调用方代码。
+//   - 登录配置由调用方从站点级 wechat_official_configs 记录读取，并通过
+//     SetCredentials 注入；下方占位常量仅供未注入凭据的便利调用与测试使用。
 
 package service
 
@@ -44,8 +44,8 @@ const (
 	// 超时过短会误判微信偶发的 system error(-1)，过长则拖住上游请求。
 	wechatAccessTokenTimeout = 10 * time.Second
 
-	// 占位数据：appid / secret 的正式来源（.env、数据库、系统设置等）尚未确定。
-	// 后续业务明确后，替换这两个常量，或在创建服务后调用 SetCredentials 注入。
+	// 占位数据：正式业务调用应从站点配置读取凭据并通过 SetCredentials 注入。
+	// 这些默认值仅供未注入凭据的便利调用与测试使用。
 	// 注意：正式环境的 AppSecret 属于敏感信息，不要硬编码或提交到仓库。
 	wechatAccessTokenPlaceholderAppID  = "wx_placeholder_appid"
 	wechatAccessTokenPlaceholderSecret = "placeholder_appsecret"

@@ -25,11 +25,11 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import Turnstile from 'react-turnstile';
-import { Button, Checkbox, Input, Modal } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Input, Modal, Spin } from '@douyinfe/semi-ui';
+import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from 'react-i18next';
 import { FaBolt, FaShieldHalved, FaStore } from 'react-icons/fa6';
-import { SiGoogle } from 'react-icons/si';
-import { IconKey, IconLock, IconMail } from '@douyinfe/semi-icons';
+import { IconLock, IconMail } from '@douyinfe/semi-icons';
 
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -262,89 +262,114 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = () => {
-    showInfo(t('Google 登录功能暂未开放'));
-  };
-
   const [showWeChatLoginModal, setShowWeChatLoginModal] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
-  const [wechatCodeSubmitLoading, setWechatCodeSubmitLoading] = useState(false);
-  const [wechatVerificationCode, setWechatVerificationCode] = useState('');
+  const [wechatQrLoading, setWechatQrLoading] = useState(false);
+  const [wechatLoginSession, setWechatLoginSession] = useState(null);
+  const wechatLoginRequestRef = useRef(0);
 
-  const onWeChatLoginClicked = () => {
-    if (!ensureTermsAccepted()) return;
-    setWechatLoading(true);
-    setShowWeChatLoginModal(true);
-    setWechatLoading(false);
+  const closeWechatLoginModal = () => {
+    wechatLoginRequestRef.current += 1;
+    setShowWeChatLoginModal(false);
+    setWechatLoginSession(null);
   };
 
-  const onSubmitWeChatVerificationCode = async () => {
-    const code = String(wechatVerificationCode || '').trim();
-    if (!code) {
-      showInfo(t('请输入验证码'));
-      return;
-    }
+  const onWeChatLoginClicked = async () => {
+    if (!ensureTermsAccepted()) return;
     if (!ensureTurnstileReady()) return;
-    setWechatCodeSubmitLoading(true);
+    const requestId = ++wechatLoginRequestRef.current;
+    setWechatLoading(true);
+    setShowWeChatLoginModal(true);
+    setWechatQrLoading(true);
+    setWechatLoginSession(null);
     try {
-      const res = await API.get('/api/oauth/wechat', {
-        params: {
-          code,
-          // 微信登录不走 OAuth state，需要随验证码请求直接携带注册时区。
+      const res = await API.get('/api/oauth/wechat/qr');
+      if (requestId !== wechatLoginRequestRef.current) return;
+      if (!res.data.success || !res.data.data?.authorize_url) {
+        throw new Error(res.data.message || t('登录失败，请重试'));
+      }
+      setWechatLoginSession({ ...res.data.data, status: 'pending' });
+    } catch (error) {
+      if (requestId === wechatLoginRequestRef.current) {
+        showError(
+          error.response?.data?.message ||
+            error.message ||
+            t('登录失败，请重试'),
+        );
+      }
+    } finally {
+      if (requestId === wechatLoginRequestRef.current) {
+        setWechatQrLoading(false);
+        setWechatLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const state = wechatLoginSession?.state;
+    if (!showWeChatLoginModal || !state) return undefined;
+
+    let cancelled = false;
+    let timeoutId;
+    const pollLogin = async () => {
+      try {
+        const res = await API.post('/api/oauth/wechat/poll', {
+          state,
           timezone: getRegistrationTimezone(),
-        },
-      });
-      const { success, message, data } = res.data;
-      if (success) {
+        });
+        if (cancelled) return;
+        if (!res.data.success) {
+          showError(res.data.message || t('登录失败，请重试'));
+          closeWechatLoginModal();
+          return;
+        }
+        const data = res.data.data;
+        if (data?.status === 'pending' || data?.status === 'scanned') {
+          setWechatLoginSession((current) =>
+            current ? { ...current, status: data.status } : current,
+          );
+          timeoutId = setTimeout(pollLogin, 1500);
+          return;
+        }
+        if (data?.status === 'expired' || data?.status === 'consumed') {
+          showError(t('微信登录二维码已过期，请重新获取。'));
+          closeWechatLoginModal();
+          return;
+        }
+        if (!data?.id) {
+          timeoutId = setTimeout(pollLogin, 1500);
+          return;
+        }
+
         userDispatch({ type: 'login', payload: data });
         localStorage.setItem('user', JSON.stringify(data));
         setUserData(data);
         updateAPI();
         showSuccess(t('登录成功'));
-        setShowWeChatLoginModal(false);
+        closeWechatLoginModal();
         navigate(getPostLoginPath(), { replace: true });
-      } else {
-        showError(message);
+      } catch {
+        if (!cancelled) {
+          timeoutId = setTimeout(pollLogin, 2000);
+        }
       }
-    } catch {
-      showError(t('登录失败，请重试'));
-    } finally {
-      setWechatCodeSubmitLoading(false);
-    }
-  };
+    };
 
-  const socialButtons = useMemo(
-    () => [
-      <Button
-        key='google'
-        type='tertiary'
-        theme='outline'
-        className='btn-social btn-google'
-        size='large'
-        onClick={handleGoogleLogin}
-      >
-        <span className='social-icon'>
-          <SiGoogle size={18} />
-        </span>
-        {t('Google')}
-      </Button>,
-      <Button
-        key='wechat'
-        type='tertiary'
-        theme='outline'
-        className='btn-social btn-wechat'
-        size='large'
-        onClick={onWeChatLoginClicked}
-        disabled={wechatLoading}
-      >
-        <span className='social-icon'>
-          <WeChatIcon />
-        </span>
-        {t('微信登录')}
-      </Button>,
-    ],
-    [handleGoogleLogin, onWeChatLoginClicked, wechatLoading, t],
-  );
+    pollLogin();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [showWeChatLoginModal, wechatLoginSession?.state]);
+
+  useEffect(() => {
+    const wechatResult = searchParams.get('wechat');
+    if (wechatResult === 'error') {
+      showError(t('微信授权失败，请重试。'));
+    } else if (wechatResult === 'expired') {
+      showError(t('微信登录二维码已过期，请重新获取。'));
+    }
+  }, [searchParams, t]);
 
   return (
     <div className='auth-v2'>
@@ -390,7 +415,8 @@ export default function LoginPage() {
 
         <div className='brand-quote-card'>
           <p>
-            { systemName }&nbsp;{t(
+            {systemName}&nbsp;
+            {t(
               '彻底改变了我们团队调用多模型的方式。它不再是单纯的技术工具，而是我们决策流中的核心。',
             )}
           </p>
@@ -491,7 +517,9 @@ export default function LoginPage() {
                   className='remember-checkbox'
                   onClick={() => setRememberPassword(!rememberPassword)}
                 >
-                  <span className={`remember-checkbox-box ${rememberPassword ? 'checked' : ''}`} />
+                  <span
+                    className={`remember-checkbox-box ${rememberPassword ? 'checked' : ''}`}
+                  />
                   <span className='remember-checkbox-label'>{t('记住我')}</span>
                 </label>
               </div>
@@ -517,8 +545,26 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* <div className='divider'>{t('第三方快速登录')}</div> */}
-            {/* <div className='social-logins'>{socialButtons}</div> */}
+            {status.wechat_login && (
+              <>
+                <div className='divider'>{t('第三方快速登录')}</div>
+                <div className='social-logins'>
+                  <Button
+                    type='tertiary'
+                    theme='outline'
+                    className='btn-social btn-wechat'
+                    size='large'
+                    onClick={onWeChatLoginClicked}
+                    disabled={wechatLoading}
+                  >
+                    <span className='social-icon'>
+                      <WeChatIcon />
+                    </span>
+                    {t('微信登录')}
+                  </Button>
+                </div>
+              </>
+            )}
 
             <div className='terms'>
               {t('点击登录即代表您同意我们的')}{' '}
@@ -528,7 +574,8 @@ export default function LoginPage() {
                 rel='noopener noreferrer'
               >
                 {t('用户协议')}
-              </a>{'、 '}
+              </a>
+              {'、 '}
               <a
                 href='/service-clause'
                 target='_blank'
@@ -552,37 +599,26 @@ export default function LoginPage() {
             title={t('微信扫码登录')}
             visible={showWeChatLoginModal}
             maskClosable={true}
-            onOk={onSubmitWeChatVerificationCode}
-            onCancel={() => setShowWeChatLoginModal(false)}
-            okText={t('登录')}
+            onCancel={closeWechatLoginModal}
+            footer={null}
             centered={true}
-            okButtonProps={{ loading: wechatCodeSubmitLoading }}
           >
             <div style={{ textAlign: 'center' }}>
-              {status.wechat_qrcode ? (
-                <img
-                  src={status.wechat_qrcode}
-                  alt='wechat qrcode'
-                  style={{ margin: '0 auto 12px', maxWidth: '100%' }}
+              {wechatQrLoading ? (
+                <Spin />
+              ) : wechatLoginSession?.status === 'scanned' ? (
+                <div>{t('已扫码，请在手机上确认登录。')}</div>
+              ) : wechatLoginSession?.authorize_url ? (
+                <QRCodeSVG
+                  value={wechatLoginSession.authorize_url}
+                  size={240}
+                  level='M'
+                  includeMargin
                 />
               ) : null}
-              <div style={{ marginBottom: 12 }}>
-                {t(
-                  '微信扫码关注公众号，输入“验证码”获取验证码（3 分钟内有效）',
-                )}
+              <div style={{ marginTop: 12 }}>
+                {t('请使用微信扫描二维码，在手机端确认授权后将自动登录。')}
               </div>
-            </div>
-
-            <div className='form-group' style={{ marginBottom: 0 }}>
-              <label className='form-label'>{t('验证码')}</label>
-              <Input
-                className='form-input'
-                size='large'
-                prefix={<IconKey />}
-                placeholder={t('请输入验证码')}
-                value={wechatVerificationCode}
-                onChange={(value) => setWechatVerificationCode(value)}
-              />
             </div>
           </Modal>
 

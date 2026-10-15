@@ -3699,6 +3699,7 @@
     "生成数量必须大于0": "Số lượng tạo phải lớn hơn 0",
     "生成完成": "Đã tạo xong",
     "生成完成后，视频会显示在这里。": "Video đã tạo sẽ xuất hiện tại đây.",
+    "生成微信公众号二维码": "Tạo mã QR tài khoản chính thức WeChat",
     "生成新的备用码": "Tạo mã dự phòng mới",
     "生成新密钥": "Tạo khóa mới",
     "生成音乐": "tạo nhạc",
@@ -6318,6 +6319,14 @@
     "删除后将清除当前站点保存的 AppId 和 AppSecret。": "Việc xóa sẽ loại bỏ AppId và AppSecret đã lưu cho trang web này.",
     "微信服务号配置已保存并启用。": "Cấu hình tài khoản chính thức WeChat đã được lưu và bật.",
     "微信服务号配置已保存，当前已禁用。": "Cấu hình tài khoản chính thức WeChat đã được lưu và hiện đang tắt.",
-    "仅超级管理员可以管理系统设置。": "Chỉ siêu quản trị viên mới có thể quản lý cài đặt hệ thống."
+    "仅超级管理员可以管理系统设置。": "Chỉ siêu quản trị viên mới có thể quản lý cài đặt hệ thống.",
+    "请使用微信扫描二维码，在手机端确认授权后将自动登录。": "Quét mã QR bằng WeChat và xác nhận trên điện thoại để tự động đăng nhập.",
+    "确认在此设备登录": "Xác nhận đăng nhập trên thiết bị này",
+    "已确认，请返回发起登录的页面。": "Đã xác nhận. Hãy quay lại trang đã bắt đầu đăng nhập.",
+    "微信登录二维码已过期，请重新获取。": "Mã QR đăng nhập WeChat đã hết hạn. Vui lòng tạo mã mới.",
+    "已扫码，请在手机上确认登录。": "Đã quét mã. Hãy xác nhận đăng nhập trên điện thoại.",
+    "请确认使用当前微信账号登录此设备。": "Xác nhận dùng tài khoản WeChat hiện tại để đăng nhập trên thiết bị này.",
+    "确认失败，请重新扫码。": "Xác nhận thất bại. Vui lòng quét lại mã QR.",
+    "微信授权失败，请重试。": "Ủy quyền WeChat thất bại. Vui lòng thử lại."
   }
 }

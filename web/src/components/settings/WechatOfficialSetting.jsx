@@ -59,7 +59,6 @@ const WechatOfficialSetting = ({ provider = false, endpointOverride = '' }) => {
     setConfig(nextConfig);
     formApiRef.current?.setValues({
       app_id: nextConfig.app_id,
-      qrcode_url: nextConfig.qrcode_url || '',
       app_secret: '',
       enabled: nextConfig.enabled,
     });
@@ -125,7 +124,6 @@ const WechatOfficialSetting = ({ provider = false, endpointOverride = '' }) => {
         endpoint,
         {
           app_id: appId,
-          qrcode_url: String(values.qrcode_url || '').trim(),
           app_secret: appSecret,
           enabled: values.enabled !== false,
         },
@@ -139,6 +137,59 @@ const WechatOfficialSetting = ({ provider = false, endpointOverride = '' }) => {
     } catch (error) {
       showError(
         error.response?.data?.message || error.message || t('保存失败'),
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleGenerateQRCode = async () => {
+    if (busy || !loaded) return;
+    const values = formApiRef.current?.getValues?.() || {};
+    const appId = (values.app_id || '').trim();
+    const appSecret = (values.app_secret || '').trim();
+    if (!appId) {
+      showWarning(t('AppId 不能为空'));
+      return;
+    }
+    if (!config.has_app_secret && !appSecret) {
+      showWarning(t('首次配置时 AppSecret 不能为空'));
+      return;
+    }
+    if (hasConfig && appId !== config.app_id && !appSecret) {
+      showWarning(t('更换 AppId 时需同时填写对应的 AppSecret。'));
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Persist the current form first so the QR code always belongs to the
+      // credentials currently shown in the editor.
+      const saveResponse = await API.post(
+        endpoint,
+        {
+          app_id: appId,
+          app_secret: appSecret,
+          enabled: values.enabled !== false,
+        },
+        { skipErrorHandler: true },
+      );
+      if (!saveResponse.data.success || !saveResponse.data.data) {
+        throw new Error(saveResponse.data.message || t('保存失败'));
+      }
+      applyConfig(saveResponse.data.data);
+
+      const { data } = await API.post(`${endpoint}/qrcode`, null, {
+        skipErrorHandler: true,
+      });
+      if (!data.success || !data.data) {
+        throw new Error(data.message || t('生成失败'));
+      }
+      applyConfig(data.data);
+      showSuccess(t('生成完成'));
+    } catch (error) {
+      showError(
+        error.response?.data?.message || error.message || t('生成失败'),
       );
     } finally {
       setSaving(false);
@@ -193,7 +244,6 @@ const WechatOfficialSetting = ({ provider = false, endpointOverride = '' }) => {
           }}
           initValues={{
             app_id: '',
-            qrcode_url: '',
             app_secret: '',
             enabled: true,
           }}
@@ -232,12 +282,6 @@ const WechatOfficialSetting = ({ provider = false, endpointOverride = '' }) => {
                   ]
             }
           />
-          <Form.Input
-            field='qrcode_url'
-            label={t('微信公众号二维码图片链接')}
-            placeholder={t('微信公众号二维码图片链接')}
-            maxLength={2048}
-          />
           <Form.Switch field='enabled' label={t('启用')} />
           <Space style={{ marginTop: 16 }}>
             <Button
@@ -248,6 +292,16 @@ const WechatOfficialSetting = ({ provider = false, endpointOverride = '' }) => {
               disabled={busy || !loaded}
             >
               {t('保存配置')}
+            </Button>
+            <Button
+              htmlType='button'
+              theme='solid'
+              type='primary'
+              loading={saving}
+              disabled={busy || !loaded || Boolean(config.qrcode_url)}
+              onClick={handleGenerateQRCode}
+            >
+              {config.qrcode_url ? t('生成完成') : t('生成微信公众号二维码')}
             </Button>
             {hasConfig && (
               <Popconfirm
@@ -269,6 +323,15 @@ const WechatOfficialSetting = ({ provider = false, endpointOverride = '' }) => {
           </Space>
         </Form>
       </Spin>
+      {loaded && config.qrcode_url && (
+        <div style={{ marginTop: 20, textAlign: 'center' }}>
+          <img
+            src={config.qrcode_url}
+            alt={t('微信二维码')}
+            style={{ width: 240, height: 240, objectFit: 'contain' }}
+          />
+        </div>
+      )}
       {loaded && hasConfig && (
         <Banner
           type={config.enabled ? 'success' : 'warning'}

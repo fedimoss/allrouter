@@ -3406,6 +3406,7 @@
     "生成数量必须大于0": "La quantité de génération doit être supérieure à 0",
     "生成完成": "Génération terminée",
     "生成完成后，视频会显示在这里。": "La vidéo générée apparaîtra ici.",
+    "生成微信公众号二维码": "Générer le code QR du compte officiel WeChat",
     "生成新的备用码": "Générer de nouveaux codes de sauvegarde",
     "生成音乐": "générer de la musique",
     "生成中": "Génération en cours",
@@ -5837,6 +5838,14 @@
     "删除后将清除当前站点保存的 AppId 和 AppSecret。": "La suppression effacera l’AppId et l’AppSecret enregistrés pour ce site.",
     "微信服务号配置已保存并启用。": "La configuration du compte officiel WeChat est enregistrée et activée.",
     "微信服务号配置已保存，当前已禁用。": "La configuration du compte officiel WeChat est enregistrée et actuellement désactivée.",
-    "仅超级管理员可以管理系统设置。": "Seuls les super administrateurs peuvent gérer les paramètres système."
+    "仅超级管理员可以管理系统设置。": "Seuls les super administrateurs peuvent gérer les paramètres système.",
+    "请使用微信扫描二维码，在手机端确认授权后将自动登录。": "Scannez le code QR avec WeChat et confirmez sur votre téléphone pour vous connecter automatiquement.",
+    "确认在此设备登录": "Confirmer la connexion sur cet appareil",
+    "已确认，请返回发起登录的页面。": "Confirmation effectuée. Revenez à la page où vous avez commencé la connexion.",
+    "微信登录二维码已过期，请重新获取。": "Le code QR WeChat a expiré. Veuillez en obtenir un nouveau.",
+    "已扫码，请在手机上确认登录。": "Code scanné. Confirmez la connexion sur votre téléphone.",
+    "请确认使用当前微信账号登录此设备。": "Confirmez que vous souhaitez utiliser ce compte WeChat pour vous connecter sur cet appareil.",
+    "确认失败，请重新扫码。": "La confirmation a échoué. Veuillez scanner à nouveau le code QR.",
+    "微信授权失败，请重试。": "L’autorisation WeChat a échoué. Veuillez réessayer."
   }
 }

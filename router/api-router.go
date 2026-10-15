@@ -44,6 +44,10 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), controller.GenerateOAuthCode)
 		apiRouter.POST("/oauth/email/bind", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.EmailBind)
 		// Non-standard OAuth (WeChat, Telegram) - keep original routes
+		apiRouter.GET("/oauth/wechat/qr", middleware.CriticalRateLimit(), controller.WeChatLoginQR)
+		apiRouter.GET("/oauth/wechat/callback", middleware.CriticalRateLimit(), controller.WeChatLoginCallback)
+		apiRouter.POST("/oauth/wechat/confirm", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.WeChatLoginConfirm)
+		apiRouter.POST("/oauth/wechat/poll", middleware.WechatLoginPollRateLimit(), anonymousRequestBodyLimit, controller.WeChatLoginPoll)
 		apiRouter.GET("/oauth/wechat", middleware.CriticalRateLimit(), controller.WeChatAuth)
 		apiRouter.POST("/oauth/wechat/bind", middleware.UserAuth(), middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.WeChatBind)
 		apiRouter.GET("/oauth/telegram/login", middleware.CriticalRateLimit(), controller.TelegramLogin)
@@ -266,6 +270,7 @@ func SetApiRouter(router *gin.Engine) {
 			// 微信服务号配置（主站管理员）
 			optionRoute.GET("/wechat_official_config", controller.GetWechatOfficialConfig)
 			optionRoute.POST("/wechat_official_config", controller.SaveWechatOfficialConfig)
+			optionRoute.POST("/wechat_official_config/qrcode", controller.GenerateWechatOfficialQRCode)
 			optionRoute.DELETE("/wechat_official_config", controller.DeleteWechatOfficialConfig)
 		}
 
@@ -503,6 +508,7 @@ func SetApiRouter(router *gin.Engine) {
 			// 微信服务号配置（服务商管理员）
 			providerRoute.GET("/wechat_official_config", controller.GetWechatOfficialConfig)
 			providerRoute.POST("/wechat_official_config", controller.SaveWechatOfficialConfig)
+			providerRoute.POST("/wechat_official_config/qrcode", controller.GenerateWechatOfficialQRCode)
 			providerRoute.DELETE("/wechat_official_config", controller.DeleteWechatOfficialConfig)
 			// 服务商 owner 问卷管理（本站记录）
 			providerRoute.GET("/questionnaires", controller.GetProviderUserQuestionnaires)
@@ -524,6 +530,7 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.PUT("/:id/config", controller.AdminUpsertProviderConfig)
 			providerAdminRoute.GET("/:id/wechat_official_config", controller.GetWechatOfficialConfig)
 			providerAdminRoute.POST("/:id/wechat_official_config", controller.SaveWechatOfficialConfig)
+			providerAdminRoute.POST("/:id/wechat_official_config/qrcode", controller.GenerateWechatOfficialQRCode)
 			providerAdminRoute.DELETE("/:id/wechat_official_config", controller.DeleteWechatOfficialConfig)
 			providerAdminRoute.GET("/:id/options", controller.AdminGetProviderOptions)
 			providerAdminRoute.PUT("/:id/options", controller.AdminUpdateProviderOption)
