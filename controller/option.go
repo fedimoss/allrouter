@@ -329,12 +329,15 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "WeChatAuthEnabled":
-		if option.Value == "true" && common.WeChatServerAddress == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用微信登录，请先填入微信登录相关配置信息！",
-			})
-			return
+		if option.Value == "true" {
+			wechatConfig, configErr := model.GetWechatConfigByProvider(0)
+			if configErr != nil || !isWechatLoginConfigReady(wechatConfig) {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "无法启用微信登录，请先配置并启用主站微信公众号 AppId 和 AppSecret！",
+				})
+				return
+			}
 		}
 	case "TurnstileCheckEnabled":
 		if option.Value == "true" && common.TurnstileSiteKey == "" {

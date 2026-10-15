@@ -48,6 +48,7 @@ token.expired: "该令牌已过期"
 token.exhausted: "该令牌额度已用尽 TokenStatusExhausted[sk-{{.Prefix}}***{{.Suffix}}]"
 token.status_unavailable: "该令牌状态不可用"
 token.db_error: "无效的令牌，数据库查询出错，请联系管理员"
+token.provider_conflict: "该账号已在其他站点创建令牌，不能跨站点创建令牌"
 
 # Redemption messages
 redemption.name_length: "兑换码名称长度必须在1-20之间"
@@ -177,6 +178,7 @@ model.id_missing: "缺少模型 ID"
 model.get_list_failed: "获取模型列表失败，请稍后重试"
 model.get_failed: "获取上游模型失败"
 model.reset_success: "重置模型倍率成功"
+model.unavailable: "所选模型不可用"
 
 # Vendor messages
 vendor.name_empty: "供应商名称不能为空"

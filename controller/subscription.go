@@ -123,6 +123,11 @@ func GetSubscriptionSelf(c *gin.Context) {
 		allSubscriptions = []model.SubscriptionSummary{}
 	}
 
+	pendingOrders, err := model.GetPendingSubscriptionOrders(userId, providerId)
+	if err != nil {
+		pendingOrders = []model.PendingSubscriptionOrder{}
+	}
+
 	// Get active subscriptions for backward compatibility
 	activeSubscriptions, err := model.GetAllActiveUserSubscriptions(userId, providerId)
 	if err != nil {
@@ -133,6 +138,7 @@ func GetSubscriptionSelf(c *gin.Context) {
 		"billing_preference": pref,
 		"subscriptions":      activeSubscriptions, // all active subscriptions
 		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+		"pending_orders":     pendingOrders,       // resumable checkouts awaiting payment
 	})
 }
 

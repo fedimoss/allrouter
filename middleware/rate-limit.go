@@ -108,6 +108,12 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// WechatLoginPollRateLimit allows the short polling interval used by the
+// browser-based WeChat login flow while still bounding anonymous state checks.
+func WechatLoginPollRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(60, 60, "WLP")
+}
+
 func DownloadRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(common.DownloadRateLimitNum, common.DownloadRateLimitDuration, "DW")
 }

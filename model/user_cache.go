@@ -90,6 +90,7 @@ func newUserAccessTokenCache(user *User) *UserAccessTokenCache {
 
 func (user *UserBase) WriteContext(c *gin.Context) {
 	common.SetContextKey(c, constant.ContextKeyProviderId, user.ProviderId)
+	common.SetContextKey(c, constant.ContextKeyUserProviderId, user.ProviderId)
 	common.SetContextKey(c, constant.ContextKeyUserGroup, user.Group)
 	common.SetContextKey(c, constant.ContextKeyUserQuota, user.Quota)
 	common.SetContextKey(c, constant.ContextKeyUserStatus, user.Status)

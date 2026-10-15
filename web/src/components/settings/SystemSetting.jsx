@@ -164,6 +164,7 @@ const defaultInputs = {
   TurnstileSecretKey: '',
   DouyinCardApiKey: '',
   DouyinCardBaseUrl: '',
+  DouyinCardWxAppPageUrl: '',
   // 接口在 option 表中按 JSON 存储（{"url","method"}），UI 拆成路径/方法两个表单字段
   DouyinCardAddApiUrl: '',
   DouyinCardAddApiMethod: 'POST',
@@ -563,39 +564,6 @@ const SystemSetting = () => {
     }
   };
 
-  const submitWeChat = async () => {
-    const options = [];
-
-    if (originInputs['WeChatServerAddress'] !== inputs.WeChatServerAddress) {
-      options.push({
-        key: 'WeChatServerAddress',
-        value: removeTrailingSlash(inputs.WeChatServerAddress),
-      });
-    }
-    if (
-      originInputs['WeChatAccountQRCodeImageURL'] !==
-      inputs.WeChatAccountQRCodeImageURL
-    ) {
-      options.push({
-        key: 'WeChatAccountQRCodeImageURL',
-        value: inputs.WeChatAccountQRCodeImageURL,
-      });
-    }
-    if (
-      originInputs['WeChatServerToken'] !== inputs.WeChatServerToken &&
-      inputs.WeChatServerToken !== ''
-    ) {
-      options.push({
-        key: 'WeChatServerToken',
-        value: inputs.WeChatServerToken,
-      });
-    }
-
-    if (options.length > 0) {
-      await updateOptions(options);
-    }
-  };
-
   const submitGitHubOAuth = async () => {
     const options = [];
 
@@ -844,7 +812,11 @@ const SystemSetting = () => {
   const submitDouyinCard = async () => {
     const options = [];
 
-    for (const key of ['DouyinCardApiKey', 'DouyinCardBaseUrl']) {
+    for (const key of [
+      'DouyinCardApiKey',
+      'DouyinCardBaseUrl',
+      'DouyinCardWxAppPageUrl',
+    ]) {
       const value = inputs[key] ?? '';
       const origin = originInputs[key] ?? '';
       if (key === 'DouyinCardApiKey' && value === '') {
@@ -1378,15 +1350,6 @@ const SystemSetting = () => {
                         {t('允许通过 Linux DO 账户登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
-                        field='WeChatAuthEnabled'
-                        noLabel
-                        onChange={(e) =>
-                          handleCheckboxChange('WeChatAuthEnabled', e)
-                        }
-                      >
-                        {t('允许通过微信登录 & 注册')}
-                      </Form.Checkbox>
-                      <Form.Checkbox
                         field="['oidc.enabled']"
                         noLabel
                         onChange={(e) =>
@@ -1853,39 +1816,6 @@ const SystemSetting = () => {
               <CustomOAuthSetting serverAddress={inputs.ServerAddress} />
 
               <Card>
-                <Form.Section text={t('配置 WeChat Server')}>
-                  <Text>{t('用以支持通过微信进行登录注册')}</Text>
-                  <Row
-                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-                  >
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='WeChatServerAddress'
-                        label={t('WeChat Server 服务器地址')}
-                      />
-                    </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='WeChatServerToken'
-                        label={t('WeChat Server 访问凭证')}
-                        type='password'
-                        placeholder={t('敏感信息不会发送到前端显示')}
-                      />
-                    </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='WeChatAccountQRCodeImageURL'
-                        label={t('微信公众号二维码图片链接')}
-                      />
-                    </Col>
-                  </Row>
-                  <Button onClick={submitWeChat}>
-                    {t('保存 WeChat Server 设置')}
-                  </Button>
-                </Form.Section>
-              </Card>
-
-              <Card>
                 <Form.Section text={t('配置 Telegram 机器人')}>
                   <Text style={{ marginBottom: 16 }}>
                     {t(
@@ -2198,6 +2128,24 @@ const SystemSetting = () => {
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      {/* 微信小程序页面地址：新建/编辑卡片时统一作为 link 字段提交，
+                          由服务端在转发添加/修改接口前注入，卡片表单不再单独填写 */}
+                      <Form.Input
+                        field='DouyinCardWxAppPageUrl'
+                        label={t('微信小程序页面地址')}
+                        placeholder={t(
+                          '例如：weixin://dl/business/?appid=xxxxx&path=xxxxx',
+                        )}
+                        extraText={t(
+                          '新建/编辑卡片时统一作为跳转链接提交，卡片表单中无需单独填写',
+                        )}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='DouyinCardAddApiUrl'
@@ -2226,7 +2174,8 @@ const SystemSetting = () => {
                       <Form.Input
                         field='DouyinCardUpdateApiUrl'
                         label={t('修改接口')}
-                        placeholder={t('例如：/api/card/update')}
+                        placeholder={t('例如：/openapi/card/{id}')}
+                        extraText={t('路径中的 {id} 会替换为请求体中的卡片ID')}
                         prefix={
                           <DouyinMethodSelect optionKey='DouyinCardUpdateApiMethod' />
                         }
@@ -2236,7 +2185,10 @@ const SystemSetting = () => {
                       <Form.Input
                         field='DouyinCardDeleteApiUrl'
                         label={t('删除接口')}
-                        placeholder={t('例如：/api/card/delete')}
+                        placeholder={t('例如：/openapi/card/{id}')}
+                        extraText={t(
+                          '路径中的 {id} 会替换为卡片ID；未使用 {id} 时卡片ID 以查询参数 id 透传',
+                        )}
                         prefix={
                           <DouyinMethodSelect optionKey='DouyinCardDeleteApiMethod' />
                         }

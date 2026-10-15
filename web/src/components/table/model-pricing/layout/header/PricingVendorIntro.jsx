@@ -89,6 +89,15 @@ const PricingVendorIntro = memo(
     setTokenUnit,
     sortMode,
     setSortMode,
+    allowCustomSort,
+    sortCriteria,
+    setSortCriteria,
+    sortWeights,
+    setSortWeights,
+    pricingSortConfig,
+    sortConfigSaving,
+    onSaveSortConfig,
+    onResetSortConfig,
     sidebarProps,
     t,
   }) => {
@@ -98,15 +107,23 @@ const PricingVendorIntro = memo(
     const featuredModels = useMemo(
       () => [
         sourceModels.find((item) => item.tags?.toLowerCase().includes('hot')) ||
-          sourceModels.find((item) => item.model_name?.toLowerCase().includes('gpt')) ||
+          sourceModels.find((item) =>
+            item.model_name?.toLowerCase().includes('gpt'),
+          ) ||
           sourceModels[0],
-        sourceModels.find((item) => item.tags?.toLowerCase().includes('value')) ||
+        sourceModels.find((item) =>
+          item.tags?.toLowerCase().includes('value'),
+        ) ||
           [...sourceModels]
             .filter((item) => item.quota_type === 0)
-            .sort((a, b) => (a.model_ratio || 999) - (b.model_ratio || 999))[0] ||
+            .sort(
+              (a, b) => (a.model_ratio || 999) - (b.model_ratio || 999),
+            )[0] ||
           sourceModels[1],
         sourceModels.find((item) => item.tags?.toLowerCase().includes('new')) ||
-          sourceModels.find((item) => item.model_name?.toLowerCase().includes('gemini')) ||
+          sourceModels.find((item) =>
+            item.model_name?.toLowerCase().includes('gemini'),
+          ) ||
           sourceModels[2],
       ],
       [sourceModels],
@@ -149,12 +166,22 @@ const PricingVendorIntro = memo(
     return (
       <div className='pricing-market-top-shell'>
         {!isMobile && (
-          <div className='pricing-market-recommend-section' style={{backgroundImage: `url(${pricingBannerImg})`, backgroundSize: 'cover', backgroundPosition: 'center'}}>
+          <div
+            className='pricing-market-recommend-section'
+            style={{
+              backgroundImage: `url(${pricingBannerImg})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          >
             <div className='pricing-banner-cont'>
               {/* <div className='pricing-banner-cont-title'>GPT-5.5 & Gemini 3.1 Pro</div> */}
-              <div className='pricing-banner-cont-title color'>{t('现已全面接入')} {systemName}</div>
+              <div className='pricing-banner-cont-title color'>
+                {t('现已全面接入')} {systemName}
+              </div>
               <div className='pricing-banner-cont-description'>
-                {t('更快的响应速度，更低的网络延迟，通过')} {systemName} {t('智能路由引擎，自动为您选择最优渠道。')}
+                {t('更快的响应速度，更低的网络延迟，通过')} {systemName}{' '}
+                {t('智能路由引擎，自动为您选择最优渠道。')}
               </div>
               <div className='pricing-banner-cont-action'>
                 <Link
@@ -198,6 +225,17 @@ const PricingVendorIntro = memo(
             filteredCount={models.length}
             sortMode={sortMode}
             setSortMode={setSortMode}
+            allowCustomSort={allowCustomSort}
+            sortCriteria={sortCriteria}
+            setSortCriteria={setSortCriteria}
+            sortWeights={sortWeights}
+            setSortWeights={setSortWeights}
+            pricingSortConfig={pricingSortConfig}
+            sortConfigSaving={sortConfigSaving}
+            previewModels={models}
+            weightModels={allModels}
+            onSaveSortConfig={onSaveSortConfig}
+            onResetSortConfig={onResetSortConfig}
             t={t}
           />
         </div>

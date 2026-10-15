@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Badge,
   Button,
@@ -148,6 +148,7 @@ const SubscriptionPlansCard = ({
   onChangeBillingPreference,
   activeSubscriptions = [],
   allSubscriptions = [],
+  pendingSubscriptionOrders = [],
   reloadSubscriptionSelf,
   withCard = true,
 }) => {
@@ -157,6 +158,7 @@ const SubscriptionPlansCard = ({
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [cryptoDrawerVisible, setCryptoDrawerVisible] = useState(false);
+  const [cryptoResumeOrder, setCryptoResumeOrder] = useState(null);
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]); // 过滤出易支付方式列表
   // 标准化币种配置，确保 symbol / currency / unitPrice 等字段均有合理默认值
@@ -164,6 +166,28 @@ const SubscriptionPlansCard = ({
     () => normalizeDisplayCurrency(displayCurrency), // 调用工具函数补全缺失字段
     [displayCurrency], // 当 displayCurrency 变化时重新计算
   );
+
+  useEffect(() => {
+    if (!Array.isArray(plans) || plans.length === 0) return;
+    const raw = sessionStorage.getItem('resume_subscription_order');
+    if (!raw) return;
+    try {
+      const resumeOrder = JSON.parse(raw);
+      const match = plans.find(
+        (item) => Number(item?.plan?.id) === Number(resumeOrder?.plan_id),
+      );
+      if (!match || resumeOrder?.kind !== 'crypto') {
+        sessionStorage.removeItem('resume_subscription_order');
+        return;
+      }
+      setSelectedPlan(match);
+      setCryptoResumeOrder(resumeOrder);
+      setCryptoDrawerVisible(true);
+      sessionStorage.removeItem('resume_subscription_order');
+    } catch {
+      sessionStorage.removeItem('resume_subscription_order');
+    }
+  }, [plans]);
 
   // 根据币种配置格式化套餐价格：CNY 时按 unitPrice 换算，其他币种直接展示原价
   const formatPlanPrice = (priceAmount) => {
@@ -184,6 +208,7 @@ const SubscriptionPlansCard = ({
   const closeBuy = () => {
     setOpen(false);
     setSelectedPlan(null);
+    setCryptoResumeOrder(null);
     setPaying(false);
   };
 
@@ -360,6 +385,7 @@ const SubscriptionPlansCard = ({
   };
 
   const payCrypto = () => {
+    setCryptoResumeOrder(null);
     setCryptoDrawerVisible(true);
   };
 
@@ -405,6 +431,7 @@ const SubscriptionPlansCard = ({
 
   const handleCryptoPaySuccess = () => {
     setCryptoDrawerVisible(false);
+    setCryptoResumeOrder(null);
     closeBuy();
     startSubscriptionRefreshPolling();
   };
@@ -426,8 +453,13 @@ const SubscriptionPlansCard = ({
       if (!planId) return;
       map.set(planId, (map.get(planId) || 0) + 1);
     });
+    (pendingSubscriptionOrders || []).forEach((order) => {
+      const planId = order?.plan_id;
+      if (!planId) return;
+      map.set(planId, (map.get(planId) || 0) + 1);
+    });
     return map;
-  }, [allSubscriptions]);
+  }, [allSubscriptions, pendingSubscriptionOrders]);
 
   // A non-empty purchase_limit_group makes both limits span every plan in
   // that provider scope. Mirror the backend's "strictest positive limit"
@@ -488,6 +520,13 @@ const SubscriptionPlansCard = ({
       const scopePlan =
         purchasedPlan || plans.find((item) => item?.plan?.id === planId)?.plan;
       return getSubscriptionPurchaseScopeKey(scopePlan) === targetKey
+        ? count + 1
+        : count;
+    }, 0) + (pendingSubscriptionOrders || []).reduce((count, order) => {
+      const pendingPlan = plans.find(
+        (item) => Number(item?.plan?.id) === Number(order?.plan_id),
+      )?.plan;
+      return getSubscriptionPurchaseScopeKey(pendingPlan) === targetKey
         ? count + 1
         : count;
     }, 0);
@@ -611,6 +650,11 @@ const SubscriptionPlansCard = ({
                   <Tag color='white' size='small' shape='circle'>
                     {allSubscriptions.length - activeSubscriptions.length}{' '}
                     {t('个已过期')}
+                  </Tag>
+                )}
+                {pendingSubscriptionOrders.length > 0 && (
+                  <Tag color='orange' size='small' shape='circle'>
+                    {pendingSubscriptionOrders.length} {t('待支付')}
                   </Tag>
                 )}
               </div>
@@ -900,7 +944,8 @@ const SubscriptionPlansCard = ({
                   globalLimit - globalAllocated,
                 );
                 const globalLimitLabel =
-                  globalLimit > 0 ? null // ? `${t('剩余')} ${globalRemaining} ${t('份')}`
+                  globalLimit > 0
+                    ? null // ? `${t('剩余')} ${globalRemaining} ${t('份')}`
                     : null;
                 const totalLabel =
                   totalAmount > 0
@@ -1133,7 +1178,10 @@ const SubscriptionPlansCard = ({
 
       <CryptoPaymentDrawer
         visible={cryptoDrawerVisible}
-        onClose={() => setCryptoDrawerVisible(false)}
+        onClose={() => {
+          setCryptoDrawerVisible(false);
+          setCryptoResumeOrder(null);
+        }}
         amount={(() => {
           const price = Number(selectedPlan?.plan?.price_amount || 0);
           return normalizedDisplayCurrency.currency === 'CNY'
@@ -1143,6 +1191,7 @@ const SubscriptionPlansCard = ({
         currency={normalizedDisplayCurrency.currency || 'USD'}
         t={t}
         onSuccess={handleCryptoPaySuccess}
+        initialOrder={cryptoResumeOrder}
         createOrder={createSubscriptionCryptoOrder}
         confirmOrder={confirmSubscriptionCryptoOrder}
       />

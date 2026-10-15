@@ -46,6 +46,7 @@ import SidebarUserPanel from './components/SidebarUserPanel';
 const routerMap = {
   home: '/',
   channel: '/console/channel',
+  douyinCard: '/console/douyinCard',
   token: '/console/token',
   redemption: '/console/redemption',
   topup: '/console/topup',
@@ -356,6 +357,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('渠道管理'),
         itemKey: 'channel',
         to: '/channel',
+      },
+      // 抖音卡片管理：数据在外部服务，本站代理转发（仅管理员，路由用 AdminRoute 守卫）
+      {
+        text: t('抖音卡片'),
+        itemKey: 'douyinCard',
+        to: '/console/douyinCard',
       },
       {
         text: t('订阅管理'),

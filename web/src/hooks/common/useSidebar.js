@@ -60,6 +60,7 @@ export const DEFAULT_ADMIN_CONFIG = {
   admin: {
     enabled: true,
     channel: true,
+    douyinCard: true, // 抖音私信卡片（仅管理员，数据在外部服务）
     models: true,
     deployment: true,
     callLog: true,

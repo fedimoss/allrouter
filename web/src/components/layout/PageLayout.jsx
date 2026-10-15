@@ -53,6 +53,8 @@ const PageLayout = () => {
   const cardProPages = [
     '/',
     '/console/channel',
+    // 抖音私信卡片管理页：定高表格卡片，登记后不渲染页脚，避免页面出现外层滚动
+    '/console/douyinCard',
     '/console/log',
     '/console/redemption',
     '/console/user',

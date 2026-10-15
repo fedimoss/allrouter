@@ -136,6 +136,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       timestamp2string(now.getTime() / 1000 + 3600),
     ],
     logType: '0',
+    billing_source: '',
   };
 
   // Get default column visibility based on user role
@@ -260,6 +261,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       group: formValues.group || '',
       request_id: formValues.request_id || '',
       logType: formValues.logType ? parseInt(formValues.logType) : 0,
+      billing_source: formValues.billing_source || '',
     };
   };
 
@@ -277,6 +279,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       channel,
       group,
       request_id,
+      billing_source,
       logType: formLogType,
     } = getFormValues();
 
@@ -292,13 +295,13 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
 
     let url = '';
     if (isProviderScope) {
-      url = `/api/provider/logs?p=${page}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
+      url = `/api/provider/logs?p=${page}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}&billing_source=${billing_source}`;
     } else if (isAdminCallScope) {
       url = `/api/log/calls?p=${page}&page_size=${size}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
     } else if (isAdminUser) {
-      url = `/api/log/?p=${page}&page_size=${10}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/?p=${page}&page_size=${10}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}&billing_source=${billing_source}`;
     } else {
-      url = `/api/log/self/?p=${page}&page_size=${10}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/self/?p=${page}&page_size=${10}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}&billing_source=${billing_source}`;
     }
 
     return encodeURI(url);
@@ -312,12 +315,13 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       start_timestamp,
       end_timestamp,
       group,
+      billing_source,
       logType: formLogType,
     } = getFormValues();
     const currentLogType = formLogType !== undefined ? formLogType : logType;
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/self/stat?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
+    let url = `/api/log/self/stat?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&billing_source=${billing_source}`;
     url = encodeURI(url);
     let res = await API.get(url);
     const { success, message, data } = res.data;
@@ -336,12 +340,13 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       start_timestamp,
       end_timestamp,
       group,
+      billing_source,
       logType: formLogType,
     } = getFormValues();
     const currentLogType = formLogType !== undefined ? formLogType : logType;
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/provider/logs/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
+    let url = `/api/provider/logs/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&billing_source=${billing_source}`;
     url = encodeURI(url);
     let res = await API.get(url);
     const { success, message, data } = res.data;
@@ -361,12 +366,13 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
       end_timestamp,
       channel,
       group,
+      billing_source,
       logType: formLogType,
     } = getFormValues();
     const currentLogType = formLogType !== undefined ? formLogType : logType;
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
+    let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&billing_source=${billing_source}`;
     url = encodeURI(url);
     let res = await API.get(url);
     const { success, message, data } = res.data;
@@ -569,6 +575,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
                   other.cache_creation_ratio ||
                   1.0,
                 billingDisplayMode,
+                other?.user_model_discount,
               )
             : renderLogContent(
                 other?.model_ratio,
@@ -584,6 +591,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
                 other.file_search || false,
                 other.file_search_call_count || 0,
                 billingDisplayMode,
+                other?.user_model_discount,
               ),
         });
         if (logs[i]?.content) {
@@ -618,7 +626,10 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
           } else if (isTaskLog && other?.model_price === -1) {
             content = renderTaskBillingProcess(other, logs[i].content);
           } else if (other?.billing_mode === 'tiered_expr') {
-            content = renderTieredModelPrice(other);
+            content = renderTieredModelPrice({
+              ...other,
+              actualQuota: logs[i].quota,
+            });
           } else if (other?.ws || other?.audio) {
             content = renderAudioModelPrice(
               other?.text_input,
@@ -636,6 +647,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
               other?.cache_ratio || 1.0,
               billingDisplayMode,
               logs[i].quota,
+              other?.user_model_discount,
             );
           } else if (other?.claude) {
             content = renderClaudeModelPrice(
@@ -660,6 +672,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
                 1.0,
               billingDisplayMode,
               logs[i].quota,
+              other?.user_model_discount,
             );
           } else {
             content = renderModelPrice(
@@ -688,6 +701,7 @@ export const useLogsData = ({ scope = 'default' } = {}) => {
               other?.image_generation_call_price || 0,
               billingDisplayMode,
               logs[i].quota,
+              other?.user_model_discount,
             );
           }
           expandDataLocal.push({

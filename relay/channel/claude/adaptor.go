@@ -81,6 +81,9 @@ func CommonClaudeHeadersOperation(c *gin.Context, req *http.Header, info *relayc
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
+	if userAgent := c.Request.Header.Get("User-Agent"); userAgent != "" {
+		req.Set("User-Agent", userAgent)
+	}
 	req.Set("x-api-key", info.ApiKey)
 	anthropicVersion := c.Request.Header.Get("anthropic-version")
 	if anthropicVersion == "" {

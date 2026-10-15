@@ -1,4 +1,11 @@
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { StatusContext } from '../../context/Status';
 import {
   Button,
@@ -101,7 +108,17 @@ const WalletMark = ({ walletKey }) => {
   );
 };
 
-const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrder, confirmOrder, currency = 'USD' }) => {
+const CryptoPaymentDrawer = ({
+  visible,
+  onClose,
+  amount,
+  t,
+  onSuccess,
+  createOrder,
+  confirmOrder,
+  currency = 'USD',
+  initialOrder = null,
+}) => {
   const [selectedNetwork, setSelectedNetwork] = useState('');
   const [selectedWallet, setSelectedWallet] = useState(WALLETS[0].key);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
@@ -125,6 +142,33 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
 
   const providerRef = useRef(null);
 
+  useEffect(() => {
+    if (!visible && !initialOrder) {
+      setOrderData(null);
+      setPayState('idle');
+      setTxHash(null);
+      setErrorMsg('');
+      return;
+    }
+    if (!visible || !initialOrder) return;
+    setOrderData(initialOrder);
+    setPayState('idle');
+    setTxHash(null);
+    setErrorMsg('');
+    if (initialOrder.chain_id) {
+      setSelectedNetwork((prev) => prev || String(initialOrder.chain_id));
+    }
+  }, [visible, initialOrder]);
+
+  useEffect(() => {
+    if (!initialOrder?.chain_id || chains.length === 0) return;
+    const match = chains.find(
+      (chain) =>
+        Number(chain.chainParams?.chainId) === Number(initialOrder.chain_id),
+    );
+    if (match) setSelectedNetwork(match.key);
+  }, [initialOrder, chains]);
+
   const network = useMemo(
     () => chains.find((n) => n.key === selectedNetwork) || chains[0] || null,
     [selectedNetwork, chains],
@@ -133,24 +177,34 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
     () => WALLETS.find((w) => w.key === selectedWallet) || WALLETS[0],
     [selectedWallet],
   );
-  const installed = useMemo(() => isWalletInstalled(selectedWallet), [selectedWallet]);
+  const installed = useMemo(
+    () => isWalletInstalled(selectedWallet),
+    [selectedWallet],
+  );
   const connected = !!account;
   const rawAmount = Number(amount || 0);
-  const usdExchangeRate = parseFloat(statusState?.status?.usd_exchange_rate) || 7.25;
+  const usdExchangeRate =
+    parseFloat(statusState?.status?.usd_exchange_rate) || 7.25;
   // 顶部"待支付金额"，单位 USD
   const payableUsd = formatAmount(
     currency === 'CNY' ? rawAmount / usdExchangeRate : rawAmount,
   );
   // 底部"支付资产"，单位 USDT
   const payableUsdt = (() => {
-    const val = currency === 'CNY' ? rawAmount * (cnyRate || usdRate) : rawAmount * usdRate;
+    const val =
+      currency === 'CNY'
+        ? rawAmount * (cnyRate || usdRate)
+        : rawAmount * usdRate;
     const parsed = Number(val || 0);
     return Number.isFinite(parsed) && parsed > 0 ? parsed.toFixed(3) : '0.000';
   })();
-  const onCorrectChain = network ? chainId === network.chainParams.chainId : false;
+  const onCorrectChain = network
+    ? chainId === network.chainParams.chainId
+    : false;
   const balanceNum = usdtBalance !== null ? parseFloat(usdtBalance) : 0;
   const sufficient = balanceNum >= parseFloat(payableUsdt);
-  const canPay = connected && onCorrectChain && sufficient && payState === 'idle';
+  const canPay =
+    connected && onCorrectChain && sufficient && payState === 'idle';
 
   const fetchChains = useCallback(async () => {
     setChainsLoading(true);
@@ -164,7 +218,10 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
         const transformed = data.map(transformChain);
         setChains(transformed);
         setSelectedNetwork((prev) => {
-          if (transformed.length > 0 && !transformed.find((c) => c.key === prev)) {
+          if (
+            transformed.length > 0 &&
+            !transformed.find((c) => c.key === prev)
+          ) {
             return transformed[0].key;
           }
           return prev;
@@ -184,25 +241,22 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
     }
   }, []);
 
-  const fetchBalance = useCallback(
-    async (addr, net) => {
-      setBalanceLoading(true);
-      try {
-        const bal = await getUSDTBalance(
-          net.chainParams.rpcUrls[0],
-          addr,
-          net.usdtAddress,
-          net.usdtDecimals,
-        );
-        setUsdtBalance(bal);
-      } catch {
-        setUsdtBalance(null);
-      } finally {
-        setBalanceLoading(false);
-      }
-    },
-    [],
-  );
+  const fetchBalance = useCallback(async (addr, net) => {
+    setBalanceLoading(true);
+    try {
+      const bal = await getUSDTBalance(
+        net.chainParams.rpcUrls[0],
+        addr,
+        net.usdtAddress,
+        net.usdtDecimals,
+      );
+      setUsdtBalance(bal);
+    } catch {
+      setUsdtBalance(null);
+    } finally {
+      setBalanceLoading(false);
+    }
+  }, []);
 
   const handleConnect = useCallback(async () => {
     setConnecting(true);
@@ -211,7 +265,8 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
       const result = await connectWallet(selectedWallet);
       setAccount(result.account);
       setChainId(result.chainId);
-      providerRef.current = selectedWallet === 'okx' ? window.okxwallet : window.ethereum;
+      providerRef.current =
+        selectedWallet === 'okx' ? window.okxwallet : window.ethereum;
     } catch (err) {
       if (err.code === 4001) {
         Toast.warning(t('您拒绝了钱包连接请求'));
@@ -239,9 +294,11 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
     }
   }, [network, t]);
 
-  const doCreateOrder = createOrder || (async (networkName) => {
-    return await createCryptoOrder(amount, networkName);
-  });
+  const doCreateOrder =
+    createOrder ||
+    (async (networkName) => {
+      return await createCryptoOrder(amount, networkName);
+    });
   const doConfirmOrder = confirmOrder || confirmCryptoOrder;
 
   const handlePay = useCallback(async () => {
@@ -251,7 +308,7 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
 
     setPayState('creating');
     try {
-      order = await doCreateOrder(network.name);
+      order = orderData || (await doCreateOrder(network.name));
       setOrderData(order);
     } catch (err) {
       setErrorMsg(t('创建订单失败') + '：' + err.message);
@@ -290,7 +347,17 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
     }
     setErrorMsg(t('确认超时，请稍后在充值记录中查看'));
     setPayState('failed');
-  }, [amount, selectedNetwork, selectedWallet, t, network, onSuccess, doCreateOrder, doConfirmOrder]);
+  }, [
+    amount,
+    selectedNetwork,
+    selectedWallet,
+    t,
+    network,
+    onSuccess,
+    doCreateOrder,
+    doConfirmOrder,
+    orderData,
+  ]);
 
   const handleClose = useCallback(() => {
     if (payState === 'paying' || payState === 'confirming') {
@@ -368,23 +435,22 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
     }
   }, [visible]);
 
-  const handleSelectWallet = useCallback(
-    (key) => {
-      setSelectedWallet(key);
-      setWalletModalVisible(false);
-      setAccount(null);
-      setChainId(null);
-      setUsdtBalance(null);
-      setPayState('idle');
-      setOrderData(null);
-      setTxHash(null);
-      providerRef.current = null;
-    },
-    [],
-  );
+  const handleSelectWallet = useCallback((key) => {
+    setSelectedWallet(key);
+    setWalletModalVisible(false);
+    setAccount(null);
+    setChainId(null);
+    setUsdtBalance(null);
+    setPayState('idle');
+    setOrderData(null);
+    setTxHash(null);
+    providerRef.current = null;
+  }, []);
 
   const getExplorerTxUrl = (hash) => {
-    const chainIdNum = orderData?.chain_id || (network ? parseInt(network.chainParams.chainId, 16) : 0);
+    const chainIdNum =
+      orderData?.chain_id ||
+      (network ? parseInt(network.chainParams.chainId, 16) : 0);
     const base = getExplorerBaseUrl(chainIdNum);
     return base ? `${base}/tx/${hash}` : '';
   };
@@ -438,7 +504,9 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
             </h2>
             {orderData && (
               <div className='mt-4 text-center text-sm text-slate-400'>
-                <div>{t('订单号')}：{orderData.trade_no}</div>
+                <div>
+                  {t('订单号')}：{orderData.trade_no}
+                </div>
                 <div className='mt-1'>
                   {t('金额')}：{orderData.pay_amount} {orderData.token}
                 </div>
@@ -553,7 +621,9 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
                     {t('暂无可用网络，请联系管理员配置')}
                   </div>
                 ) : (
-                  <div className={`grid gap-3 sm:grid-cols-${Math.min(chains.length, 3)}`}>
+                  <div
+                    className={`grid gap-3 sm:grid-cols-${Math.min(chains.length, 3)}`}
+                  >
                     {chains.map((item) => {
                       const Icon = getNetworkIcon(item.name);
                       const color = getNetworkColor(item.name);
@@ -569,7 +639,12 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
                             setOrderData(null);
                             setTxHash(null);
                           }}
-                          disabled={switching || payState === 'creating' || payState === 'paying' || payState === 'confirming'}
+                          disabled={
+                            switching ||
+                            payState === 'creating' ||
+                            payState === 'paying' ||
+                            payState === 'confirming'
+                          }
                           className={`flex h-[52px] items-center justify-center gap-2 rounded-[11px] border px-4 text-[15px] font-extrabold transition ${
                             selected
                               ? 'border-[#11D8CE] bg-[#EFFFFD] text-[#10D9CD]'
@@ -580,24 +655,30 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
                             <Icon size={13} color={color} />
                           </span>
                           {item.name}
-                          {connected && !switching && chainId === item.chainParams.chainId && (
-                            <Check size={14} className='text-[#10D9CD]' />
-                          )}
+                          {connected &&
+                            !switching &&
+                            chainId === item.chainParams.chainId && (
+                              <Check size={14} className='text-[#10D9CD]' />
+                            )}
                         </button>
                       );
                     })}
                   </div>
                 )}
-                {connected && !onCorrectChain && !switching && payState === 'idle' && network && (
-                  <button
-                    type='button'
-                    onClick={handleSwitchNetwork}
-                    className='mx-auto mt-4 flex items-center gap-1 text-[13px] font-semibold text-[#10D9CD]'
-                  >
-                    {t('切换到 {{network}} 网络', { network: network.name })}
-                    <ChevronDown size={14} />
-                  </button>
-                )}
+                {connected &&
+                  !onCorrectChain &&
+                  !switching &&
+                  payState === 'idle' &&
+                  network && (
+                    <button
+                      type='button'
+                      onClick={handleSwitchNetwork}
+                      className='mx-auto mt-4 flex items-center gap-1 text-[13px] font-semibold text-[#10D9CD]'
+                    >
+                      {t('切换到 {{network}} 网络', { network: network.name })}
+                      <ChevronDown size={14} />
+                    </button>
+                  )}
                 {switching && (
                   <div className='mt-4 flex items-center justify-center gap-2 text-[13px] text-[#94A3B8]'>
                     <Loader2 size={14} className='animate-spin' />
@@ -628,7 +709,9 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
                           {network.token}
                         </div>
                         <div className='mt-0.5 text-[12px] font-semibold text-[#94A3B8]'>
-                          {t('在 {{network}} 网络上可用', { network: network.name })}
+                          {t('在 {{network}} 网络上可用', {
+                            network: network.name,
+                          })}
                         </div>
                       </div>
                     </div>
@@ -640,7 +723,9 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
                         {t('余额')}：
                         {balanceLoading ? (
                           <Spin size='small' />
-                        ) : connected && onCorrectChain && usdtBalance !== null ? (
+                        ) : connected &&
+                          onCorrectChain &&
+                          usdtBalance !== null ? (
                           `${parseFloat(usdtBalance).toFixed(4)} ${network.token}`
                         ) : connected && !onCorrectChain ? (
                           t('请先切换网络')
@@ -654,19 +739,21 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
               )}
 
               {/* Insufficient balance warning */}
-              {connected && onCorrectChain && usdtBalance !== null && !sufficient && (
-                <div className='mt-6 flex items-center gap-3 rounded-[11px] border border-[#FFB7B7] bg-[#FFF0F0] px-5 py-4'>
-                  <AlertTriangle size={21} color='#FF4D4F' />
-                  <div className='text-[13px] font-semibold text-[#475569]'>
-                    {t('余额不足。需额外添加')}{' '}
-                    <span className='font-black text-[#FF4D4F]'>
-                      {(parseFloat(payableUsdt) - balanceNum).toFixed(4)}{' '}
-                      USDT
-                    </span>{' '}
-                    {t('以完成购买。')}
+              {connected &&
+                onCorrectChain &&
+                usdtBalance !== null &&
+                !sufficient && (
+                  <div className='mt-6 flex items-center gap-3 rounded-[11px] border border-[#FFB7B7] bg-[#FFF0F0] px-5 py-4'>
+                    <AlertTriangle size={21} color='#FF4D4F' />
+                    <div className='text-[13px] font-semibold text-[#475569]'>
+                      {t('余额不足。需额外添加')}{' '}
+                      <span className='font-black text-[#FF4D4F]'>
+                        {(parseFloat(payableUsdt) - balanceNum).toFixed(4)} USDT
+                      </span>{' '}
+                      {t('以完成购买。')}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Network fees */}
               <div className='mt-6 space-y-3 text-[13px] font-semibold text-[#64748B]'>
@@ -680,7 +767,11 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
               <Button
                 block
                 disabled={!canPay || chains.length === 0}
-                loading={payState === 'creating' || payState === 'paying' || payState === 'confirming'}
+                loading={
+                  payState === 'creating' ||
+                  payState === 'paying' ||
+                  payState === 'confirming'
+                }
                 onClick={handlePay}
                 className='!mt-7 !h-14 !rounded-[8px] !border-0 theme-btn-color theme-bg !text-[16px]'
               >
@@ -690,7 +781,9 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
               {/* Error message */}
               {payState === 'failed' && errorMsg && (
                 <div className='mt-4 flex items-center justify-between rounded-[11px] border border-[#FFB7B7] bg-[#FFF0F0] px-5 py-3'>
-                  <span className='text-[13px] font-semibold text-[#FF4D4F]'>{errorMsg}</span>
+                  <span className='text-[13px] font-semibold text-[#FF4D4F]'>
+                    {errorMsg}
+                  </span>
                   <Button
                     size='small'
                     onClick={handleResetPay}
@@ -747,7 +840,9 @@ const CryptoPaymentDrawer = ({ visible, onClose, amount, t, onSuccess, createOrd
                       </div>
                       <div className='flex items-center justify-between'>
                         <span>CHAIN_ID</span>
-                        <span className='text-[#D5DEE9]'>{parseInt(network.chainParams.chainId, 16)}</span>
+                        <span className='text-[#D5DEE9]'>
+                          {parseInt(network.chainParams.chainId, 16)}
+                        </span>
                       </div>
                     </>
                   )}

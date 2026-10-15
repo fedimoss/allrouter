@@ -71,6 +71,7 @@ export default function SettingsSidebarModulesAdmin(props) {
     admin: {
       enabled: true,
       channel: true,
+      douyinCard: true, // 抖音私信卡片
       models: true,
       deployment: true,
       callLog: true,
@@ -150,6 +151,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       admin: {
         enabled: true,
         channel: true,
+        douyinCard: true, // 抖音私信卡片
         models: true,
         deployment: true,
         callLog: true,
@@ -241,6 +243,7 @@ export default function SettingsSidebarModulesAdmin(props) {
           admin: {
             enabled: true,
             channel: true,
+            douyinCard: true, // 抖音私信卡片
             models: true,
             deployment: true,
             callLog: true,
@@ -337,6 +340,11 @@ export default function SettingsSidebarModulesAdmin(props) {
       description: t('系统管理功能'),
       modules: [
         { key: 'channel', title: t('渠道管理'), description: t('API渠道配置') },
+        {
+          key: 'douyinCard',
+          title: t('抖音私信卡片'),
+          description: t('管理抖音私信卡片（数据在外部服务，本站代理转发）'),
+        },
         { key: 'models', title: t('模型管理'), description: t('AI模型配置') },
         {
           key: 'deployment',

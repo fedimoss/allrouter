@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -1069,6 +1070,73 @@ func TestLen_ZeroDefaultsToZero(t *testing.T) {
 	if trace.MatchedTier != "standard" {
 		t.Errorf("tier = %q, want standard (len=0 <= 200000)", trace.MatchedTier)
 	}
+}
+
+func TestBillingTokenOverrideDoesNotChangeTierCondition(t *testing.T) {
+	exprStr := `c < 200 ? tier("short", p * 2 + c * 4) : tier("long", p * 3 + c * 8)`
+	params := billingexpr.TokenParams{
+		P:            1000,
+		C:            220,
+		BillingP:     800,
+		BillingC:     176,
+		UseBillingPC: true,
+	}
+	cost, trace, err := billingexpr.RunExpr(exprStr, params)
+	require.NoError(t, err)
+	require.Equal(t, "long", trace.MatchedTier)
+	require.InDelta(t, 800*3+176*8, cost, 1e-9)
+}
+
+func TestComputeTieredQuotaDiscountExcludesExplicitCache(t *testing.T) {
+	exprStr := `tier("base", p * 3 + c * 15 + cr * 0.3)`
+	snap := &billingexpr.BillingSnapshot{
+		BillingMode:  "tiered_expr",
+		ExprString:   exprStr,
+		ExprHash:     billingexpr.ExprHashString(exprStr),
+		GroupRatio:   1,
+		QuotaPerUnit: 1_000_000,
+		ExprVersion:  1,
+		UserDiscount: 0.8,
+	}
+	result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{
+		P:             1000,
+		C:             100,
+		CR:            200,
+		DiscountableP: 1000,
+		DiscountableC: 100,
+		HasBreakdown:  true,
+	})
+	require.NoError(t, err)
+	require.InDelta(t, 4560, result.OriginalQuotaBeforeGroup, 1e-9)
+	require.InDelta(t, 3660, result.ActualQuotaBeforeGroup, 1e-9)
+	require.InDelta(t, 60, result.CacheQuotaBeforeGroup, 1e-9)
+	require.InDelta(t, 4500, result.DiscountableQuotaBeforeGroup, 1e-9)
+}
+
+func TestComputeTieredQuotaDiscountExcludesCacheFallbackInP(t *testing.T) {
+	exprStr := `tier("base", p * 3 + c * 15)`
+	snap := &billingexpr.BillingSnapshot{
+		BillingMode:  "tiered_expr",
+		ExprString:   exprStr,
+		ExprHash:     billingexpr.ExprHashString(exprStr),
+		GroupRatio:   1,
+		QuotaPerUnit: 1_000_000,
+		ExprVersion:  1,
+		UserDiscount: 0.8,
+	}
+	result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{
+		P:              1000,
+		C:              100,
+		DiscountableP:  800,
+		DiscountableC:  100,
+		CacheFallbackP: 200,
+		HasBreakdown:   true,
+	})
+	require.NoError(t, err)
+	require.InDelta(t, 4500, result.OriginalQuotaBeforeGroup, 1e-9)
+	require.InDelta(t, 3720, result.ActualQuotaBeforeGroup, 1e-9)
+	require.InDelta(t, 600, result.CacheQuotaBeforeGroup, 1e-9)
+	require.InDelta(t, 3900, result.DiscountableQuotaBeforeGroup, 1e-9)
 }
 
 // ---------------------------------------------------------------------------

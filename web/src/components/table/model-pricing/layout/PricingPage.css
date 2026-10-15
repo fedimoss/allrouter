@@ -1,6 +1,9 @@
 .pricing-market {
-  background:
-    radial-gradient(circle at top left, rgba(14, 165, 233, 0.06), transparent 30%),
+  background: radial-gradient(
+      circle at top left,
+      rgba(14, 165, 233, 0.06),
+      transparent 30%
+    ),
     linear-gradient(180deg, #f6f9fc 0%, #f3f7fb 100%);
 }
 
@@ -115,10 +118,10 @@
 .pricing-market-filter-row .semi-radio:hover .semi-radio-inner-display {
   box-shadow: inset 0 0 0 1px var(--theme-primary);
 }
-.semi-radio:hover .semi-radio-inner-display{
+.semi-radio:hover .semi-radio-inner-display {
   border: unset;
 }
-.semi-radio:hover .semi-radio-inner-checked .semi-radio-inner-display{
+.semi-radio:hover .semi-radio-inner-checked .semi-radio-inner-display {
   border: 1px solid transparent;
 }
 .semi-checkbox:hover .semi-checkbox-inner-checked .semi-checkbox-inner-display,
@@ -185,33 +188,39 @@
   border-radius: 20px;
   padding: 35px 30px;
 }
-.pricing-market-recommend-section .pricing-banner-cont{
+.pricing-market-recommend-section .pricing-banner-cont {
   width: 100%;
-
 }
-.pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-title{
+.pricing-market-recommend-section
+  .pricing-banner-cont
+  .pricing-banner-cont-title {
   font-size: 36px;
   font-weight: 900;
   color: #fff;
   line-height: 40px;
   letter-spacing: -2px;
 }
-.pricing-market-recommend-section .pricing-banner-cont .color{
+.pricing-market-recommend-section .pricing-banner-cont .color {
   color: var(--theme-primary);
   letter-spacing: 2px;
 }
-.pricing-market-recommend-section .pricing-banner-cont-description{
+.pricing-market-recommend-section .pricing-banner-cont-description {
   margin-top: 12px;
   font-size: 14px;
-  color: #94A3B8;
+  color: #94a3b8;
   width: min(448px, 100%);
 }
-.pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-action{
+.pricing-market-recommend-section
+  .pricing-banner-cont
+  .pricing-banner-cont-action {
   display: flex;
   align-items: center;
   margin-top: 24px;
 }
-.pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-action .pricing-banner-cont-action-btn{
+.pricing-market-recommend-section
+  .pricing-banner-cont
+  .pricing-banner-cont-action
+  .pricing-banner-cont-action-btn {
   height: 46px;
   padding: 0 20px;
   display: flex;
@@ -222,13 +231,19 @@
   cursor: pointer;
   text-decoration: none;
 }
-.pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-action .pricing-banner-cont-action-btn:first-child{
+.pricing-market-recommend-section
+  .pricing-banner-cont
+  .pricing-banner-cont-action
+  .pricing-banner-cont-action-btn:first-child {
   border: 1px solid var(--theme-primary);
   color: var(--theme-primary);
-  box-shadow: 0px 4px 6px -4px #00E67633;
+  box-shadow: 0px 4px 6px -4px #00e67633;
   background-color: transparent;
 }
-.pricing-market-recommend-section .pricing-banner-cont .pricing-banner-cont-action .pricing-banner-cont-action-btn:last-child{
+.pricing-market-recommend-section
+  .pricing-banner-cont
+  .pricing-banner-cont-action
+  .pricing-banner-cont-action-btn:last-child {
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: #fff;
   background-color: #222;
@@ -273,7 +288,10 @@
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 8px 26px rgba(15, 23, 42, 0.05);
   cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
 }
 
 .pricing-market-recommend-card:hover {
@@ -282,17 +300,29 @@
 }
 
 .pricing-market-recommend-card-warm {
-  background: linear-gradient(180deg, #fffaf0 0%, rgba(255, 255, 255, 0.96) 100%);
+  background: linear-gradient(
+    180deg,
+    #fffaf0 0%,
+    rgba(255, 255, 255, 0.96) 100%
+  );
   border-color: rgba(245, 158, 11, 0.35);
 }
 
 .pricing-market-recommend-card-mint {
-  background: linear-gradient(180deg, #effcf5 0%, rgba(255, 255, 255, 0.96) 100%);
+  background: linear-gradient(
+    180deg,
+    #effcf5 0%,
+    rgba(255, 255, 255, 0.96) 100%
+  );
   border-color: rgba(34, 197, 94, 0.28);
 }
 
 .pricing-market-recommend-card-blue {
-  background: linear-gradient(180deg, #eff5ff 0%, rgba(255, 255, 255, 0.96) 100%);
+  background: linear-gradient(
+    180deg,
+    #eff5ff 0%,
+    rgba(255, 255, 255, 0.96) 100%
+  );
   border-color: rgba(59, 130, 246, 0.28);
 }
 
@@ -363,7 +393,7 @@
   align-items: center;
 }
 
-.pricing-market-mobile-search{
+.pricing-market-mobile-search {
   flex: 1;
 }
 
@@ -438,6 +468,219 @@
   border-radius: 12px;
 }
 
+.pricing-market-sort-popover {
+  width: min(380px, calc(100vw - 32px));
+  padding: 12px;
+}
+
+.pricing-market-sort-popover-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pricing-market-sort-popover-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pricing-market-sort-row {
+  display: grid;
+  grid-template-columns: minmax(84px, 1fr) 78px 72px;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.pricing-market-sort-row .semi-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.pricing-market-sort-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.pricing-market-sort-row-actions .semi-button {
+  width: 24px;
+  height: 28px;
+  padding: 0;
+}
+
+.pricing-market-sort-popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.pricing-market-sort-preview {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.pricing-market-sort-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pricing-market-sort-preview-count {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.pricing-market-sort-preview-columns {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 4px 4px 35px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.pricing-market-sort-preview-list {
+  display: grid;
+  gap: 3px;
+  max-height: 184px;
+  overflow-y: auto;
+}
+
+.pricing-market-sort-preview-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 25px;
+  padding: 2px 4px;
+  border-radius: 5px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.pricing-market-sort-preview-item:nth-child(-n + 3) {
+  background: rgba(14, 165, 233, 0.08);
+  color: #0f172a;
+}
+
+.pricing-market-sort-preview-rank {
+  color: #0284c7;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  text-align: center;
+}
+
+.pricing-market-sort-preview-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pricing-market-sort-preview-value {
+  max-width: 108px;
+  overflow: hidden;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pricing-market-sort-preview-empty {
+  padding: 8px 0 2px;
+  color: #94a3b8;
+  font-size: 12px;
+  text-align: center;
+}
+
+.pricing-market-weight-modal-description {
+  margin-bottom: 12px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pricing-market-weight-search {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.pricing-market-weight-list {
+  max-height: min(58vh, 560px);
+  overflow: auto;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+}
+
+.pricing-market-weight-row {
+  display: grid;
+  grid-template-columns: 54px minmax(180px, 1.5fr) minmax(120px, 1fr) 130px;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  color: #334155;
+  font-size: 13px;
+}
+
+.pricing-market-weight-row:last-child {
+  border-bottom: 0;
+}
+
+.pricing-market-weight-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: 36px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pricing-market-weight-rank {
+  color: #0284c7;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  text-align: center;
+}
+
+.pricing-market-weight-name,
+.pricing-market-weight-vendor {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pricing-market-weight-vendor {
+  color: #64748b;
+}
+
+.pricing-market-weight-empty {
+  padding: 28px 12px;
+  color: #94a3b8;
+  text-align: center;
+}
+
 .pricing-market-view-switch {
   display: inline-flex;
   gap: 4px;
@@ -474,9 +717,19 @@
 }
 
 .pricing-market-mobile-actions {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.pricing-market-mobile-sort-controls {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 .pricing-market-mobile-actions .semi-button,
@@ -499,7 +752,10 @@
   border-radius: 22px !important;
   background: rgba(255, 255, 255, 0.96) !important;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .pricing-market-desktop-card:hover {
@@ -510,7 +766,9 @@
 
 .pricing-market-desktop-card.is-selected {
   border-color: rgba(59, 130, 246, 0.55) !important;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 18px 40px rgba(59, 130, 246, 0.08);
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.1),
+    0 18px 40px rgba(59, 130, 246, 0.08);
 }
 
 .pricing-market-desktop-card-inner {
@@ -581,7 +839,10 @@
   background: rgba(248, 250, 252, 0.95);
   color: #64748b;
   cursor: pointer;
-  transition: color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
 }
 
 .pricing-market-favorite-trigger:hover {
@@ -623,7 +884,11 @@
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 14px;
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98) 0%, rgba(255, 255, 255, 0.96) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(248, 250, 252, 0.98) 0%,
+    rgba(255, 255, 255, 0.96) 100%
+  );
 }
 
 .pricing-market-price-head,
@@ -661,7 +926,10 @@
 
 .pricing-market-detail-trigger {
   cursor: pointer;
-  transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease;
 }
 
 .pricing-market-detail-trigger:hover {
@@ -705,8 +973,11 @@
 }
 
 html.dark .pricing-market {
-  background:
-    radial-gradient(circle at top left, rgba(14, 165, 233, 0.12), transparent 34%),
+  background: radial-gradient(
+      circle at top left,
+      rgba(14, 165, 233, 0.12),
+      transparent 34%
+    ),
     linear-gradient(180deg, #020617 0%, #0b1120 100%);
 }
 
@@ -756,15 +1027,27 @@ html.dark .pricing-market-price-board {
 }
 
 html.dark .pricing-market-recommend-card-warm {
-  background: linear-gradient(180deg, rgba(146, 64, 14, 0.18) 0%, rgba(15, 23, 42, 0.92) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(146, 64, 14, 0.18) 0%,
+    rgba(15, 23, 42, 0.92) 100%
+  );
 }
 
 html.dark .pricing-market-recommend-card-mint {
-  background: linear-gradient(180deg, rgba(22, 163, 74, 0.16) 0%, rgba(15, 23, 42, 0.92) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(22, 163, 74, 0.16) 0%,
+    rgba(15, 23, 42, 0.92) 100%
+  );
 }
 
 html.dark .pricing-market-recommend-card-blue {
-  background: linear-gradient(180deg, rgba(37, 99, 235, 0.16) 0%, rgba(15, 23, 42, 0.92) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(37, 99, 235, 0.16) 0%,
+    rgba(15, 23, 42, 0.92) 100%
+  );
 }
 
 html.dark .pricing-market-recommend-tag,
@@ -782,6 +1065,59 @@ html.dark .pricing-market-toolbar-chip:hover {
   background: rgba(14, 165, 233, 0.18);
   color: #67e8f9;
   border-color: rgba(14, 165, 233, 0.32);
+}
+
+html.dark .pricing-market-sort-popover-title {
+  color: #e2e8f0;
+}
+
+html.dark .pricing-market-weight-modal-description,
+html.dark .pricing-market-weight-vendor {
+  color: #94a3b8;
+}
+
+html.dark .pricing-market-weight-list {
+  border-color: rgba(51, 65, 85, 0.72);
+}
+
+html.dark .pricing-market-weight-row {
+  border-bottom-color: rgba(51, 65, 85, 0.62);
+  color: #e2e8f0;
+}
+
+html.dark .pricing-market-weight-head {
+  background: rgba(30, 41, 59, 0.96);
+  color: #cbd5e1;
+}
+
+html.dark .pricing-market-weight-empty {
+  color: #94a3b8;
+}
+
+html.dark .pricing-market-sort-preview {
+  border-top-color: rgba(51, 65, 85, 0.72);
+}
+
+html.dark .pricing-market-sort-preview-header,
+html.dark .pricing-market-sort-preview-item:nth-child(-n + 3) {
+  color: #e2e8f0;
+}
+
+html.dark .pricing-market-sort-preview-count,
+html.dark .pricing-market-sort-preview-columns,
+html.dark .pricing-market-sort-preview-value,
+html.dark .pricing-market-sort-preview-empty {
+  color: #94a3b8;
+}
+
+html.dark .pricing-market-sort-preview-item:nth-child(-n + 3) {
+  background: rgba(14, 165, 233, 0.14);
+}
+
+html.dark .pricing-market-sort-row .semi-select-selection {
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(51, 65, 85, 0.72);
 }
 
 html.dark .pricing-market-toolbar-search .semi-input-wrapper,
@@ -850,6 +1186,14 @@ html.dark .pricing-market-view-switch button.is-active {
   .pricing-market-mobile-actions {
     justify-content: flex-end;
   }
+
+  .pricing-market-weight-row {
+    grid-template-columns: 38px minmax(150px, 1fr) 110px;
+  }
+
+  .pricing-market-weight-row > :nth-child(3) {
+    display: none;
+  }
 }
 
 .pricing-market-mobile-card {
@@ -857,7 +1201,10 @@ html.dark .pricing-market-view-switch button.is-active {
   border-radius: 18px !important;
   background: rgba(255, 255, 255, 0.96) !important;
   box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
 }
 
 .pricing-market-mobile-card:hover {
@@ -868,8 +1215,14 @@ html.dark .pricing-market-view-switch button.is-active {
 
 .pricing-market-mobile-card.is-selected {
   border-color: rgba(59, 130, 246, 0.75) !important;
-  background: linear-gradient(180deg, rgba(239, 246, 255, 0.98) 0%, rgba(255, 255, 255, 0.98) 100%) !important;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 14px 28px rgba(59, 130, 246, 0.08);
+  background: linear-gradient(
+    180deg,
+    rgba(239, 246, 255, 0.98) 0%,
+    rgba(255, 255, 255, 0.98) 100%
+  ) !important;
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.1),
+    0 14px 28px rgba(59, 130, 246, 0.08);
 }
 
 .pricing-market-mobile-card-title {
@@ -911,8 +1264,14 @@ html.dark .pricing-market-view-switch button.is-active {
   background: transparent !important;
 }
 
-.pricing-market-table .semi-table-thead > .semi-table-row > .semi-table-row-head,
-.pricing-market-table .semi-table-tbody > .semi-table-row > .semi-table-row-cell {
+.pricing-market-table
+  .semi-table-thead
+  > .semi-table-row
+  > .semi-table-row-head,
+.pricing-market-table
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell {
   background: transparent;
 }
 
@@ -947,9 +1306,15 @@ html.dark .pricing-market-table-card:hover {
 }
 
 html.dark .pricing-market-mobile-card.is-selected {
-  background: linear-gradient(180deg, rgba(16, 28, 48, 0.96) 0%, rgba(15, 23, 42, 0.96) 100%) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(16, 28, 48, 0.96) 0%,
+    rgba(15, 23, 42, 0.96) 100%
+  ) !important;
   border-color: rgba(56, 189, 248, 0.62) !important;
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.14), 0 18px 40px rgba(2, 6, 23, 0.36);
+  box-shadow:
+    0 0 0 3px rgba(14, 165, 233, 0.14),
+    0 18px 40px rgba(2, 6, 23, 0.36);
 }
 
 html.dark .pricing-market-mobile-card .semi-card-body,
@@ -960,8 +1325,16 @@ html.dark .pricing-market-skeleton-card .semi-card-body {
 }
 
 html.dark .pricing-market-mobile-card-title,
-html.dark .pricing-market-table .semi-table-tbody > .semi-table-row > .semi-table-row-cell,
-html.dark .pricing-market-table .semi-table-thead > .semi-table-row > .semi-table-row-head,
+html.dark
+  .pricing-market-table
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell,
+html.dark
+  .pricing-market-table
+  .semi-table-thead
+  > .semi-table-row
+  > .semi-table-row-head,
 html.dark .pricing-market-table .semi-table-placeholder,
 html.dark .pricing-market-table .semi-empty,
 html.dark .pricing-market .semi-pagination,
@@ -978,7 +1351,11 @@ html.dark .pricing-market-mobile-card-ratio,
 html.dark .pricing-market .semi-pagination-item,
 html.dark .pricing-market .semi-pagination-total,
 html.dark .pricing-market .semi-pagination-switch,
-html.dark .pricing-market-table .semi-table-thead > .semi-table-row > .semi-table-row-head {
+html.dark
+  .pricing-market-table
+  .semi-table-thead
+  > .semi-table-row
+  > .semi-table-row-head {
   color: #94a3b8;
 }
 
@@ -992,20 +1369,40 @@ html.dark .pricing-market-table .semi-table-middle,
 html.dark .pricing-market-table .semi-table-body,
 html.dark .pricing-market-table .semi-table-small,
 html.dark .pricing-market-table .semi-table-wrapper,
-html.dark .pricing-market-table .semi-table-thead > .semi-table-row > .semi-table-row-head,
-html.dark .pricing-market-table .semi-table-tbody > .semi-table-row > .semi-table-row-cell {
+html.dark
+  .pricing-market-table
+  .semi-table-thead
+  > .semi-table-row
+  > .semi-table-row-head,
+html.dark
+  .pricing-market-table
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell {
   background: transparent !important;
 }
 
-html.dark .pricing-market-table .semi-table-thead > .semi-table-row > .semi-table-row-head {
+html.dark
+  .pricing-market-table
+  .semi-table-thead
+  > .semi-table-row
+  > .semi-table-row-head {
   border-bottom-color: rgba(51, 65, 85, 0.72);
 }
 
-html.dark .pricing-market-table .semi-table-tbody > .semi-table-row > .semi-table-row-cell {
+html.dark
+  .pricing-market-table
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell {
   border-bottom-color: rgba(30, 41, 59, 0.9);
 }
 
-html.dark .pricing-market-table .semi-table-tbody > .semi-table-row:hover > .semi-table-row-cell {
+html.dark
+  .pricing-market-table
+  .semi-table-tbody
+  > .semi-table-row:hover
+  > .semi-table-row-cell {
   background: rgba(15, 23, 42, 0.82) !important;
 }
 
@@ -1049,9 +1446,15 @@ html.dark .pricing-market-desktop-card:hover {
 }
 
 html.dark .pricing-market-desktop-card.is-selected {
-  background: linear-gradient(180deg, rgba(16, 28, 48, 0.96) 0%, rgba(15, 23, 42, 0.96) 100%) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(16, 28, 48, 0.96) 0%,
+    rgba(15, 23, 42, 0.96) 100%
+  ) !important;
   border-color: rgba(56, 189, 248, 0.62) !important;
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.14), 0 18px 40px rgba(2, 6, 23, 0.36) !important;
+  box-shadow:
+    0 0 0 3px rgba(14, 165, 233, 0.14),
+    0 18px 40px rgba(2, 6, 23, 0.36) !important;
 }
 
 html.dark .pricing-market-desktop-card-title-wrap h3 {
@@ -1073,7 +1476,11 @@ html.dark .pricing-market-desktop-card-link:hover {
 }
 
 html.dark .pricing-market-price-board {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(10, 15, 28, 0.96) 100%) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.98) 0%,
+    rgba(10, 15, 28, 0.96) 100%
+  ) !important;
   border-color: rgba(51, 65, 85, 0.72) !important;
 }
 

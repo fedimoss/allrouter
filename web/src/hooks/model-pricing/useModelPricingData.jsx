@@ -51,6 +51,11 @@ export const useModelPricingData = () => {
   const [usableGroup, setUsableGroup] = useState({});
   const [endpointMap, setEndpointMap] = useState({});
   const [autoGroups, setAutoGroups] = useState([]);
+  const [pricingSortConfig, setPricingSortConfig] = useState({
+    mode: 'hot',
+    criteria: [],
+    weights: {},
+  });
 
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
@@ -110,7 +115,8 @@ export const useModelPricingData = () => {
       result = result.filter((model) =>
         filterQuotaType === 'per_second'
           ? model.billing_mode === 'per_second'
-          : model.quota_type === filterQuotaType && model.billing_mode !== 'per_second',
+          : model.quota_type === filterQuotaType &&
+            model.billing_mode !== 'per_second',
       );
     }
 
@@ -242,6 +248,7 @@ export const useModelPricingData = () => {
       usable_group,
       supported_endpoint,
       auto_groups,
+      sort_config,
     } = res.data;
     if (success) {
       setGroupRatio(group_ratio);
@@ -257,6 +264,20 @@ export const useModelPricingData = () => {
       setVendorsMap(vendorMap);
       setEndpointMap(supported_endpoint || {});
       setAutoGroups(auto_groups || []);
+      setPricingSortConfig(
+        sort_config && typeof sort_config === 'object'
+          ? {
+              mode: sort_config.mode || 'hot',
+              criteria: Array.isArray(sort_config.criteria)
+                ? sort_config.criteria
+                : [],
+              weights:
+                sort_config.weights && typeof sort_config.weights === 'object'
+                  ? sort_config.weights
+                  : {},
+            }
+          : { mode: 'hot', criteria: [], weights: {} },
+      );
       setModelsFormat(data, group_ratio, vendorMap);
     } else {
       showError(message);
@@ -276,7 +297,7 @@ export const useModelPricingData = () => {
         title: t('无法复制到剪贴板，请手动复制'),
         content: text,
         okText: t('确定'),
-        cancelText: t('取消')
+        cancelText: t('取消'),
       });
     }
   };
@@ -382,6 +403,8 @@ export const useModelPricingData = () => {
     usableGroup,
     endpointMap,
     autoGroups,
+    pricingSortConfig,
+    setPricingSortConfig,
 
     // 计算属性
     priceRate,

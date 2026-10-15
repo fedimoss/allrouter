@@ -368,6 +368,40 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
+	//检测非openai模型的temperature、top_p、presence_penalty、frequency_penalty 和 n。参数
+	if !strings.HasPrefix(info.UpstreamModelName, "gpt") {
+
+		if request.Temperature != nil && (*request.Temperature < 0.0 || *request.Temperature > 1.0) {
+
+			return nil, fmt.Errorf("temperature must be between 0.0 and 2.0")
+		}
+		if request.TopP != nil && (*request.TopP < 0.0 || *request.TopP > 1.0) {
+
+			return nil, fmt.Errorf("top_p must be between 0.0 and 1.0")
+		} else if strings.HasPrefix(strings.ToLower(info.UpstreamModelName), "kimi") && request.TopP != nil && (*request.TopP != 0.95) {
+			return nil, fmt.Errorf("top_p must be between 0.0 and 1.0")
+		}
+
+		if request.PresencePenalty != nil && (*request.PresencePenalty < -2.0 || *request.PresencePenalty > 2.0) {
+
+			return nil, fmt.Errorf("presence_penalty must be between -2.0 and 2.0")
+		} else if strings.HasPrefix(strings.ToLower(info.UpstreamModelName), "kimi") && request.PresencePenalty != nil && (*request.PresencePenalty != 0.0) {
+			return nil, fmt.Errorf("top_p must be between 0.0 and 1.0")
+		}
+		if request.FrequencyPenalty != nil && (*request.FrequencyPenalty < -2.0 || *request.FrequencyPenalty > 2.0) {
+
+			return nil, fmt.Errorf("frequency_penalty must be between -2.0 and 2.0")
+		} else if strings.HasPrefix(strings.ToLower(info.UpstreamModelName), "kimi") && request.FrequencyPenalty != nil && (*request.FrequencyPenalty != 0.0) {
+			return nil, fmt.Errorf("top_p must be between 0.0 and 1.0")
+		}
+		if request.N != nil && *request.N < 1 {
+			return nil, fmt.Errorf("n must be greater than 0")
+		} else if strings.HasPrefix(strings.ToLower(info.UpstreamModelName), "kimi") && request.N != nil && (*request.N >= 2) {
+			return nil, fmt.Errorf("top_p must be between 0.0 and 1.0")
+		}
+
+	}
+
 	return request, nil
 }
 

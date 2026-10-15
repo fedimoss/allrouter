@@ -110,6 +110,7 @@ type RelayInfo struct {
 	RelayMode              int
 	OriginModelName        string
 	ProviderId             int
+	UserProviderId         int
 	ProviderPricingId      int
 	ProviderPublicModel    string
 	ProviderBaseModel      string
@@ -506,6 +507,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 
 		OriginModelName:     common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
 		ProviderId:          common.GetContextKeyInt(c, constant.ContextKeyProviderId),
+		UserProviderId:      common.GetContextKeyInt(c, constant.ContextKeyUserProviderId),
 		ProviderPricingId:   common.GetContextKeyInt(c, constant.ContextKeyProviderPricingId),
 		ProviderPublicModel: common.GetContextKeyString(c, constant.ContextKeyProviderPublicModel),
 		ProviderBaseModel:   common.GetContextKeyString(c, constant.ContextKeyProviderBaseModel),

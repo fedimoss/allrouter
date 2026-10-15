@@ -1,0 +1,362 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/* 抖音私信卡片手机预览
+ *
+ * 两个预览共用同一张机身描边图 public/iphone-link.png（461x845，屏幕镂空处完全透明），
+ * 机身框按该图的尺寸比例摆放，屏幕层就是它的镂空范围；机身与镂空参数
+ * 统一在组件的 PHONE_FRAME 里定义，这里只按它换算出的比例定位。
+ *
+ * 屏幕（.douyin-phone-screen）里放的是来源页面原样搬过来的预览内容，
+ * 各自保留来源页面的结构与数值，只整体缩放到屏幕宽度：
+ *   私信卡片 ← 「图文分享卡片制作」页面的 .phone-cotain（.phone-container 及其内容）
+ *   推广链接 ← 「添加推广链接」页面的 .phone-cotainer-main
+ * 机身框的宽高由组件按来源页面的尺寸算好后以行内样式给出，缩放倍数 --phone-scale
+ * 同样由组件算好传进来（CSS 无法由长度算出 scale() 需要的无单位倍数）。
+ */
+.douyin-phone {
+  position: relative;
+  flex: none;
+}
+
+/* 屏幕：位于机身图镂空处（机身图 461x845 的镂空 x 30..429、y 21..819），压在机身图下方 */
+.douyin-phone-screen {
+  position: absolute;
+  z-index: 1;
+  left: 6.508%;
+  top: 2.485%;
+  width: 86.768%;
+  height: 94.556%;
+  overflow: hidden;
+  background: #f2f3f8;
+  border-radius: 7% / 3.5%;
+}
+
+/* 屏幕内的页面层：来源页面的预览内容按自身尺寸缩放后放进来。
+ * 底色取来源页面的底色（.phone-container 自身没有背景，透出的是来源页面的底色 #f2f3f8），
+ * 内容底部与屏幕之间差的那一点也用这个底色补齐 */
+.douyin-phone-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #f2f3f8;
+}
+
+/* 推广链接的落地页自带灰底（.phone-default-cotain），用它的底色 */
+.douyin-phone.is-wechat-link .douyin-phone-page {
+  background: #dedfe2;
+}
+
+.douyin-phone-frame {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ========== 私信卡片：取自「图文分享卡片制作」页面的 .phone-cotain ==========
+ * 来源页面里 .phone-container（310x595，内边距 33/16/20）压在自己的机身图下面，
+ * 内容区（278x542）与机身屏幕镂空处对齐。本实现改用与推广链接相同的机身图，
+ * 屏幕层就是那张图的镂空区（.douyin-phone-screen），所以把整块内容按 -内边距 偏移，
+ * 让内容区落到屏幕原点，多出来的边框部分由屏幕层的 overflow 裁掉。
+ * 上边额外留 18.6px：共用机身图的屏幕顶部有刘海，留出这段净空后
+ * 「卡片样式展示」栏正好从刘海下沿开始（换算到内容坐标系约 18.8px，两者一致）。
+ * 缩放倍数按内容区宽度 278 计算（见组件里传的 base），来源页面的 float / 负外边距 /
+ * z-index 已去掉，其余数值与来源页面一致；正文色取来源页面正文色，避免深色主题下白底黑字失效。
+ */
+.phone-container {
+  position: absolute;
+  top: calc(-14.4px * var(--phone-scale));
+  left: calc(-16px * var(--phone-scale));
+  z-index: auto;
+  float: none;
+  margin: 0;
+  width: 310px;
+  height: 595px;
+  overflow: hidden;
+  border-radius: 50px;
+  padding: 33px 16px 20px 16px;
+  box-sizing: border-box;
+  color: #575962;
+  font-size: 14px;
+  transform: scale(var(--phone-scale));
+  transform-origin: 0 0;
+}
+
+.phone-container-browser {
+  width: 100%;
+  float: left;
+  height: 50px;
+  line-height: 50px;
+  text-align: center;
+  border-bottom: solid 1px #f2f3f7;
+}
+
+.card-douyin {
+  width: 90%;
+  background-color: #ffffff;
+  border-radius: 5px;
+  height: auto;
+  margin: 5%;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  margin-top: 30px;
+}
+
+.card-douyin img {
+  width: 60px;
+  height: 60px;
+}
+
+.card-douyin .info {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.card-douyin .info h3 {
+  width: 100%;
+  height: 20px;
+  line-height: 20px;
+  font-size: 14px;
+  margin: 0;
+  font-weight: 400;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.card-douyin .info h5 {
+  width: 100%;
+  height: 20px;
+  line-height: 20px;
+  font-size: 12px;
+  color: #999999;
+  margin: 0;
+  font-weight: 400;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 未上传 Logo 时的占位，尺寸与 .card-douyin img 一致（含边框也是 60x60，用 border-box）。
+ * 图标用 #7d8595 而不是更浅的灰：占位底色是浅灰 #f2f3f7，
+ * 原来的 #c9cdd4 与底色对比度只有 1.4:1，图标几乎看不见。
+ * 描边：占位底色 #f2f3f7 与卡片白底只有 1.11:1、与预览底色 #f2f3f8 几乎完全相同
+ * （都是浅灰），整块方形在缩小的手机预览里就看不出来了。底色保持不动，
+ * 改用一圈虚线把方框勾出来；虚线也和表单里的上传框同一套观感，一眼看出「这里还没传图」 */
+.card-douyin .card-douyin-img-empty {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  box-sizing: border-box;
+  color: #7d8595;
+  background: #f2f3f7;
+  border: 1px dashed #b3bac7;
+}
+
+/* 尺寸必须落在 .semi-icon 这层上：图标是 semi-icons 渲染的
+ * <span class="semi-icon"><svg/></span>，百分比若写在 svg 上会相对
+ * 只有 1em 宽的 .semi-icon 解析，图标会缩成几个像素 */
+.card-douyin .card-douyin-img-empty .semi-icon {
+  width: 45%;
+  height: 45%;
+}
+
+.card-douyin .card-douyin-img-empty svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ========== 推广链接：取自「添加推广链接」页面的 .phone-cotainer-main ==========
+ * 来源页面里 .phone-cotainer-main（300x550，内边距 14/19）压在自己的机身图下面，
+ * 内容区（262x522）正好落在机身图屏幕镂空处（偏移约 0）。
+ * 本实现的机身图同样取来源页面的 .phone-image（即 public/iphone-link.png）、
+ * 屏幕层就是镂空区，所以把整块内容按 -内边距 偏移，让内容区落到屏幕原点，
+ * 多出来的边框部分由屏幕层的 overflow 裁掉。其余数值与来源页面一致。
+ */
+.phone-cotainer-main {
+  position: absolute;
+  top: calc(-14px * var(--phone-scale));
+  left: calc(-19px * var(--phone-scale));
+  z-index: auto;
+  float: none;
+  margin: 0;
+  width: 300px;
+  height: 550px;
+  padding: 14px 19px;
+  box-sizing: border-box;
+  color: #575962;
+  font-size: 14px;
+  transform: scale(var(--phone-scale));
+  transform-origin: 0 0;
+}
+
+.phone-body-full {
+  width: 100%;
+  height: auto;
+  float: left;
+  background-color: #ffffff;
+}
+
+.phone-default-cotain {
+  width: 100%;
+  height: 100%;
+  float: left;
+  background-color: #dedfe2;
+}
+
+.phone-default {
+  width: 90%;
+  height: auto;
+  float: left;
+  margin: 30% 5%;
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.phone-default-header {
+  width: 100%;
+  height: 50px;
+}
+
+.phone-default-header img {
+  width: 50px;
+  height: 50px;
+  float: left;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.phone-default-header-right {
+  width: 100%;
+  height: 50px;
+  box-sizing: border-box;
+  margin-top: -50px;
+  float: left;
+  padding: 5px 0 5px 60px;
+}
+
+.phone-default-header-right h3 {
+  width: 100%;
+  height: 20px;
+  line-height: 20px;
+  font-size: 14px;
+  float: left;
+  margin: 0px;
+  padding: 0px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-default-header-right h5 {
+  width: 100%;
+  height: 20px;
+  line-height: 20px;
+  font-size: 13px;
+  float: left;
+  margin: 0px;
+  padding: 0px;
+  color: #999998;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-default-qrcode {
+  width: 100%;
+  float: left;
+  margin: 20px 0px;
+}
+
+/* 二维码作为 img 时与来源页面一致铺满整宽；作为占位容器时需要自己撑成正方形 */
+.phone-default-qrcode.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  color: #7d8595;
+  background: #f2f3f7;
+}
+
+/* 同 .card-douyin-img-empty：尺寸落在 .semi-icon 层，svg 再填满它 */
+.phone-default-qrcode.is-empty .semi-icon {
+  width: 35%;
+  height: 35%;
+}
+
+.phone-default-qrcode.is-empty svg {
+  width: 100%;
+  height: 100%;
+}
+
+.phone-default-footer {
+  width: 100%;
+  float: left;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 300;
+  height: 20px;
+  line-height: 20px;
+  color: #666666;
+}
+
+/* 未填写时的占位：尺寸与来源页面的头像一致 */
+.phone-default-header .phone-default-header-img-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  float: left;
+  border-radius: 5px;
+  color: #7d8595;
+  background: #f2f3f7;
+}
+
+/* 同 .card-douyin-img-empty：尺寸落在 .semi-icon 层，svg 再填满它 */
+.phone-default-header .phone-default-header-img-empty .semi-icon {
+  width: 55%;
+  height: 55%;
+}
+
+.phone-default-header .phone-default-header-img-empty svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* 未填写时用字段名占位：置灰以区别于已填内容 */
+.douyin-phone .is-placeholder {
+  color: #d0d3d9;
+}

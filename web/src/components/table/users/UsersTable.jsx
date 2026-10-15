@@ -33,6 +33,7 @@ import ResetPasskeyModal from './modals/ResetPasskeyModal';
 import ResetTwoFAModal from './modals/ResetTwoFAModal';
 import UserSubscriptionsModal from './modals/UserSubscriptionsModal';
 import InviteUsersDetailModal from './modals/InviteUsersDetailModal';
+import UserModelDiscountModal from './modals/UserModelDiscountModal';
 
 const UsersTable = (usersData) => {
   const {
@@ -65,6 +66,8 @@ const UsersTable = (usersData) => {
   const [showResetTwoFAModal, setShowResetTwoFAModal] = useState(false);
   const [showInviteUsersModal, setShowInviteUsersModal] = useState(false);
   const [showUserSubscriptionsModal, setShowUserSubscriptionsModal] =
+    useState(false);
+  const [showUserModelDiscountModal, setShowUserModelDiscountModal] =
     useState(false);
 
   // Modal handlers
@@ -109,6 +112,11 @@ const UsersTable = (usersData) => {
     setShowInviteUsersModal(true);
   };
 
+  const showUserModelDiscountUserModal = (user) => {
+    setModalUser(user);
+    setShowUserModelDiscountModal(true);
+  };
+
   // Modal confirm handlers
   const handlePromoteConfirm = () => {
     manageUser(modalUser.id, 'promote', modalUser);
@@ -148,6 +156,7 @@ const UsersTable = (usersData) => {
       showResetPasskeyModal: showResetPasskeyUserModal,
       showResetTwoFAModal: showResetTwoFAUserModal,
       showUserSubscriptionsModal: showUserSubscriptionsUserModal,
+      showUserModelDiscountModal: showUserModelDiscountUserModal,
       showInviteUsersModal: showInviteUsersDetailModal,
       providerMode,
     });
@@ -162,6 +171,7 @@ const UsersTable = (usersData) => {
     showResetPasskeyUserModal,
     showResetTwoFAUserModal,
     showUserSubscriptionsUserModal,
+    showUserModelDiscountUserModal,
     showInviteUsersDetailModal,
     providerMode,
   ]);
@@ -255,6 +265,14 @@ const UsersTable = (usersData) => {
         onClose={() => setShowInviteUsersModal(false)}
         user={modalUser}
         apiPrefix={usersData.apiPrefix}
+        t={t}
+      />
+
+      <UserModelDiscountModal
+        visible={showUserModelDiscountModal}
+        onCancel={() => setShowUserModelDiscountModal(false)}
+        user={modalUser}
+        apiPrefix={providerMode ? '/api/provider/users' : '/api/user'}
         t={t}
       />
 

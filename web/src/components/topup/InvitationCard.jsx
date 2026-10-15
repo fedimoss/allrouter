@@ -94,7 +94,7 @@ const InvitationCard = ({
 
                 {/* 统计数据 */}
                 <div className='grid grid-cols-3 gap-6 mt-4'>
-                  {/* 待提取收益 */}
+                  {/* 待转入余额 */}
                   <div className='text-center'>
                     <div
                       className='text-base sm:text-2xl font-bold mb-2'
@@ -114,7 +114,7 @@ const InvitationCard = ({
                           fontSize: '12px',
                         }}
                       >
-                        {t('待提取收益')}
+                        {t('待转入余额')}
                       </Text>
                     </div>
                   </div>

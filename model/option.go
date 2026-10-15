@@ -162,6 +162,7 @@ func InitOptionMap() {
 	common.OptionMap["TurnstileSecretKey"] = ""
 	douyinCard := system_setting.GetDouyinCardSettings()
 	common.OptionMap["DouyinCardApiKey"] = douyinCard.ApiKey
+	common.OptionMap["DouyinCardWxAppPageUrl"] = douyinCard.WxAppPageURL
 	common.OptionMap["DouyinCardBaseUrl"] = douyinCard.BaseURL
 	if v, err := common.Marshal(douyinCard.Add); err == nil {
 		common.OptionMap["DouyinCardAddApi"] = string(v)

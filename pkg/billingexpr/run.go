@@ -51,18 +51,26 @@ func RunExprByHashWithRequest(exprStr, hash string, params TokenParams, request 
 func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (float64, TraceResult, error) {
 	trace := TraceResult{}
 	headers := normalizeHeaders(request.Headers)
+	billingP := params.P
+	billingC := params.C
+	if params.UseBillingPC {
+		billingP = params.BillingP
+		billingC = params.BillingC
+	}
 
 	env := map[string]interface{}{
-		"p":     params.P,
-		"c":     params.C,
-		"len":   params.Len,
-		"cr":    params.CR,
-		"cc":    params.CC,
-		"cc1h":  params.CC1h,
-		"img":   params.Img,
-		"img_o": params.ImgO,
-		"ai":    params.AI,
-		"ao":    params.AO,
+		"p":         params.P,
+		"c":         params.C,
+		"billing_p": billingP,
+		"billing_c": billingC,
+		"len":       params.Len,
+		"cr":        params.CR,
+		"cc":        params.CC,
+		"cc1h":      params.CC1h,
+		"img":       params.Img,
+		"img_o":     params.ImgO,
+		"ai":        params.AI,
+		"ao":        params.AO,
 		"tier": func(name string, value float64) float64 {
 			trace.MatchedTier = name
 			trace.Cost = value

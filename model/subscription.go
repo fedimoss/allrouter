@@ -1057,6 +1057,22 @@ type SubscriptionOrder struct {
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 }
 
+// PendingSubscriptionOrder is the safe, compact representation returned to a
+// user while a subscription checkout is waiting for payment. Provider
+// callback payloads and entitlement snapshots are intentionally excluded.
+type PendingSubscriptionOrder struct {
+	Id              int     `json:"id"`
+	PlanId          int     `json:"plan_id"`
+	TradeNo         string  `json:"trade_no"`
+	PaymentMethod   string  `json:"payment_method"`
+	PaymentProvider string  `json:"payment_provider"`
+	Money           float64 `json:"money"`
+	Currency        string  `json:"currency"`
+	OriginalMoney   float64 `json:"original_money"`
+	CreateTime      int64   `json:"create_time"`
+	StockExpiresAt  int64   `json:"stock_expires_at"`
+}
+
 // ErrSubscriptionPlanSnapshotInvalid is returned when an order contains a
 // malformed or identity-mismatched entitlement snapshot.  A non-empty
 // snapshot is treated as authoritative for the order; silently falling back to
@@ -1216,6 +1232,44 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 		return nil
 	}
 	return &order
+}
+
+// GetSubscriptionOrderByID returns a subscription order by primary key.
+// Callers that expose an order to a user must still verify UserId (and the
+// provider scope) before returning any payment data.
+func GetSubscriptionOrderByID(id int) (*SubscriptionOrder, error) {
+	if id <= 0 {
+		return nil, errors.New("invalid subscription order id")
+	}
+	var order SubscriptionOrder
+	if err := DB.Where("id = ?", id).First(&order).Error; err != nil {
+		return nil, err
+	}
+	return &order, nil
+}
+
+// GetPendingSubscriptionOrders returns unexpired, reserved checkouts for the
+// current user and provider scope. Expired rows are left for the normal
+// reservation sweeper; they are simply not advertised as resumable here.
+func GetPendingSubscriptionOrders(userID, providerID int) ([]PendingSubscriptionOrder, error) {
+	if userID <= 0 {
+		return []PendingSubscriptionOrder{}, errors.New("invalid subscription user id")
+	}
+	now := common.GetTimestamp()
+	var orders []PendingSubscriptionOrder
+	err := DB.Model(&SubscriptionOrder{}).
+		Select("id, plan_id, trade_no, payment_method, payment_provider, money, currency, original_money, create_time, stock_expires_at").
+		Where("user_id = ? AND provider_id = ? AND status = ? AND stock_status = ?", userID, providerID, common.TopUpStatusPending, SubscriptionStockStatusReserved).
+		Where("stock_expires_at = 0 OR stock_expires_at > ?", now).
+		Order("create_time desc, id desc").
+		Find(&orders).Error
+	if err != nil {
+		return nil, err
+	}
+	if orders == nil {
+		orders = []PendingSubscriptionOrder{}
+	}
+	return orders, nil
 }
 
 // applyProviderSubscriptionIncomeTx 在订阅订单完成事务内，为服务商私有套餐订单结算订阅收入：

@@ -87,6 +87,26 @@ func SumConsumeRebateQuotaByInviteeId(userId int) (int64, error) {
 	return totalQuota, err
 }
 
+// SumConsumeRebateQuotaByInviter 汇总邀请人从被邀请人消费中获得的返佣总额(含一、二级)。
+// 用于邀请页"被邀请人累计返佣"卡片, 口径与返利明细弹窗的一级+二级累计一致。
+func SumConsumeRebateQuotaByInviter(inviterId int) (int64, error) {
+	var totalQuota int64
+	err := DB.Model(&ConsumeRebate{}).
+		Select("COALESCE(SUM(rebate_quota), 0)").
+		Where("inviter_id = ?", inviterId).
+		Scan(&totalQuota).Error
+	return totalQuota, err
+}
+
+// SumAllConsumeRebateQuota 汇总全平台全部邀请人的消费返佣总额(管理员视角)。
+func SumAllConsumeRebateQuota() (int64, error) {
+	var totalQuota int64
+	err := DB.Model(&ConsumeRebate{}).
+		Select("COALESCE(SUM(rebate_quota), 0)").
+		Scan(&totalQuota).Error
+	return totalQuota, err
+}
+
 // SumConsumeRebateQuotaByInviterAndInviteeId sums rebates earned by inviter from a specific invitee at a level.
 func SumConsumeRebateQuotaByInviterAndInviteeId(inviterId int, inviteeId int, level int) (int64, error) {
 	var totalQuota int64

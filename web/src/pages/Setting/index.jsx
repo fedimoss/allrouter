@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Layout, TabPane, Tabs } from '@douyinfe/semi-ui';
+import { Banner, Layout, TabPane, Tabs } from '@douyinfe/semi-ui';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -34,6 +34,7 @@ import {
   CreditCard,
   Server,
   Activity,
+  MessageCircle,
 } from 'lucide-react';
 
 import SystemSetting from '../../components/settings/SystemSetting';
@@ -49,12 +50,13 @@ import DrawingSetting from '../../components/settings/DrawingSetting';
 import PaymentSetting from '../../components/settings/PaymentSetting';
 import ModelDeploymentSetting from '../../components/settings/ModelDeploymentSetting';
 import PerformanceSetting from '../../components/settings/PerformanceSetting';
+import WechatOfficialSetting from '../../components/settings/WechatOfficialSetting';
 
 const Setting = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const [tabActiveKey, setTabActiveKey] = useState('1');
+  const [tabActiveKey, setTabActiveKey] = useState('operation');
   let panes = [];
 
   if (isRoot()) {
@@ -67,6 +69,16 @@ const Setting = () => {
       ),
       content: <OperationSetting />,
       itemKey: 'operation',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <MessageCircle size={18} />
+          {t('微信配置')}
+        </span>
+      ),
+      content: <WechatOfficialSetting />,
+      itemKey: 'wechat',
     });
     panes.push({
       tab: (
@@ -196,6 +208,12 @@ const Setting = () => {
     <div className='mt-[60px] px-2'>
       <Layout>
         <Layout.Content>
+          {!isRoot() && (
+            <Banner
+              type='warning'
+              description={t('仅超级管理员可以管理系统设置。')}
+            />
+          )}
           <Tabs
             type='card'
             collapsible

@@ -49,6 +49,15 @@ const PricingTopSection = memo(
     setTokenUnit,
     sortMode,
     setSortMode,
+    allowCustomSort,
+    sortCriteria,
+    setSortCriteria,
+    sortWeights,
+    setSortWeights,
+    pricingSortConfig,
+    sortConfigSaving,
+    saveSortConfig,
+    resetSortConfig,
     t,
   }) => {
     const [showFilterModal, setShowFilterModal] = useState(false);
@@ -80,6 +89,17 @@ const PricingTopSection = memo(
                 setTokenUnit={setTokenUnit}
                 sortMode={sortMode}
                 setSortMode={setSortMode}
+                allowCustomSort={allowCustomSort}
+                sortCriteria={sortCriteria}
+                setSortCriteria={setSortCriteria}
+                sortWeights={sortWeights}
+                setSortWeights={setSortWeights}
+                pricingSortConfig={pricingSortConfig}
+                sortConfigSaving={sortConfigSaving}
+                previewModels={filteredModels}
+                weightModels={models}
+                onSaveSortConfig={saveSortConfig}
+                onResetSortConfig={resetSortConfig}
                 t={t}
               />
             </div>
@@ -118,6 +138,17 @@ const PricingTopSection = memo(
             setTokenUnit={setTokenUnit}
             sortMode={sortMode}
             setSortMode={setSortMode}
+            allowCustomSort={allowCustomSort}
+            sortCriteria={sortCriteria}
+            setSortCriteria={setSortCriteria}
+            sortWeights={sortWeights}
+            setSortWeights={setSortWeights}
+            pricingSortConfig={pricingSortConfig}
+            sortConfigSaving={sortConfigSaving}
+            previewModels={filteredModels}
+            weightModels={models}
+            onSaveSortConfig={saveSortConfig}
+            onResetSortConfig={resetSortConfig}
           />
         )}
       </>

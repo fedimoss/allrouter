@@ -46,12 +46,14 @@ func setupPlaygroundRelayContext(c *gin.Context, relayFormat types.RelayFormat) 
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 	}
+	relayInfo.UserProviderId = userCache.ProviderId
 	userCache.WriteContext(c)
 
 	tempToken := &model.Token{
-		UserId: userId,
-		Name:   fmt.Sprintf("playground-%s", relayInfo.UsingGroup),
-		Group:  relayInfo.UsingGroup,
+		ProviderId: relayInfo.ProviderId,
+		UserId:     userId,
+		Name:       fmt.Sprintf("playground-%s", relayInfo.UsingGroup),
+		Group:      relayInfo.UsingGroup,
 	}
 	if err := middleware.SetupContextForToken(c, tempToken); err != nil {
 		return types.NewError(err, types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())

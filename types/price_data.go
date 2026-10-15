@@ -36,7 +36,18 @@ type PriceData struct {
 	ProviderBaseQuota    int
 	Quota                int // 按次计费的最终额度（MJ / Task）
 	QuotaToPreConsume    int // 按量计费的预消耗额度
-	GroupRatioInfo       GroupRatioInfo
+	// UserDiscount is the per-user model discount applied to wallet-funded
+	// input/output token charges. Values outside (0,1] mean no discount.
+	UserDiscount   float64
+	GroupRatioInfo GroupRatioInfo
+}
+
+// EffectiveUserDiscount normalizes an optional user discount for billing.
+func (p *PriceData) EffectiveUserDiscount() float64 {
+	if p == nil || p.UserDiscount <= 0 || p.UserDiscount > 1 {
+		return 1
+	}
+	return p.UserDiscount
 }
 
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {

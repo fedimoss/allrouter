@@ -36,6 +36,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/provider/public_config", controller.GetProviderPublicConfig)
 		apiRouter.GET("/web_colors", controller.GetWebColors) // 获取网站主题色（无需登录）
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
+		apiRouter.PUT("/pricing/sort", middleware.UserAuth(), controller.UpdatePricingSort)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)
@@ -43,8 +44,12 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), controller.GenerateOAuthCode)
 		apiRouter.POST("/oauth/email/bind", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.EmailBind)
 		// Non-standard OAuth (WeChat, Telegram) - keep original routes
+		apiRouter.GET("/oauth/wechat/qr", middleware.CriticalRateLimit(), controller.WeChatLoginQR)
+		apiRouter.GET("/oauth/wechat/callback", middleware.CriticalRateLimit(), controller.WeChatLoginCallback)
+		apiRouter.POST("/oauth/wechat/confirm", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.WeChatLoginConfirm)
+		apiRouter.POST("/oauth/wechat/poll", middleware.WechatLoginPollRateLimit(), anonymousRequestBodyLimit, controller.WeChatLoginPoll)
 		apiRouter.GET("/oauth/wechat", middleware.CriticalRateLimit(), controller.WeChatAuth)
-		apiRouter.POST("/oauth/wechat/bind", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.WeChatBind)
+		apiRouter.POST("/oauth/wechat/bind", middleware.UserAuth(), middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.WeChatBind)
 		apiRouter.GET("/oauth/telegram/login", middleware.CriticalRateLimit(), controller.TelegramLogin)
 		apiRouter.GET("/oauth/telegram/bind", middleware.CriticalRateLimit(), controller.TelegramBind)
 		// Standard OAuth providers (GitHub, Discord, OIDC, LinuxDO) - unified route
@@ -61,6 +66,20 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/waffo-pancake/webhook/:env", anonymousRequestBodyLimit, controller.WaffoPancakeWebhook)
 		apiRouter.POST("/telegram/webhook", anonymousRequestBodyLimit, controller.TelegramWebhook)
 		apiRouter.POST("/telegram/miniapp/bind", anonymousRequestBodyLimit, controller.TelegramMiniAppBind)
+
+		// 微信服务号「消息与事件推送」服务器接入端点（公开，微信服务器不带登录态）：
+		//   GET  ：微信提交服务器配置时的 URL 校验，需原样返回 echostr；
+		//   POST ：接收消息/事件推送（关注/取关、扫描带参二维码等），当前仅打印到控制台。
+		// Token / EncodingAESKey 见 service.NewWechatMessageConfig()，目前是占位符。
+		apiRouter.GET("/wechat/message", controller.VerifyWechatServer)
+		apiRouter.POST("/wechat/message", anonymousRequestBodyLimit, controller.ReceiveWechatMessage)
+
+		// 微信「普通链接二维码 + 网页授权(snsapi_base)」方案（公开，扫码后由网页直接调用）：
+		//   GET /api/wechat/web_auth/token  ：用网页授权 code 换 openid，并返回要展示的信息；
+		//   GET /api/wechat/web_auth/config ：返回网页授权跳转链接，便于前端/管理员核对。
+		// AppID / Secret 见 controller/wechat_web_auth.go，目前是占位符。
+		apiRouter.GET("/wechat/web_auth/token", controller.WechatWebAuthToken)
+		apiRouter.GET("/wechat/web_auth/config", controller.WechatWebAuthDebugConfig)
 
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
@@ -159,6 +178,11 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.DELETE("/:id", controller.DeleteUser)
 				adminRoute.DELETE("/:id/reset_passkey", controller.AdminResetPasskey)
 
+				// 用户模型专属折扣：仅余额支付生效；只折扣输入输出 token，缓存/按次/阶梯表达式计费不参与
+				adminRoute.GET("/:id/model_discounts", controller.AdminGetUserModelDiscounts)
+				adminRoute.PUT("/:id/model_discounts", controller.AdminUpsertUserModelDiscount)
+				adminRoute.DELETE("/:id/model_discounts", controller.AdminDeleteUserModelDiscount)
+
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
@@ -170,6 +194,8 @@ func SetApiRouter(router *gin.Engine) {
 			userBillingRoute.Use(middleware.UserAuth())
 			{
 				userBillingRoute.GET("/topup", controller.GetAllTopUps)
+				// 邀请明细页查看被邀请人的充值记录，非管理员仅能查询自己直接邀请的用户
+				userBillingRoute.GET("/topup/invitee", controller.GetInviteeTopUps)
 				userBillingRoute.POST("/topup/detail", controller.GetUserTopupDetails)
 				// 补单是资金入账操作，仅限主站管理员与被授权用户，不对分站开放
 				userBillingRoute.POST("/topup/complete", middleware.AdminOrModuleAuth("billing", "user"), controller.AdminCompleteTopUp)
@@ -190,7 +216,8 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
 			subscriptionRoute.POST("/crypto/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCryptoPay) // 加密货币订阅
 			subscriptionRoute.POST("/crypto/confirm", controller.SubscriptionRequestCryptoConfirm)                         // 加密货币订阅确认
-			subscriptionRoute.GET("/lakala/status", controller.GetSubscriptionLakalaStatus)                                // 拉卡拉订阅订单状态轮询
+			subscriptionRoute.POST("/orders/:id/resume", middleware.CriticalRateLimit(), controller.ResumeSubscriptionOrder)
+			subscriptionRoute.GET("/lakala/status", controller.GetSubscriptionLakalaStatus) // 拉卡拉订阅订单状态轮询
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminOrModuleAuth("subscription"))
@@ -240,6 +267,11 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.GET("/get_version_log/:id", controller.GetVersionLogById)               // 获取版本日志详情
 			optionRoute.PUT("/update_version_log/:id", controller.UpdateVersionLogById)         // 更新版本日志详情
 			optionRoute.DELETE("/delete_version_log/:id", controller.DeleteVersionLogById)      // 删除版本日志
+			// 微信服务号配置（主站管理员）
+			optionRoute.GET("/wechat_official_config", controller.GetWechatOfficialConfig)
+			optionRoute.POST("/wechat_official_config", controller.SaveWechatOfficialConfig)
+			optionRoute.POST("/wechat_official_config/qrcode", controller.GenerateWechatOfficialQRCode)
+			optionRoute.DELETE("/wechat_official_config", controller.DeleteWechatOfficialConfig)
 		}
 
 		// Telegram webhook 管理接口（管理员）
@@ -443,6 +475,9 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.GET("/tree/users", controller.GetTreeProviderUsers) //服务商用户管理---tree型结构
 			providerRoute.GET("/users/search", controller.SearchProviderUsers)
 			providerRoute.GET("/users/:id/invitees", controller.GetProviderUserInvitees)
+			providerRoute.GET("/users/:id/model_discounts", controller.ProviderGetUserModelDiscounts)
+			providerRoute.PUT("/users/:id/model_discounts", controller.ProviderUpsertUserModelDiscount)
+			providerRoute.DELETE("/users/:id/model_discounts", controller.ProviderDeleteUserModelDiscount)
 			providerRoute.GET("/users/:id", controller.GetProviderUser)
 			providerRoute.POST("/users", controller.CreateProviderUser)
 			providerRoute.PUT("/users", controller.UpdateProviderUser)
@@ -470,6 +505,11 @@ func SetApiRouter(router *gin.Engine) {
 			providerRoute.POST("/withdraw/cancel", controller.CancelProviderWithdrawRequest)  // 取消提现申请
 			providerRoute.GET("/options/:id", controller.GetProviderOptions)                  // 获取服务商配置
 			providerRoute.PUT("/options/:id", controller.UpdateProviderOption)                // 更新服务商配置
+			// 微信服务号配置（服务商管理员）
+			providerRoute.GET("/wechat_official_config", controller.GetWechatOfficialConfig)
+			providerRoute.POST("/wechat_official_config", controller.SaveWechatOfficialConfig)
+			providerRoute.POST("/wechat_official_config/qrcode", controller.GenerateWechatOfficialQRCode)
+			providerRoute.DELETE("/wechat_official_config", controller.DeleteWechatOfficialConfig)
 			// 服务商 owner 问卷管理（本站记录）
 			providerRoute.GET("/questionnaires", controller.GetProviderUserQuestionnaires)
 			providerRoute.DELETE("/questionnaires/:id", controller.DeleteProviderUserQuestionnaire)
@@ -488,6 +528,10 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminRoute.PUT("/:id/enable", controller.AdminEnableProvider)
 			providerAdminRoute.POST("/logo", controller.AdminUploadProviderLogo)
 			providerAdminRoute.PUT("/:id/config", controller.AdminUpsertProviderConfig)
+			providerAdminRoute.GET("/:id/wechat_official_config", controller.GetWechatOfficialConfig)
+			providerAdminRoute.POST("/:id/wechat_official_config", controller.SaveWechatOfficialConfig)
+			providerAdminRoute.POST("/:id/wechat_official_config/qrcode", controller.GenerateWechatOfficialQRCode)
+			providerAdminRoute.DELETE("/:id/wechat_official_config", controller.DeleteWechatOfficialConfig)
 			providerAdminRoute.GET("/:id/options", controller.AdminGetProviderOptions)
 			providerAdminRoute.PUT("/:id/options", controller.AdminUpdateProviderOption)
 			providerAdminRoute.PUT("/:id/nav_modules", controller.AdminUpdateProviderNavModules)
@@ -524,6 +568,19 @@ func SetApiRouter(router *gin.Engine) {
 			providerAdminWithdrawRoute.GET("/withdraw/list", controller.AdminGetProviderWithdrawList)            // 提现申请列表
 			providerAdminWithdrawRoute.GET("/withdraw/dashboard", controller.AdminGetProviderWithdrawDashboard)  // 提现申请数据概览
 			providerAdminWithdrawRoute.POST("/withdraw/approve", controller.AdminApproveProviderWithdrawRequest) // 提现申请审核
+		}
+
+		// 微信二维码：主站管理员(role>=管理员)与分站站长(provider owner)可调用。
+		// 具体鉴权由 controller 内部负责（与 UpdatePricingSort 一致）。
+		//
+		// 【测试/正式切换】下面两条路由二选一：
+		//   - 正式环境：保留“永久二维码”那行，注释掉“临时二维码”那行（当前状态）。
+		//   - 联调测试：注释掉“永久二维码”那行，启用“临时二维码”那行（有效期为 10 分钟）。
+		wechatQRCodeRoute := apiRouter.Group("/wechat")
+		wechatQRCodeRoute.Use(middleware.UserAuth())
+		{
+			wechatQRCodeRoute.POST("/qrcode", controller.CreateWechatPermanentQRCode) // 生成永久二维码（正式环境）
+			//wechatQRCodeRoute.POST("/qrcode", controller.CreateWechatTemporaryQRCode) // 生成临时二维码（10 分钟过期，仅联调测试）
 		}
 
 		// 运营数据模块接口
@@ -615,6 +672,21 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
 
+		// 抖音私信卡片管理：数据在外部服务，本地仅代理转发（Bearer API Key 由系统设置提供）
+		douyinCardRoute := apiRouter.Group("/douyin_card")
+		douyinCardRoute.Use(middleware.AdminAuth())
+		{
+			douyinCardRoute.GET("/", controller.GetDouyinCards)
+			douyinCardRoute.POST("/", controller.AddDouyinCard)
+			douyinCardRoute.PUT("/", controller.UpdateDouyinCard)
+			douyinCardRoute.DELETE("/:id", controller.DeleteDouyinCard)
+			// 基础URL（只读）：供控制台「复制」按钮拼接卡片链接 {基础URL}/?id={卡片ID}
+			douyinCardRoute.GET("/base_url", controller.GetDouyinCardBaseUrl)
+			// 卡片图片上传（私信卡片 Logo / 推广链接微信头像、二维码）：
+			// 保存在本站 static/card 目录，返回 URL 由前端随卡片数据提交给外部接口
+			douyinCardRoute.POST("/upload", middleware.RequestBodyLimit(controller.DouyinCardImageBodyLimit), controller.UploadDouyinCardImage)
+		}
+
 		// 支付对账
 		wechatTradeBillRoute := apiRouter.Group("/wechat_trade_bill")
 		wechatTradeBillRoute.Use(middleware.AdminOrModuleAuth("reconciliation"))
@@ -626,10 +698,12 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		//CLI Proxy API接口集成进allrouter中
 		voRoute := apiRouter.Group("/v0")
-		voRoute.Use(middleware.UserAuth())
+		//voRoute.Use(middleware.UserAuth())
 		{
+
 			//
 			managementRoute := voRoute.Group("/management")
+			managementRoute.Use(middleware.UserAuth())
 			//managementRoute.Use(middleware.CriticalRateLimit()) //关键接口限流中间件”，用来防刷、防爆破
 			managementRoute.GET("/qwen-auth-url", controller.GetQwenAuthUrl)
 			managementRoute.GET("/codex-auth-url", controller.GetCodexAuthUrl)
@@ -645,6 +719,15 @@ func SetApiRouter(router *gin.Engine) {
 			managementRoute.GET("/downloadoauth", middleware.CriticalRateLimit(), controller.DownloadOauth)
 			managementRoute.POST("/auth-files/status", middleware.CriticalRateLimit(), controller.UpdateAuthFileStatus)
 			managementRoute.GET("/get-oauth-success-count", middleware.CriticalRateLimit(), controller.GetUserAuthSuccessCount)
+		}
+		//voRoute := apiRouter.Group("/v0/admin")
+		voAdminRoute := voRoute.Group("/admin")
+		{
+			voAdminRoute.Use(middleware.AdminAuth())
+			adminManagementRoute := voAdminRoute.Group("/management")
+			//商家入驻文件所有列表
+			adminManagementRoute.GET("/useroauths", middleware.CriticalRateLimit(), controller.GetAllUserOAuths)
+
 		}
 
 	}

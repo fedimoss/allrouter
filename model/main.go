@@ -253,6 +253,9 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
+	if err := migrateWechatOfficialConfigSchema(); err != nil {
+		return err
+	}
 	// Keep global startup AutoMigrate disabled, but always bring the
 	// subscription tables to the schema required by the billing engine.
 	//if err := migrateSubscriptionSchema(); err != nil {

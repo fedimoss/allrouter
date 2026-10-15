@@ -26,6 +26,23 @@ type TokenParams struct {
 	ImgO float64 // image output tokens
 	AI   float64 // audio input tokens
 	AO   float64 // audio output tokens
+
+	// DiscountableP/C are the portions of P/C that may receive a user model
+	// discount. Cache/media tokens that remain in the p/c fallback price are
+	// excluded by the service-layer normalizer.
+	DiscountableP float64
+	DiscountableC float64
+	// CacheFallbackP is the cache-token portion still billed through p because
+	// the expression did not give that cache category its own price variable.
+	CacheFallbackP float64
+	HasBreakdown   bool
+
+	// BillingP/C optionally override p/c only inside tier(name, price). The raw
+	// P/C values remain available to tier conditions, so a discount never moves
+	// a request into another usage tier.
+	BillingP     float64
+	BillingC     float64
+	UseBillingPC bool
 }
 
 // TraceResult holds side-channel info captured by the tier() function
@@ -51,15 +68,22 @@ type BillingSnapshot struct {
 	EstimatedTier             string  `json:"estimated_tier"`
 	QuotaPerUnit              float64 `json:"quota_per_unit"`
 	ExprVersion               int     `json:"expr_version"`
+	UserDiscount              float64 `json:"user_discount"`
 }
 
 // TieredResult holds everything needed after running tiered settlement.
 type TieredResult struct {
-	ActualQuotaBeforeGroup float64            `json:"actual_quota_before_group"`
-	ActualQuotaAfterGroup  int                `json:"actual_quota_after_group"`
-	MatchedTier            string             `json:"matched_tier"`
-	CrossedTier            bool               `json:"crossed_tier"`
-	Clamp                  *common.QuotaClamp `json:"clamp,omitempty"`
+	OriginalQuotaBeforeGroup     float64            `json:"original_quota_before_group"`
+	ActualQuotaBeforeGroup       float64            `json:"actual_quota_before_group"`
+	ActualQuotaAfterGroup        int                `json:"actual_quota_after_group"`
+	CacheQuotaBeforeGroup        float64            `json:"cache_quota_before_group"`
+	DiscountableQuotaBeforeGroup float64            `json:"discountable_quota_before_group"`
+	DiscountableTokens           float64            `json:"discountable_tokens"`
+	DiscountAmountBeforeGroup    float64            `json:"discount_amount_before_group"`
+	AppliedUserDiscount          float64            `json:"applied_user_discount"`
+	MatchedTier                  string             `json:"matched_tier"`
+	CrossedTier                  bool               `json:"crossed_tier"`
+	Clamp                        *common.QuotaClamp `json:"clamp,omitempty"`
 }
 
 // ExprHashString returns the SHA-256 hex digest of an expression string.

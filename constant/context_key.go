@@ -53,6 +53,7 @@ const (
 	ContextKeyUserName    ContextKey = "username"
 
 	ContextKeyProviderId               ContextKey = "provider_id"
+	ContextKeyUserProviderId           ContextKey = "user_provider_id"
 	ContextKeyProviderOwnerUserId      ContextKey = "provider_owner_user_id"
 	ContextKeyProviderDomain           ContextKey = "provider_domain"
 	ContextKeyProviderPublicModel      ContextKey = "provider_public_model"

@@ -1518,6 +1518,35 @@ func (user *User) FillUserByWeChatId() error {
 	return nil
 }
 
+// FillUserByWeChatIdInProvider resolves a WeChat identity within the current site.
+func (user *User) FillUserByWeChatIdInProvider(providerId int, wechatId string) error {
+	if strings.TrimSpace(wechatId) == "" {
+		return errors.New("WeChat id 为空！")
+	}
+	err := DB.Where("provider_id = ? AND wechat_id = ?", providerId, wechatId).First(user).Error
+	if err == nil || providerId <= 0 || !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	identity, err := GetWechatOfficialIdentity(providerId, wechatId)
+	var provider Provider
+	if err := DB.Select("owner_user_id").Where("id = ?", providerId).First(&provider).Error; err != nil {
+		return err
+	}
+	if err == nil {
+		if provider.OwnerUserId != identity.UserId {
+			return gorm.ErrRecordNotFound
+		}
+		return DB.Where("id = ?", identity.UserId).First(user).Error
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	// Existing provider owners were historically bound through the main-site
+	// user record. Keep that identity working until they explicitly bind a
+	// provider-specific account.
+	return DB.Where("id = ? AND wechat_id = ?", provider.OwnerUserId, wechatId).First(user).Error
+}
+
 func (user *User) FillUserByTelegramId() error {
 	if user.TelegramId == "" {
 		return errors.New("Telegram id 为空！")
@@ -1543,6 +1572,120 @@ func (user *User) FillUserByUsername() error {
 
 func IsWeChatIdAlreadyTaken(wechatId string) bool {
 	return DB.Unscoped().Where("wechat_id = ?", wechatId).Find(&User{}).RowsAffected == 1
+}
+
+func IsWeChatIdAlreadyTakenInProvider(providerId int, wechatId string) bool {
+	var count int64
+	if DB.Unscoped().Model(&User{}).Where("provider_id = ? AND wechat_id = ?", providerId, wechatId).Count(&count).Error != nil {
+		return false
+	}
+	if count > 0 {
+		return true
+	}
+	if providerId <= 0 {
+		return false
+	}
+	var provider Provider
+	if err := DB.Select("owner_user_id").Where("id = ?", providerId).First(&provider).Error; err != nil || provider.OwnerUserId <= 0 {
+		return false
+	}
+	var identity WechatOfficialIdentity
+	err := DB.Unscoped().Where("provider_id = ? AND user_id = ?", providerId, provider.OwnerUserId).First(&identity).Error
+	if err == nil {
+		return identity.WechatId == wechatId
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return false
+	}
+	return DB.Unscoped().Model(&User{}).
+		Where("id = ? AND wechat_id = ?", provider.OwnerUserId, wechatId).
+		Count(&count).Error == nil && count > 0
+}
+
+func IsWeChatIdAlreadyTakenByOtherInProvider(providerId int, wechatId string, userId int) (bool, error) {
+	var count int64
+	query := DB.Unscoped().Model(&User{}).Where("provider_id = ? AND wechat_id = ?", providerId, wechatId)
+	if userId > 0 {
+		query = query.Where("id <> ?", userId)
+	}
+	if err := query.Count(&count).Error; err != nil {
+		return false, err
+	}
+	if count > 0 {
+		return true, nil
+	}
+	if providerId <= 0 {
+		return false, nil
+	}
+	var provider Provider
+	if err := DB.Select("owner_user_id").Where("id = ?", providerId).First(&provider).Error; err != nil {
+		return false, err
+	}
+	if provider.OwnerUserId > 0 && provider.OwnerUserId != userId {
+		var identity WechatOfficialIdentity
+		err := DB.Unscoped().Where("provider_id = ? AND user_id = ?", providerId, provider.OwnerUserId).First(&identity).Error
+		if err == nil && identity.WechatId == wechatId {
+			return true, nil
+		}
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, err
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if err := DB.Unscoped().Model(&User{}).
+				Where("id = ? AND wechat_id = ?", provider.OwnerUserId, wechatId).
+				Count(&count).Error; err != nil {
+				return false, err
+			}
+			if count > 0 {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func GetWechatIdForUserInProvider(providerId int, user *User) (string, error) {
+	if user == nil {
+		return "", errors.New("user is nil")
+	}
+	if user.ProviderId == providerId {
+		return user.WeChatId, nil
+	}
+	if providerId <= 0 {
+		return user.WeChatId, nil
+	}
+	var provider Provider
+	if err := DB.Select("owner_user_id").Where("id = ?", providerId).First(&provider).Error; err != nil {
+		return "", err
+	}
+	if provider.OwnerUserId != user.Id {
+		return "", nil
+	}
+	identity, err := GetWechatOfficialIdentityByUser(providerId, user.Id)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return user.WeChatId, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return identity.WechatId, nil
+}
+
+// GetUserByProviderAndWeChatId 按 (provider_id, wechat_id) 查询用户。
+//
+// 与 IsWeChatIdAlreadyTaken（全局判定）不同，本方法带站点维度：主站与分站各自配置
+// 自己的服务号，同一微信用户在不同站点可能各自拥有账号，因此判定必须限定在站点内，
+// 否则分站扫码会命中主站账号而无法建号。
+// 未找到时返回 gorm.ErrRecordNotFound，调用方据此进入创建流程。
+func GetUserByProviderAndWeChatId(providerId int, wechatId string) (*User, error) {
+	if strings.TrimSpace(wechatId) == "" {
+		return nil, errors.New("wechat id 为空！")
+	}
+	var user User
+	if err := DB.Where("provider_id = ? AND wechat_id = ?", providerId, wechatId).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
 func IsGitHubIdAlreadyTaken(githubId string) bool {

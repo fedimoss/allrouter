@@ -67,34 +67,55 @@ const durationUnitOptions = [
 ];
 
 const resetPeriodOptions = [
-  { value: 'never', label: '不重置' },
-  { value: 'daily', label: '每天' },
-  { value: 'weekly', label: '每周' },
-  { value: 'monthly', label: '每月' },
-  { value: 'yearly', label: '每年' },
-  { value: 'custom', label: '自定义(秒)' },
+  { value: 'never', label: '不自动恢复（额度一直有效）' },
+  { value: 'daily', label: '每天开始时恢复' },
+  { value: 'weekly', label: '每周开始时恢复' },
+  { value: 'monthly', label: '每月开始时恢复' },
+  { value: 'yearly', label: '每年开始时恢复' },
+  { value: 'custom', label: '自定义间隔（秒）' },
 ];
 
 const quotaWindowModeOptions = [
-  { value: 'legacy', label: '传统总额度' },
-  { value: 'five_hour', label: '滚动窗口' },
-  { value: 'weekly', label: '周期额度' },
-  { value: 'dual', label: '滚动窗口 + 周期额度' },
-  { value: 'generic', label: '通用多窗口' },
+  {
+    value: 'legacy',
+    label: '整期总额度（整个订阅期间共用一份额度）',
+  },
+  {
+    value: 'five_hour',
+    label: '短时限额（例如最近 5 小时）',
+  },
+  {
+    value: 'weekly',
+    label: '固定周期额度（按天、周、月恢复）',
+  },
+  {
+    value: 'dual',
+    label: '短时限额 + 固定周期额度',
+  },
+  {
+    value: 'generic',
+    label: '多条时间段限额（高级设置）',
+  },
 ];
 
 const quotaWindowTypeOptions = [
-  { value: 'hour', label: '小时' },
-  { value: 'day', label: '日' },
-  { value: 'week', label: '周' },
-  { value: 'month', label: '月' },
-  { value: 'year', label: '年' },
-  { value: 'custom', label: '自定义(秒)' },
+  { value: 'hour', label: '按小时计算（短时段）' },
+  { value: 'day', label: '按天计算' },
+  { value: 'week', label: '按周计算' },
+  { value: 'month', label: '按月计算' },
+  { value: 'year', label: '按年计算' },
+  { value: 'custom', label: '自定义时间段（秒）' },
 ];
 
 const quotaWindowResetModeOptions = [
-  { value: 'rolling', label: '滚动周期' },
-  { value: 'calendar', label: '自然周期' },
+  {
+    value: 'rolling',
+    label: '按使用时间滚动（始终统计最近这段时间）',
+  },
+  {
+    value: 'calendar',
+    label: '按固定时间点恢复（自然日/周/月）',
+  },
 ];
 
 const quotaWindowTypes = new Set(
@@ -349,14 +370,14 @@ const QuotaWindowsEditor = ({ windows, onChange, t }) => {
     <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
       <div className='flex items-start justify-between gap-3 mb-3'>
         <div>
-          <Text className='text-lg font-medium'>{t('独立额度窗口')}</Text>
+          <Text className='text-lg font-medium'>{t('按时间段设置额度')}</Text>
           <div className='text-xs text-gray-600 mt-1'>
             {t(
-              '可组合多个滚动或自然周期额度；所有窗口同时生效，任一额度用尽即回落钱包。',
+              '可以同时设置短时、每天、每周、每月或每年限额；每次请求都要满足所有规则，任一规则用完就改用钱包余额（没有余额时请求会失败）。',
             )}
           </div>
           <div className='text-xs text-gray-500 mt-1'>
-            {t('模型限制由“适用模型”统一应用到所有额度窗口。')}
+            {t('上方的“适用模型”设置会应用到所有时间段规则。')}
           </div>
         </div>
         <Button
@@ -366,13 +387,15 @@ const QuotaWindowsEditor = ({ windows, onChange, t }) => {
           disabled={windows.length >= 16}
           onClick={() => onChange([...windows, createQuotaWindow()])}
         >
-          {t('添加额度窗口')}
+          {t('添加时间段规则')}
         </Button>
       </div>
 
       {windows.length === 0 ? (
         <div className='rounded-xl border border-dashed border-gray-300 p-5 text-center'>
-          <Text type='tertiary'>{t('暂无额度窗口，请至少添加一个')}</Text>
+          <Text type='tertiary'>
+            {t('还没有限额规则，请添加一条时间段规则')}
+          </Text>
         </div>
       ) : (
         <div className='space-y-3'>
@@ -384,7 +407,7 @@ const QuotaWindowsEditor = ({ windows, onChange, t }) => {
               <div className='flex items-center justify-between mb-2'>
                 <Space>
                   <Tag color='blue' shape='circle'>
-                    {t('额度窗口')} {index + 1}
+                    {t('限额规则')} {index + 1}
                   </Tag>
                   {window.name ? <Text>{window.name}</Text> : null}
                 </Space>
@@ -393,7 +416,7 @@ const QuotaWindowsEditor = ({ windows, onChange, t }) => {
                   theme='borderless'
                   size='small'
                   icon={<IconDelete />}
-                  aria-label={t('删除额度窗口')}
+                  aria-label={t('删除限额规则')}
                   onClick={() => removeWindow(index)}
                 />
               </div>
@@ -401,11 +424,11 @@ const QuotaWindowsEditor = ({ windows, onChange, t }) => {
               <Row gutter={12}>
                 <Col span={12}>
                   <div className='mb-3'>
-                    <Text strong>{t('窗口名称')}</Text>
+                    <Text strong>{t('规则名称')}</Text>
                     <Input
                       className='mt-1'
                       value={window.name}
-                      placeholder={t('可选，例如：5 小时')}
+                      placeholder={t('可选，例如：最近 5 小时')}
                       showClear
                       onChange={(name) => updateWindow(index, { name })}
                     />
@@ -413,7 +436,7 @@ const QuotaWindowsEditor = ({ windows, onChange, t }) => {
                 </Col>
                 <Col span={12}>
                   <div className='mb-3'>
-                    <Text strong>{t('窗口类型')}</Text>
+                    <Text strong>{t('限额周期')}</Text>
                     <Select
                       className='mt-1'
                       value={window.type}
@@ -441,7 +464,7 @@ const QuotaWindowsEditor = ({ windows, onChange, t }) => {
                 </Col>
                 <Col span={12}>
                   <div className='mb-3'>
-                    <Text strong>{t('重置方式')}</Text>
+                    <Text strong>{t('额度恢复方式')}</Text>
                     <Select
                       className='mt-1'
                       value={window.reset_mode}
@@ -460,7 +483,7 @@ const QuotaWindowsEditor = ({ windows, onChange, t }) => {
                 </Col>
                 <Col span={12}>
                   <div className='mb-3'>
-                    <Text strong>{t('周期数')}</Text>
+                    <Text strong>{t('连续几个周期')}</Text>
                     <InputNumber
                       className='mt-1'
                       value={window.duration}
@@ -487,7 +510,7 @@ const QuotaWindowsEditor = ({ windows, onChange, t }) => {
                 </Col>
                 <Col span={12}>
                   <div className='mb-1'>
-                    <Text strong>{t('精确窗口秒数')}</Text>
+                    <Text strong>{t('时间段长度（秒）')}</Text>
                     <InputNumber
                       className='mt-1'
                       value={window.window_seconds}
@@ -503,14 +526,14 @@ const QuotaWindowsEditor = ({ windows, onChange, t }) => {
                     />
                     <div className='text-xs text-gray-500 mt-1'>
                       {window.type === 'custom'
-                        ? t('自定义窗口必须填写精确窗口秒数')
-                        : t('0 表示按窗口类型和周期数自动计算')}
+                        ? t('自定义时间段必须填写长度（秒）')
+                        : t('填 0 时，系统会根据限额周期和周期数自动计算')}
                     </div>
                   </div>
                 </Col>
                 <Col span={12}>
                   <div className='mb-1'>
-                    <Text strong>{t('窗口额度')}</Text>
+                    <Text strong>{t('该时间段可用额度')}</Text>
                     <InputNumber
                       className='mt-1'
                       value={window.amount}
@@ -531,7 +554,7 @@ const QuotaWindowsEditor = ({ windows, onChange, t }) => {
       )}
 
       <div className='text-xs text-gray-500 mt-3'>
-        {t('额度窗口最多支持 16 个')}
+        {t('最多可添加 16 条时间段规则')}
       </div>
     </Card>
   );
@@ -709,11 +732,11 @@ const AddEditSubscriptionModal = ({
     let normalizedQuotaWindows = [];
     if (values.quota_window_mode === 'generic') {
       if (quotaWindows.length === 0) {
-        showError(t('通用额度模式至少需要一个窗口'));
+        showError(t('多条时间段限额至少需要一条规则'));
         return;
       }
       if (quotaWindows.length > 16) {
-        showError(t('额度窗口最多支持 16 个'));
+        showError(t('最多可添加 16 条时间段规则'));
         return;
       }
       for (const window of quotaWindows) {
@@ -729,7 +752,7 @@ const AddEditSubscriptionModal = ({
           !Number.isSafeInteger(amount) ||
           amount <= 0
         ) {
-          showError(t('额度窗口的额度必须大于 0'));
+          showError(t('每条时间段规则的额度必须大于 0'));
           return;
         }
 
@@ -738,7 +761,7 @@ const AddEditSubscriptionModal = ({
         // Infinity from imported/legacy plans.  Validate the canonical
         // representation before sending it to the API.
         if (!isNonNegativeInteger(windowSeconds)) {
-          showError(t('精确窗口秒数必须是非负整数'));
+          showError(t('时间段长度必须是非负整数（秒）'));
           return;
         }
 
@@ -746,25 +769,25 @@ const AddEditSubscriptionModal = ({
         let normalizedWindowSeconds = windowSeconds;
         if (type === 'custom') {
           if (!isPositiveInteger(windowSeconds)) {
-            showError(t('自定义窗口必须填写精确窗口秒数'));
+            showError(t('自定义时间段必须填写长度（秒）'));
             return;
           }
           if (windowSeconds > MAX_QUOTA_WINDOW_SECONDS) {
-            showError(t('额度窗口秒数超过最大值'));
+            showError(t('时间段长度超过允许的最大值'));
             return;
           }
         } else {
           if (!isPositiveInteger(duration)) {
-            showError(t('额度窗口的周期必须是正整数'));
+            showError(t('连续周期数必须是正整数'));
             return;
           }
           const unitSeconds = QUOTA_WINDOW_UNIT_SECONDS[type];
           if (!unitSeconds) {
-            showError(t('额度窗口类型无效'));
+            showError(t('限额周期无效'));
             return;
           }
           if (duration > Math.floor(MAX_QUOTA_WINDOW_SECONDS / unitSeconds)) {
-            showError(t('额度窗口秒数超过最大值'));
+            showError(t('时间段长度超过允许的最大值'));
             return;
           }
           const expectedSeconds = duration * unitSeconds;
@@ -772,7 +795,7 @@ const AddEditSubscriptionModal = ({
           // Once derived, always send the exact value so API validation and
           // subsequent edits see a single canonical representation.
           if (windowSeconds > 0 && windowSeconds !== expectedSeconds) {
-            showError(t('固定周期的精确窗口秒数必须与周期数匹配'));
+            showError(t('固定恢复方式下，时间段长度必须与周期数匹配'));
             return;
           }
           normalizedDuration = duration;
@@ -1008,7 +1031,10 @@ const AddEditSubscriptionModal = ({
                     <Col span={12}>
                       <Form.Select
                         field='quota_window_mode'
-                        label={t('额度模式')}
+                        label={t('额度计算方式')}
+                        extraText={t(
+                          '短时限额统计最近一段时间的使用量；固定周期额度在固定时间点恢复；多条规则会同时生效，任一规则用完就改用钱包余额（没有余额时请求会失败）。',
+                        )}
                         onChange={(mode) => {
                           if (mode === 'generic' && quotaWindows.length === 0) {
                             setQuotaWindows([createQuotaWindow()]);
@@ -1034,7 +1060,7 @@ const AddEditSubscriptionModal = ({
                           <Col span={12}>
                             <Form.InputNumber
                               field='five_hour_amount'
-                              label={t('滚动窗口额度')}
+                              label={t('短时段可用额度')}
                               min={0}
                               precision={2}
                               extraText={`${t('0 表示关闭')} · ${t('原生额度')}：${displayAmountToQuota(
@@ -1046,11 +1072,11 @@ const AddEditSubscriptionModal = ({
                           <Col span={12}>
                             <Form.InputNumber
                               field='five_hour_window_seconds'
-                              label={t('滚动窗口秒数')}
+                              label={t('短时段长度（秒）')}
                               min={60}
                               precision={0}
                               extraText={t(
-                                '可配置任意窗口时长，例如 5 小时为 18000 秒',
+                                '可填写任意时长，例如最近 5 小时就是 18000 秒',
                               )}
                               style={{ width: '100%' }}
                             />
@@ -1059,7 +1085,7 @@ const AddEditSubscriptionModal = ({
                             <Col span={12}>
                               <Form.InputNumber
                                 field='weekly_amount'
-                                label={t('周期额度')}
+                                label={t('固定周期可用额度')}
                                 min={0}
                                 precision={2}
                                 extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
@@ -1074,7 +1100,7 @@ const AddEditSubscriptionModal = ({
                         <Col span={12}>
                           <Form.InputNumber
                             field='weekly_amount'
-                            label={t('周期额度')}
+                            label={t('固定周期可用额度')}
                             min={0}
                             precision={2}
                             extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
@@ -1087,7 +1113,7 @@ const AddEditSubscriptionModal = ({
                         <Col span={12}>
                           <Form.InputNumber
                             field='total_amount'
-                            label={t('总额度')}
+                            label={t('整期可用额度')}
                             required
                             min={0}
                             precision={2}
@@ -1282,7 +1308,7 @@ const AddEditSubscriptionModal = ({
                   </Row>
                 </Card>
 
-                {/* 额度重置 */}
+                {/* 额度恢复 */}
                 <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
                   <div className='flex items-center mb-2'>
                     <Avatar
@@ -1294,17 +1320,17 @@ const AddEditSubscriptionModal = ({
                     </Avatar>
                     <div>
                       <Text className='text-lg font-medium'>
-                        {t('额度重置')}
+                        {t('额度恢复设置')}
                       </Text>
                       <div className='text-xs text-gray-600'>
-                        {t('支持周期性重置套餐权益额度')}
+                        {t('设置整期额度或固定周期额度何时恢复')}
                       </div>
                     </div>
                   </div>
 
                   {values.quota_window_mode === 'generic' ? (
                     <Text type='tertiary'>
-                      {t('通用多窗口模式的重置规则在各额度窗口中独立配置')}
+                      {t('每条时间段规则都可以单独选择额度恢复方式。')}
                     </Text>
                   ) : ['legacy', 'weekly', 'dual'].includes(
                       values.quota_window_mode,
@@ -1313,7 +1339,7 @@ const AddEditSubscriptionModal = ({
                       <Col span={12}>
                         <Form.Select
                           field='quota_reset_period'
-                          label={t('重置周期')}
+                          label={t('固定恢复周期')}
                         >
                           {resetPeriodOptions.map((o) => (
                             <Select.Option key={o.value} value={o.value}>
@@ -1326,7 +1352,7 @@ const AddEditSubscriptionModal = ({
                         {['custom'].includes(values.quota_reset_period) ? (
                           <Form.InputNumber
                             field='quota_reset_custom_seconds'
-                            label={t('自定义秒数')}
+                            label={t('自定义间隔（秒）')}
                             required
                             min={60}
                             precision={0}
@@ -1338,7 +1364,7 @@ const AddEditSubscriptionModal = ({
                         ) : (
                           <Form.InputNumber
                             field='quota_reset_custom_seconds'
-                            label={t('自定义秒数')}
+                            label={t('自定义间隔（秒）')}
                             min={0}
                             precision={0}
                             style={{ width: '100%' }}
@@ -1349,9 +1375,14 @@ const AddEditSubscriptionModal = ({
                     </Row>
                   ) : (
                     <Text type='tertiary'>
-                      {t('仅滚动窗口额度，不使用日/周/月周期重置')}
+                      {t('当前模式只按短时段计算，不会按天、周或月统一恢复。')}
                     </Text>
                   )}
+                  <div className='text-xs text-gray-500 mt-2'>
+                    {t(
+                      '滚动计算会在每笔使用经过设定时间后逐笔释放额度；固定时间恢复会在自然日、自然周或自然月开始时统一恢复。',
+                    )}
+                  </div>
                 </Card>
 
                 {/* 第三方支付配置 */}

@@ -560,6 +560,16 @@ func TestBuildTieredTokenParams_GPT_AudioOutputNoVar(t *testing.T) {
 	}
 }
 
+func TestTieredNonCacheTokenCount(t *testing.T) {
+	params := billingexpr.TokenParams{CR: 200, CC: 50, CC1h: 25}
+	if got := tieredNonCacheTokenCount(1500, params); got != 1225 {
+		t.Fatalf("non-cache tokens = %d, want 1225", got)
+	}
+	if got := tieredNonCacheTokenCount(100, params); got != 0 {
+		t.Fatalf("clamped non-cache tokens = %d, want 0", got)
+	}
+}
+
 func TestBuildTieredTokenParams_ParityWithRatio(t *testing.T) {
 	// GPT-5.4 prices: input=$2.5, output=$15, cacheRead=$0.25
 	// Ratio equivalents: modelRatio=1.25, completionRatio=6, cacheRatio=0.1

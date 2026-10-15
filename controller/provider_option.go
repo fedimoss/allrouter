@@ -28,6 +28,7 @@ var providerOwnerOptionKeys = map[string]struct{}{
 	model.ProviderTopUpGiftRulesOptionKey:   {},
 	model.ProviderTopUpGiftTimedOptionKey:   {},
 	model.ProviderMailOptionKey:             {},
+	providerPricingSortOptionKey:            {},
 }
 
 func providerOwnerCanAccessOption(key string) bool {

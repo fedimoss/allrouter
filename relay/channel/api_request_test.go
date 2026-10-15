@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	projectconstant "github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -255,6 +256,7 @@ func TestApplyUpstreamUserAgentPolicy_PreservesCodexAndClaudeCodeUserAgents(t *t
 		"codex-cli/0.1.0",
 		"Codex CLI",
 		"claude-code/1.0.0",
+		`claude-cli/1.0.61 (external, cli)`,
 		"Claude Code/1.0.0",
 	}
 
@@ -266,6 +268,30 @@ func TestApplyUpstreamUserAgentPolicy_PreservesCodexAndClaudeCodeUserAgents(t *t
 
 		require.Equal(t, ua, header.Get("User-Agent"), ua)
 	}
+}
+
+func TestApplyUpstreamUserAgentPolicy_AnthropicAvoidsBrowserFallback(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: projectconstant.ChannelTypeAnthropic,
+			ApiType:     projectconstant.APITypeAnthropic,
+		},
+	}
+	for _, ua := range []string{"", "Mozilla/5.0", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "python-requests/2.32.0"} {
+		header := http.Header{}
+		if ua != "" {
+			header.Set("User-Agent", ua)
+		}
+		applyUpstreamUserAgentPolicy(header, info)
+		require.Equal(t, anthropicSafeUserAgent, header.Get("User-Agent"), ua)
+	}
+
+	header := http.Header{}
+	header.Set("User-Agent", "claude-cli/1.0.61 (external, cli)")
+	applyUpstreamUserAgentPolicy(header, info)
+	require.Equal(t, "claude-cli/1.0.61 (external, cli)", header.Get("User-Agent"))
 }
 
 func TestApplyUpstreamUserAgentPolicy_SetsDefaultWhenMissing(t *testing.T) {

@@ -21,9 +21,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Layout, TabPane, Tabs, Card, Spin, TextArea, Button } from '@douyinfe/semi-ui';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { LayoutDashboard } from 'lucide-react';
+import { LayoutDashboard, MessageCircle } from 'lucide-react';
 import { API, showError, showSuccess } from '../../helpers';
 import SettingsAnnouncements from '../Setting/Dashboard/SettingsAnnouncements';
+import WechatOfficialConfig from '../../components/provider/WechatOfficialConfig';
 
 const ProviderSetting = () => {
   const { t } = useTranslation();
@@ -208,6 +209,18 @@ const ProviderSetting = () => {
                   </Card>
                 </Spin>
               )}
+            </TabPane>
+            <TabPane
+              itemKey='wechat'
+              tab={
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <MessageCircle size={18} />
+                  {t('微信配置')}
+                </span>
+              }
+              key='wechat'
+            >
+              {tabActiveKey === 'wechat' && <WechatOfficialConfig />}
             </TabPane>
           </Tabs>
         </Layout.Content>

@@ -81,17 +81,62 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 		c = 0
 	}
 
+	discountableP := p
+	discountableC := c
+	cacheFallbackP := float64(0)
+	if !isClaudeUsageSemantic {
+		if !usedVars["cr"] {
+			cacheFallbackP += cr
+		}
+		if !usedVars["cc"] {
+			cacheFallbackP += cc5m
+		}
+		if !usedVars["cc1h"] {
+			cacheFallbackP += cc1h
+		}
+		nonDiscountableP := cacheFallbackP
+		if !usedVars["img"] {
+			nonDiscountableP += img
+		}
+		if !usedVars["ai"] {
+			nonDiscountableP += ai
+		}
+		if nonDiscountableP > p {
+			nonDiscountableP = p
+		}
+		if cacheFallbackP > p {
+			cacheFallbackP = p
+		}
+		discountableP = p - nonDiscountableP
+
+		nonDiscountableC := float64(0)
+		if !usedVars["img_o"] {
+			nonDiscountableC += imgO
+		}
+		if !usedVars["ao"] {
+			nonDiscountableC += ao
+		}
+		if nonDiscountableC > c {
+			nonDiscountableC = c
+		}
+		discountableC = c - nonDiscountableC
+	}
+
 	return billingexpr.TokenParams{
-		P:    p,
-		C:    c,
-		Len:  inputLen,
-		CR:   cr,
-		CC:   cc5m,
-		CC1h: cc1h,
-		Img:  img,
-		ImgO: imgO,
-		AI:   ai,
-		AO:   ao,
+		P:              p,
+		C:              c,
+		Len:            inputLen,
+		CR:             cr,
+		CC:             cc5m,
+		CC1h:           cc1h,
+		Img:            img,
+		ImgO:           imgO,
+		AI:             ai,
+		AO:             ao,
+		DiscountableP:  discountableP,
+		DiscountableC:  discountableC,
+		CacheFallbackP: cacheFallbackP,
+		HasBreakdown:   true,
 	}
 }
 
@@ -113,7 +158,14 @@ func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenP
 		requestInput = *relayInfo.BillingRequestInput
 	}
 
-	tr, err := billingexpr.ComputeTieredQuotaWithRequest(snap, params, requestInput)
+	settlementSnapshot := *snap
+	settlementSnapshot.UserDiscount = effectiveUserDiscount(relayInfo)
+	if relayInfo.ProviderId > 0 {
+		// A provider user's discount is funded by the provider. Keep the frozen
+		// main-site cost undiscounted and apply the discount after provider pricing.
+		settlementSnapshot.UserDiscount = 1
+	}
+	tr, err := billingexpr.ComputeTieredQuotaWithRequest(&settlementSnapshot, params, requestInput)
 	if err != nil {
 		return true, tieredSettlementFallbackQuota(relayInfo, snap), nil
 	}
@@ -164,12 +216,53 @@ func BuildTieredRealtimeTokenParams(usage *dto.RealtimeUsage, usedVars map[strin
 		c = 0
 	}
 
-	return billingexpr.TokenParams{
-		P:   p,
-		C:   c,
-		Len: float64(usage.InputTokens),
-		CR:  cr,
-		AI:  ai,
-		AO:  ao,
+	cacheFallbackP := float64(0)
+	nonDiscountableP := float64(0)
+	if !usedVars["cr"] {
+		cacheFallbackP = cr
+		nonDiscountableP += cr
 	}
+	if !usedVars["ai"] {
+		nonDiscountableP += ai
+	}
+	if nonDiscountableP > p {
+		nonDiscountableP = p
+	}
+	if cacheFallbackP > p {
+		cacheFallbackP = p
+	}
+	nonDiscountableC := float64(0)
+	if !usedVars["ao"] {
+		nonDiscountableC = ao
+	}
+	if nonDiscountableC > c {
+		nonDiscountableC = c
+	}
+
+	return billingexpr.TokenParams{
+		P:              p,
+		C:              c,
+		Len:            float64(usage.InputTokens),
+		CR:             cr,
+		AI:             ai,
+		AO:             ao,
+		DiscountableP:  p - nonDiscountableP,
+		DiscountableC:  c - nonDiscountableC,
+		CacheFallbackP: cacheFallbackP,
+		HasBreakdown:   true,
+	}
+}
+
+// tieredNonCacheTokenCount returns the unit count used by provider fixed-delta
+// pricing. Realtime and OpenAI-style totals include cache tokens, while the
+// provider delta is only added to non-cache usage.
+func tieredNonCacheTokenCount(totalTokens int, params billingexpr.TokenParams) int {
+	cacheTokens := int(params.CR + params.CC + params.CC1h)
+	if cacheTokens < 0 {
+		cacheTokens = 0
+	}
+	if cacheTokens > totalTokens {
+		cacheTokens = totalTokens
+	}
+	return totalTokens - cacheTokens
 }

@@ -72,6 +72,11 @@ import CryptoPaymentDrawer from './CryptoPaymentDrawer';
 import balanceBgimg from '../../../public/wallet-balance.png';
 import dateBgimg from '../../../public/wallet-date.png';
 import dollarIcon from '../../../public/icon-dollar.svg';
+import {
+  isLakalaQRCodePayment,
+  saveLakalaQRCodePayment,
+  LAKALA_QRCODE_ROUTE,
+} from '../../helpers/lakalaPayment';
 
 const { Text } = Typography;
 
@@ -208,6 +213,7 @@ const RechargeCard = ({
   const [historyPage, setHistoryPage] = useState(1);
   const historyPageSize = 10;
   const [historyKeyword, setHistoryKeyword] = useState('');
+  const [resumingId, setResumingId] = useState(null);
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
   const [cryptoDrawerVisible, setCryptoDrawerVisible] = useState(false);
   const [topupGiftConfig, setTopupGiftConfig] = useState(
@@ -421,6 +427,78 @@ const RechargeCard = ({
     }
   };
 
+  const submitEpayForm = ({ url, params }) => {
+    const form = document.createElement('form');
+    form.action = url;
+    form.method = 'POST';
+    form.target = '_blank';
+    Object.entries(params || {}).forEach(([key, value]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = value;
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  };
+
+  const resumePayment = async (record) => {
+    if (!record?.source_id || resumingId) return;
+    setResumingId(record.id);
+    try {
+      const res = await API.post(
+        `/api/subscription/orders/${record.source_id}/resume`,
+      );
+      const payload = res.data?.data;
+      if (!res.data?.success || !payload) {
+        Toast.error({ content: res.data?.message || t('继续支付失败') });
+        return;
+      }
+      let successMessage = t('已打开支付页面');
+      if (payload.kind === 'form') {
+        submitEpayForm({ url: payload.url, params: payload.data });
+      } else if (payload.kind === 'redirect' && payload.checkout_url) {
+        window.open(payload.checkout_url, '_blank', 'noopener,noreferrer');
+      } else if (
+        payload.kind === 'qrcode' &&
+        isLakalaQRCodePayment(payload.url, payload.data)
+      ) {
+        const tradeNo = saveLakalaQRCodePayment(payload.data, {
+          returnTo: '/console/topup',
+          successPath: '/console/topup?pay=success',
+        });
+        window.open(
+          `${LAKALA_QRCODE_ROUTE}?trade_no=${encodeURIComponent(tradeNo)}`,
+          '_blank',
+          'noopener,noreferrer',
+        );
+      } else if (payload.kind === 'crypto') {
+        successMessage = t('请在订阅页面继续完成加密货币支付');
+        sessionStorage.setItem(
+          'resume_subscription_order',
+          JSON.stringify(payload),
+        );
+        window.open(
+          '/console/topup?resume_subscription=1',
+          '_blank',
+          'noopener,noreferrer',
+        );
+      } else {
+        Toast.error({ content: t('继续支付失败') });
+        return;
+      }
+      Toast.success({ content: successMessage });
+    } catch (error) {
+      Toast.error({
+        content: error?.response?.data?.message || t('继续支付失败'),
+      });
+    } finally {
+      setResumingId(null);
+    }
+  };
+
   useEffect(() => {
     loadTopups(historyPage, historyPageSize);
   }, [historyPage, historyPageSize, historyKeyword]);
@@ -620,6 +698,23 @@ const RechargeCard = ({
         title: t('操作'),
         key: 'action',
         render: (_, record) => (
+          <div className='flex items-center gap-1'>
+            {record.source_id &&
+            isSubscriptionTopup(record) &&
+            record.status === 'pending' ? (
+              <Tooltip content={t('继续支付')}>
+                <Button
+                  type='tertiary'
+                  theme='borderless'
+                  icon={<CreditCard size={14} />}
+                  size='small'
+                  loading={resumingId === record.id}
+                  onClick={() => resumePayment(record)}
+                >
+                  {t('继续支付')}
+                </Button>
+              </Tooltip>
+            ) : null}
           <Tooltip content={t('复制')}>
             <Button
               type='tertiary'
@@ -632,10 +727,11 @@ const RechargeCard = ({
               }}
             />
           </Tooltip>
+          </div>
         ),
       },
     ];
-  }, [displayCurrency?.symbol, t]);
+  }, [displayCurrency?.symbol, resumingId, t]);
 
   const topupContent = (
     <div className='space-y-6'>

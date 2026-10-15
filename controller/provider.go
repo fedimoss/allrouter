@@ -131,7 +131,7 @@ type providerBaseModelChannelPrice struct {
 	CompletionRatio  float64 `json:"completion_ratio"`
 	GroupRatio       float64 `json:"group_ratio"`
 	ImportPriceRatio float64 `json:"import_price_ratio"`
-	// ImportCachePriceRatio 缓存部分实际使用的成本折扣（未单独配置时等于 import_price_ratio）
+	// ImportCachePriceRatio 缓存部分实际使用的成本折扣（未单独配置时按主站原价 1）
 	ImportCachePriceRatio float64            `json:"import_cache_price_ratio"`
 	OriginalPrice         float64            `json:"original_price"`
 	CompletionPrice       float64            `json:"completion_price"`
@@ -700,6 +700,12 @@ func AdminUpdateProvider(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if req.OwnerUserId != provider.OwnerUserId && model.DB.Migrator().HasTable(&model.WechatOfficialIdentity{}) {
+		if err := model.DB.Where("provider_id = ?", id).Delete(&model.WechatOfficialIdentity{}).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	// 缓存折扣未传（nil）时保持原值，避免老客户端更新时意外重置
 	if err := upsertProviderImportPriceRatio(id, importPriceRatio, req.ImportCachePriceRatio); err != nil {
 		common.ApiError(c, err)
@@ -766,6 +772,16 @@ func AdminDeleteProvider(c *gin.Context) {
 		}
 		if err := tx.Where("provider_id = ?", id).Delete(&model.ProviderOption{}).Error; err != nil {
 			return err
+		}
+		if tx.Migrator().HasTable(&model.WechatOfficialConfig{}) {
+			if err := tx.Where("provider_id = ?", id).Delete(&model.WechatOfficialConfig{}).Error; err != nil {
+				return err
+			}
+		}
+		if tx.Migrator().HasTable(&model.WechatOfficialIdentity{}) {
+			if err := tx.Where("provider_id = ?", id).Delete(&model.WechatOfficialIdentity{}).Error; err != nil {
+				return err
+			}
 		}
 		return tx.Where("id = ?", id).Delete(&model.Provider{}).Error
 	}); err != nil {
@@ -1530,9 +1546,9 @@ func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelCha
 			}
 		}
 		result = append(result, providerBaseModelChannelPrice{
-			ModelName:             modelName,
-			ChannelId:             ability.ChannelId,
-			ChannelName:           ability.ChannelName,
+			ModelName: modelName,
+			ChannelId: ability.ChannelId,
+			//ChannelName:           ability.ChannelName,
 			ChannelType:           ability.ChannelType,
 			Group:                 ability.Group,
 			QuotaType:             quotaType,
