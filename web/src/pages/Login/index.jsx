@@ -603,20 +603,21 @@ export default function LoginPage() {
             footer={null}
             centered={true}
           >
-            <div style={{ textAlign: 'center' }}>
+            <div style={{ textAlign: 'center', padding: '0 0 20px 0' }}>
               {wechatQrLoading ? (
                 <Spin />
               ) : wechatLoginSession?.status === 'scanned' ? (
-                <div>{t('已扫码，请在手机上确认登录。')}</div>
+                <div style={{fontSize:'16px',height:'180px',lineHeight:'180px',fontWeight:'bold'}}>{t('已扫码，请在手机上确认登录。')}</div>
               ) : wechatLoginSession?.authorize_url ? (
                 <QRCodeSVG
                   value={wechatLoginSession.authorize_url}
-                  size={240}
+                  size={180}
                   level='M'
                   includeMargin
+                  style={{ margin: '0 auto' }}
                 />
               ) : null}
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 12, fontSize: 12, color: '#999' }}>
                 {t('请使用微信扫描二维码，在手机端确认授权后将自动登录。')}
               </div>
             </div>

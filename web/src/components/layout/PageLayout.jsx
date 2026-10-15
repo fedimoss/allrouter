@@ -78,12 +78,16 @@ const PageLayout = () => {
     '/user/reset',
   ];
 
+  // 自带整屏布局的页面：不渲染顶栏与页脚。
+  // 微信相关页面由手机扫码打开，本身就是一整屏的卡片，套上站点头尾会把
+  // 页面撑得比 100dvh 更高，从而出现多余的页面滚动条。
   const selfContainedPages = [
     '/agent-partner',
     '/about',
     '/landing',
     '/payment/lakala/qrcode',
     '/userQuestion',
+    '/wechat/login/confirm',
   ];
   const shouldHideFooter =
     cardProPages.includes(location.pathname) ||
