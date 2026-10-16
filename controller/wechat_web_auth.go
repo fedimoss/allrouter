@@ -84,14 +84,8 @@ func WechatScanEntry(c *gin.Context) {
 
 // 新建微信用户的默认值。
 const (
-	// wechatWebAuthUsernamePrefix 随机用户名/显示名前缀，便于后台辨认来源。
-	wechatWebAuthUsernamePrefix = "wx_"
-	// wechatWebAuthUsernameRandomLen 随机部分长度：前缀 3 + 随机 13 = 16，处于用户名上限 20 以内。
-	wechatWebAuthUsernameRandomLen = 13
 	// wechatWebAuthPasswordRandomLen 随机密码长度，需落在 User.Password 校验的 8-20 之间。
 	wechatWebAuthPasswordRandomLen = 16
-	// wechatWebAuthMaxGenerateAttempts 生成唯一用户名时的最大重试次数，避免极端情况下死循环。
-	wechatWebAuthMaxGenerateAttempts = 5
 	// wechatWebAuthDefaultTokenName 扫码用户默认令牌的名称，同名令牌会被复用。
 	wechatWebAuthDefaultTokenName = "default"
 	// wechatWebAuthDefaultTokenGroup 默认令牌的分组。
@@ -243,7 +237,9 @@ func findOrCreateWechatUser(c *gin.Context, providerId int, openID string) (*mod
 		return nil, false, "", err
 	}
 
-	username, err := generateUniqueWechatUsername()
+	// 与 /api/oauth/wechat/qr 共用同一套命名（见 newWechatUserIdentity）：
+	// 首选 wechat_<ID>，该名字被占用时函数内部已退化为 wechat_<随机串>。
+	username, displayName, err := newWechatUserIdentity()
 	if err != nil {
 		return nil, false, "", err
 	}
@@ -254,7 +250,7 @@ func findOrCreateWechatUser(c *gin.Context, providerId int, openID string) (*mod
 		ProviderId:  providerId,
 		WeChatId:    openID,
 		Username:    username,
-		DisplayName: username, // 与 username 相同
+		DisplayName: displayName,
 		Password:    plainPassword,
 		// email 留空：微信扫码拿不到邮箱。空值会跳过邮箱唯一性校验，
 		// 也避免用随机假邮箱占用全局 email 唯一索引。
@@ -268,23 +264,6 @@ func findOrCreateWechatUser(c *gin.Context, providerId int, openID string) (*mod
 		return nil, false, "", err
 	}
 	return user, true, plainPassword, nil
-}
-
-// generateUniqueWechatUsername 生成全局唯一的随机用户名（同时用作 display_name）。
-// 用户名在库中是全局唯一（UserIdentityConflictFieldsGlobally 不带 provider），
-// 因此必须生成后校验、冲突则重试。
-func generateUniqueWechatUsername() (string, error) {
-	for i := 0; i < wechatWebAuthMaxGenerateAttempts; i++ {
-		candidate := wechatWebAuthUsernamePrefix + common.GetRandomString(wechatWebAuthUsernameRandomLen)
-		usernameConflict, _, err := model.UserIdentityConflictFieldsGlobally(0, candidate, "")
-		if err != nil {
-			return "", err
-		}
-		if !usernameConflict {
-			return candidate, nil
-		}
-	}
-	return "", errors.New("生成唯一用户名失败，请重试")
 }
 
 // buildWechatWebAuthPayload 组装返回给前端的展示数据。

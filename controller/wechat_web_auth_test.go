@@ -75,14 +75,39 @@ func TestLoadWechatWebAuthConfigMissing(t *testing.T) {
 	require.Contains(t, err.Error(), "停用")
 }
 
-// TestGenerateUniqueWechatUsername 校验随机用户名带前缀、长度合规，且能避开已占用的名字。
-func TestGenerateUniqueWechatUsername(t *testing.T) {
+// TestNewWechatUserIdentity 校验两个扫码入口共用的命名：
+// username 首选「wechat_ + 本记录的 ID」，display_name 固定为 WeChat User。
+func TestNewWechatUserIdentity(t *testing.T) {
 	setupWechatWebAuthTestDB(t)
+	require.NoError(t, model.DB.Create(&model.User{Id: 41, Username: "existing"}).Error)
 
-	username, err := generateUniqueWechatUsername()
+	username, displayName, err := newWechatUserIdentity()
 	require.NoError(t, err)
-	require.Contains(t, username, wechatWebAuthUsernamePrefix)
+	require.Equal(t, "wechat_42", username)
+	require.Equal(t, "WeChat User", displayName)
 	require.LessOrEqual(t, len(username), model.UserNameMaxLength)
+	require.LessOrEqual(t, len(displayName), model.UserNameMaxLength)
+}
+
+// TestNewWechatUserIdentityFallsBackToRandom 校验首选名字被人工占用时退化为随机兜底，
+// 而不是让扫码注册入口被同一个名字卡死。
+func TestNewWechatUserIdentityFallsBackToRandom(t *testing.T) {
+	setupWechatWebAuthTestDB(t)
+	// aff_code 有 (provider_id, aff_code) 唯一索引，测试里的多条记录需要各自不同的值。
+	require.NoError(t, model.DB.Create(&model.User{Id: 41, Username: "existing", AffCode: "aff-existing"}).Error)
+	// 人工占用了本该分给 42 号的用户名。
+	require.NoError(t, model.DB.Create(&model.User{Id: 10, Username: "wechat_42", AffCode: "aff-squatter"}).Error)
+
+	username, displayName, err := newWechatUserIdentity()
+	require.NoError(t, err)
+	require.NotEqual(t, "wechat_42", username)
+	require.Regexp(t, `^wechat_[0-9A-Za-z]{10}$`, username)
+	require.Equal(t, "WeChat User", displayName)
+	require.LessOrEqual(t, len(username), model.UserNameMaxLength)
+
+	conflict, _, err := model.UserIdentityConflictFieldsGlobally(0, username, "")
+	require.NoError(t, err)
+	require.False(t, conflict)
 }
 
 // TestWechatWebAuthDebugConfigRequiresProviderConfig 校验配置接口按站点取 appid；

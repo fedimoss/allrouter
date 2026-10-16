@@ -353,14 +353,19 @@ func completeWechatLogin(c *gin.Context, providerId int, wechatId string, timezo
 		}
 	} else {
 		if common.RegisterEnabled {
-			user.Username = "wechat_" + strconv.Itoa(model.GetMaxUserId()+1)
-			user.DisplayName = "WeChat User"
+			username, displayName, err := newWechatUserIdentity()
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+			user.Username = username
+			user.DisplayName = displayName
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
 			user.RegisterIp = getRegistrationIP(c)
-			if !ensureGlobalUserIdentityAvailable(c, 0, user.Username, user.Email) {
-				return
-			}
 
 			if err := user.Insert(0); err != nil {
 				c.JSON(http.StatusOK, gin.H{
@@ -386,6 +391,48 @@ func completeWechatLogin(c *gin.Context, providerId int, wechatId string, timezo
 		return
 	}
 	setupLogin(&user, c, false)
+}
+
+// 微信新建用户的默认值。
+const (
+	// wechatDefaultDisplayName 微信静默授权（snsapi_base）只能拿到 openid，没有上游昵称可用，
+	// 因此 display_name 固定为该值，与其它 OAuth 渠道「Provider Name + User」的兜底形式一致。
+	wechatDefaultDisplayName = "WeChat User"
+	// wechatUsernameRandomLen 兜底随机用户名中随机部分的长度：前缀 7 + 随机 10 = 17，处于用户名上限 20 以内。
+	wechatUsernameRandomLen = 10
+	// wechatUsernameRandomAttempts 兜底随机用户名的最大尝试次数，避免极端情况下死循环。
+	wechatUsernameRandomAttempts = 5
+)
+
+// newWechatUserIdentity 生成微信新建用户的 username 与 display_name，并保证用户名可用。
+// 两个扫码入口（/api/oauth/wechat/qr 与 /wechat/scan）共用这一套命名。
+//
+// 首选「wechat_ + 即将插入的这条记录的 ID」：ID 由数据库在插入时分配，这里用当前表内
+// 最大 ID + 1 预测（GetMaxUserId 含软删除用户，保证这个值不会被已用过的号覆盖）。
+// 若该名字已被人工占用（用户自填或管理员改名），退化为「wechat_ + 随机串」，
+// 避免整个扫码注册入口被这一个名字卡死。
+func newWechatUserIdentity() (string, string, error) {
+	preferred := "wechat_" + strconv.Itoa(model.GetMaxUserId()+1)
+	conflict, _, err := model.UserIdentityConflictFieldsGlobally(0, preferred, "")
+	if err != nil {
+		return "", "", err
+	}
+	if !conflict {
+		return preferred, wechatDefaultDisplayName, nil
+	}
+
+	// 用户名在库中是全局唯一（UserIdentityConflictFieldsGlobally 不带 provider），必须生成后校验。
+	for i := 0; i < wechatUsernameRandomAttempts; i++ {
+		candidate := "wechat_" + common.GetRandomString(wechatUsernameRandomLen)
+		conflict, _, err := model.UserIdentityConflictFieldsGlobally(0, candidate, "")
+		if err != nil {
+			return "", "", err
+		}
+		if !conflict {
+			return candidate, wechatDefaultDisplayName, nil
+		}
+	}
+	return "", "", errors.New("生成微信用户名失败，请稍后重试")
 }
 
 type wechatBindRequest struct {

@@ -311,10 +311,10 @@ const WechatScan = () => {
         created: true,
         site_url: window.location.origin,
         api_key: 'sk-debug-demo-key-1234567890',
-        username: 'wx_debug_demo',
+        username: 'wechat_6021',
         password: 'debug_password_demo',
         user_id: 0,
-        display_name: 'wx_debug_demo',
+        display_name: 'WeChat User',
         email: '',
       });
       setStatus('done');
