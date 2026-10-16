@@ -34,6 +34,9 @@ For commercial licensing, please contact support@quantumnous.com
  *   - 仅新建账号时额外展示一次账号密码（已有账号只展示协议区块）。
  *   - 整块取值区只保留一个「一键复制」入口，复制当前协议下的全部配置，
  *     因此各取值行不再单独挂复制按钮，避免同一件事重复点多次。
+ *   - 底部工具下载集合：只列工具名与下载网址。本页在手机上打开，桌面客户端装不了，
+ *     用户是复制地址到电脑下载，所以只留一个「一键复制」复制全部地址，
+ *     不渲染逐条跳转/复制按钮，也不加载品牌图标。
  */
 
 import React, { useContext, useEffect, useRef, useState } from 'react';
@@ -79,6 +82,64 @@ const API_PROTOCOLS = [
     baseUrlSuffix: '',
     baseUrlEnv: 'ANTHROPIC_BASE_URL',
     apiKeyEnv: 'ANTHROPIC_AUTH_TOKEN',
+  },
+];
+
+// 工具下载集合：面向不熟悉配置的用户，装完客户端把上面的 Base URL 与密钥填进去即可用。
+// platform 用「Windows / macOS（Apple 芯片）」这类说法，避免 x64、arm64 等术语。
+// chatgpt / claude 各自的 mac 链接在原始资料里重复出现，这里按 url 去重后只保留一个。
+const DOWNLOAD_TOOLS = [
+  {
+    key: 'workbuddy',
+    name: 'WorkBuddy',
+    downloads: [{ url: 'https://www.workbuddy.cn/#download-section' }],
+  },
+  {
+    key: 'doubao',
+    name: 'Doubao 豆包',
+    downloads: [{ url: 'https://www.doubao.com/download/desktop' }],
+  },
+  {
+    key: 'kimi',
+    name: 'Kimi',
+    downloads: [{ url: 'https://www.kimi.ai/zh-hans/products/download' }],
+  },
+  {
+    key: 'trae',
+    name: 'TRAE',
+    downloads: [{ url: 'https://www.trae.cn/download' }],
+  },
+  {
+    key: 'qoder',
+    name: 'Qoder',
+    downloads: [{ url: 'https://qoder.cn/download' }],
+  },
+  {
+    key: 'zcode',
+    name: 'ZCode',
+    downloads: [{ url: 'https://zcode.z.ai/cn#all-downloads' }],
+  },
+  {
+    key: 'cc-switch',
+    name: 'CC Switch',
+    downloads: [{ url: 'https://github.com/farion1231/cc-switch/releases' }],
+  },
+  {
+    key: 'chatgpt',
+    name: 'ChatGPT',
+    downloads: [
+      { platform: 'Windows', url: 'https://codexapp.agentsmirror.com/latest/win-x64' },
+      { platform: 'macOS（Apple 芯片）', url: 'https://codexapp.agentsmirror.com/latest/mac-arm64' },
+      { platform: 'macOS（Intel 芯片）', url: 'https://codexapp.agentsmirror.com/latest/mac-intel' },
+    ],
+  },
+  {
+    key: 'claude',
+    name: 'Claude',
+    downloads: [
+      { platform: 'Windows', url: 'https://claudeapp.agentsmirror.com/latest/win-x64' },
+      { platform: 'macOS', url: 'https://claudeapp.agentsmirror.com/latest/mac' },
+    ],
   },
 ];
 
@@ -132,6 +193,95 @@ const ConfigRow = ({ label, value, hint }) => (
         <Text type='tertiary'>{hint}</Text>
       </div>
     ) : null}
+  </div>
+);
+
+// 单个工具的下载条：工具名 + 下载地址（多平台时带平台名）。
+// 本页由手机扫码打开，这些桌面客户端在手机上装不了，用户需要把地址带到电脑上打开，
+// 所以这里只显示网址原文（可手动选中），复制入口统一收在面板右上角的「一键复制」。
+const ToolDownloadRow = ({ tool }) => (
+  <div
+    style={{
+      padding: '12px 14px',
+      borderRadius: 8,
+      background: 'var(--semi-color-bg-0)',
+      border: '1px solid var(--semi-color-border)',
+    }}
+  >
+    <div style={{ fontWeight: 600, color: 'var(--semi-color-text-0)' }}>
+      {tool.name}
+    </div>
+    <div className='flex flex-col gap-2' style={{ marginTop: 8 }}>
+      {tool.downloads.map((download) => (
+        // 多平台工具（ChatGPT / Claude）平台标签单独占一行，避免窄屏下
+        // 标签与网址挤在一起，用户分不清哪个地址对应哪个系统。
+        <div key={download.url}>
+          {download.platform ? (
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>
+              {download.platform}
+            </div>
+          ) : null}
+          <code
+            style={{
+              display: 'block',
+              background: 'var(--semi-color-fill-0)',
+              border: '1px solid var(--semi-color-border)',
+              borderRadius: 6,
+              padding: '6px 10px',
+              fontSize: 12,
+              wordBreak: 'break-all',
+              userSelect: 'all',
+            }}
+          >
+            {download.url}
+          </code>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// 一键复制的文本：每行一个地址，多平台工具带上平台名，
+// 这样用户粘出来直接就能挑「我要下哪个」。
+const buildToolDownloadText = () =>
+  DOWNLOAD_TOOLS.flatMap((tool) =>
+    tool.downloads.map((download) =>
+      download.platform
+        ? `${tool.name} ${download.platform}：${download.url}`
+        : `${tool.name}：${download.url}`,
+    ),
+  ).join('\n');
+
+// 工具下载集合：面向不熟悉配置的小白用户，复制地址到电脑下载，
+// 装好客户端把上面的 Base URL 与密钥填进去即可用。
+const ToolDownloadPanel = () => (
+  <div style={{ marginTop: 16 }}>
+    <div
+      className='flex flex-wrap gap-3 justify-between'
+      style={{ alignItems: 'center' }}
+    >
+      <Text strong style={{ fontSize: 14 }}>
+        工具下载
+      </Text>
+      <Button
+        type='primary'
+        size='small'
+        icon={<IconCopy />}
+        onClick={() => copyToClipboard(buildToolDownloadText(), '下载地址')}
+      >
+        一键复制
+      </Button>
+    </div>
+    <div style={{ marginTop: 4 }}>
+      <Text type='tertiary' style={{ fontSize: 12 }}>
+        以下客户端需在电脑上安装，一键复制地址后到电脑浏览器打开即可
+      </Text>
+    </div>
+    <div className='flex flex-col gap-2' style={{ marginTop: 12 }}>
+      {DOWNLOAD_TOOLS.map((tool) => (
+        <ToolDownloadRow key={tool.key} tool={tool} />
+      ))}
+    </div>
   </div>
 );
 
@@ -329,6 +479,8 @@ const WechatScan = () => {
             </Paragraph>
           </div>
         ) : null}
+
+        <ToolDownloadPanel />
       </Card>
     </div>
   );
