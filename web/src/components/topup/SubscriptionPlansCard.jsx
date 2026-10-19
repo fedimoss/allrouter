@@ -29,6 +29,7 @@ import {
   Tag,
   Tooltip,
   Typography,
+  Progress,
 } from '@douyinfe/semi-ui';
 import {
   API,
@@ -807,45 +808,111 @@ const SubscriptionPlansCard = ({
                         </div>
                         {isActive && quotaWindows.length > 0 ? (
                           <>
-                            {quotaWindows.map((window, windowIndex) => (
-                              <div
-                                className='text-xs text-gray-500 mb-2'
-                                key={`${window.type}-${windowIndex}`}
-                              >
-                                {formatSubscriptionWindowType(window.type, t)}:{' '}
-                                {window.limit > 0 ? (
-                                  <>
-                                    {renderQuota(window.used)}/
-                                    {renderQuota(window.limit)} · {t('剩余')}{' '}
-                                    {renderQuota(window.remaining)}
-                                  </>
-                                ) : (
-                                  <>
-                                    {t('不限')} · {t('已用')}{' '}
-                                    {renderQuota(window.used)}
-                                  </>
-                                )}
-                                {window.window_seconds > 0 &&
-                                  (window.type === 'custom' ||
-                                    Number(window.duration || 1) > 1) && (
+                            {quotaWindows.map((window, windowIndex) => {
+                              const windowLabel = formatSubscriptionWindowType(
+                                window.type,
+                                t,
+                              );
+                              // Progress 只接受 number；超额时由组件内部将条形裁到 100%，
+                              // 文字仍展示真实百分比，便于看出是否已用超。
+                              const usedPercent =
+                                window.limit > 0
+                                  ? (window.used / window.limit) * 100
+                                  : 0;
+                              const usedPercentText = usedPercent.toFixed(2);
+                              return (
+                                <div
+                                  className='text-xs text-gray-500 mb-2 flex items-center'
+                                  key={`${window.type}-${windowIndex}`}
+                                >
+                                  <div
+                                    style={{
+                                      width: '80px',
+                                      textAlign: 'justify',
+                                    }}
+                                  >
+                                    {windowLabel}:{' '}
+                                  </div>
+
+                                  {window.limit > 0 && (
                                     <>
-                                      {' '}
-                                      ·{' '}
-                                      {formatSubscriptionWindowSeconds(
-                                        window.window_seconds,
-                                        t,
-                                      )}
+                                      <div
+                                        style={{
+                                          width: '100px',
+                                          marginRight: '5px',
+                                        }}
+                                      >
+                                        <Progress
+                                          percent={usedPercent}
+                                          orbitStroke='#dfdfdf'
+                                          aria-label={`${windowLabel} ${t('已使用')} ${usedPercentText}%`}
+                                        />
+                                      </div>
+                                      <div style={{ marginRight: '20px' }}>
+                                        <span
+                                          style={{
+                                            color: '#222',
+                                            fontSize: '18px',
+                                            fontWeight: 'bold',
+                                          }}
+                                        >
+                                          {usedPercentText}
+                                        </span>
+                                        <span
+                                          style={{
+                                            color: '#333',
+                                            fontSize: '12px',
+                                          }}
+                                        >
+                                          %
+                                        </span>
+                                        <span
+                                          style={{
+                                            color: '#999',
+                                            fontSize: '12px',
+                                            marginLeft: '2px',
+                                          }}
+                                        >
+                                          {t('已使用')}
+                                        </span>
+                                      </div>
                                     </>
                                   )}
-                                {window.reset_at > 0 && (
-                                  <>
-                                    {' '}
-                                    · {t('重置')}{' '}
-                                    {formatResetAt(window.reset_at)}
-                                  </>
-                                )}
-                              </div>
-                            ))}
+
+                                  {window.limit > 0 ? (
+                                    <>
+                                      {renderQuota(window.used)}/
+                                      {renderQuota(window.limit)} · {t('剩余')}{' '}
+                                      {renderQuota(window.remaining)}
+                                    </>
+                                  ) : (
+                                    <>
+                                      {t('不限')} · {t('已用')}{' '}
+                                      {renderQuota(window.used)}
+                                    </>
+                                  )}
+                                  {window.window_seconds > 0 &&
+                                    (window.type === 'custom' ||
+                                      Number(window.duration || 1) > 1) && (
+                                      <>
+                                        {' '}
+                                        ·{' '}
+                                        {formatSubscriptionWindowSeconds(
+                                          window.window_seconds,
+                                          t,
+                                        )}
+                                      </>
+                                    )}
+                                  {window.reset_at > 0 && (
+                                    <>
+                                      {' '}
+                                      · {t('重置')}{' '}
+                                      {formatResetAt(window.reset_at)}
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </>
                         ) : (
                           <>
