@@ -1,5 +1,14 @@
 {
   "translation": {
+    "A model discount replaces the provider default. It is not multiplied by it. Markup and the global cache discount remain unchanged.": "填 1 代表 1 折（10%），填 10 代表原價。模型個別折扣會取代預設折扣，不會與其相乘；模型加價和統一快取折扣維持不變。",
+    "Blank inherits the provider default discount": "留空時繼承服務商統一預設折扣",
+    "Inherit provider default": "繼承服務商預設折扣",
+    "Main-site import discount": "主站導入折扣",
+    "Model discount must be between 1 and 10": "模型折扣必須介於 1 到 10 之間",
+    "Model import discount (optional)": "模型個別折扣（選填）",
+    "Provider default discount is used only when a model has no individual discount. An individual model discount replaces this default.": "只有在模型未設定個別折扣時，才會使用服務商統一預設折扣。模型個別折扣會取代預設值。",
+    "Provider default import discount": "服務商統一預設導入折扣",
+    "tenths": "折",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + 圖片生成調用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + 檔案搜尋 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + 檔案搜尋 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

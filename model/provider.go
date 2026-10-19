@@ -85,6 +85,9 @@ type ProviderModelPricing struct {
 	PublicModelName string `json:"public_model_name" gorm:"type:varchar(255);not null;index:idx_provider_public_model,unique"`
 	BaseModelName   string `json:"base_model_name" gorm:"type:varchar(255);not null;index"`
 	Enabled         bool   `json:"enabled" gorm:"default:true;index"`
+	// ImportPriceRatio overrides the provider-wide default for this public model.
+	// Nil inherits ProviderConfig.ImportPriceRatio; cache pricing remains separate.
+	ImportPriceRatio *float64 `json:"import_price_ratio,omitempty" gorm:"type:decimal(10,6)"`
 	// 同步软禁用标记：true 表示该行是被自动同步逻辑（主站模型下架）禁用的；
 	// 服务商/管理员手动保存时会清为 false，避免后续同步误改服务商的手动状态
 	SyncDisabled             bool    `json:"sync_disabled" gorm:"default:false;index"`
@@ -499,6 +502,16 @@ func GetProviderModelPricing(providerId int, publicModelName string) (*ProviderM
 	var pricing ProviderModelPricing
 	err := DB.Where("provider_id = ? AND public_model_name = ? AND enabled = ?", providerId, publicModelName, true).First(&pricing).Error
 	return &pricing, err
+}
+
+func EffectiveProviderImportPriceRatio(modelRatio *float64, defaultRatio float64) float64 {
+	if modelRatio != nil && *modelRatio > 0 && *modelRatio <= 1 {
+		return *modelRatio
+	}
+	if defaultRatio > 0 && defaultRatio <= 1 {
+		return defaultRatio
+	}
+	return 1
 }
 
 func (p *ProviderModelPricing) BeforeCreate(tx *gorm.DB) error {

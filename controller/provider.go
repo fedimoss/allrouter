@@ -421,6 +421,9 @@ func buildProviderAdminResponses(providers []model.Provider, withPricing bool) (
 // self-service response because they need domain verification material.
 func providerSelfResponse(response providerAdminResponse, isOwner bool) interface{} {
 	if isOwner {
+		for i := range response.ModelPricing {
+			response.ModelPricing[i].ImportPriceRatio = nil
+		}
 		return response
 	}
 	domains := make([]gin.H, 0, len(response.Domains))
@@ -1368,7 +1371,7 @@ func AdminDeleteProviderDomain(c *gin.Context) {
 	deleteProviderDomain(c, id)
 }
 
-func listProviderModelPricing(c *gin.Context, providerId int) {
+func listProviderModelPricing(c *gin.Context, providerId int, exposeImportPriceRatio bool) {
 	var rows []model.ProviderModelPricing
 	if err := model.DB.Where("provider_id = ?", providerId).Order("id desc").Find(&rows).Error; err != nil {
 		common.ApiError(c, err)
@@ -1377,6 +1380,9 @@ func listProviderModelPricing(c *gin.Context, providerId int) {
 	pricingMap := getPricingByModelName()
 	for i := range rows {
 		rows[i].ConsumeRebateRatioLevel2 = 0
+		if !exposeImportPriceRatio {
+			rows[i].ImportPriceRatio = nil
+		}
 		if basePricing, ok := pricingMap[rows[i].BaseModelName]; ok {
 			rows[i].BaseBillingMode = basePricing.BillingMode
 		}
@@ -1471,8 +1477,15 @@ func getMarketplaceVisibleModelNames(c *gin.Context) []string {
 	return models
 }
 
-func buildProviderBaseModelChannelPrices(providerId int) ([]providerBaseModelChannelPrice, error) {
-	importPriceRatio := getProviderImportPriceRatio(providerId)
+func buildProviderBaseModelChannelPrices(providerId int, publicModelName string) ([]providerBaseModelChannelPrice, error) {
+	defaultImportPriceRatio := getProviderImportPriceRatio(providerId)
+	importPriceRatio := defaultImportPriceRatio
+	if providerId > 0 && strings.TrimSpace(publicModelName) != "" {
+		var rule model.ProviderModelPricing
+		if err := model.DB.Select("import_price_ratio").Where("provider_id = ? AND public_model_name = ?", providerId, strings.TrimSpace(publicModelName)).First(&rule).Error; err == nil {
+			importPriceRatio = model.EffectiveProviderImportPriceRatio(rule.ImportPriceRatio, defaultImportPriceRatio)
+		}
+	}
 	cacheImportRatio := getProviderImportCachePriceRatio(providerId)
 	pricingMap := getPricingByModelName()
 	var abilities []providerBaseModelPriceAbility
@@ -1593,7 +1606,7 @@ func getProviderMarketplaceVisibleModelNames(c *gin.Context, providerId int) []s
 func listProviderBaseModels(c *gin.Context, providerId int) {
 	models := getProviderMarketplaceVisibleModelNames(c, providerId)
 	if c.Query("with_price") == "true" || c.Query("with_price") == "1" {
-		items, err := buildProviderBaseModelChannelPrices(providerId)
+		items, err := buildProviderBaseModelChannelPrices(providerId, c.Query("public_model_name"))
 		if err != nil {
 			common.ApiError(c, err)
 			return
@@ -1617,13 +1630,16 @@ func listProviderBaseModels(c *gin.Context, providerId int) {
 	common.ApiSuccess(c, models)
 }
 
-func upsertProviderModelPricing(c *gin.Context, providerId int) {
+func upsertProviderModelPricing(c *gin.Context, providerId int, allowImportPriceRatio bool) {
 	var req model.ProviderModelPricing
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	req.ProviderId = providerId
+	if !allowImportPriceRatio {
+		req.ImportPriceRatio = nil
+	}
 	req.PublicModelName = strings.TrimSpace(req.PublicModelName)
 	req.BaseModelName = strings.TrimSpace(req.BaseModelName)
 	if req.PublicModelName == "" || req.BaseModelName == "" {
@@ -1635,6 +1651,10 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 	}
 	if req.Ratio == 0 {
 		req.Ratio = 1
+	}
+	if req.ImportPriceRatio != nil && !validateProviderImportPriceRatio(*req.ImportPriceRatio) {
+		common.ApiErrorMsg(c, "model import price ratio must be greater than 0 and less than or equal to 1")
+		return
 	}
 	req.ConsumeRebateRatioLevel2 = 0
 	// 手动保存视为服务商主动操作，清除同步软禁用标记，避免后续同步误改服务商的手动状态
@@ -1656,21 +1676,25 @@ func upsertProviderModelPricing(c *gin.Context, providerId int) {
 		common.ApiSuccess(c, req)
 		return
 	}
+	updates := map[string]interface{}{
+		"public_model_name":           req.PublicModelName,
+		"base_model_name":             req.BaseModelName,
+		"enabled":                     req.Enabled,
+		"sync_disabled":               false,
+		"pricing_type":                req.PricingType,
+		"ratio":                       req.Ratio,
+		"delta_model_ratio":           req.DeltaModelRatio,
+		"delta_model_price":           req.DeltaModelPrice,
+		"consume_rebate_ratio_level1": req.ConsumeRebateRatioLevel1,
+		"consume_rebate_ratio_level2": 0,
+		"updated_at":                  common.GetTimestamp(),
+	}
+	if allowImportPriceRatio {
+		updates["import_price_ratio"] = req.ImportPriceRatio
+	}
 	if err := model.DB.Model(&model.ProviderModelPricing{}).
 		Where("id = ? AND provider_id = ?", req.Id, providerId).
-		Updates(map[string]interface{}{
-			"public_model_name":           req.PublicModelName,
-			"base_model_name":             req.BaseModelName,
-			"enabled":                     req.Enabled,
-			"sync_disabled":               false,
-			"pricing_type":                req.PricingType,
-			"ratio":                       req.Ratio,
-			"delta_model_ratio":           req.DeltaModelRatio,
-			"delta_model_price":           req.DeltaModelPrice,
-			"consume_rebate_ratio_level1": req.ConsumeRebateRatioLevel1,
-			"consume_rebate_ratio_level2": 0,
-			"updated_at":                  common.GetTimestamp(),
-		}).Error; err != nil {
+		Updates(updates).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -1695,7 +1719,7 @@ func AdminListProviderModelPricing(c *gin.Context) {
 	if !ok {
 		return
 	}
-	listProviderModelPricing(c, id)
+	listProviderModelPricing(c, id, true)
 }
 
 func AdminListProviderBaseModels(c *gin.Context) {
@@ -1708,7 +1732,7 @@ func AdminUpsertProviderModelPricing(c *gin.Context) {
 	if !ok {
 		return
 	}
-	upsertProviderModelPricing(c, id)
+	upsertProviderModelPricing(c, id, true)
 }
 
 func AdminDeleteProviderModelPricing(c *gin.Context) {
@@ -1965,7 +1989,7 @@ func ListProviderModelPricing(c *gin.Context) {
 	if !ok {
 		return
 	}
-	listProviderModelPricing(c, provider.Id)
+	listProviderModelPricing(c, provider.Id, false)
 }
 
 func ListProviderBaseModels(c *gin.Context) {
@@ -1981,7 +2005,7 @@ func UpsertProviderModelPricing(c *gin.Context) {
 	if !ok {
 		return
 	}
-	upsertProviderModelPricing(c, provider.Id)
+	upsertProviderModelPricing(c, provider.Id, false)
 }
 
 func DeleteProviderModelPricing(c *gin.Context) {

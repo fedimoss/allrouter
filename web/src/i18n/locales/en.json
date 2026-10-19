@@ -1,5 +1,14 @@
 {
   "translation": {
+    "A model discount replaces the provider default. It is not multiplied by it. Markup and the global cache discount remain unchanged.": "Enter 1 for a 10% discount or 10 for full price. A model discount replaces the provider default, it is not multiplied by it. Markup and the global cache discount remain unchanged.",
+    "Blank inherits the provider default discount": "Blank inherits the provider default discount",
+    "Inherit provider default": "Inherit provider default",
+    "Main-site import discount": "Main-site import discount",
+    "Model discount must be between 1 and 10": "Model discount must be between 1 and 10",
+    "Model import discount (optional)": "Model import discount (optional)",
+    "Provider default discount is used only when a model has no individual discount. An individual model discount replaces this default.": "Provider default discount is used only when a model has no individual discount. An individual model discount replaces this default.",
+    "Provider default import discount": "Provider default import discount",
+    "tenths": "tenths",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Image generation call {{symbol}}{{price}} / 1 time * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + File search {{count}} calls / 1K calls * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + File search {{count}} time / 1K times * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

@@ -1,5 +1,14 @@
 {
   "translation": {
+    "A model discount replaces the provider default. It is not multiplied by it. Markup and the global cache discount remain unchanged.": "1は10%割引、10は通常価格です。モデル個別の割引はプロバイダーの既定割引を置き換え、乗算しません。上乗せ率とキャッシュの共通割引は変わりません。",
+    "Blank inherits the provider default discount": "空欄の場合はプロバイダーの既定割引を継承します",
+    "Inherit provider default": "プロバイダーの既定値を継承",
+    "Main-site import discount": "メインサイトの仕入れ割引",
+    "Model discount must be between 1 and 10": "モデル割引は1から10の範囲で指定してください",
+    "Model import discount (optional)": "モデル個別の仕入れ割引（任意）",
+    "Provider default discount is used only when a model has no individual discount. An individual model discount replaces this default.": "モデル個別の割引が未設定の場合のみ、プロバイダーの既定割引を使用します。個別割引を設定すると既定値を置き換えます。",
+    "Provider default import discount": "プロバイダーの仕入れ既定割引",
+    "tenths": "割",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + 画像生成APIコール {{symbol}}{{price}} / 1回 * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + File search {{count}} calls / 1K calls * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + ファイル検索 {{count}}回 / 1K回 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one",

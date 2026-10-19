@@ -129,7 +129,8 @@ func applyProviderPricingView(providerId int, pricing []model.Pricing) []model.P
 		if !ok {
 			continue
 		}
-		result = append(result, applyProviderPricingRule(item, rule, importPriceRatio, cacheImportRatio))
+		effectiveImportRatio := model.EffectiveProviderImportPriceRatio(rule.ImportPriceRatio, importPriceRatio)
+		result = append(result, applyProviderPricingRule(item, rule, effectiveImportRatio, cacheImportRatio))
 	}
 	return result
 }

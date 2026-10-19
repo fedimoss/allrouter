@@ -1,5 +1,14 @@
 {
   "translation": {
+    "A model discount replaces the provider default. It is not multiplied by it. Markup and the global cache discount remain unchanged.": "Saisissez 1 pour une remise de 10 %, ou 10 pour le plein tarif. La remise propre au modèle remplace celle du fournisseur sans se cumuler avec elle. Les majorations et la remise globale du cache restent inchangées.",
+    "Blank inherits the provider default discount": "Laisser vide pour reprendre la remise par défaut du fournisseur",
+    "Inherit provider default": "Hériter de la remise par défaut",
+    "Main-site import discount": "Remise d'import du site principal",
+    "Model discount must be between 1 and 10": "La remise du modèle doit être comprise entre 1 et 10",
+    "Model import discount (optional)": "Remise d'import du modèle (facultative)",
+    "Provider default discount is used only when a model has no individual discount. An individual model discount replaces this default.": "La remise par défaut du fournisseur s'applique uniquement aux modèles sans remise individuelle. Une remise propre au modèle la remplace.",
+    "Provider default import discount": "Remise d'import par défaut du fournisseur",
+    "tenths": "dixièmes",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Appel de génération d'image {{symbol}}{{price}} / 1 fois * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + Recherche de fichiers {{count}} appels / 1K appels * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Recherche de fichiers {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

@@ -220,6 +220,7 @@ const emptyPricing = {
   public_model_name: '',
   base_model_name: '',
   enabled: true,
+  model_import_price_discount: '',
   pricing_type: 'ratio',
   ratio: 1,
   markup_percent: 0,
@@ -413,6 +414,11 @@ const getPricingFormValues = (pricing) => {
   const values = pricing || emptyPricing;
   return {
     ...values,
+    model_import_price_discount:
+      values.import_price_ratio === undefined ||
+      values.import_price_ratio === null
+        ? ''
+        : ratioToDiscount(values.import_price_ratio),
     markup_percent: ratioToMarkupPercent(values.ratio),
   };
 };
@@ -512,6 +518,7 @@ const ProviderPage = () => {
   const [baseModelPrices, setBaseModelPrices] = useState([]);
   const [baseModelPriceProviderId, setBaseModelPriceProviderId] =
     useState(null);
+  const [baseModelPricePublicName, setBaseModelPricePublicName] = useState('');
   const [selectedBaseModel, setSelectedBaseModel] = useState('');
   const [baseModelsLoading, setBaseModelsLoading] = useState(false);
   const [pricingType, setPricingType] = useState(emptyPricing.pricing_type);
@@ -721,11 +728,16 @@ const ProviderPage = () => {
     }
   };
 
-  const fetchBaseModels = async (provider = currentProvider) => {
+  const fetchBaseModels = async (
+    provider = currentProvider,
+    publicModelName = editingPricing?.public_model_name || '',
+  ) => {
     const providerId = provider?.id || 0;
     if (
       baseModelsLoading ||
-      (baseModels.length > 0 && baseModelPriceProviderId === providerId)
+      (baseModels.length > 0 &&
+        baseModelPriceProviderId === providerId &&
+        baseModelPricePublicName === publicModelName)
     )
       return;
     setBaseModelsLoading(true);
@@ -737,6 +749,7 @@ const ProviderPage = () => {
         params: {
           with_price: true,
           provider_id: adminMode ? providerId : undefined,
+          public_model_name: publicModelName || undefined,
         },
       });
       if (res.data.success) {
@@ -749,6 +762,7 @@ const ProviderPage = () => {
           setBaseModelPrices(data.items || []);
         }
         setBaseModelPriceProviderId(providerId);
+        setBaseModelPricePublicName(publicModelName);
       } else {
         showError(res.data.message);
       }
@@ -814,7 +828,7 @@ const ProviderPage = () => {
     pricingFormRef.current.setValues(getPricingFormValues(editingPricing));
     setSelectedBaseModel(editingPricing?.base_model_name || '');
     setPricingType(editingPricing?.pricing_type || emptyPricing.pricing_type);
-    fetchBaseModels(currentProvider);
+    fetchBaseModels(currentProvider, editingPricing?.public_model_name || '');
   }, [pricingModalVisible, editingPricing]);
 
   const openProviderModal = (provider = null) => {
@@ -959,7 +973,7 @@ const ProviderPage = () => {
     setSelectedBaseModel(pricing?.base_model_name || '');
     setPricingType(pricing?.pricing_type || emptyPricing.pricing_type);
     setPricingModalVisible(true);
-    fetchBaseModels(currentProvider);
+    fetchBaseModels(currentProvider, pricing?.public_model_name || '');
   };
 
   const openOwnerModal = () => {
@@ -1573,14 +1587,23 @@ const ProviderPage = () => {
     }
     const nextPricingType =
       values.pricing_type || pricingType || emptyPricing.pricing_type;
-    const { markup_percent, ...submitValues } = values;
+    const submitValues = { ...values };
+    delete submitValues.markup_percent;
+    delete submitValues.model_import_price_discount;
+    const markupPercent = values.markup_percent;
     const payload = {
       ...submitValues,
       id: editingPricing?.id || 0,
       enabled: values.enabled !== false,
       pricing_type: nextPricingType,
       ratio:
-        nextPricingType === 'ratio' ? markupPercentToRatio(markup_percent) : 1,
+        nextPricingType === 'ratio' ? markupPercentToRatio(markupPercent) : 1,
+      import_price_ratio:
+        values.model_import_price_discount === undefined ||
+        values.model_import_price_discount === null ||
+        values.model_import_price_discount === ''
+          ? null
+          : discountToRatio(Number(values.model_import_price_discount)),
       delta_model_ratio:
         nextPricingType === 'delta' ? Number(values.delta_model_ratio || 0) : 0,
       delta_model_price:
@@ -1590,6 +1613,18 @@ const ProviderPage = () => {
       ),
       consume_rebate_ratio_level2: 0,
     };
+    const modelImportDiscount = values.model_import_price_discount;
+    if (
+      modelImportDiscount !== undefined &&
+      modelImportDiscount !== null &&
+      modelImportDiscount !== '' &&
+      (!Number.isFinite(Number(modelImportDiscount)) ||
+        Number(modelImportDiscount) < 1 ||
+        Number(modelImportDiscount) > 10)
+    ) {
+      showError(t('Model discount must be between 1 and 10'));
+      return;
+    }
     // 前端拦截：已下架的主站模型不允许启用（后端亦有同样校验，这里先给即时提示）
     if (payload.enabled && selectedBaseModelUnavailable) {
       showError(
@@ -1951,6 +1986,18 @@ const ProviderPage = () => {
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: t('展示模型'), dataIndex: 'public_model_name' },
     { title: t('实际模型'), dataIndex: 'base_model_name' },
+    ...(adminMode
+      ? [
+          {
+            title: t('Main-site import discount'),
+            dataIndex: 'import_price_ratio',
+            render: (ratio) =>
+              ratio === undefined || ratio === null
+                ? t('Inherit provider default')
+                : formatProviderDiscount(ratio, t),
+          },
+        ]
+      : []),
     {
       title: t('计费类型'),
       dataIndex: 'base_billing_mode',
@@ -2164,7 +2211,7 @@ const ProviderPage = () => {
         ),
     },
     {
-      title: t('服务商折扣'),
+      title: t('Provider default import discount'),
       dataIndex: 'import_price_ratio',
       render: (value) => formatProviderDiscount(value, t),
     },
@@ -2290,7 +2337,7 @@ const ProviderPage = () => {
               />
               <Form.InputNumber
                 field='import_price_ratio'
-                label={t('模型成本折扣')}
+                label={t('Provider default import discount')}
                 min={1}
                 max={10}
                 step={0.1}
@@ -2300,6 +2347,11 @@ const ProviderPage = () => {
               <Text type='tertiary' size='small'>
                 {t(
                   '填 1 表示 1 折优惠，填 10 表示原价不优惠；折扣只能填写 1 到 10。服务商用户售价会在折扣价基础上继续按服务商模型定价加价；加价仅作用于输入和输出，缓存按主站设定的价格计费。',
+                )}
+              </Text>
+              <Text type='tertiary' size='small'>
+                {t(
+                  'Provider default discount is used only when a model has no individual discount. An individual model discount replaces this default.',
                 )}
               </Text>
               <Form.InputNumber
@@ -3042,6 +3094,26 @@ const ProviderPage = () => {
             label={t('启用')}
             disabled={selectedBaseModelUnavailable}
           />
+          {adminMode ? (
+            <>
+              <Form.InputNumber
+                field='model_import_price_discount'
+                label={t('Model import discount (optional)')}
+                min={1}
+                max={10}
+                step={0.1}
+                precision={1}
+                suffix={t('tenths')}
+                allowEmpty
+                placeholder={t('Blank inherits the provider default discount')}
+              />
+              <Text type='tertiary' size='small'>
+                {t(
+                  'A model discount replaces the provider default. It is not multiplied by it. Markup and the global cache discount remain unchanged.',
+                )}
+              </Text>
+            </>
+          ) : null}
           <Form.Select
             field='pricing_type'
             label={t('计价方式')}

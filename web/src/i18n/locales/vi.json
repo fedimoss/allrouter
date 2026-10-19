@@ -1,5 +1,14 @@
 {
   "translation": {
+    "A model discount replaces the provider default. It is not multiplied by it. Markup and the global cache discount remain unchanged.": "Nhập 1 để giảm 10% hoặc 10 để tính giá gốc. Chiết khấu riêng của mô hình thay thế chiết khấu mặc định của nhà cung cấp, không nhân chồng với nhau. Phần cộng giá và chiết khấu bộ nhớ đệm chung vẫn giữ nguyên.",
+    "Blank inherits the provider default discount": "Để trống để dùng chiết khấu mặc định của nhà cung cấp",
+    "Inherit provider default": "Dùng chiết khấu mặc định",
+    "Main-site import discount": "Chiết khấu nhập từ trang chính",
+    "Model discount must be between 1 and 10": "Chiết khấu mô hình phải nằm trong khoảng từ 1 đến 10",
+    "Model import discount (optional)": "Chiết khấu nhập riêng cho mô hình (không bắt buộc)",
+    "Provider default discount is used only when a model has no individual discount. An individual model discount replaces this default.": "Chỉ dùng chiết khấu mặc định của nhà cung cấp khi mô hình chưa có chiết khấu riêng. Chiết khấu riêng sẽ thay thế giá trị mặc định.",
+    "Provider default import discount": "Chiết khấu nhập mặc định của nhà cung cấp",
+    "tenths": "phần mười",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Gọi tạo hình ảnh {{symbol}}{{price}} / 1 lần * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + Tim kiem tep {{count}} lan / 1K lan * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Tìm kiếm tệp {{count}} lần / 1K lần * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

@@ -1,5 +1,14 @@
 {
   "translation": {
+    "A model discount replaces the provider default. It is not multiplied by it. Markup and the global cache discount remain unchanged.": "Введите 1 для скидки 10% или 10 для полной цены. Индивидуальная скидка модели заменяет скидку поставщика по умолчанию и не перемножается с ней. Наценка модели и общая скидка на кэш не меняются.",
+    "Blank inherits the provider default discount": "Оставьте поле пустым, чтобы использовать скидку поставщика по умолчанию",
+    "Inherit provider default": "Использовать скидку по умолчанию",
+    "Main-site import discount": "Скидка на закупку у основного сайта",
+    "Model discount must be between 1 and 10": "Скидка модели должна быть от 1 до 10",
+    "Model import discount (optional)": "Индивидуальная скидка модели (необязательно)",
+    "Provider default discount is used only when a model has no individual discount. An individual model discount replaces this default.": "Скидка поставщика по умолчанию применяется только к моделям без индивидуальной скидки. Индивидуальная скидка заменяет значение по умолчанию.",
+    "Provider default import discount": "Скидка поставщика по умолчанию при закупке",
+    "tenths": "десятых",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Генерация изображения {{symbol}}{{price}} / 1 вызов * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + File search {{count}} calls / 1K calls * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Поиск файлов {{count}} раз / 1K раз * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
