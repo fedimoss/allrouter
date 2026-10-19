@@ -101,8 +101,11 @@ func Login(c *gin.Context) {
 	setupLogin(&user, c, loginRequest.Remember)
 }
 
-// setup session & cookies and then return user info
-func setupLogin(user *model.User, c *gin.Context, rememberMe bool) {
+// establishUserSession 把登录态写入 session 与 cookie。
+// 密码登录、第三方 OAuth、微信扫码等所有登录入口都必须走这里，
+// 避免出现第二处 session 写入逻辑导致字段或 cookie 属性不一致。
+// rememberMe 为 true 时会话有效期为 30 天，否则 7 天。
+func establishUserSession(c *gin.Context, user *model.User, rememberMe bool) error {
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
@@ -111,7 +114,6 @@ func setupLogin(user *model.User, c *gin.Context, rememberMe bool) {
 	session.Set("role", user.Role)
 	session.Set("status", user.Status)
 	session.Set("group", user.Group)
-	// 根据"保持登录状态"选项设置会话有效期：未勾选7天，勾选30天
 	maxAge := common.SessionMaxAgeDefault
 	if rememberMe {
 		maxAge = common.SessionMaxAgeExtended
@@ -124,27 +126,41 @@ func setupLogin(user *model.User, c *gin.Context, rememberMe bool) {
 		Secure:   false,
 		SameSite: http.SameSiteStrictMode,
 	})
-	err := session.Save()
-	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
-		return
+	if err := session.Save(); err != nil {
+		return err
 	}
 	// 清理旧版本曾因缺少 Path=/ 写出的同名 session cookie
 	clearLegacySessionCookies(c)
+	return nil
+}
+
+// buildLoginUserPayload 组装返回给前端的登录用户信息。
+// 前端据此写入 localStorage.user（路由守卫、角色与模块权限都依赖它）。
+func buildLoginUserPayload(user *model.User, providerId int) map[string]any {
+	return map[string]any{
+		"id":                user.Id,
+		"provider_id":       providerId,
+		"username":          user.Username,
+		"display_name":      user.DisplayName,
+		"role":              user.Role,
+		"status":            user.Status,
+		"group":             user.Group,
+		"is_provider_owner": model.IsProviderOwner(user.Id),
+		"permissions":       user.Permissions,
+	}
+}
+
+// setup session & cookies and then return user info
+func setupLogin(user *model.User, c *gin.Context, rememberMe bool) {
+	if err := establishUserSession(c, user, rememberMe); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
+		return
+	}
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
-		"data": map[string]any{
-			"id":                user.Id,
-			"provider_id":       providerId,
-			"username":          user.Username,
-			"display_name":      user.DisplayName,
-			"role":              user.Role,
-			"status":            user.Status,
-			"group":             user.Group,
-			"is_provider_owner": model.IsProviderOwner(user.Id),
-			"permissions":       user.Permissions,
-		},
+		"data":    buildLoginUserPayload(user, providerId),
 	})
 }
 

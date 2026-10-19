@@ -31,6 +31,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -83,14 +84,8 @@ func WechatScanEntry(c *gin.Context) {
 
 // 新建微信用户的默认值。
 const (
-	// wechatWebAuthUsernamePrefix 随机用户名/显示名前缀，便于后台辨认来源。
-	wechatWebAuthUsernamePrefix = "wx_"
-	// wechatWebAuthUsernameRandomLen 随机部分长度：前缀 3 + 随机 13 = 16，处于用户名上限 20 以内。
-	wechatWebAuthUsernameRandomLen = 13
 	// wechatWebAuthPasswordRandomLen 随机密码长度，需落在 User.Password 校验的 8-20 之间。
 	wechatWebAuthPasswordRandomLen = 16
-	// wechatWebAuthMaxGenerateAttempts 生成唯一用户名时的最大重试次数，避免极端情况下死循环。
-	wechatWebAuthMaxGenerateAttempts = 5
 	// wechatWebAuthDefaultTokenName 扫码用户默认令牌的名称，同名令牌会被复用。
 	wechatWebAuthDefaultTokenName = "default"
 	// wechatWebAuthDefaultTokenGroup 默认令牌的分组。
@@ -148,11 +143,25 @@ func WechatWebAuthToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 被封禁的账号不能建立登录态，与 completeWechatLogin 保持同一套准入判断。
+	if user.Status != common.UserStatusEnabled {
+		logger.LogWarn(c.Request.Context(), "wechat web auth user is disabled")
+		common.ApiErrorMsg(c, "用户已被封禁")
+		return
+	}
 
 	apiKey, err := ensureWechatDefaultToken(user.Id, providerId)
 	if err != nil {
 		logger.LogError(c.Request.Context(), "wechat web auth ensure default token failed: "+err.Error())
 		common.ApiError(c, err)
+		return
+	}
+
+	// 扫码即登录：拿到 openid 已唯一确定用户，无需再走用户名密码登录。
+	// 这里直接建立 session，用户停留在本页即可点顶栏导航进入站内其它页面。
+	if err := establishUserSession(c, user, false); err != nil {
+		logger.LogError(c.Request.Context(), "wechat web auth establish session failed: "+err.Error())
+		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}
 
@@ -228,7 +237,9 @@ func findOrCreateWechatUser(c *gin.Context, providerId int, openID string) (*mod
 		return nil, false, "", err
 	}
 
-	username, err := generateUniqueWechatUsername()
+	// 与 /api/oauth/wechat/qr 共用同一套命名（见 newWechatUserIdentity）：
+	// 首选 wechat_<ID>，该名字被占用时函数内部已退化为 wechat_<随机串>。
+	username, displayName, err := newWechatUserIdentity()
 	if err != nil {
 		return nil, false, "", err
 	}
@@ -239,7 +250,7 @@ func findOrCreateWechatUser(c *gin.Context, providerId int, openID string) (*mod
 		ProviderId:  providerId,
 		WeChatId:    openID,
 		Username:    username,
-		DisplayName: username, // 与 username 相同
+		DisplayName: displayName,
 		Password:    plainPassword,
 		// email 留空：微信扫码拿不到邮箱。空值会跳过邮箱唯一性校验，
 		// 也避免用随机假邮箱占用全局 email 唯一索引。
@@ -255,42 +266,28 @@ func findOrCreateWechatUser(c *gin.Context, providerId int, openID string) (*mod
 	return user, true, plainPassword, nil
 }
 
-// generateUniqueWechatUsername 生成全局唯一的随机用户名（同时用作 display_name）。
-// 用户名在库中是全局唯一（UserIdentityConflictFieldsGlobally 不带 provider），
-// 因此必须生成后校验、冲突则重试。
-func generateUniqueWechatUsername() (string, error) {
-	for i := 0; i < wechatWebAuthMaxGenerateAttempts; i++ {
-		candidate := wechatWebAuthUsernamePrefix + common.GetRandomString(wechatWebAuthUsernameRandomLen)
-		usernameConflict, _, err := model.UserIdentityConflictFieldsGlobally(0, candidate, "")
-		if err != nil {
-			return "", err
-		}
-		if !usernameConflict {
-			return candidate, nil
-		}
-	}
-	return "", errors.New("生成唯一用户名失败，请重试")
-}
-
 // buildWechatWebAuthPayload 组装返回给前端的展示数据。
 //
 // site_url 取当前请求域名（即用户扫码访问的站点域名）；api_key 为真实令牌 key。
 // 各协议实际使用的 Base URL 由前端按 SDK 规则拼接（OpenAI 系列含 /v1，Anthropic 不含），
 // 因此这里只返回站点根地址，避免把某个协议的路径规则写死在服务端。
 // password 仅在本次新建账号时返回（明文只此一次，库中为哈希，之后无法再取回）。
+//
+// 同时并入 buildLoginUserPayload 的登录用户字段：扫码即登录，前端据此写入
+// localStorage.user（路由守卫、角色与模块权限都读它）。
 func buildWechatWebAuthPayload(c *gin.Context, openID string, user *model.User, created bool, plainPassword string, apiKey string) gin.H {
-	return gin.H{
-		"openid":       openID,
-		"found":        !created,
-		"created":      created,
-		"site_url":     wechatWebAuthSiteURL(c),
-		"api_key":      apiKey,
-		"username":     user.Username,
-		"password":     plainPassword,
-		"user_id":      user.Id,
-		"display_name": user.DisplayName,
-		"email":        user.Email,
-	}
+	payload := buildLoginUserPayload(
+		user,
+		common.GetContextKeyInt(c, constant.ContextKeyProviderId),
+	)
+	payload["openid"] = openID
+	payload["found"] = !created
+	payload["created"] = created
+	payload["site_url"] = wechatWebAuthSiteURL(c)
+	payload["api_key"] = apiKey
+	payload["password"] = plainPassword
+	payload["email"] = user.Email
+	return payload
 }
 
 // wechatWebAuthSiteURL 用当前请求 Host 组装站点根地址（不含任何 API 路径）。

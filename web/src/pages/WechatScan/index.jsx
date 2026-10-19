@@ -32,13 +32,19 @@ For commercial licensing, please contact support@quantumnous.com
  *     整体灰底、选中项白底（与配置页的 API 分段样式一致）；
  *     实际这些协议共用同一个 Base URL，因此不重复展示多份地址。
  *   - 仅新建账号时额外展示一次账号密码（已有账号只展示协议区块）。
+ *   - 整块取值区只保留一个「一键复制」入口，复制当前协议下的全部配置，
+ *     因此各取值行不再单独挂复制按钮，避免同一件事重复点多次。
+ *   - 底部工具下载集合：只列工具名与下载网址。本页在手机上打开，桌面客户端装不了，
+ *     用户是复制地址到电脑下载，所以只留一个「一键复制」复制全部地址，
+ *     不渲染逐条跳转/复制按钮，也不加载品牌图标。
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button, Card, RadioGroup, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { IconCopy } from '@douyinfe/semi-icons';
-import { API } from '../../helpers';
+import { API, updateAPI } from '../../helpers';
+import { UserContext } from '../../context/User';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -48,6 +54,7 @@ const { Title, Paragraph, Text } = Typography;
 //   - OpenAI / Responses 用 openai SDK 规范，base_url 需带 /v1（SDK 自己补 /chat/completions 等）；
 //   - Anthropic 官方 SDK 默认 base_url 为 https://api.anthropic.com（不含 /v1），
 //     由 SDK 自行补 /v1/messages，因此这里不能再带 /v1。
+// baseUrlEnv / apiKeyEnv：该协议对应的环境变量名，供“一键复制”生成可直接粘贴的配置。
 const API_PROTOCOLS = [
   {
     key: 'openai',
@@ -55,6 +62,8 @@ const API_PROTOCOLS = [
     desc: 'Chat Completions，多数工具使用的 API。任何可设置 OpenAI base URL 的工具都能用。',
     hint: '填入 OPENAI_BASE_URL。',
     baseUrlSuffix: '/v1',
+    baseUrlEnv: 'OPENAI_BASE_URL',
+    apiKeyEnv: 'OPENAI_API_KEY',
   },
   {
     key: 'responses',
@@ -62,6 +71,8 @@ const API_PROTOCOLS = [
     desc: 'OpenAI 较新的 API: 推理、内置工具项、加密推理。Codex 使用它。',
     hint: '填入 OPENAI_BASE_URL。',
     baseUrlSuffix: '/v1',
+    baseUrlEnv: 'OPENAI_BASE_URL',
+    apiKeyEnv: 'OPENAI_API_KEY',
   },
   {
     key: 'anthropic',
@@ -69,6 +80,66 @@ const API_PROTOCOLS = [
     desc: 'Messages API。 Claude Code 读取 ANTHROPIC_AUTH_TOKEN 而非密钥。',
     hint: '填入 ANTHROPIC_BASE_URL。',
     baseUrlSuffix: '',
+    baseUrlEnv: 'ANTHROPIC_BASE_URL',
+    apiKeyEnv: 'ANTHROPIC_AUTH_TOKEN',
+  },
+];
+
+// 工具下载集合：面向不熟悉配置的用户，装完客户端把上面的 Base URL 与密钥填进去即可用。
+// platform 用「Windows / macOS（Apple 芯片）」这类说法，避免 x64、arm64 等术语。
+// chatgpt / claude 各自的 mac 链接在原始资料里重复出现，这里按 url 去重后只保留一个。
+const DOWNLOAD_TOOLS = [
+  {
+    key: 'workbuddy',
+    name: 'WorkBuddy',
+    downloads: [{ url: 'https://www.workbuddy.cn/#download-section' }],
+  },
+  {
+    key: 'doubao',
+    name: 'Doubao 豆包',
+    downloads: [{ url: 'https://www.doubao.com/download/desktop' }],
+  },
+  {
+    key: 'kimi',
+    name: 'Kimi',
+    downloads: [{ url: 'https://www.kimi.ai/zh-hans/products/download' }],
+  },
+  {
+    key: 'trae',
+    name: 'TRAE',
+    downloads: [{ url: 'https://www.trae.cn/download' }],
+  },
+  {
+    key: 'qoder',
+    name: 'Qoder',
+    downloads: [{ url: 'https://qoder.cn/download' }],
+  },
+  {
+    key: 'zcode',
+    name: 'ZCode',
+    downloads: [{ url: 'https://zcode.z.ai/cn#all-downloads' }],
+  },
+  {
+    key: 'cc-switch',
+    name: 'CC Switch',
+    downloads: [{ url: 'https://github.com/farion1231/cc-switch/releases' }],
+  },
+  {
+    key: 'chatgpt',
+    name: 'ChatGPT',
+    downloads: [
+      { platform: 'Windows', url: 'https://codexapp.agentsmirror.com/latest/win-x64' },
+      { platform: 'macOS（Apple 芯片）', url: 'https://codexapp.agentsmirror.com/latest/mac-arm64' },
+      { platform: 'macOS（Intel 芯片）', url: 'https://codexapp.agentsmirror.com/latest/mac-intel' },
+    ],
+  },
+  {
+    key: 'claude',
+    name: 'Claude',
+    downloads: [
+      { platform: 'Windows', url: 'https://claudeapp.agentsmirror.com/latest/win-x64' },
+      { platform: 'macOS', url: 'https://claudeapp.agentsmirror.com/latest/mac' },
+    ],
   },
 ];
 
@@ -93,30 +164,130 @@ const copyToClipboard = async (text, label) => {
   }
 };
 
-// 带复制按钮的取值展示块。
-const CopyableValue = ({ label, value }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-    <code
-      style={{
-        background: '#f3f4f6',
-        borderRadius: 6,
-        padding: '6px 10px',
-        wordBreak: 'break-all',
-      }}
+// 只读取值行：标签与值成一行，长内容自动换行。
+// 页面只保留一个「一键复制」入口，因此这里不再单独挂复制按钮，值本身可手动选中。
+// 底色用 Semi 主题 token，而不是写死的浅灰，保证暗色模式下同样清晰。
+const ConfigRow = ({ label, value, hint }) => (
+  <div>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+      <span style={{ width: 76, flexShrink: 0, color: '#6b7280', lineHeight: '30px' }}>
+        {label}
+      </span>
+      <code
+        style={{
+          flex: 1,
+          minWidth: 0,
+          background: 'var(--semi-color-bg-0)',
+          border: '1px solid var(--semi-color-border)',
+          borderRadius: 6,
+          padding: '6px 10px',
+          wordBreak: 'break-all',
+          userSelect: 'all',
+        }}
+      >
+        {value}
+      </code>
+    </div>
+    {hint ? (
+      <div style={{ marginLeft: 88, marginTop: 4 }}>
+        <Text type='tertiary'>{hint}</Text>
+      </div>
+    ) : null}
+  </div>
+);
+
+// 单个工具的下载条：工具名 + 下载地址（多平台时带平台名）。
+// 本页由手机扫码打开，这些桌面客户端在手机上装不了，用户需要把地址带到电脑上打开，
+// 所以这里只显示网址原文（可手动选中），复制入口统一收在面板右上角的「一键复制」。
+const ToolDownloadRow = ({ tool }) => (
+  <div
+    style={{
+      padding: '12px 14px',
+      borderRadius: 8,
+      background: 'var(--semi-color-bg-0)',
+      border: '1px solid var(--semi-color-border)',
+    }}
+  >
+    <div style={{ fontWeight: 600, color: 'var(--semi-color-text-0)' }}>
+      {tool.name}
+    </div>
+    <div className='flex flex-col gap-2' style={{ marginTop: 8 }}>
+      {tool.downloads.map((download) => (
+        // 多平台工具（ChatGPT / Claude）平台标签单独占一行，避免窄屏下
+        // 标签与网址挤在一起，用户分不清哪个地址对应哪个系统。
+        <div key={download.url}>
+          {download.platform ? (
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>
+              {download.platform}
+            </div>
+          ) : null}
+          <code
+            style={{
+              display: 'block',
+              background: 'var(--semi-color-fill-0)',
+              border: '1px solid var(--semi-color-border)',
+              borderRadius: 6,
+              padding: '6px 10px',
+              fontSize: 12,
+              wordBreak: 'break-all',
+              userSelect: 'all',
+            }}
+          >
+            {download.url}
+          </code>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// 一键复制的文本：每行一个地址，多平台工具带上平台名，
+// 这样用户粘出来直接就能挑「我要下哪个」。
+const buildToolDownloadText = () =>
+  DOWNLOAD_TOOLS.flatMap((tool) =>
+    tool.downloads.map((download) =>
+      download.platform
+        ? `${tool.name} ${download.platform}：${download.url}`
+        : `${tool.name}：${download.url}`,
+    ),
+  ).join('\n');
+
+// 工具下载集合：面向不熟悉配置的小白用户，复制地址到电脑下载，
+// 装好客户端把上面的 Base URL 与密钥填进去即可用。
+const ToolDownloadPanel = () => (
+  <div style={{ marginTop: 16 }}>
+    <div
+      className='flex flex-wrap gap-3 justify-between'
+      style={{ alignItems: 'center' }}
     >
-      {value}
-    </code>
-    <Button
-      size='small'
-      icon={<IconCopy />}
-      onClick={() => copyToClipboard(value, label)}
-      aria-label={`复制${label}`}
-    />
+      <Text strong style={{ fontSize: 14 }}>
+        工具下载
+      </Text>
+      <Button
+        type='primary'
+        size='small'
+        icon={<IconCopy />}
+        onClick={() => copyToClipboard(buildToolDownloadText(), '下载地址')}
+      >
+        一键复制
+      </Button>
+    </div>
+    <div style={{ marginTop: 4 }}>
+      <Text type='tertiary' style={{ fontSize: 12 }}>
+        以下客户端需在电脑上安装，一键复制地址后到电脑浏览器打开即可
+      </Text>
+    </div>
+    <div className='flex flex-col gap-2' style={{ marginTop: 12 }}>
+      {DOWNLOAD_TOOLS.map((tool) => (
+        <ToolDownloadRow key={tool.key} tool={tool} />
+      ))}
+    </div>
   </div>
 );
 
 const WechatScan = () => {
   const [searchParams] = useSearchParams();
+  const [, userDispatch] = useContext(UserContext);
   const [status, setStatus] = useState('loading'); // loading | done | error
   const [loadingText, setLoadingText] = useState('正在加载，请稍候…');
   const [info, setInfo] = useState(null);
@@ -140,10 +311,10 @@ const WechatScan = () => {
         created: true,
         site_url: window.location.origin,
         api_key: 'sk-debug-demo-key-1234567890',
-        username: 'wx_debug_demo',
+        username: 'wechat_6021',
         password: 'debug_password_demo',
         user_id: 0,
-        display_name: 'wx_debug_demo',
+        display_name: 'WeChat User',
         email: '',
       });
       setStatus('done');
@@ -172,6 +343,15 @@ const WechatScan = () => {
       const payload = res?.data?.data;
       if (!res?.data?.success) {
         throw new Error(res?.data?.message || '获取账号信息失败');
+      }
+      // 扫码即登录：后端已建立 session，这里同步写入本地登录态，
+      // 顶栏与路由守卫据此放行，用户可留在本页点导航进入站内其它页面。
+      // 注意必须调用 updateAPI()：请求头 New-API-User 取自 localStorage，
+      // 不同步更新会因与 session 里的用户 id 不一致而被判 401。
+      if (payload?.id) {
+        localStorage.setItem('user', JSON.stringify(payload));
+        userDispatch({ type: 'login', payload });
+        updateAPI();
       }
       setInfo(payload);
       setStatus('done');
@@ -205,6 +385,16 @@ const WechatScan = () => {
     API_PROTOCOLS.find((item) => item.key === protocolKey) || API_PROTOCOLS[0];
   // 各协议实际的 Base URL：站点根地址 + 该协议后缀（OpenAI 系列 /v1，Anthropic 为空）。
   const activeBaseUrl = `${info?.site_url || ''}${activeProtocol.baseUrlSuffix}`;
+  // 一键复制的内容：当前协议的 Base URL / 密钥，新账号时附带账号密码，
+  // 拼成可直接粘贴到终端或配置文件的文本，省去逐个复制。
+  const buildConfigText = () =>
+    [
+      `${activeProtocol.baseUrlEnv}=${activeBaseUrl}`,
+      `${activeProtocol.apiKeyEnv}=${info?.api_key || ''}`,
+      ...(info?.created
+        ? [`账号=${info?.username || ''}`, `密码=${info?.password || ''}`]
+        : []),
+    ].join('\n');
 
   return (
     <div className='flex justify-center items-start min-h-screen p-4 sm:p-8'>
@@ -226,51 +416,71 @@ const WechatScan = () => {
         </div>
 
         <Paragraph style={{ marginTop: 12 }}>{activeProtocol.desc}</Paragraph>
-        <div className='flex flex-col gap-4' style={{ marginTop: 16 }}>
-          <div>
-            <div className='flex gap-3' style={{ alignItems: 'center' }}>
-              <span style={{ width: 76, flexShrink: 0, color: '#6b7280' }}>Base URL</span>
-              <CopyableValue label='Base URL' value={activeBaseUrl} />
-            </div>
-            <div style={{ marginLeft: 88, marginTop: 4 }}>
-              <Text type='tertiary'>{activeProtocol.hint}</Text>
-            </div>
+
+        {/* 配置面板：头部只放一个一键复制入口，下方集中展示该协议的全部取值 */}
+        <div
+          style={{
+            marginTop: 16,
+            padding: 16,
+            borderRadius: 8,
+            background: 'var(--semi-color-fill-0)',
+            border: '1px solid var(--semi-color-border)',
+          }}
+        >
+          <div
+            className='flex flex-wrap gap-3 justify-between'
+            style={{ alignItems: 'center' }}
+          >
+            <Text strong style={{ fontSize: 14 }}>
+              接入配置
+            </Text>
+            <Button
+              type='primary'
+              size='small'
+              icon={<IconCopy />}
+              onClick={() => copyToClipboard(buildConfigText(), '接入配置')}
+            >
+              一键复制
+            </Button>
           </div>
-          <div className='flex gap-3' style={{ alignItems: 'center' }}>
-            <span style={{ width: 76, flexShrink: 0, color: '#6b7280' }}>API 密钥</span>
-            <CopyableValue label='API 密钥' value={info?.api_key} />
+
+          <div className='flex flex-col gap-3' style={{ marginTop: 12 }}>
+            <ConfigRow
+              label='Base URL'
+              value={activeBaseUrl}
+              hint={activeProtocol.hint}
+            />
+            <ConfigRow label='API 密钥' value={info?.api_key} />
           </div>
         </div>
 
         {info?.created ? (
           <div
             style={{
-              marginTop: 20,
+              marginTop: 12,
               padding: 12,
               borderRadius: 8,
-              background: '#fffbeb',
-              border: '1px solid #fde68a',
+              // 用主题 token 而非写死的浅黄：暗色模式下 Semi 的 Text 是浅色，
+              // 写死浅底会让正文几乎不可见。
+              background: 'var(--semi-color-warning-light-default)',
+              border: '1px solid var(--semi-color-warning-light-active)',
             }}
           >
             <Text strong>已为你创建新账号，请立即保存以下信息：</Text>
             <div className='flex flex-col gap-2' style={{ marginTop: 8 }}>
-              <div className='flex gap-3' style={{ alignItems: 'center' }}>
-                <span style={{ width: 76, flexShrink: 0, color: '#6b7280' }}>账号</span>
-                <CopyableValue label='账号' value={info?.username} />
-              </div>
-              <div className='flex gap-3' style={{ alignItems: 'center' }}>
-                <span style={{ width: 76, flexShrink: 0, color: '#6b7280' }}>密码</span>
-                <CopyableValue label='密码' value={info?.password} />
-              </div>
+              <ConfigRow label='账号' value={info?.username} />
+              <ConfigRow label='密码' value={info?.password} />
             </div>
             <Paragraph type='tertiary' style={{ marginTop: 8 }}>
               密码仅在本次显示一次，关闭后无法再次查看，请立即自行保存。
               <span style={{ color: 'var(--semi-color-warning)', fontWeight: 600 }}>
-                后续可使用微信扫码直接登录，该功能开发中，敬请期待。
+                即使忘记密码也没关系，本平台已支持微信扫码登录，直接扫码即可进入。
               </span>
             </Paragraph>
           </div>
         ) : null}
+
+        <ToolDownloadPanel />
       </Card>
     </div>
   );
