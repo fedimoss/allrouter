@@ -38,7 +38,6 @@ import {
   API,
   applyThemeColors,
   extractThemeColors,
-  fetchNotice,
   getLogo,
   getSystemName,
   setStatusData,
@@ -49,6 +48,7 @@ import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
 import { useActualTheme } from '../../../../context/Theme';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { useNoticePopup } from '../../../../hooks/common/useNoticePopup';
 import { Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -538,7 +538,6 @@ const Theme3Home = () => {
   const actualTheme = useActualTheme();
   const isMobile = useIsMobile();
 
-  const [noticeVisible, setNoticeVisible] = useState(false);
   const [versionLogVisible, setVersionLogVisible] = useState(false);
   const [introDone, setIntroDone] = useState(() => {
     const reduced = window.matchMedia(
@@ -553,6 +552,11 @@ const Theme3Home = () => {
   });
   const [introRunId, setIntroRunId] = useState(0);
   const [typewriterActive, setTypewriterActive] = useState(false);
+  const noticeAnnouncements = statusState?.status?.announcements;
+  const { noticeVisible, setNoticeVisible, noticeDefaultTab } = useNoticePopup(
+    noticeAnnouncements,
+    { enabled: introDone },
+  );
 
   const heroTitleRef = useRef(null);
   const heroRef = useRef(null);
@@ -606,26 +610,6 @@ const Theme3Home = () => {
     };
   }, [statusDispatch]);
 
-  // Notice modal
-  useEffect(() => {
-    const checkNoticeAndShow = async () => {
-      const lastCloseDate = localStorage.getItem('notice_close_date');
-      const today = new Date().toDateString();
-      if (lastCloseDate !== today) {
-        try {
-          const res = await fetchNotice();
-          const { success, data } = res.data;
-          if (success && data && data.trim() !== '') {
-            setNoticeVisible(true);
-          }
-        } catch (error) {
-          console.error('获取公告失败:', error);
-        }
-      }
-    };
-    checkNoticeAndShow();
-  }, []);
-
   // Kick-off the typewriter once intro completes
   useEffect(() => {
     setTypewriterActive(introDone);
@@ -675,6 +659,7 @@ const Theme3Home = () => {
           visible={noticeVisible}
           onClose={() => setNoticeVisible(false)}
           isMobile={isMobile}
+          defaultTab={noticeDefaultTab}
         />
         <Modal
           title={`${versionLabel} ${t('更新日志')}`}

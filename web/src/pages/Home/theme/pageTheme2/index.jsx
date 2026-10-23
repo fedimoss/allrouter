@@ -27,7 +27,6 @@ import React, {
 import { ArrowRight } from 'lucide-react';
 import {
   API,
-  fetchNotice,
   setStatusData,
   shouldShowProviderAgentPartner,
   showError,
@@ -41,6 +40,7 @@ import {
   useTheme,
 } from '../../../../context/Theme';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { useNoticePopup } from '../../../../hooks/common/useNoticePopup';
 import { marked } from 'marked';
 import { Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
@@ -184,10 +184,12 @@ const Home = () => {
   const setTheme = useSetTheme();
   const [homePageContentLoaded, setHomePageContentLoaded] = useState(false);
   const [homePageContent, setHomePageContent] = useState('');
-  const [noticeVisible, setNoticeVisible] = useState(false);
   const [typedCodeLines, setTypedCodeLines] = useState([]);
   const [versionLogVisible, setVersionLogVisible] = useState(false);
   const isMobile = useIsMobile();
+  const noticeAnnouncements = statusState?.status?.announcements;
+  const { noticeVisible, setNoticeVisible, noticeDefaultTab } =
+    useNoticePopup(noticeAnnouncements);
 
   const docsLink = statusState?.status?.docs_link || '';
   const serverAddress = `${window.location.origin}`;
@@ -317,27 +319,6 @@ const Home = () => {
   };
 
   useEffect(() => {
-    const checkNoticeAndShow = async () => {
-      const lastCloseDate = localStorage.getItem('notice_close_date');
-      const today = new Date().toDateString();
-      if (lastCloseDate !== today) {
-        try {
-          // 拉取当前界面语言对应的站点公告
-          const res = await fetchNotice();
-          const { success, data } = res.data;
-          if (success && data && data.trim() !== '') {
-            setNoticeVisible(true);
-          }
-        } catch (error) {
-          console.error('获取公告失败:', error);
-        }
-      }
-    };
-
-    checkNoticeAndShow();
-  }, []);
-
-  useEffect(() => {
     displayHomePageContent().then();
   }, []);
 
@@ -457,6 +438,7 @@ const Home = () => {
         visible={noticeVisible}
         onClose={() => setNoticeVisible(false)}
         isMobile={isMobile}
+        defaultTab={noticeDefaultTab}
       />
       <Modal
         title={`${versionLabel} ${t('更新日志')}`}

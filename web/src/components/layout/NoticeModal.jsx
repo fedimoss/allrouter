@@ -27,7 +27,12 @@ import {
   Timeline,
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { fetchNotice, showError, getRelativeTime } from '../../helpers';
+import {
+  fetchNotice,
+  getRelativeTime,
+  markNoticeClosedToday,
+  showError,
+} from '../../helpers';
 import { marked } from 'marked';
 import {
   IllustrationNoContent,
@@ -77,8 +82,7 @@ const NoticeModal = ({
   }, [announcements, unreadSet]);
 
   const handleCloseTodayNotice = () => {
-    const today = new Date().toDateString();
-    localStorage.setItem('notice_close_date', today);
+    markNoticeClosedToday();
     onClose();
   };
 
