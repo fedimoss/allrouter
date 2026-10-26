@@ -72,6 +72,7 @@ import Operational from './pages/OperationalData';
 import Reconciliation from './pages/Reconciliation';
 import QuestionSurvey from './pages/QuestionSurvey';
 import UserQuestion from './pages/QuestionSurvey/userQuestion';
+import CooperationApplication from './pages/CooperationApplication';
 import CertificationDocument from './pages/CertificationDocument';
 import ProviderRewardPage from './pages/Provider/Reward';
 import ProviderRewardReportPage from './pages/Provider/RewardReport';
@@ -188,6 +189,7 @@ function App() {
         />
         <Route path='/' element={<HomeRoute />} />
         <Route path='/userQuestion' element={<UserQuestion />} />
+        <Route path='/cooperationApplication' element={<CooperationApplication />} />
         <Route
           path='/setup'
           element={
