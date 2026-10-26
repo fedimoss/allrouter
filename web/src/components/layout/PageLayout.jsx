@@ -87,6 +87,7 @@ const PageLayout = () => {
     '/landing',
     '/payment/lakala/qrcode',
     '/userQuestion',
+    '/cooperationApplication',
     '/wechat/login/confirm',
   ];
   const shouldHideFooter =

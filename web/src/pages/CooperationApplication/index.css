@@ -1,0 +1,523 @@
+.cooperation-application {
+  --cooperation-brand: #1ccfc7;
+  --cooperation-brand-strong: #14bfb8;
+  --cooperation-brand-ink: #07100d;
+  --cooperation-bg: #fff;
+  --cooperation-surface: #fff;
+  --cooperation-input-bg: #f6f7f8;
+  --cooperation-ink: #0c1513;
+  --cooperation-ink-2: #68727a;
+  --cooperation-ink-3: #97a0a6;
+  --cooperation-line: #e5e9e8;
+  --cooperation-line-strong: #d7dddb;
+  --cooperation-danger: #ed4e45;
+  --cooperation-shadow: 0 14px 36px rgba(16, 32, 28, 0.06);
+  --semi-color-primary: var(--cooperation-brand);
+  --semi-color-primary-hover: var(--cooperation-brand-strong);
+  --semi-color-primary-active: var(--cooperation-brand-strong);
+  --semi-color-primary-light-default: rgba(28, 207, 199, 0.08);
+  --semi-color-primary-light-hover: rgba(28, 207, 199, 0.12);
+  --semi-color-primary-light-active: rgba(28, 207, 199, 0.16);
+
+  min-height: 100vh;
+  min-width: 320px;
+  padding: 46px 24px 38px;
+  color: var(--cooperation-ink);
+  background: var(--cooperation-bg);
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+body[theme-mode='dark'] .cooperation-application {
+  --cooperation-bg: #101313;
+  --cooperation-surface: #151a19;
+  --cooperation-input-bg: #1c2221;
+  --cooperation-ink: #eff6f4;
+  --cooperation-ink-2: #a8b5b1;
+  --cooperation-ink-3: #74827e;
+  --cooperation-line: #27312f;
+  --cooperation-line-strong: #35413e;
+  --cooperation-danger: #ff786f;
+  --cooperation-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.cooperation-application *,
+.cooperation-application *::before,
+.cooperation-application *::after {
+  box-sizing: border-box;
+}
+
+.cooperation-application [hidden] {
+  display: none;
+}
+
+.cooperation-application__header {
+  max-width: 760px;
+  margin: 0 auto;
+  padding-bottom: 8px;
+  text-align: center;
+}
+
+.cooperation-application__brand {
+  display: inline-block;
+  color: var(--cooperation-ink);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.cooperation-application__header h1 {
+  margin: 25px 0 0;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.04em;
+}
+
+.cooperation-application__header p {
+  margin: 10px 0 0;
+  color: var(--cooperation-ink-2);
+  font-size: 14px;
+}
+
+.cooperation-application .cooperation-application__card {
+  max-width: 760px;
+  margin: 27px auto 34px;
+  border: 1px solid var(--cooperation-line);
+  border-radius: 13px;
+  background: var(--cooperation-surface);
+  box-shadow: var(--cooperation-shadow);
+}
+
+/* 覆盖全局 .semi-card-body 的固定 padding，保留静态页面的卡片留白。 */
+.cooperation-application .cooperation-application__card .semi-card-body {
+  padding: 34px 36px !important;
+}
+
+.cooperation-application__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 21px 24px;
+}
+
+.cooperation-application__grid > * {
+  min-width: 0;
+}
+
+.cooperation-application__full {
+  grid-column: 1 / -1;
+}
+
+.cooperation-application .semi-form-field {
+  padding: 0;
+}
+
+.cooperation-application .semi-form-field-label {
+  margin-bottom: 8px;
+  color: var(--cooperation-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cooperation-application__label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.cooperation-application__label small {
+  color: var(--cooperation-ink-3);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.cooperation-application .semi-input-wrapper,
+.cooperation-application .semi-select,
+.cooperation-application .semi-input-textarea-wrapper {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px !important;
+  background: var(--cooperation-input-bg);
+  transition:
+    border-color 0.18s,
+    box-shadow 0.18s;
+}
+
+.cooperation-application .semi-input-wrapper,
+.cooperation-application .semi-select {
+  height: 40px;
+}
+
+.cooperation-application .semi-input,
+.cooperation-application .semi-input-textarea,
+.cooperation-application .semi-select-selection {
+  color: var(--cooperation-ink);
+  font-size: 14px;
+}
+
+.cooperation-application .semi-input {
+  padding: 0 12px;
+}
+
+.cooperation-application .semi-input-textarea {
+  min-height: 112px;
+  padding: 10px 12px;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.cooperation-application .semi-input::placeholder,
+.cooperation-application .semi-input-textarea::placeholder,
+.cooperation-application .semi-select-selection-placeholder {
+  color: var(--cooperation-ink-3);
+}
+
+.cooperation-application .semi-input-wrapper-focus,
+.cooperation-application .semi-input-textarea-wrapper:focus-within,
+.cooperation-application .semi-select-focus {
+  border-color: var(--cooperation-brand);
+  box-shadow: 0 0 0 3px rgba(28, 207, 199, 0.12);
+}
+
+.cooperation-application .semi-input-wrapper-error,
+.cooperation-application .semi-input-textarea-wrapper-error,
+.cooperation-application .semi-select-error {
+  border-color: var(--cooperation-danger);
+}
+
+.cooperation-application .semi-form-field-error-message,
+.cooperation-application .semi-form-field-label-required {
+  color: var(--cooperation-danger);
+}
+
+.cooperation-application .cooperation-application__choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.cooperation-application__choices .semi-radio {
+  min-width: 0;
+  min-height: 94px;
+  margin: 0;
+  padding: 13px;
+  border: 1px solid var(--cooperation-line);
+  border-radius: 8px !important;
+  background: var(--cooperation-input-bg);
+  transition:
+    border-color 0.18s,
+    background-color 0.18s,
+    box-shadow 0.18s;
+}
+
+.cooperation-application__choices .semi-radio:hover {
+  border-color: var(--cooperation-brand);
+}
+
+.cooperation-application__choices .semi-radio-cardRadioGroup_checked {
+  border-color: var(--cooperation-brand);
+  background: rgba(28, 207, 199, 0.08);
+  box-shadow: 0 0 0 2px rgba(28, 207, 199, 0.09);
+}
+
+.cooperation-application__choices .semi-radio-addon {
+  color: var(--cooperation-ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.cooperation-application__choices .semi-radio-extra {
+  margin-top: 5px;
+  color: var(--cooperation-ink-2);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.cooperation-application__acknowledgement {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--cooperation-line);
+  border-radius: 8px;
+  background: var(--cooperation-input-bg);
+}
+
+.cooperation-application .semi-checkbox {
+  align-items: flex-start;
+  color: var(--cooperation-ink-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.cooperation-application .semi-checkbox-inner {
+  margin-top: 2px;
+}
+
+.cooperation-application__acknowledgement .semi-checkbox {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.cooperation-application__file-drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  padding: 14px;
+  border: 1px dashed var(--cooperation-line-strong);
+  border-radius: 8px;
+  background: var(--cooperation-input-bg);
+  color: var(--cooperation-ink-2);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.18s,
+    background-color 0.18s;
+}
+
+.cooperation-application__file-drop:hover,
+.cooperation-application__file-drop.is-dragging,
+.cooperation-application__file-drop:focus-within {
+  border-color: var(--cooperation-brand);
+  background: rgba(28, 207, 199, 0.06);
+}
+
+.cooperation-application__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.cooperation-application__file-drop strong {
+  color: var(--cooperation-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cooperation-application__file-drop span {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.cooperation-application__file-drop em {
+  margin-top: 4px;
+  color: var(--cooperation-ink-3);
+  font-size: 11px;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.cooperation-application__file-error {
+  margin: 5px 0 0;
+  color: var(--cooperation-danger);
+  font-size: 12px;
+}
+
+.cooperation-application__file-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cooperation-application__file-list:empty {
+  margin: 0;
+}
+
+.cooperation-application__file-list li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 1px solid var(--cooperation-line);
+  border-radius: 8px;
+  color: var(--cooperation-ink-2);
+  font-size: 12px;
+}
+
+.cooperation-application__file-list b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--cooperation-ink);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cooperation-application__file-list button {
+  border: 0;
+  background: transparent;
+  color: var(--cooperation-ink-3);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cooperation-application__file-list button:hover {
+  color: var(--cooperation-danger);
+}
+
+.cooperation-application .cooperation-application__consent {
+  margin-top: 26px;
+}
+
+.cooperation-application__actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--cooperation-line);
+}
+
+.cooperation-application .cooperation-application__submit,
+.cooperation-application .cooperation-application__reset {
+  height: 44px;
+  border-radius: 8px !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cooperation-application .cooperation-application__submit {
+  flex: 1;
+  background: var(--cooperation-brand);
+  color: var(--cooperation-brand-ink);
+  transition:
+    filter 0.18s,
+    transform 0.18s;
+}
+
+.cooperation-application .cooperation-application__submit:hover {
+  background: var(--cooperation-brand);
+  filter: brightness(1.03);
+  transform: translateY(-1px);
+}
+
+.cooperation-application .cooperation-application__reset,
+.cooperation-application .cooperation-application__edit {
+  min-width: 78px;
+  padding: 0 18px;
+  border: 1px solid var(--cooperation-line-strong);
+  background: var(--cooperation-surface);
+  color: var(--cooperation-ink-2);
+}
+
+.cooperation-application .cooperation-application__reset:hover,
+.cooperation-application .cooperation-application__edit:hover {
+  border-color: var(--cooperation-brand);
+  background: var(--cooperation-surface);
+  color: var(--cooperation-brand-strong);
+}
+
+.cooperation-application__result {
+  padding: 12px 0 2px;
+  text-align: center;
+}
+
+.cooperation-application__result-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: rgba(28, 207, 199, 0.14);
+  color: var(--cooperation-brand-strong);
+}
+
+.cooperation-application__result h2 {
+  margin: 13px 0 0;
+  color: var(--cooperation-ink);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.cooperation-application__result p {
+  max-width: 440px;
+  margin: 8px auto 0;
+  color: var(--cooperation-ink-2);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.cooperation-application .cooperation-application__edit {
+  height: 38px;
+  margin-top: 19px;
+  border-radius: 8px !important;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cooperation-application__footer {
+  margin: 0;
+  color: var(--cooperation-ink-3);
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .cooperation-application {
+    padding: 36px 16px 30px;
+  }
+
+  .cooperation-application__header {
+    padding: 0 4px 6px;
+  }
+
+  .cooperation-application__header h1 {
+    margin-top: 20px;
+    font-size: 25px;
+  }
+
+  .cooperation-application .cooperation-application__card {
+    margin-top: 20px;
+    margin-bottom: 24px;
+    border-radius: 11px;
+  }
+
+  .cooperation-application .cooperation-application__card .semi-card-body {
+    padding: 25px 20px !important;
+  }
+
+  .cooperation-application__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .cooperation-application .cooperation-application__choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cooperation-application__choices .semi-radio {
+    min-height: 0;
+  }
+
+  .cooperation-application__actions {
+    flex-direction: column;
+  }
+
+  .cooperation-application .cooperation-application__submit {
+    flex: none;
+  }
+
+  .cooperation-application .cooperation-application__reset {
+    width: 100%;
+  }
+
+  .cooperation-application__result {
+    padding-top: 2px;
+  }
+}
