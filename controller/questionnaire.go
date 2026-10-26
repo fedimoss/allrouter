@@ -29,6 +29,25 @@ type UserQuestionnaireRequest struct {
 // 站点归属解析优先级：
 //  1. 站点域名（前端传入的页面域名，或请求所在域名）匹配 provider_domains；
 //  2. 域名未匹配到服务商（主站）：已登录用户取其 provider_id，未登录归主站(0)
+//
+// 问卷内附件引用数量上限：与前端 3 张截图 / 3 份资料的约束一致，防绕过前端塞超长数组
+const maxSurveyAttachmentCount = 3
+
+// checkSurveyAttachmentLimit 校验 survey_data 中的附件引用数组（screenshots / files）
+// 长度不超上限；字段不存在或非数组时跳过，不影响老数据。
+func checkSurveyAttachmentLimit(surveyData map[string]interface{}) error {
+	for _, field := range []string{"screenshots", "files"} {
+		arr, ok := surveyData[field].([]interface{})
+		if !ok {
+			continue
+		}
+		if len(arr) > maxSurveyAttachmentCount {
+			return errors.New("附件数量不能超过 3 个")
+		}
+	}
+	return nil
+}
+
 func SubmitUserQuestionnaire(c *gin.Context) {
 	var req UserQuestionnaireRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
@@ -37,6 +56,10 @@ func SubmitUserQuestionnaire(c *gin.Context) {
 	}
 	if len(req.SurveyData) == 0 {
 		common.ApiErrorMsg(c, "问卷数据不能为空")
+		return
+	}
+	if err := checkSurveyAttachmentLimit(req.SurveyData); err != nil {
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 
