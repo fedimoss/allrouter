@@ -50,7 +50,8 @@ func SubmitUserQuestionnaire(c *gin.Context) {
 		return
 	}
 
-	record, err := model.CreateUserQuestionnaire(providerId, userId, string(jsonBytes))
+	// /userQuestion 反馈问卷固定为 SurveyTypeFeedback(1)
+	record, err := model.CreateUserQuestionnaire(providerId, userId, model.SurveyTypeFeedback, string(jsonBytes))
 	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return
@@ -113,6 +114,7 @@ func GetMyUserQuestionnaires(c *gin.Context) {
 	for _, r := range records {
 		data = append(data, gin.H{
 			"id":          r.Id,
+			"survey_type": r.SurveyType,
 			"survey_data": r.SurveyData,
 			"created_at":  r.CreatedAt,
 		})

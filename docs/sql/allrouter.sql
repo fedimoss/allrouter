@@ -7414,3 +7414,25 @@ COMMIT;
 
 ALTER TABLE provider_model_pricings
     ADD COLUMN IF NOT EXISTS import_price_ratio NUMERIC(10,6) NULL;
+
+
+-- =============================================================
+-- 用户问卷提交记录：主站(provider_id=0)与服务商站点(provider_id>0)共用，
+-- survey_type 区分问卷种类，survey_data 为整张问卷表单的 JSON
+-- =============================================================
+CREATE TABLE IF NOT EXISTS user_questionnaires (
+    id           BIGSERIAL PRIMARY KEY,
+    provider_id  INTEGER  NOT NULL DEFAULT 0,
+    user_id      INTEGER  NOT NULL,
+    survey_type  INTEGER  NOT NULL DEFAULT 1,
+    survey_data  JSONB    NOT NULL DEFAULT '{}'::jsonb,
+    created_at   BIGINT   NOT NULL DEFAULT 0
+);
+
+COMMENT ON TABLE  user_questionnaires               IS '用户问卷提交记录（主站与服务商站点共用）';
+COMMENT ON COLUMN user_questionnaires.id            IS '自增主键';
+COMMENT ON COLUMN user_questionnaires.provider_id   IS '站点 ID：0=主站，>0=服务商站点';
+COMMENT ON COLUMN user_questionnaires.user_id       IS '提交问卷的用户 ID';
+COMMENT ON COLUMN user_questionnaires.survey_type   IS '问卷类型：1=用户反馈问卷（存量数据），2 起为后续新增的问卷类型';
+COMMENT ON COLUMN user_questionnaires.survey_data   IS '问卷数据 JSON 文本';
+COMMENT ON COLUMN user_questionnaires.created_at    IS '提交时间戳（秒）';

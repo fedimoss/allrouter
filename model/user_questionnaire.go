@@ -4,6 +4,11 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
+// 问卷类型
+const (
+	SurveyTypeFeedback = 1 // 用户反馈问卷（原有类型）
+)
+
 // UserQuestionnaire 用户问卷提交记录
 // 主站(provider_id=0)与服务商站点(provider_id>0)共用，表结构手动创建(自动迁移已禁用)。
 // SurveyData 为整张问卷表单的 JSON，字段随问卷内容变化，不入库单列。
@@ -11,7 +16,8 @@ type UserQuestionnaire struct {
 	Id         int    `json:"id" gorm:"primaryKey;autoIncrement"`
 	ProviderId int    `json:"provider_id" gorm:"not null;default:0;index"`
 	UserId     int    `json:"user_id" gorm:"not null;index"`
-	SurveyData string `json:"survey_data" gorm:"type:text"` // 问卷数据 JSON 文本
+	SurveyType int    `json:"survey_type" gorm:"not null;default:1"` // 问卷类型：1=用户反馈问卷，见 SurveyType* 常量
+	SurveyData string `json:"survey_data" gorm:"type:text"`          // 问卷数据 JSON 文本
 	CreatedAt  int64  `json:"created_at" gorm:"bigint"`
 }
 
@@ -19,11 +25,13 @@ func (UserQuestionnaire) TableName() string {
 	return "user_questionnaires"
 }
 
-// CreateUserQuestionnaire 保存一条问卷提交记录，providerId 由服务端根据站点上下文写入
-func CreateUserQuestionnaire(providerId int, userId int, surveyData string) (*UserQuestionnaire, error) {
+// CreateUserQuestionnaire 保存一条问卷提交记录，providerId 由服务端根据站点上下文写入，
+// surveyType 为问卷类型（SurveyType* 常量）
+func CreateUserQuestionnaire(providerId int, userId int, surveyType int, surveyData string) (*UserQuestionnaire, error) {
 	record := &UserQuestionnaire{
 		ProviderId: providerId,
 		UserId:     userId,
+		SurveyType: surveyType,
 		SurveyData: surveyData,
 		CreatedAt:  common.GetTimestamp(),
 	}
@@ -51,6 +59,7 @@ type AdminQuestionnaireRecord struct {
 	UserId       int    `json:"user_id"`
 	Username     string `json:"username"`
 	DisplayName  string `json:"display_name"`
+	SurveyType   int    `json:"survey_type"`
 	SurveyData   string `json:"survey_data"`
 	CreatedAt    int64  `json:"created_at"`
 }
@@ -73,7 +82,7 @@ func GetUserQuestionnairesAdmin(providerId int, startIdx int, pageSize int) ([]A
 		Select("user_questionnaires.id, user_questionnaires.provider_id, " +
 			"COALESCE(providers.name, '') AS provider_name, user_questionnaires.user_id, " +
 			"COALESCE(users.username, '') AS username, COALESCE(users.display_name, '') AS display_name, " +
-			"user_questionnaires.survey_data, user_questionnaires.created_at").
+			"user_questionnaires.survey_type, user_questionnaires.survey_data, user_questionnaires.created_at").
 		Joins("LEFT JOIN users ON users.id = user_questionnaires.user_id").
 		Joins("LEFT JOIN providers ON providers.id = user_questionnaires.provider_id").
 		Order("user_questionnaires.id DESC").
