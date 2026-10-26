@@ -20,6 +20,9 @@ var TaskQueryLimit int
 var TaskTimeoutMinutes int
 var MiniMaxH3MaxConcurrency int
 var MiniMaxH3FrameUploadDir string
+var MiniMaxH3FrameURLPath string
+var MiniMaxH3ResultDir string
+var MiniMaxH3ResultURLPath string
 var MiniMaxH3ReferenceUploadURL string
 var MiniMaxH3ReferenceUploadAPIKey string
 var MiniMaxH3ReferenceUploadTimeoutSeconds int

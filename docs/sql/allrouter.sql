@@ -7410,3 +7410,7 @@ CREATE INDEX IF NOT EXISTS idx_subscription_orders_resume_lookup
     ON subscription_orders (user_id, provider_id, status, stock_status, stock_expires_at, create_time DESC);
 
 COMMIT;
+
+
+ALTER TABLE provider_model_pricings
+    ADD COLUMN IF NOT EXISTS import_price_ratio NUMERIC(10,6) NULL;

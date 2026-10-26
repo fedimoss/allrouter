@@ -7,6 +7,55 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
+// SanitizeMiniMaxH3PublicMessage hides channel implementation names from
+// responses returned to callers while retaining the original text in logs.
+func SanitizeMiniMaxH3PublicMessage(message string) string {
+	for {
+		lower := strings.ToLower(message)
+		index := strings.Index(lower, "autodl")
+		termLength := len("autodl")
+		if index < 0 {
+			index = strings.Index(lower, "upstream")
+			termLength = len("upstream")
+		}
+		if index < 0 {
+			break
+		}
+		message = message[:index] + message[index+termLength:]
+	}
+	message = strings.ReplaceAll(message, "上游服务", "")
+	message = strings.ReplaceAll(message, "上游", "")
+	message = strings.Trim(strings.TrimSpace(message), ":：- ")
+	if message == "" {
+		return "video generation failed"
+	}
+	return message
+}
+
+func SanitizeMiniMaxH3PublicCode(code string) string {
+	lower := strings.ToLower(code)
+	if strings.Contains(lower, "autodl") || strings.Contains(lower, "upstream") {
+		return "video_generation_failed"
+	}
+	return code
+}
+
+func sanitizeMiniMaxH3PublicValue(value any) any {
+	switch item := value.(type) {
+	case string:
+		return SanitizeMiniMaxH3PublicMessage(item)
+	case map[string]any:
+		for key, nested := range item {
+			item[key] = sanitizeMiniMaxH3PublicValue(nested)
+		}
+	case []any:
+		for index, nested := range item {
+			item[index] = sanitizeMiniMaxH3PublicValue(nested)
+		}
+	}
+	return value
+}
+
 // MiniMaxH3VideoSeconds 是 MiniMax-H3 两个渠道（sora / AutoDL）固定的生成时长，
 // 提交与查询响应统一返回该值（秒）。
 const MiniMaxH3VideoSeconds = "10"
@@ -52,7 +101,7 @@ func BuildMiniMaxH3QueuedVideoResponse(taskID, modelName, size string, createdAt
 func NormalizeMiniMaxH3VideoResponse(task *model.Task, passthrough map[string]any) map[string]any {
 	response := make(map[string]any, len(passthrough)+16)
 	for key, value := range passthrough {
-		response[key] = value
+		response[key] = sanitizeMiniMaxH3PublicValue(value)
 	}
 	// 上游特有字段不在统一契约中透出
 	for _, key := range []string{"code", "data", "msg", "request_id", "detail", "metadata", "file_path", "file_paths", "content"} {

@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -166,15 +168,57 @@ func PublicAutoDLMediaURL(rawPath, publicBaseURL string) (string, error) {
 	return finalURL, nil
 }
 
-// PersistVideoResult downloads a temporary video URL and stores a durable copy
-// through the configured media uploader.
-func PersistVideoResult(ctx context.Context, resultURL, publicBaseURL, filename string) (string, error) {
+const maxPersistedVideoBytes int64 = 1 << 30
+
+// PersistVideoResult downloads a temporary video URL to local disk and returns
+// the public URL path that should be mapped to MiniMaxH3ResultDir by the web server.
+func PersistVideoResult(ctx context.Context, resultURL, publicBaseURL, taskID, filename string) (string, error) {
 	resultURL = strings.TrimSpace(resultURL)
 	if resultURL == "" {
 		return "", fmt.Errorf("result URL is empty")
 	}
+	if strings.TrimSpace(taskID) == "" {
+		return "", fmt.Errorf("task ID is empty")
+	}
+	resultDir := strings.TrimSpace(constant.MiniMaxH3ResultDir)
+	if resultDir == "" {
+		return "", fmt.Errorf("MINIMAX_H3_RESULT_DIR is not configured")
+	}
+	resultURLPath, err := miniMaxH3ResultURL(publicBaseURL, taskID, filename)
+	if err != nil {
+		return "", err
+	}
 
-	logger.LogInfo(ctx, fmt.Sprintf("PersistVideoResult: starting download - url=%s, filename=%s", resultURL, filename))
+	fileName := filepath.Base(filename)
+	if fileName == "." || fileName == string(filepath.Separator) || fileName == "" {
+		fileName = "video.mp4"
+	}
+	extension := strings.ToLower(filepath.Ext(fileName))
+	if extension == "" {
+		extension = ".mp4"
+	}
+	taskHash := sha256.Sum256([]byte(taskID))
+	fileName = hex.EncodeToString(taskHash[:]) + extension
+	resultDir, err = filepath.Abs(resultDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve MiniMax-H3 result directory: %w", err)
+	}
+	if err := os.MkdirAll(resultDir, 0o755); err != nil {
+		return "", fmt.Errorf("create MiniMax-H3 result directory: %w", err)
+	}
+	resultPath := filepath.Join(resultDir, fileName)
+	if info, statErr := os.Stat(resultPath); statErr == nil {
+		if info.Mode().IsRegular() && info.Size() > 0 {
+			return resultURLPath, nil
+		}
+		if err := os.Remove(resultPath); err != nil {
+			return "", fmt.Errorf("remove invalid MiniMax-H3 result file: %w", err)
+		}
+	} else if !os.IsNotExist(statErr) {
+		return "", fmt.Errorf("inspect MiniMax-H3 result file: %w", statErr)
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("PersistVideoResult: starting download - url=%s, task=%s", resultURL, taskID))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, resultURL, nil)
 	if err != nil {
@@ -195,31 +239,92 @@ func PersistVideoResult(ctx context.Context, resultURL, publicBaseURL, filename 
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("PersistVideoResult: download failed - error=%v, timeout=%v", err, timeout))
-		return "", fmt.Errorf("download AutoDL result: %w", SanitizeURLError(err))
+		return "", fmt.Errorf("download video result: %w", SanitizeURLError(err))
 	}
 	defer CloseResponseBodyGracefully(resp)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		logger.LogError(ctx, fmt.Sprintf("PersistVideoResult: non-2xx status - status=%d", resp.StatusCode))
-		return "", fmt.Errorf("download AutoDL result status %d", resp.StatusCode)
+		return "", fmt.Errorf("download video result status %d", resp.StatusCode)
 	}
 
-	logger.LogInfo(ctx, fmt.Sprintf("PersistVideoResult: reading response body - contentType=%s, contentLength=%d", resp.Header.Get("Content-Type"), resp.ContentLength))
-
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<30))
+	logger.LogInfo(ctx, fmt.Sprintf("PersistVideoResult: saving response body - contentType=%s, contentLength=%d", resp.Header.Get("Content-Type"), resp.ContentLength))
+	temporaryFile, err := os.CreateTemp(resultDir, ".minimax-h3-*.tmp")
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("PersistVideoResult: failed to read body - error=%v, bytesRead=%d", err, len(data)))
-		return "", fmt.Errorf("read AutoDL result: %w", err)
+		return "", fmt.Errorf("create temporary MiniMax-H3 result file: %w", err)
+	}
+	temporaryPath := temporaryFile.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporaryFile.Chmod(0o644); err != nil {
+		_ = temporaryFile.Close()
+		return "", fmt.Errorf("set MiniMax-H3 result file permissions: %w", err)
+	}
+	written, err := io.Copy(temporaryFile, io.LimitReader(resp.Body, maxPersistedVideoBytes+1))
+	if err != nil {
+		_ = temporaryFile.Close()
+		return "", fmt.Errorf("write MiniMax-H3 result file: %w", err)
+	}
+	if written == 0 {
+		_ = temporaryFile.Close()
+		return "", fmt.Errorf("downloaded MiniMax-H3 result is empty")
+	}
+	if written > maxPersistedVideoBytes {
+		_ = temporaryFile.Close()
+		return "", fmt.Errorf("downloaded MiniMax-H3 result exceeds %d bytes", maxPersistedVideoBytes)
+	}
+	if err := temporaryFile.Sync(); err != nil {
+		_ = temporaryFile.Close()
+		return "", fmt.Errorf("sync MiniMax-H3 result file: %w", err)
+	}
+	if err := temporaryFile.Close(); err != nil {
+		return "", fmt.Errorf("close MiniMax-H3 result file: %w", err)
+	}
+	if err := os.Rename(temporaryPath, resultPath); err != nil {
+		if info, statErr := os.Stat(resultPath); statErr == nil && info.Mode().IsRegular() && info.Size() > 0 {
+			return resultURLPath, nil
+		}
+		return "", fmt.Errorf("finalize MiniMax-H3 result file: %w", err)
 	}
 
-	logger.LogInfo(ctx, fmt.Sprintf("PersistVideoResult: download complete - size=%d bytes", len(data)))
-
-	contentType := resp.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "video/mp4"
-	}
-	return UploadAutoDLMedia(ctx, data, filename, contentType, publicBaseURL)
+	logger.LogInfo(ctx, fmt.Sprintf("PersistVideoResult: download complete - task=%s size=%d path=%s", taskID, written, resultPath))
+	return resultURLPath, nil
 }
 
-func PersistAutoDLResult(ctx context.Context, resultURL, publicBaseURL string) (string, error) {
-	return PersistVideoResult(ctx, resultURL, publicBaseURL, "autodl-result.mp4")
+func miniMaxH3ResultURL(publicBaseURL, taskID, filename string) (string, error) {
+	publicBaseURL = strings.TrimRight(strings.TrimSpace(publicBaseURL), "/")
+	if publicBaseURL == "" {
+		return "", fmt.Errorf("public base URL is empty")
+	}
+	parsedBase, err := url.Parse(publicBaseURL)
+	if err != nil || (parsedBase.Scheme != "http" && parsedBase.Scheme != "https") || parsedBase.Host == "" {
+		return "", fmt.Errorf("public base URL must be an absolute HTTP URL")
+	}
+	urlPath := strings.TrimSpace(constant.MiniMaxH3ResultURLPath)
+	if urlPath == "" {
+		return "", fmt.Errorf("MINIMAX_H3_RESULT_URL_PATH is not configured")
+	}
+	if strings.ContainsAny(urlPath, "?#\\") {
+		return "", fmt.Errorf("MINIMAX_H3_RESULT_URL_PATH must be a URL path")
+	}
+	for _, segment := range strings.Split(urlPath, "/") {
+		if segment == "." || segment == ".." {
+			return "", fmt.Errorf("MINIMAX_H3_RESULT_URL_PATH cannot contain dot segments")
+		}
+	}
+	if !strings.HasPrefix(urlPath, "/") {
+		urlPath = "/" + urlPath
+	}
+	fileName := filepath.Base(filename)
+	if fileName == "." || fileName == string(filepath.Separator) || fileName == "" {
+		fileName = "video.mp4"
+	}
+	extension := strings.ToLower(filepath.Ext(fileName))
+	if extension == "" {
+		extension = ".mp4"
+	}
+	taskHash := sha256.Sum256([]byte(taskID))
+	return publicBaseURL + path.Join(urlPath, hex.EncodeToString(taskHash[:])+extension), nil
+}
+
+func PersistAutoDLResult(ctx context.Context, resultURL, publicBaseURL, taskID string) (string, error) {
+	return PersistVideoResult(ctx, resultURL, publicBaseURL, taskID, "autodl-result.mp4")
 }

@@ -111,10 +111,12 @@ func failMiniMaxH3Dispatch(ctx context.Context, task *model.Task, reason string)
 	if task == nil {
 		return
 	}
+	publicReason := SanitizeMiniMaxH3PublicMessage(reason)
 	task.Status = model.TaskStatusFailure
 	task.Progress = "100%"
 	task.FinishTime = time.Now().Unix()
-	task.FailReason = reason
+	task.FailReason = publicReason
+	CleanupMiniMaxH3TaskMedia(task.UserId, task.PrivateData.MiniMaxH3FrameIDs, task.PrivateData.MiniMaxH3ReferenceVideoIDs)
 	task.PrivateData.PendingRequest = nil
 	if failedData, err := common.Marshal(map[string]any{
 		"id":       task.TaskID,
@@ -123,8 +125,8 @@ func failMiniMaxH3Dispatch(ctx context.Context, task *model.Task, reason string)
 		"status":   "failed",
 		"progress": 100,
 		"error": map[string]any{
-			"code":    "upstream_submit_failed",
-			"message": reason,
+			"code":    "video_generation_failed",
+			"message": publicReason,
 		},
 	}); err == nil {
 		task.Data = failedData
@@ -135,7 +137,7 @@ func failMiniMaxH3Dispatch(ctx context.Context, task *model.Task, reason string)
 		return
 	}
 	if won && taskRefundQuota(task) > 0 {
-		RefundTaskQuota(ctx, task, reason)
+		RefundTaskQuota(ctx, task, publicReason)
 	}
 	if won {
 		common.SysLog(fmt.Sprintf("MiniMax-H3 task %s failed before upstream acceptance: %s", task.TaskID, reason))

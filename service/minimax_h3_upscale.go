@@ -175,8 +175,8 @@ func ValidateMiniMaxH3UpscaleOutputURL(outputURL string) error {
 }
 
 // PersistMiniMaxH3UpscaleResult copies the converter's temporary output into
-// the existing media hub. The original task remains active while retries are
-// available and only becomes successful after the durable URL is available.
+// the configured local result directory. The original task remains active while
+// retries are available and only succeeds after the durable URL is available.
 func PersistMiniMaxH3UpscaleResult(ctx context.Context, task *model.Task, result *relaycommon.TaskInfo) {
 	if task == nil || result == nil {
 		return
@@ -190,7 +190,7 @@ func PersistMiniMaxH3UpscaleResult(ctx context.Context, task *model.Task, result
 	}
 
 	task.PrivateData.MiniMaxH3UpscaleURL = rawURL
-	persistedURL, err := PersistVideoResult(ctx, rawURL, task.PrivateData.PublicBaseURL, "minimax-h3-1536p.mp4")
+	persistedURL, err := PersistVideoResult(ctx, rawURL, task.PrivateData.PublicBaseURL, task.TaskID, "minimax-h3-1536p.mp4")
 	if err == nil {
 		task.PrivateData.MiniMaxH3PersistFailures = 0
 		task.PrivateData.MiniMaxH3UpscaleStatus = "completed"
