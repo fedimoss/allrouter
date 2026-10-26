@@ -28,6 +28,7 @@ import {
   Toast,
   Table,
   Select,
+  Tag,
   Typography,
 } from '@douyinfe/semi-ui';
 import {
@@ -66,10 +67,10 @@ const URGENCY_MAP = {
   critical: '非常紧急',
 };
 
-// 问卷类型：与后端 model 的 SurveyType* 常量对应
+// 问卷类型：与后端 model 的 SurveyType* 常量对应；color 为胶囊标签配色（同渠道页标签样式）
 const SURVEY_TYPE_MAP = {
-  1: '用户反馈',
-  2: '合作申请',
+  1: { label: '用户反馈', color: 'teal' },
+  2: { label: '合作申请', color: 'violet' },
 };
 
 // 合作申请：期望时间 /cooperationApplication 页提交的值为 asap/1m/3m/eval
@@ -92,6 +93,22 @@ const COOP_WINDOW_MAP = {
   '': '均可',
   weekday: '工作日窗口',
   weekend: '周末窗口',
+};
+
+// 期望日期显示：含 'T' 的是历史记录——Date 对象被 JSON 序列化成的 UTC ISO 串
+// （东八区所选日期会倒退一天），按浏览器本地时区还原为所选日期；普通 yyyy-MM-dd 原样显示
+const formatWindowDate = (value) => {
+  if (!value) return '-';
+  if (typeof value === 'string' && value.includes('T')) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+  return value;
 };
 
 const QuestionSurvey = () => {
@@ -264,7 +281,7 @@ const QuestionSurvey = () => {
         ? t(COOP_WINDOW_MAP[data.windowPreference])
         : '-',
     },
-    { label: t('期望日期'), value: data.windowDate || '-' },
+    { label: t('期望日期'), value: formatWindowDate(data.windowDate) },
     { label: t('业务场景与需求'), value: data.requirement || '-' },
     { label: t('其他补充'), value: data.remark || '-' },
     {
@@ -378,8 +395,14 @@ const QuestionSurvey = () => {
       width: 110,
       render: (value) => {
         // 老数据 survey_type 为空时按用户反馈(1)展示
-        const label = SURVEY_TYPE_MAP[value || 1];
-        return <div>{label ? t(label) : '-'}</div>;
+        const type = SURVEY_TYPE_MAP[value || 1];
+        return type ? (
+          <Tag color={type.color} shape='circle' type='light'>
+            {t(type.label)}
+          </Tag>
+        ) : (
+          <div>-</div>
+        );
       },
     },
     {
@@ -532,17 +555,18 @@ const QuestionSurvey = () => {
 
             <Divider margin='12px' />
 
-            {/* 问卷内容：标签列固定宽度对齐，值列自适应 */}
-            <div className='space-y-2 text-sm'>
+            {/* 问卷内容：Grid 两列布局，标签列(auto)按所有标签中最长者自适应撑开、
+                whitespace-nowrap 保证永不折行，后续加再长的标签也无需调整；值列占剩余空间 */}
+            <div className='grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm'>
               {surveyDetailFields(detailRecord, detailData, t).map(
                 (field, idx) => (
-                  <div key={idx} className='flex items-start gap-3'>
-                    <span className='w-20 shrink-0 text-gray-500'>
+                  <React.Fragment key={idx}>
+                    <span className='whitespace-nowrap text-gray-500'>
                       {field.label}：
                     </span>
                     {Array.isArray(field.value) ? (
                       // 附件：字符串为问题截图（缩略图），对象为合作申请资料（文件链接）
-                      <div className='flex flex-wrap gap-2'>
+                      <div className='flex min-w-0 flex-wrap gap-2'>
                         {field.value.map((item, i) =>
                           typeof item === 'string' ? (
                             <a
@@ -572,11 +596,11 @@ const QuestionSurvey = () => {
                         )}
                       </div>
                     ) : (
-                      <span className='break-all font-medium'>
+                      <span className='min-w-0 break-all font-medium'>
                         {field.value}
                       </span>
                     )}
-                  </div>
+                  </React.Fragment>
                 ),
               )}
             </div>

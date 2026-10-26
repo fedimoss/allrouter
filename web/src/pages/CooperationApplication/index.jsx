@@ -32,6 +32,19 @@ const FILE_ACCEPT =
 const FILE_EXTENSION =
   /\.(pdf|docx?|xlsx?|pptx?|txt|md|csv|json|zip|png|jpe?g)$/i;
 
+// DatePicker 表单值为所选日期本地零点的 Date 对象，直接 JSON 序列化会走 toISOString()
+// 转成 UTC（东八区 10-19 00:00 → 2026-10-18T16:00:00.000Z，日期倒退一天），
+// 提交前按本地日期格式化为 yyyy-MM-dd 字符串
+const formatLocalDate = (value) => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return value;
+};
+
 const CooperationApplication = () => {
   const { t } = useTranslation();
   const systemName = getSystemName();
@@ -154,6 +167,8 @@ const CooperationApplication = () => {
         survey_type: 2, // 合作申请问卷（后端 SurveyTypeCooperation）
         survey_data: {
           ...values,
+          // 期望日期为 Date 对象，先格式化成本地日期串再随表单存入
+          windowDate: formatLocalDate(values.windowDate),
           // 附件信息随表单一并存入 survey_data JSON，无需后端加列
           files: files
             .filter((f) => f.url)
@@ -340,10 +355,11 @@ const CooperationApplication = () => {
                 <Select.Option value='weekday'>{t('工作日窗口')}</Select.Option>
                 <Select.Option value='weekend'>{t('周末窗口')}</Select.Option>
               </Form.Select>
-              <Form.Input
+              <Form.DatePicker
                 field='windowDate'
-                type='date'
                 label={optionalLabel(t('期望日期'))}
+                format='yyyy-MM-dd'
+                placeholder={t('请选择日期')}
               />
               <Form.TextArea
                 field='requirement'
