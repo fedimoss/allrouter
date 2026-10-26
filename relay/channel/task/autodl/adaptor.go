@@ -11,6 +11,7 @@ import (
 	"image/jpeg"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -30,11 +31,11 @@ import (
 )
 
 const (
-	workflowText      = "minimax_h3_lightx2v_no_pic"
-	workflowFrames    = "minimax_h3_lightx2v"
-	workflowReference = "minimax_h3_image_audio_to_video_v2"
-	fixedDuration     = 10
-	resultUploadLimit = 5
+	workflowText                  = "minimax_h3_lightx2v_no_pic"
+	workflowFrames                = "minimax_h3_lightx2v"
+	workflowReference             = "minimax_h3_image_audio_to_video_v2"
+	fixedDuration                 = 10
+	resultPersistenceAttemptLimit = 5
 )
 
 type TaskAdaptor struct {
@@ -193,7 +194,15 @@ func stringField(fields map[string]any, name string) string {
 	return ""
 }
 
-func (a *TaskAdaptor) uploadMultipartField(ctx context.Context, c *gin.Context, field, filename, contentType, publicBaseURL string) (string, error) {
+func rememberMiniMaxH3MediaID(c *gin.Context, key, mediaID string) {
+	if strings.TrimSpace(mediaID) == "" {
+		return
+	}
+	ids := c.GetStringSlice(key)
+	c.Set(key, append(ids, mediaID))
+}
+
+func (a *TaskAdaptor) uploadMultipartField(ctx context.Context, c *gin.Context, field, filename, contentType, publicBaseURL string, userID int) (string, error) {
 	form, err := common.ParseMultipartFormReusable(c)
 	if err != nil {
 		return "", err
@@ -224,7 +233,16 @@ func (a *TaskAdaptor) uploadMultipartField(ctx context.Context, c *gin.Context, 
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	return service.UploadAutoDLMedia(ctx, data, uploadFilename, contentType, publicBaseURL)
+	mediaID, err := service.SaveMiniMaxH3MediaBytes(userID, data, uploadFilename, contentType)
+	if err != nil {
+		return "", err
+	}
+	if strings.EqualFold(filepath.Ext(mediaID), ".mp4") {
+		rememberMiniMaxH3MediaID(c, service.MiniMaxH3ReferenceVideoIDsContextKey, mediaID)
+	} else {
+		rememberMiniMaxH3MediaID(c, service.MiniMaxH3FrameIDsContextKey, mediaID)
+	}
+	return service.MiniMaxH3MediaPublicURL(publicBaseURL, userID, mediaID)
 }
 
 func decodeMediaValue(value string) ([]byte, string, error) {
@@ -249,13 +267,22 @@ func decodeMediaValue(value string) ([]byte, string, error) {
 	return data, "application/octet-stream", nil
 }
 
-func (a *TaskAdaptor) resolveValue(ctx context.Context, value, filename, contentType, publicBaseURL string) (string, error) {
+func (a *TaskAdaptor) resolveValue(ctx context.Context, c *gin.Context, value, filename, contentType, publicBaseURL string, userID int) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return "", nil
 	}
 	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
-		return value, nil
+		mediaID, err := service.SaveMiniMaxH3MediaURL(ctx, userID, value, filename, contentType)
+		if err != nil {
+			return "", err
+		}
+		if strings.EqualFold(filepath.Ext(mediaID), ".mp4") {
+			rememberMiniMaxH3MediaID(c, service.MiniMaxH3ReferenceVideoIDsContextKey, mediaID)
+		} else {
+			rememberMiniMaxH3MediaID(c, service.MiniMaxH3FrameIDsContextKey, mediaID)
+		}
+		return service.MiniMaxH3MediaPublicURL(publicBaseURL, userID, mediaID)
 	}
 	data, mime, err := decodeMediaValue(value)
 	if err != nil {
@@ -264,7 +291,16 @@ func (a *TaskAdaptor) resolveValue(ctx context.Context, value, filename, content
 	if mime == "application/octet-stream" && contentType != "" {
 		mime = contentType
 	}
-	return service.UploadAutoDLMedia(ctx, data, filename, mime, publicBaseURL)
+	mediaID, err := service.SaveMiniMaxH3MediaBytes(userID, data, filename, mime)
+	if err != nil {
+		return "", err
+	}
+	if strings.EqualFold(filepath.Ext(mediaID), ".mp4") {
+		rememberMiniMaxH3MediaID(c, service.MiniMaxH3ReferenceVideoIDsContextKey, mediaID)
+	} else {
+		rememberMiniMaxH3MediaID(c, service.MiniMaxH3FrameIDsContextKey, mediaID)
+	}
+	return service.MiniMaxH3MediaPublicURL(publicBaseURL, userID, mediaID)
 }
 
 func blankJPEG() ([]byte, error) {
@@ -277,12 +313,12 @@ func blankJPEG() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (a *TaskAdaptor) resolveMedia(ctx context.Context, c *gin.Context, fields map[string]any, names []string, filename, contentType, publicBaseURL string) (string, error) {
+func (a *TaskAdaptor) resolveMedia(ctx context.Context, c *gin.Context, fields map[string]any, names []string, filename, contentType, publicBaseURL string, userID int) (string, error) {
 	for _, name := range names {
 		if value := stringField(fields, name); value != "" {
-			return a.resolveValue(ctx, value, filename, contentType, publicBaseURL)
+			return a.resolveValue(ctx, c, value, filename, contentType, publicBaseURL, userID)
 		}
-		uploaded, err := a.uploadMultipartField(ctx, c, name, filename, contentType, publicBaseURL)
+		uploaded, err := a.uploadMultipartField(ctx, c, name, filename, contentType, publicBaseURL, userID)
 		if err != nil {
 			return "", err
 		}
@@ -348,6 +384,10 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 	task := normalizeTask(req.Task)
 	publicBaseURL := common.GetRequestBaseURL(c, system_setting.ServerAddress)
+	userID := info.UserId
+	if task != "t2va" && userID <= 0 {
+		return nil, fmt.Errorf("user id is required for local MiniMax-H3 media")
+	}
 	fields := requestRawFields(c)
 	body := map[string]any{
 		"prompt":     req.Prompt,
@@ -359,9 +399,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if videoValue == "" && len(req.Images) > 0 {
 			videoValue = req.Images[0]
 		}
-		videoURL, err := a.resolveMedia(c.Request.Context(), c, fields, []string{"input_reference", "reference_video", "ref_video", "ref_audio_0", "images"}, "reference.m4a", "audio/mp4", publicBaseURL)
+		videoURL, err := a.resolveMedia(c.Request.Context(), c, fields, []string{"input_reference", "reference_video", "ref_video", "ref_audio_0", "images"}, "reference.mp4", "video/mp4", publicBaseURL, userID)
 		if videoURL == "" && videoValue != "" {
-			videoURL, err = a.resolveValue(c.Request.Context(), videoValue, "reference.m4a", "audio/mp4", publicBaseURL)
+			videoURL, err = a.resolveValue(c.Request.Context(), c, videoValue, "reference.mp4", "video/mp4", publicBaseURL, userID)
 		}
 		if err != nil {
 			return nil, err
@@ -373,9 +413,14 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err != nil {
 			return nil, err
 		}
-		imageURL, err := service.UploadAutoDLMedia(c.Request.Context(), blank, "autodl-blank.jpg", "image/jpeg", publicBaseURL)
+		blankID, err := service.SaveMiniMaxH3MediaBytes(userID, blank, "autodl-blank.jpg", "image/jpeg")
 		if err != nil {
-			return nil, fmt.Errorf("upload blank reference image: %w", err)
+			return nil, fmt.Errorf("save blank reference image: %w", err)
+		}
+		rememberMiniMaxH3MediaID(c, service.MiniMaxH3FrameIDsContextKey, blankID)
+		imageURL, err := service.MiniMaxH3MediaPublicURL(publicBaseURL, userID, blankID)
+		if err != nil {
+			return nil, err
 		}
 		seed, err := resolveMiniMaxH3Seed(req, info)
 		if err != nil {
@@ -393,16 +438,16 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			imageURL,
 		))
 	} else if task == "fl2va" {
-		first, err := a.resolveMedia(c.Request.Context(), c, fields, []string{"first_frame"}, "first-frame.jpg", "", publicBaseURL)
+		first, err := a.resolveMedia(c.Request.Context(), c, fields, []string{"first_frame"}, "first-frame.jpg", "image/jpeg", publicBaseURL, userID)
 		if first == "" && len(req.Images) > 0 {
-			first, err = a.resolveValue(c.Request.Context(), req.Images[0], "first-frame.jpg", "image/jpeg", publicBaseURL)
+			first, err = a.resolveValue(c.Request.Context(), c, req.Images[0], "first-frame.jpg", "image/jpeg", publicBaseURL, userID)
 		}
 		if err != nil {
 			return nil, err
 		}
-		last, err := a.resolveMedia(c.Request.Context(), c, fields, []string{"last_frame"}, "last-frame.jpg", "", publicBaseURL)
+		last, err := a.resolveMedia(c.Request.Context(), c, fields, []string{"last_frame"}, "last-frame.jpg", "image/jpeg", publicBaseURL, userID)
 		if last == "" && len(req.Images) > 1 {
-			last, err = a.resolveValue(c.Request.Context(), req.Images[1], "last-frame.jpg", "image/jpeg", publicBaseURL)
+			last, err = a.resolveValue(c.Request.Context(), c, req.Images[1], "last-frame.jpg", "image/jpeg", publicBaseURL, userID)
 		}
 		if err != nil {
 			return nil, err
@@ -492,11 +537,13 @@ func (a *TaskAdaptor) NormalizeHTTPError(body []byte, statusCode int) *dto.TaskE
 		}
 	}
 	if message == "" {
-		message = "AutoDL request failed"
+		message = "video generation failed"
 	}
 	if code == "" {
-		code = "autodl_error"
+		code = "video_generation_failed"
 	}
+	message = service.SanitizeMiniMaxH3PublicMessage(message)
+	code = service.SanitizeMiniMaxH3PublicCode(code)
 	if strings.EqualFold(code, "RequestParameterIsWrong") {
 		statusCode = http.StatusBadRequest
 	}
@@ -580,7 +627,7 @@ func (a *TaskAdaptor) ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error
 		if reason == "" {
 			reason = parsed.Data.Message
 		}
-		return &relaycommon.TaskInfo{Status: model.TaskStatusFailure, Reason: reason}, nil
+		return &relaycommon.TaskInfo{Status: model.TaskStatusFailure, Reason: service.SanitizeMiniMaxH3PublicMessage(reason)}, nil
 	}
 	result := &relaycommon.TaskInfo{}
 	switch strings.ToUpper(strings.TrimSpace(parsed.Data.Status)) {
@@ -595,7 +642,7 @@ func (a *TaskAdaptor) ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error
 		result.Progress = "100%"
 		if len(parsed.Data.Results) == 0 || strings.TrimSpace(parsed.Data.Results[0].URL) == "" {
 			result.Status = model.TaskStatusFailure
-			result.Reason = "AutoDL returned no result URL"
+			result.Reason = "video result unavailable"
 		} else {
 			result.Url = parsed.Data.Results[0].URL
 		}
@@ -606,6 +653,7 @@ func (a *TaskAdaptor) ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error
 		if result.Reason == "" {
 			result.Reason = parsed.Msg
 		}
+		result.Reason = service.SanitizeMiniMaxH3PublicMessage(result.Reason)
 	default:
 		return nil, fmt.Errorf("unknown AutoDL task status: %s", parsed.Data.Status)
 	}
@@ -665,30 +713,30 @@ func (a *TaskAdaptor) ProcessTaskResultBeforePersist(ctx context.Context, task *
 		return nil
 	}
 
-	logger.LogInfo(ctx, fmt.Sprintf("AutoDL attempting result upload: task=%s sourceUrl=%s attempt=%d", task.TaskID, result.Url, task.PrivateData.AutoDLResultUploadFailures+1))
+	logger.LogInfo(ctx, fmt.Sprintf("AutoDL attempting result download: task=%s sourceUrl=%s attempt=%d", task.TaskID, result.Url, task.PrivateData.AutoDLResultUploadFailures+1))
 
-	persistedURL, err := service.PersistAutoDLResult(ctx, result.Url, task.PrivateData.PublicBaseURL)
+	persistedURL, err := service.PersistAutoDLResult(ctx, result.Url, task.PrivateData.PublicBaseURL, task.TaskID)
 	if err == nil {
 		task.PrivateData.AutoDLResultUploadFailures = 0
 		result.Url = persistedURL
-		logger.LogInfo(ctx, fmt.Sprintf("AutoDL result uploaded successfully: task=%s url=%s", task.TaskID, persistedURL))
+		logger.LogInfo(ctx, fmt.Sprintf("AutoDL result saved locally: task=%s url=%s", task.TaskID, persistedURL))
 		return nil
 	}
 
 	task.PrivateData.AutoDLResultUploadFailures++
 	failures := task.PrivateData.AutoDLResultUploadFailures
 	result.Url = ""
-	if failures >= resultUploadLimit {
+	if failures >= resultPersistenceAttemptLimit {
 		result.Status = model.TaskStatusFailure
 		result.Progress = "100%"
-		result.Reason = fmt.Sprintf("upload AutoDL result failed after %d attempts: %v", resultUploadLimit, service.SanitizeURLError(err))
-		logger.LogError(ctx, fmt.Sprintf("AutoDL result upload permanently failed: task=%s attempts=%d error=%v", task.TaskID, failures, err))
+		result.Reason = fmt.Sprintf("save video result failed after %d attempts: %v", resultPersistenceAttemptLimit, service.SanitizeURLError(err))
+		logger.LogError(ctx, fmt.Sprintf("AutoDL result persistence permanently failed: task=%s attempts=%d error=%v", task.TaskID, failures, err))
 		return nil
 	}
 
 	result.Status = model.TaskStatusInProgress
 	result.Progress = "95%"
-	logger.LogWarn(ctx, fmt.Sprintf("AutoDL result upload failed, will retry: task=%s attempt=%d/%d error=%v", task.TaskID, failures, resultUploadLimit, err))
+	logger.LogWarn(ctx, fmt.Sprintf("AutoDL result persistence failed, will retry: task=%s attempt=%d/%d error=%v", task.TaskID, failures, resultPersistenceAttemptLimit, err))
 	return nil
 }
 

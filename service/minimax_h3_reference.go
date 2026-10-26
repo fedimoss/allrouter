@@ -150,6 +150,17 @@ func DeleteMiniMaxH3MediaURI(mediaURI string) error {
 	return nil
 }
 
+// CleanupMiniMaxH3TaskMedia removes local input media after an asynchronous
+// MiniMax-H3 task reaches a terminal state. Removal is idempotent.
+func CleanupMiniMaxH3TaskMedia(userId int, frameIDs, referenceVideoIDs []string) {
+	for _, frameID := range frameIDs {
+		_ = DeleteMiniMaxH3Frame(userId, frameID)
+	}
+	for _, videoID := range referenceVideoIDs {
+		_ = DeleteMiniMaxH3ReferenceVideo(userId, videoID)
+	}
+}
+
 func fileURIFromUploadedPath(uploadedPath string) (string, error) {
 	uploadedPath = strings.TrimSpace(uploadedPath)
 	if uploadedPath == "" {

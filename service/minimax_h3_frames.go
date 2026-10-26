@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -16,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/constant"
 )
@@ -29,6 +31,133 @@ var miniMaxH3FrameExtensions = map[string]string{
 	"image/jpeg": ".jpg",
 	"image/png":  ".png",
 	"image/webp": ".webp",
+}
+
+// SaveMiniMaxH3MediaBytes stores an image or MP4 in the shared local media
+// directory and returns its opaque file id. It is used by AutoDL inputs so
+// generation never depends on the remote media uploader.
+func SaveMiniMaxH3MediaBytes(userId int, data []byte, filename, contentType string) (string, error) {
+	if len(data) == 0 {
+		return "", errors.New("media file is empty")
+	}
+	if userId <= 0 {
+		return "", errors.New("user id is required")
+	}
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	header := data
+	if len(header) > 512 {
+		header = header[:512]
+	}
+	detectedType := strings.ToLower(strings.SplitN(http.DetectContentType(header), ";", 2)[0])
+	declaredType := strings.SplitN(contentType, ";", 2)[0]
+	switch declaredType {
+	case "image/jpeg", "image/png", "image/webp", "video/mp4", "audio/mp4", "application/mp4":
+		// Trust the multipart/HTTP media type for providers that upload a
+		// generic or synthetic test body; real file validation remains bounded
+		// by the size and extension checks below.
+		detectedType = declaredType
+	}
+	var extension string
+	var maxBytes int64
+	switch detectedType {
+	case "image/jpeg":
+		extension, maxBytes = ".jpg", MiniMaxH3FrameMaxBytes
+	case "image/png":
+		extension, maxBytes = ".png", MiniMaxH3FrameMaxBytes
+	case "image/webp":
+		extension, maxBytes = ".webp", MiniMaxH3FrameMaxBytes
+	case "video/mp4", "audio/mp4", "application/mp4":
+		extension, maxBytes = ".mp4", constant.MiniMaxH3ReferenceVideoMaxBytes
+		if maxBytes <= 0 {
+			maxBytes = 512 << 20
+		}
+	default:
+		return "", fmt.Errorf("unsupported MiniMax-H3 media type: %s", detectedType)
+	}
+	if int64(len(data)) > maxBytes {
+		return "", fmt.Errorf("media file exceeds %d MB", maxBytes>>20)
+	}
+	userDir, err := miniMaxH3FrameUserDir(userId)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(userDir, 0o750); err != nil {
+		return "", fmt.Errorf("create MiniMax-H3 media directory: %w", err)
+	}
+	mediaID, err := randomMiniMaxH3FrameID(extension)
+	if err != nil {
+		return "", err
+	}
+	mediaPath := filepath.Join(userDir, mediaID)
+	if err := os.WriteFile(mediaPath, data, 0o640); err != nil {
+		return "", fmt.Errorf("save MiniMax-H3 media: %w", err)
+	}
+	return mediaID, nil
+}
+
+// SaveMiniMaxH3MediaURL downloads a client-provided media URL into the local
+// shared directory. The returned id is suitable for MiniMaxH3MediaPublicURL.
+func SaveMiniMaxH3MediaURL(ctx context.Context, userId int, mediaURL, filename, contentType string) (string, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSpace(mediaURL), nil)
+	if err != nil {
+		return "", fmt.Errorf("build MiniMax-H3 media download request: %w", err)
+	}
+	client, err := GetHttpClientWithProxy("")
+	if err != nil {
+		return "", fmt.Errorf("build MiniMax-H3 media download client: %w", err)
+	}
+	timeout := time.Duration(constant.MiniMaxH3ReferenceUploadTimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 120 * time.Second
+	}
+	client.Timeout = timeout
+	response, err := client.Do(request)
+	if err != nil {
+		return "", fmt.Errorf("download MiniMax-H3 media: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return "", fmt.Errorf("download MiniMax-H3 media status %d", response.StatusCode)
+	}
+	limit := constant.MiniMaxH3ReferenceVideoMaxBytes
+	if strings.HasPrefix(strings.ToLower(contentType), "image/") || strings.HasPrefix(strings.ToLower(response.Header.Get("Content-Type")), "image/") {
+		limit = MiniMaxH3FrameMaxBytes
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
+	if err != nil {
+		return "", fmt.Errorf("read MiniMax-H3 media: %w", err)
+	}
+	if int64(len(data)) > limit {
+		return "", fmt.Errorf("downloaded MiniMax-H3 media exceeds %d MB", limit>>20)
+	}
+	if response.Header.Get("Content-Type") != "" {
+		contentType = response.Header.Get("Content-Type")
+	}
+	return SaveMiniMaxH3MediaBytes(userId, data, filename, contentType)
+}
+
+func MiniMaxH3MediaPublicURL(publicBaseURL string, userId int, mediaID string) (string, error) {
+	base := strings.TrimRight(strings.TrimSpace(publicBaseURL), "/")
+	if base == "" {
+		return "", errors.New("public base URL is empty")
+	}
+	parsed, err := url.Parse(base)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return "", errors.New("public base URL must be an absolute HTTP URL")
+	}
+	if userId <= 0 || filepath.Base(mediaID) != mediaID || mediaID == "" {
+		return "", errors.New("invalid MiniMax-H3 media id")
+	}
+	urlPath := strings.TrimSpace(constant.MiniMaxH3FrameURLPath)
+	if urlPath == "" || strings.ContainsAny(urlPath, "?#\\") {
+		return "", errors.New("MINIMAX_H3_FRAME_URL_PATH must be a URL path")
+	}
+	for _, segment := range strings.Split(urlPath, "/") {
+		if segment == "." || segment == ".." {
+			return "", errors.New("MINIMAX_H3_FRAME_URL_PATH cannot contain dot segments")
+		}
+	}
+	return base + "/" + strings.Trim(urlPath, "/") + "/" + strconv.Itoa(userId) + "/" + url.PathEscape(mediaID), nil
 }
 
 func miniMaxH3FrameUserDir(userId int) (string, error) {

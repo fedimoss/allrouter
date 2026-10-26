@@ -255,8 +255,6 @@ func submitQueuedAutoDLMiniMaxH3Task(ctx context.Context, task *model.Task, ch *
 }
 
 func submitQueuedSoraMiniMaxH3Task(ctx context.Context, task *model.Task, ch *model.Channel) (*service.MiniMaxH3SubmitResult, error) {
-	defer cleanupMiniMaxH3PendingFrames(task.PrivateData.PendingRequest)
-
 	baseURL := constant.ChannelBaseURLs[ch.Type]
 	if ch.GetBaseURL() != "" {
 		baseURL = ch.GetBaseURL()
@@ -275,12 +273,17 @@ func submitQueuedSoraMiniMaxH3Task(ctx context.Context, task *model.Task, ch *mo
 		if parseErr != nil {
 			return nil, fmt.Errorf("parse MiniMax-H3 reference video URI: %w", parseErr)
 		}
-		filename := filepath.Base(parsed.Path)
-		uploadedURI, uploadErr := service.UploadMiniMaxH3ReferenceVideo(ctx, uri, filename)
-		if uploadErr != nil {
-			return nil, uploadErr
+		if parsed.Scheme == "file" {
+			filename := filepath.Base(parsed.Path)
+			if _, err := service.ResolveMiniMaxH3ReferenceVideoURI(task.UserId, filename); err != nil {
+				return nil, err
+			}
+			publicURI, err := service.MiniMaxH3MediaPublicURL(task.PrivateData.PublicBaseURL, task.UserId, filename)
+			if err != nil {
+				return nil, err
+			}
+			pending.Conditions[i]["uri"] = publicURI
 		}
-		pending.Conditions[i]["uri"] = uploadedURI
 	}
 	encodedPending, err := common.Marshal(pending)
 	if err != nil {

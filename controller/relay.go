@@ -69,7 +69,7 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 
 func applyProviderRelayModel(c *gin.Context, request dto.Request) *types.NewAPIError {
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
-	if providerId == 0 || request == nil {
+	if providerId == 0 {
 		return nil
 	}
 	publicModel := strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyOriginalModel))
@@ -96,7 +96,9 @@ func applyProviderRelayModel(c *gin.Context, request dto.Request) *types.NewAPIE
 	common.SetContextKey(c, constant.ContextKeyProviderImportPriceRatio, importPriceRatio)
 	common.SetContextKey(c, constant.ContextKeyProviderImportCachePriceRatio, cfg.ImportCachePriceRatio)
 	common.SetContextKey(c, constant.ContextKeyOriginalModel, rule.BaseModelName)
-	request.SetModelName(rule.BaseModelName)
+	if request != nil {
+		request.SetModelName(rule.BaseModelName)
+	}
 	return nil
 }
 
@@ -613,6 +615,15 @@ func RelayTask(c *gin.Context) {
 		}
 	}()
 
+	// Task requests are parsed by the task adaptor later in the flow, so there
+	// is no dto.Request available yet. Resolve the provider model here using the
+	// model captured by Distribute; otherwise task billing falls back to the
+	// main-site per-second price.
+	if apiErr := applyProviderRelayModel(c, nil); apiErr != nil {
+		respondTaskError(c, service.TaskErrorWrapperLocal(apiErr.Err, "provider_model_unavailable", apiErr.StatusCode))
+		return
+	}
+
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &dto.TaskError{
@@ -726,6 +737,8 @@ func RelayTask(c *gin.Context) {
 		}
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 		task.PrivateData.PublicBaseURL = common.GetRequestBaseURL(c, system_setting.ServerAddress)
+		task.PrivateData.MiniMaxH3FrameIDs = c.GetStringSlice(service.MiniMaxH3FrameIDsContextKey)
+		task.PrivateData.MiniMaxH3ReferenceVideoIDs = c.GetStringSlice(service.MiniMaxH3ReferenceVideoIDsContextKey)
 		if result.Queued {
 			task.Status = model.TaskStatusNotStart
 			task.Progress = "0%"
@@ -811,6 +824,11 @@ func RelayTask(c *gin.Context) {
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
 func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
+	if taskErr == nil {
+		return
+	}
+	taskErr.Message = service.SanitizeMiniMaxH3PublicMessage(taskErr.Message)
+	taskErr.Code = service.SanitizeMiniMaxH3PublicCode(taskErr.Code)
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
