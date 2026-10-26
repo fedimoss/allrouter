@@ -25,15 +25,17 @@ const (
 
 var questionnaireImageGCOnce sync.Once
 
-// questionnaireScreenshotURLPattern survey_data 文本中的截图 URL：
+// questionnaireScreenshotURLPattern survey_data 文本中的附件 URL（问题截图 + 合作申请资料）：
 // /static/questionnaire/{providerId}/{userId}/{sha256}{ext}。
-// 直接在原始 JSON 文本上匹配，不依赖 screenshots 字段的嵌套结构。
+// 直接在原始 JSON 文本上匹配，不依赖 screenshots/files 字段的嵌套结构。
+// 注意：扩展名 alternation 必须长的在前（docx 先于 doc），该正则未锚定，
+// 短的在前会把 .docx 截断匹配成 .doc，导致引用统计错位而误删文件。
 var questionnaireScreenshotURLPattern = regexp.MustCompile(
-	`/static/questionnaire/(\d+)/(\d+)/([0-9a-f]{64})\.(jpg|png|gif|webp)`)
+	`/static/questionnaire/(\d+)/(\d+)/([0-9a-f]{64})\.(jpeg|jpg|png|gif|webp|pdf|docx|doc|xlsx|xls|pptx|ppt|txt|md|csv|json|zip)`)
 
 // questionnaireImageNamePattern 落盘文件名：64 位内容哈希 + 白名单扩展名
 var questionnaireImageNamePattern = regexp.MustCompile(
-	`^([0-9a-f]{64})\.(jpg|png|gif|webp)$`)
+	`^([0-9a-f]{64})\.(jpeg|jpg|png|gif|webp|pdf|docx|doc|xlsx|xls|pptx|ppt|txt|md|csv|json|zip)$`)
 
 // StartQuestionnaireImageGCTask 启动问卷截图孤儿文件清理任务。
 // "孤儿"定义：未被任何问卷记录 survey_data 引用、且超过宽限期的文件，包括：

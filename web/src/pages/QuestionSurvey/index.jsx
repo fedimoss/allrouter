@@ -66,6 +66,34 @@ const URGENCY_MAP = {
   critical: '非常紧急',
 };
 
+// 问卷类型：与后端 model 的 SurveyType* 常量对应
+const SURVEY_TYPE_MAP = {
+  1: '用户反馈',
+  2: '合作申请',
+};
+
+// 合作申请：期望时间 /cooperationApplication 页提交的值为 asap/1m/3m/eval
+const COOP_TIMELINE_MAP = {
+  asap: '尽快',
+  '1m': '一个月内',
+  '3m': '三个月内',
+  eval: '前期评估',
+};
+
+// 合作申请：测试包 / 沟通方式提交的值为 standard/gray/consult
+const COOP_TEST_PACKAGE_MAP = {
+  standard: '标准验证测试',
+  gray: '业务灰度测试',
+  consult: '先咨询，暂不测试',
+};
+
+// 合作申请：期望窗口提交的值为 ''/weekday/weekend
+const COOP_WINDOW_MAP = {
+  '': '均可',
+  weekday: '工作日窗口',
+  weekend: '周末窗口',
+};
+
 const QuestionSurvey = () => {
   const { t } = useTranslation();
   const [records, setRecords] = useState([]);
@@ -203,6 +231,59 @@ const QuestionSurvey = () => {
     },
   ];
 
+  // 合作申请详情字段配置：回显 /cooperationApplication 页表单结构
+  const cooperationDetailFields = (data, t) => [
+    { label: t('公司 / 机构'), value: data.company || '-' },
+    { label: t('联系人'), value: data.contact || '-' },
+    { label: t('职务'), value: data.title || '-' },
+    { label: t('邮箱'), value: data.email || '-' },
+    { label: t('电话'), value: data.phone || '-' },
+    { label: t('微信'), value: data.wechat || '-' },
+    {
+      label: t('合作方向'),
+      value: data.cooperationType ? t(data.cooperationType) : '-',
+    },
+    { label: t('并发目标'), value: data.concurrency || '-' },
+    { label: t('上下文长度'), value: data.contextLength || '-' },
+    { label: t('目标模型'), value: data.models || '-' },
+    {
+      label: t('期望时间'),
+      value: COOP_TIMELINE_MAP[data.timeline]
+        ? t(COOP_TIMELINE_MAP[data.timeline])
+        : '-',
+    },
+    {
+      label: t('测试包 / 沟通方式'),
+      value: COOP_TEST_PACKAGE_MAP[data.testPackage]
+        ? t(COOP_TEST_PACKAGE_MAP[data.testPackage])
+        : '-',
+    },
+    {
+      label: t('期望窗口'),
+      value: COOP_WINDOW_MAP[data.windowPreference] !== undefined
+        ? t(COOP_WINDOW_MAP[data.windowPreference])
+        : '-',
+    },
+    { label: t('期望日期'), value: data.windowDate || '-' },
+    { label: t('业务场景与需求'), value: data.requirement || '-' },
+    { label: t('其他补充'), value: data.remark || '-' },
+    {
+      label: t('上传资料'),
+      // 对象数组（{url,name,size}）走弹窗里的文件链接分支渲染；无附件显示 '-'
+      value: Array.isArray(data.files) && data.files.length ? data.files : '-',
+    },
+    {
+      label: t('同意联系'),
+      value: data.consent ? t('是') : t('否'),
+    },
+  ];
+
+  // 详情字段按问卷类型分支：合作申请(2)之外的记录一律按用户反馈(1)回显
+  const surveyDetailFields = (record, data, t) =>
+    record.survey_type === 2
+      ? cooperationDetailFields(data, t)
+      : detailFields(data, t);
+
   const handleOpenDetail = (record) => {
     setDetailRecord(record);
   };
@@ -289,6 +370,16 @@ const QuestionSurvey = () => {
       dataIndex: 'username',
       render: (_, record) => {
         return <div className='font-medium'>{formatUserName(record)}</div>;
+      },
+    },
+    {
+      title: t('类型'),
+      dataIndex: 'survey_type',
+      width: 110,
+      render: (value) => {
+        // 老数据 survey_type 为空时按用户反馈(1)展示
+        const label = SURVEY_TYPE_MAP[value || 1];
+        return <div>{label ? t(label) : '-'}</div>;
       },
     },
     {
@@ -443,36 +534,51 @@ const QuestionSurvey = () => {
 
             {/* 问卷内容：标签列固定宽度对齐，值列自适应 */}
             <div className='space-y-2 text-sm'>
-              {detailFields(detailData, t).map((field, idx) => (
-                <div key={idx} className='flex items-start gap-3'>
-                  <span className='w-20 shrink-0 text-gray-500'>
-                    {field.label}：
-                  </span>
-                  {Array.isArray(field.value) ? (
-                    // 问题截图：缩略图展示，点击新窗口查看原图
-                    <div className='flex flex-wrap gap-2'>
-                      {field.value.map((url) => (
-                        <a
-                          key={url}
-                          href={url}
-                          target='_blank'
-                          rel='noreferrer'
-                        >
-                          <img
-                            src={url}
-                            alt={t('问题截图')}
-                            className='w-16 h-16 object-cover rounded-md border border-gray-200'
-                          />
-                        </a>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className='break-all font-medium'>
-                      {field.value}
+              {surveyDetailFields(detailRecord, detailData, t).map(
+                (field, idx) => (
+                  <div key={idx} className='flex items-start gap-3'>
+                    <span className='w-20 shrink-0 text-gray-500'>
+                      {field.label}：
                     </span>
-                  )}
-                </div>
-              ))}
+                    {Array.isArray(field.value) ? (
+                      // 附件：字符串为问题截图（缩略图），对象为合作申请资料（文件链接）
+                      <div className='flex flex-wrap gap-2'>
+                        {field.value.map((item, i) =>
+                          typeof item === 'string' ? (
+                            <a
+                              key={item}
+                              href={item}
+                              target='_blank'
+                              rel='noreferrer'
+                            >
+                              <img
+                                src={item}
+                                alt={t('问题截图')}
+                                className='w-16 h-16 object-cover rounded-md border border-gray-200'
+                              />
+                            </a>
+                          ) : (
+                            <a
+                              key={item.url || i}
+                              href={item.url}
+                              target='_blank'
+                              rel='noreferrer'
+                              className='break-all text-blue-500 hover:underline'
+                              title={item.name}
+                            >
+                              {item.name || item.url}
+                            </a>
+                          ),
+                        )}
+                      </div>
+                    ) : (
+                      <span className='break-all font-medium'>
+                        {field.value}
+                      </span>
+                    )}
+                  </div>
+                ),
+              )}
             </div>
           </>
         )}

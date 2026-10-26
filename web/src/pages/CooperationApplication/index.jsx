@@ -20,9 +20,9 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Form, Radio, Select } from '@douyinfe/semi-ui';
+import { Button, Card, Form, Radio, Select, Toast } from '@douyinfe/semi-ui';
 import { IconSend, IconTick } from '@douyinfe/semi-icons';
-import { getSystemName } from '../../helpers';
+import { API, getSystemName } from '../../helpers';
 import './index.css';
 
 const MAX_FILES = 3;
@@ -36,15 +36,16 @@ const CooperationApplication = () => {
   const { t } = useTranslation();
   const systemName = getSystemName();
   const formApiRef = useRef(null);
-  const formRef = useRef(null);
   const resultRef = useRef(null);
   const fileInputRef = useRef(null);
   const [formKey, setFormKey] = useState(0);
   const [testPackage, setTestPackage] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState([]);
+  // 附件：选中即上传，提交时仅将 URL 随表单存入 survey_data.files
+  const [files, setFiles] = useState([]);
   const [fileError, setFileError] = useState('');
   const [dragging, setDragging] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const requiresAcknowledgement =
     testPackage === 'standard' || testPackage === 'gray';
 
@@ -72,7 +73,7 @@ const CooperationApplication = () => {
   const handleReset = () => {
     setFormKey((key) => key + 1);
     setTestPackage('');
-    setSelectedFiles([]);
+    setFiles([]);
     setFileError('');
     setDragging(false);
     setSubmitted(false);
@@ -87,38 +88,90 @@ const CooperationApplication = () => {
     }
   };
 
-  // 资料仅暂存于当前页面；沿用静态页面的行为，不发起上传请求。
-  const addFiles = (files) => {
-    const nextFiles = [...selectedFiles];
+  // 附件上传：与 /userQuestion 截图共用 /api/user/questionnaire/upload，
+  // 未登录时后端按 domain 匹配服务商站点，与问卷提交的归属逻辑一致
+  const uploadFile = async (file) => {
+    const id = `${file.name}-${file.size}-${Date.now()}`;
+    setFiles((prev) => [
+      ...prev,
+      { id, name: file.name, size: file.size, uploading: true },
+    ]);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('domain', window.location.hostname);
+      const res = await API.post(
+        '/api/user/questionnaire/upload',
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      const { success, message, data } = res.data || {};
+      if (!success || !data?.url) {
+        throw new Error(message || t('资料上传失败'));
+      }
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === id ? { ...f, url: data.url, uploading: false } : f,
+        ),
+      );
+    } catch (error) {
+      // 上传失败的条目直接移除，仅保留提示
+      setFiles((prev) => prev.filter((f) => f.id !== id));
+      Toast.error(error?.message || t('资料上传失败'));
+    }
+  };
+
+  // 校验通过的文件立即上传；放弃表单或移除的文件由后台孤儿清理任务回收
+  const addFiles = (incoming) => {
     let error = '';
-    Array.from(files).forEach((file) => {
+    let count = files.length;
+    Array.from(incoming).forEach((file) => {
       if (!FILE_EXTENSION.test(file.name) || file.size > MAX_FILE_SIZE) {
         error = t('仅支持指定格式且单个不超过 10 MB 的文件。');
         return;
       }
-      if (
-        nextFiles.some(
-          (picked) => picked.name === file.name && picked.size === file.size,
-        )
-      ) {
+      if (files.some((picked) => picked.name === file.name && picked.size === file.size)) {
         return;
       }
-      if (nextFiles.length >= MAX_FILES) {
+      if (count >= MAX_FILES) {
         error = t('最多选择 3 个文件。');
         return;
       }
-      nextFiles.push(file);
+      count += 1;
+      uploadFile(file);
     });
-    setSelectedFiles(nextFiles);
     setFileError(error);
   };
 
-  const handleEdit = () => {
-    setSubmitted(false);
-    // 等待 React 恢复表单后聚焦，保留已填写信息和所选资料。
-    requestAnimationFrame(() =>
-      formRef.current?.querySelector('input')?.focus(),
-    );
+  const handleSubmit = async (values) => {
+    if (files.some((f) => f.uploading)) {
+      Toast.warning(t('资料正在上传，请稍候'));
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await API.post('/api/user/questionnaire', {
+        survey_type: 2, // 合作申请问卷（后端 SurveyTypeCooperation）
+        survey_data: {
+          ...values,
+          // 附件信息随表单一并存入 survey_data JSON，无需后端加列
+          files: files
+            .filter((f) => f.url)
+            .map((f) => ({ url: f.url, name: f.name, size: f.size })),
+        },
+        // 未登录时后端按此域名匹配服务商；已登录时以用户 provider_id 为准
+        domain: window.location.hostname,
+      });
+      if (res.data.success) {
+        setSubmitted(true);
+      } else {
+        Toast.error(res.data.message || t('提交失败，请稍后重试'));
+      }
+    } catch (err) {
+      Toast.error(t('提交失败，请稍后重试'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -132,7 +185,7 @@ const CooperationApplication = () => {
       </header>
 
       <Card className='cooperation-application__card' bordered={false}>
-        <div ref={formRef} hidden={submitted}>
+        <div hidden={submitted}>
           <Form
             key={formKey}
             className='cooperation-application__form'
@@ -141,7 +194,7 @@ const CooperationApplication = () => {
             getFormApi={(api) => {
               formApiRef.current = api;
             }}
-            onSubmit={() => setSubmitted(true)}
+            onSubmit={handleSubmit}
           >
             <div className='cooperation-application__grid'>
               <Form.Input
@@ -368,17 +421,18 @@ const CooperationApplication = () => {
                   className='cooperation-application__file-list'
                   aria-live='polite'
                 >
-                  {selectedFiles.map((file, index) => (
-                    <li key={`${file.name}-${file.size}`}>
+                  {files.map((file, index) => (
+                    <li key={file.id}>
                       <b title={file.name}>{file.name}</b>
-                      <span>{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                      <span>
+                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                        {file.uploading ? ` · ${t('上传中...')}` : ''}
+                      </span>
                       <button
                         type='button'
                         aria-label={t('移除 {{name}}', { name: file.name })}
                         onClick={() => {
-                          setSelectedFiles((files) =>
-                            files.filter((_, i) => i !== index),
-                          );
+                          setFiles((prev) => prev.filter((_, i) => i !== index));
                           setFileError('');
                         }}
                       >
@@ -406,6 +460,7 @@ const CooperationApplication = () => {
                 theme='solid'
                 type='primary'
                 icon={<IconSend />}
+                loading={submitting}
                 block
               >
                 {t('提交合作意向')}
@@ -436,19 +491,18 @@ const CooperationApplication = () => {
           >
             <IconTick size='large' />
           </span>
-          <h2 id='cooperation-result-title'>{t('合作信息已准备完成')}</h2>
+          <h2 id='cooperation-result-title'>{t('合作申请已提交')}</h2>
           <p>
             {t(
-              '当前页面尚未接入合作申请接收服务，填写的信息和所选资料都不会在此页面上传或保存。请联系 {{systemName}} 团队继续沟通。',
-              { systemName },
+              '我们已收到您的合作意向，会通过您留下的联系方式尽快与您联系。',
             )}
           </p>
           <Button
             className='cooperation-application__edit'
             type='tertiary'
-            onClick={handleEdit}
+            onClick={handleReset}
           >
-            {t('返回修改信息')}
+            {t('再填一份')}
           </Button>
         </section>
       </Card>

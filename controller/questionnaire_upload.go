@@ -1,56 +1,113 @@
 package controller
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
-// 问卷截图上传限制
-const questionnaireImageMaxSize = 5 << 20 // 5MB
+// 问卷附件上传限制：问题截图 5MB、合作申请文档资料 10MB
+const (
+	questionnaireImageMaxSize = 5 << 20
+	questionnaireFileMaxSize  = 10 << 20
+)
 
-// QuestionnaireUploadBodyLimit 上传请求体大小上限（5MB 文件 + multipart 边界开销余量）。
+// QuestionnaireUploadBodyLimit 上传请求体大小上限（10MB 文件 + multipart 边界开销余量）。
 // 供路由层在 multipart 解析前直接拒绝超大 body——gin 的 FormFile 会先读完整个请求体
 // （超 32MB 溢写临时文件）才轮到控制器的大小检查，提前截断可避免白白消耗带宽/磁盘。
-const QuestionnaireUploadBodyLimit = questionnaireImageMaxSize + 1<<20
+const QuestionnaireUploadBodyLimit = questionnaireFileMaxSize + 1<<20
 
-// 类型白名单 → 统一扩展名（不收 SVG：匿名可传的 SVG 经 /static 同源直出构成存储型 XSS 通道）
-var questionnaireImageExts = map[string]string{
-	"image/jpeg": ".jpg",
-	"image/png":  ".png",
-	"image/gif":  ".gif",
-	"image/webp": ".webp",
+// questionnaireUploadSpec 单一扩展名的校验规则：大小上限 + 首块魔数嗅探。
+// 白名单不含 SVG/HTML：匿名可传的此类文件经 /static 同源直出构成存储型 XSS 通道。
+type questionnaireUploadSpec struct {
+	maxSize int64
+	sniff   func(head []byte) bool
 }
 
-// UploadQuestionnaireImage 上传问卷问题截图
+// sniffMime 用 http.DetectContentType 精确匹配（图片类）
+func sniffMime(mimeType string) func([]byte) bool {
+	return func(head []byte) bool {
+		return http.DetectContentType(head) == mimeType
+	}
+}
+
+// sniffPrefix 二进制签名前缀匹配
+func sniffPrefix(prefix string) func([]byte) bool {
+	return func(head []byte) bool {
+		return bytes.HasPrefix(head, []byte(prefix))
+	}
+}
+
+var (
+	// questionnaireSniffOLE OLE2 复合文档签名（老版 Office：doc/xls/ppt）
+	questionnaireSniffOLE = sniffPrefix("\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
+	// questionnaireSniffZIP ZIP 容器签名（docx/xlsx/pptx/zip）
+	questionnaireSniffZIP = sniffPrefix("PK\x03\x04")
+	// questionnaireSniffText 文本类（txt/md/csv/json）：首块不含 NUL 字节视为文本
+	questionnaireSniffText = func(head []byte) bool {
+		return bytes.IndexByte(head, 0) < 0
+	}
+)
+
+// questionnaireUploadSpecs 扩展名白名单。multipart 头 Content-Type 可伪造，
+// 一律以文件名扩展名路由，再嗅探首块内容确保与声明的格式相符，防止任意文件伪装落盘。
+var questionnaireUploadSpecs = map[string]questionnaireUploadSpec{
+	".jpg":  {questionnaireImageMaxSize, sniffMime("image/jpeg")},
+	".jpeg": {questionnaireImageMaxSize, sniffMime("image/jpeg")},
+	".png":  {questionnaireImageMaxSize, sniffMime("image/png")},
+	".gif":  {questionnaireImageMaxSize, sniffMime("image/gif")},
+	".webp": {questionnaireImageMaxSize, sniffMime("image/webp")},
+	".pdf":  {questionnaireFileMaxSize, sniffPrefix("%PDF-")},
+	".doc":  {questionnaireFileMaxSize, questionnaireSniffOLE},
+	".xls":  {questionnaireFileMaxSize, questionnaireSniffOLE},
+	".ppt":  {questionnaireFileMaxSize, questionnaireSniffOLE},
+	".docx": {questionnaireFileMaxSize, questionnaireSniffZIP},
+	".xlsx": {questionnaireFileMaxSize, questionnaireSniffZIP},
+	".pptx": {questionnaireFileMaxSize, questionnaireSniffZIP},
+	".zip":  {questionnaireFileMaxSize, questionnaireSniffZIP},
+	".txt":  {questionnaireFileMaxSize, questionnaireSniffText},
+	".md":   {questionnaireFileMaxSize, questionnaireSniffText},
+	".csv":  {questionnaireFileMaxSize, questionnaireSniffText},
+	".json": {questionnaireFileMaxSize, questionnaireSniffText},
+}
+
+// UploadQuestionnaireFile 上传问卷附件（问题截图 / 合作申请资料）
 // 接口：POST /api/user/questionnaire/upload（公开，登录可选）
+// 表单字段：file（合作申请资料）或 image（/userQuestion 截图，兼容保留）
 // 存储路径：static/questionnaire/{provider_id}/{user_id}/{sha256}{ext}
 // 站点归属与问卷提交一致（域名优先，主站未登录归 0）；匿名用户 user_id=0；
-// 文件名用内容哈希：天然去重、无命名冲突。URL 由前端写入 survey_data.screenshots 数组。
-func UploadQuestionnaireImage(c *gin.Context) {
+// 文件名用内容哈希：天然去重、无命名冲突。URL 由前端写入 survey_data
+// （反馈问卷 screenshots 数组 / 合作申请 files 数组）。
+func UploadQuestionnaireFile(c *gin.Context) {
 	userId := c.GetInt("id") // 未登录为 0
 
-	file, err := c.FormFile("image")
+	file, err := c.FormFile("file")
 	if err != nil {
-		common.ApiErrorMsg(c, "请选择图片")
+		// 兼容 /userQuestion 截图上传的旧字段名 image
+		file, err = c.FormFile("image")
+	}
+	if err != nil {
+		common.ApiErrorMsg(c, "请选择文件")
 		return
 	}
-	if file.Size > questionnaireImageMaxSize {
-		common.ApiErrorMsg(c, "图片大小不能超过 5MB")
-		return
-	}
-	contentType := file.Header.Get("Content-Type")
-	ext, ok := questionnaireImageExts[contentType]
+	spec, ok := questionnaireUploadSpecs[strings.ToLower(filepath.Ext(file.Filename))]
 	if !ok {
-		common.ApiErrorMsg(c, "仅支持 JPG、PNG、GIF、WebP 格式图片")
+		common.ApiErrorMsg(c, "不支持的文件类型")
+		return
+	}
+	if file.Size > spec.maxSize {
+		common.ApiErrorMsg(c, fmt.Sprintf("文件大小不能超过 %dMB", spec.maxSize>>20))
 		return
 	}
 
@@ -76,16 +133,16 @@ func UploadQuestionnaireImage(c *gin.Context) {
 	}
 	defer src.Close()
 
-	// 魔数校验：multipart 头由客户端声明、可伪造，嗅探首块内容确保确实是声明的图片格式，
-	// 防止任意文件伪装成图片落盘
+	// 魔数校验：multipart 头由客户端声明、可伪造，嗅探首块内容确保确实是声明的格式，
+	// 防止任意文件伪装成图片/文档落盘
 	head := make([]byte, 512)
 	headLen, err := io.ReadFull(src, head)
 	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 		common.ApiError(c, err)
 		return
 	}
-	if http.DetectContentType(head[:headLen]) != contentType {
-		common.ApiErrorMsg(c, "仅支持 JPG、PNG、GIF、WebP 格式图片")
+	if !spec.sniff(head[:headLen]) {
+		common.ApiErrorMsg(c, "文件内容与格式不符")
 		return
 	}
 
@@ -93,7 +150,7 @@ func UploadQuestionnaireImage(c *gin.Context) {
 	hasher := sha256.New()
 	tmpDir := filepath.Join(baseDir, "tmp")
 	_ = os.MkdirAll(tmpDir, 0755) // 可能已存在
-	tmpPath := filepath.Join(tmpDir, uuid.New().String()+ext)
+	tmpPath := filepath.Join(tmpDir, uuid.New().String()+filepath.Ext(file.Filename))
 	dst, err := os.Create(tmpPath)
 	if err != nil {
 		common.ApiError(c, err)
@@ -118,16 +175,16 @@ func UploadQuestionnaireImage(c *gin.Context) {
 
 	// 哈希命名 + 原子重命名到最终位置
 	hash := hex.EncodeToString(hasher.Sum(nil))
-	finalPath := filepath.Join(baseDir, hash+ext)
+	finalPath := filepath.Join(baseDir, hash+strings.ToLower(filepath.Ext(file.Filename)))
 	if err := os.Rename(tmpPath, finalPath); err != nil {
 		cleanupTmpFile(nil, tmpPath)
 		common.ApiError(c, err)
 		return
 	}
 
-	imageURL := "/static/questionnaire/" + strconv.Itoa(providerId) + "/" +
-		strconv.Itoa(userId) + "/" + hash + ext
-	common.ApiSuccess(c, gin.H{"url": imageURL})
+	fileURL := "/static/questionnaire/" + strconv.Itoa(providerId) + "/" +
+		strconv.Itoa(userId) + "/" + hash + strings.ToLower(filepath.Ext(file.Filename))
+	common.ApiSuccess(c, gin.H{"url": fileURL})
 }
 
 // cleanupTmpFile 落盘/重命名失败时关闭并移除临时文件，避免 tmp 目录被失败残留填满

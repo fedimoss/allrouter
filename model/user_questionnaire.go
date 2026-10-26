@@ -6,7 +6,8 @@ import (
 
 // 问卷类型
 const (
-	SurveyTypeFeedback = 1 // 用户反馈问卷（原有类型）
+	SurveyTypeFeedback    = 1 // 用户反馈问卷（原有类型，/userQuestion 页）
+	SurveyTypeCooperation = 2 // 合作申请问卷（/cooperationApplication 页）
 )
 
 // UserQuestionnaire 用户问卷提交记录

@@ -16,8 +16,11 @@ import (
 // SurveyData 接收整个问卷表单的 JSON 对象（前端表单 values），
 // 以原始 JSON 文本形式落库，字段增减不需要改表。
 // Domain 可选：用户未登录时用于解析站点归属的服务商 ID。
+// SurveyType 可选：问卷类型（SurveyType* 常量），缺省 0 视为用户反馈问卷，
+// 兼容不传该字段的旧前端；仅允许已定义的类型。
 type UserQuestionnaireRequest struct {
 	SurveyData map[string]interface{} `json:"survey_data" validate:"required"`
+	SurveyType int                    `json:"survey_type"`
 	Domain     string                 `json:"domain"`
 }
 
@@ -37,6 +40,18 @@ func SubmitUserQuestionnaire(c *gin.Context) {
 		return
 	}
 
+	// 缺省 0 视为用户反馈问卷（兼容不传 survey_type 的旧前端），仅放行已定义类型
+	surveyType := req.SurveyType
+	if surveyType == 0 {
+		surveyType = model.SurveyTypeFeedback
+	}
+	switch surveyType {
+	case model.SurveyTypeFeedback, model.SurveyTypeCooperation:
+	default:
+		common.ApiErrorMsg(c, "不支持的问卷类型")
+		return
+	}
+
 	providerId, err := resolveQuestionnaireProviderId(c, req.Domain)
 	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
@@ -50,8 +65,9 @@ func SubmitUserQuestionnaire(c *gin.Context) {
 		return
 	}
 
-	// /userQuestion 反馈问卷固定为 SurveyTypeFeedback(1)
-	record, err := model.CreateUserQuestionnaire(providerId, userId, model.SurveyTypeFeedback, string(jsonBytes))
+	// survey_type 由请求体决定：/userQuestion 旧前端不传 → 1 反馈问卷；
+	// /cooperationApplication 传 2 合作申请
+	record, err := model.CreateUserQuestionnaire(providerId, userId, surveyType, string(jsonBytes))
 	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return

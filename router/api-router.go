@@ -160,7 +160,7 @@ func SetApiRouter(router *gin.Engine) {
 			// 问卷截图上传：公开接口（登录可选）。请求体在 multipart 解析前按 6MB 截断，
 			// 魔数/大小/类型白名单在控制器内校验；UploadRateLimit 独立限流（10 次/60 秒/IP），
 			// 不与注册等 CriticalRateLimit 关键接口共用配额
-			userRoute.POST("/questionnaire/upload", middleware.TryUserAuth(), middleware.RequestBodyLimit(controller.QuestionnaireUploadBodyLimit), middleware.UploadRateLimit(), controller.UploadQuestionnaireImage)
+			userRoute.POST("/questionnaire/upload", middleware.TryUserAuth(), middleware.RequestBodyLimit(controller.QuestionnaireUploadBodyLimit), middleware.UploadRateLimit(), controller.UploadQuestionnaireFile)
 
 			adminRoute := userRoute.Group("/")
 			adminRoute.Use(middleware.AdminOrModuleAuth("user"))
