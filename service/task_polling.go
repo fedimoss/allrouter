@@ -668,6 +668,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if shouldRefund {
 		RefundTaskQuota(ctx, task, task.FailReason)
 	}
+	if isDone && constant.IsMiniMaxH3Model(task.Properties.OriginModelName) {
+		CleanupMiniMaxH3TaskMedia(task.UserId, task.PrivateData.MiniMaxH3FrameIDs, task.PrivateData.MiniMaxH3ReferenceVideoIDs)
+	}
 	if isDone && task.Action == constant.TaskActionMiniMaxH3Generate {
 		TriggerMiniMaxH3Dispatch()
 	}

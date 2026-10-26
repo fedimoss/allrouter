@@ -163,6 +163,9 @@ func initConstantEnv() {
 		constant.MiniMaxH3MaxConcurrency = 5
 	}
 	constant.MiniMaxH3FrameUploadDir = GetEnvOrDefaultString("MINIMAX_H3_FRAME_UPLOAD_DIR", "data/minimax-h3-frames")
+	constant.MiniMaxH3FrameURLPath = GetEnvOrDefaultString("MINIMAX_H3_FRAME_URL_PATH", "/sglang/minimax-h3-frames")
+	constant.MiniMaxH3ResultDir = GetEnvOrDefaultString("MINIMAX_H3_RESULT_DIR", "data/minimax-h3-results")
+	constant.MiniMaxH3ResultURLPath = GetEnvOrDefaultString("MINIMAX_H3_RESULT_URL_PATH", "/sglang/minimax-h3-results")
 	constant.MiniMaxH3ReferenceUploadURL = GetEnvOrDefaultString("MINIMAX_H3_REFERENCE_UPLOAD_URL", "")
 	constant.MiniMaxH3ReferenceUploadAPIKey = GetEnvOrDefaultString("MINIMAX_H3_REFERENCE_UPLOAD_API_KEY", "")
 	constant.MiniMaxH3ReferenceUploadTimeoutSeconds = GetEnvOrDefault("MINIMAX_H3_REFERENCE_UPLOAD_TIMEOUT_SECONDS", 120)

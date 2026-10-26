@@ -105,11 +105,13 @@ func (m Properties) Value() (driver.Value, error) {
 }
 
 type TaskPrivateData struct {
-	Key            string          `json:"key,omitempty"`
-	UpstreamTaskID string          `json:"upstream_task_id,omitempty"` // 上游真实 task ID
-	ResultURL      string          `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
-	PublicBaseURL  string          `json:"public_base_url,omitempty"`  // 异步媒体上传结果的公开访问前缀
-	PendingRequest json.RawMessage `json:"pending_request,omitempty"`
+	Key                        string          `json:"key,omitempty"`
+	UpstreamTaskID             string          `json:"upstream_task_id,omitempty"` // 上游真实 task ID
+	ResultURL                  string          `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	PublicBaseURL              string          `json:"public_base_url,omitempty"`  // 异步媒体上传结果的公开访问前缀
+	PendingRequest             json.RawMessage `json:"pending_request,omitempty"`
+	MiniMaxH3FrameIDs          []string        `json:"minimax_h3_frame_ids,omitempty"`
+	MiniMaxH3ReferenceVideoIDs []string        `json:"minimax_h3_reference_video_ids,omitempty"`
 	// AutoDL result uploads retry across polling cycles. Stored in the existing JSON column.
 	AutoDLResultUploadFailures int    `json:"autodl_result_upload_failures,omitempty"`
 	MiniMaxH3UpscaleTaskID     string `json:"minimax_h3_upscale_task_id,omitempty"`
