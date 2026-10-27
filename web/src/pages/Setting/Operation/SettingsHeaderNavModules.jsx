@@ -33,22 +33,35 @@ import { StatusContext } from '../../../context/Status';
 
 const { Text } = Typography;
 
+const DEFAULT_HEADER_NAV_MODULES = {
+  home: true,
+  console: true,
+  pricing: {
+    enabled: true,
+    requireAuth: false,
+  },
+  cooperation: true,
+  docs: true,
+  about: true,
+};
+
+const normalizeHeaderNavModules = (modules) => {
+  const pricing =
+    typeof modules.pricing === 'boolean'
+      ? { enabled: modules.pricing, requireAuth: false }
+      : { ...DEFAULT_HEADER_NAV_MODULES.pricing, ...modules.pricing };
+  return { ...DEFAULT_HEADER_NAV_MODULES, ...modules, pricing };
+};
+
 export default function SettingsHeaderNavModules(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
 
   // 顶栏模块管理状态
-  const [headerNavModules, setHeaderNavModules] = useState({
-    home: true,
-    console: true,
-    pricing: {
-      enabled: true,
-      requireAuth: false, // 默认不需要登录鉴权
-    },
-    docs: true,
-    about: true,
-  });
+  const [headerNavModules, setHeaderNavModules] = useState(
+    DEFAULT_HEADER_NAV_MODULES,
+  );
 
   // 处理顶栏模块配置变更
   function handleHeaderNavModuleChange(moduleKey) {
@@ -79,17 +92,7 @@ export default function SettingsHeaderNavModules(props) {
 
   // 重置顶栏模块为默认配置
   function resetHeaderNavModules() {
-    const defaultModules = {
-      home: true,
-      console: true,
-      pricing: {
-        enabled: true,
-        requireAuth: false,
-      },
-      docs: true,
-      about: true,
-    };
-    setHeaderNavModules(defaultModules);
+    setHeaderNavModules(DEFAULT_HEADER_NAV_MODULES);
     showSuccess(t('已重置为默认配置'));
   }
 
@@ -133,29 +136,9 @@ export default function SettingsHeaderNavModules(props) {
     if (props.options && props.options.HeaderNavModules) {
       try {
         const modules = JSON.parse(props.options.HeaderNavModules);
-
-        // 处理向后兼容性：如果pricing是boolean，转换为对象格式
-        if (typeof modules.pricing === 'boolean') {
-          modules.pricing = {
-            enabled: modules.pricing,
-            requireAuth: false, // 默认不需要登录鉴权
-          };
-        }
-
-        setHeaderNavModules(modules);
+        setHeaderNavModules(normalizeHeaderNavModules(modules));
       } catch (error) {
-        // 使用默认配置
-        const defaultModules = {
-          home: true,
-          console: true,
-          pricing: {
-            enabled: true,
-            requireAuth: false,
-          },
-          docs: true,
-          about: true,
-        };
-        setHeaderNavModules(defaultModules);
+        setHeaderNavModules(DEFAULT_HEADER_NAV_MODULES);
       }
     }
   }, [props.options]);
@@ -177,6 +160,11 @@ export default function SettingsHeaderNavModules(props) {
       title: t('模型广场'),
       description: t('模型定价，需要登录访问'),
       hasSubConfig: true, // 标识该模块有子配置
+    },
+    {
+      key: 'cooperation',
+      title: t('合作'),
+      description: t('商务合作与代理申请入口'),
     },
     {
       key: 'docs',

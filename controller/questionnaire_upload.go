@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -176,9 +177,19 @@ func UploadQuestionnaireFile(c *gin.Context) {
 	// 哈希命名 + 原子重命名到最终位置
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	finalPath := filepath.Join(baseDir, hash+strings.ToLower(filepath.Ext(file.Filename)))
-	if err := os.Rename(tmpPath, finalPath); err != nil {
+	// 内容哈希相同即同一文件。重复上传（例如用户移除后又选回同一文件）
+	// 应幂等复用已有文件；Windows 上 os.Rename 不能覆盖已有目标，必须显式判断。
+	if _, statErr := os.Stat(finalPath); statErr == nil {
 		cleanupTmpFile(nil, tmpPath)
-		common.ApiError(c, err)
+	} else if errors.Is(statErr, os.ErrNotExist) {
+		if err := os.Rename(tmpPath, finalPath); err != nil {
+			cleanupTmpFile(nil, tmpPath)
+			common.ApiError(c, err)
+			return
+		}
+	} else {
+		cleanupTmpFile(nil, tmpPath)
+		common.ApiError(c, statErr)
 		return
 	}
 

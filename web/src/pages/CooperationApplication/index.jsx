@@ -32,6 +32,12 @@ const FILE_ACCEPT =
 const FILE_EXTENSION =
   /\.(pdf|docx?|xlsx?|pptx?|txt|md|csv|json|zip|png|jpe?g)$/i;
 
+const clearFileInput = (inputRef) => {
+  if (inputRef.current) {
+    inputRef.current.value = '';
+  }
+};
+
 // DatePicker 表单值为所选日期本地零点的 Date 对象，直接 JSON 序列化会走 toISOString()
 // 转成 UTC（东八区 10-19 00:00 → 2026-10-18T16:00:00.000Z，日期倒退一天），
 // 提交前按本地日期格式化为 yyyy-MM-dd 字符串
@@ -116,7 +122,10 @@ const CooperationApplication = () => {
       const res = await API.post(
         '/api/user/questionnaire/upload',
         formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } },
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          skipErrorHandler: true,
+        },
       );
       const { success, message, data } = res.data || {};
       if (!success || !data?.url) {
@@ -130,7 +139,8 @@ const CooperationApplication = () => {
     } catch (error) {
       // 上传失败的条目直接移除，仅保留提示
       setFiles((prev) => prev.filter((f) => f.id !== id));
-      Toast.error(error?.message || t('资料上传失败'));
+      clearFileInput(fileInputRef);
+      Toast.error(error?.response?.data?.message || t('资料上传失败'));
     }
   };
 
@@ -449,6 +459,7 @@ const CooperationApplication = () => {
                         aria-label={t('移除 {{name}}', { name: file.name })}
                         onClick={() => {
                           setFiles((prev) => prev.filter((_, i) => i !== index));
+                          clearFileInput(fileInputRef);
                           setFileError('');
                         }}
                       >

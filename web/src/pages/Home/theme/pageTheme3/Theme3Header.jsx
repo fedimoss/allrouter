@@ -39,6 +39,7 @@ import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
 import { useActualTheme, useSetTheme } from '../../../../context/Theme';
 import UserArea from '../../../../components/layout/headerbar/UserArea';
+import { COOPERATION_APPLICATION_PATH } from '../../../../constants/navigation';
 import brandLogo from '../../../../../public/theme/theme3/allrouter-logo.svg';
 
 import './index.css';
@@ -423,12 +424,16 @@ const Theme3Header = () => {
     if (showAgentPartnerNav) {
       links.push({ label: t('代理加盟'), to: '/agent-partner' });
     }
+    if (headerNavModules?.cooperation !== false) {
+      links.push({ label: t('合作'), to: COOPERATION_APPLICATION_PATH });
+    }
     links.push({ label: t('文档'), href: docsHref, external: true });
     links.push({ label: t('关于'), to: '/about' });
     return links;
   }, [
     consoleNavTarget,
     docsHref,
+    headerNavModules,
     pricingNavTarget,
     subscriptionNavState,
     subscriptionNavTarget,

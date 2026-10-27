@@ -88,7 +88,10 @@ const UserQuestion = () => {
       const res = await API.post(
         '/api/user/questionnaire/upload',
         formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } },
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          skipErrorHandler: true,
+        },
       );
       const { success, message, data } = res.data || {};
       if (!success || !data?.url) {
@@ -106,7 +109,7 @@ const UserQuestion = () => {
       });
       onSuccess?.(data);
     } catch (error) {
-      Toast.error(error?.message || t('截图上传失败'));
+      Toast.error(error?.response?.data?.message || t('截图上传失败'));
       onError?.({ status: 500 }, error);
     } finally {
       setUploadingSlots((prev) => prev.filter((i) => i !== slotIndex));

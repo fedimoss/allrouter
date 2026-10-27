@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/gin-gonic/gin"
 )
 
@@ -119,7 +120,16 @@ func DownloadRateLimit() func(c *gin.Context) {
 }
 
 func UploadRateLimit() func(c *gin.Context) {
-	return rateLimitFactory(common.UploadRateLimitNum, common.UploadRateLimitDuration, "UP")
+	limiter := rateLimitFactory(common.UploadRateLimitNum, common.UploadRateLimitDuration, "UP")
+	return func(c *gin.Context) {
+		limiter(c)
+		if c.IsAborted() && c.Writer.Status() == http.StatusTooManyRequests {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"success": false,
+				"message": i18n.T(c, i18n.MsgUploadRateLimitReached),
+			})
+		}
+	}
 }
 
 // QuestionnaireSubmitRateLimit 问卷提交限流（公开接口、匿名可写库，按 IP 独立桶，

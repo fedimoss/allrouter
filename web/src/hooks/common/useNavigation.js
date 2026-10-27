@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useMemo } from 'react';
+import { COOPERATION_APPLICATION_PATH } from '../../constants/navigation';
 
 export const useNavigation = (t, docsLink, headerNavModules) => {
   const mainNavLinks = useMemo(() => {
@@ -26,6 +27,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       home: true,
       console: true,
       pricing: true,
+      cooperation: true,
       docs: true,
       about: true,
     };
@@ -51,6 +53,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       },
       ...(docsLink
         ? [
+          {
+            text: t('合作'),
+            itemKey: 'cooperation',
+            to: COOPERATION_APPLICATION_PATH,
+          },
           {
             text: t('文档'),
             itemKey: 'docs',

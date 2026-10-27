@@ -46,6 +46,7 @@ import ThemeToggle from '../../components/layout/headerbar/ThemeToggle';
 import LanguageSelector from '../../components/layout/headerbar/LanguageSelector';
 import NotificationButton from '../../components/layout/headerbar/NotificationButton';
 import UserArea from '../../components/layout/headerbar/UserArea';
+import { COOPERATION_APPLICATION_PATH } from '../../constants/navigation';
 import MarqueeLogos from '../../components/common/MarqueeLogos';
 import PageTheme1Home from './theme/pageTheme1';
 import PageTheme3Home from './theme/pageTheme3';
@@ -498,6 +499,9 @@ const Home = () => {
               </Link>
               {showAgentPartnerNav ? (
                 <Link to='/agent-partner'>{t('代理加盟')}</Link>
+              ) : null}
+              {headerNavModules?.cooperation !== false ? (
+                <Link to={COOPERATION_APPLICATION_PATH}>{t('合作')}</Link>
               ) : null}
               <a href={docsHref} target='_blank' rel='noreferrer'>
                 {t('文档')}

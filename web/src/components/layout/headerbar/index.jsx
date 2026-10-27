@@ -30,6 +30,7 @@ import ThemeToggle from './ThemeToggle';
 import LanguageSelector from './LanguageSelector';
 import NotificationButton from './NotificationButton';
 import UserArea from './UserArea';
+import { COOPERATION_APPLICATION_PATH } from '../../../constants/navigation';
 import {
   isAdmin,
   shouldShowProviderAgentPartner,
@@ -170,6 +171,11 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             {showAgentPartnerNav ? (
               <Link to='/agent-partner' className={location.pathname === '/agent-partner' ? 'landing-v2-nav-link-active' : ''}>
                 {t('代理加盟')}
+              </Link>
+            ) : null}
+            {headerNavModules?.cooperation !== false ? (
+              <Link to={COOPERATION_APPLICATION_PATH} className={location.pathname === COOPERATION_APPLICATION_PATH ? 'landing-v2-nav-link-active' : ''}>
+                {t('合作')}
               </Link>
             ) : null}
             <a href={docsHref} target='_blank' rel='noreferrer' className={location.pathname === '/docs' ? 'landing-v2-nav-link-active' : ''}>
