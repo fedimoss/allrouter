@@ -51,6 +51,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     isSelfUseMode,
     docsLink,
     isConsoleRoute,
+    headerNavModules,
     theme,
     pricingRequireAuth,
     logout,
