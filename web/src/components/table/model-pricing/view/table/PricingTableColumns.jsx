@@ -29,7 +29,6 @@ import {
   getLobeHubIcon,
 } from '../../../../../helpers';
 import { renderLimitedItems, renderDescription } from '../../../../common/ui/RenderUtils';
-import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 function renderQuotaType(type, t, record = {}) {
   if (record.billing_mode === 'tiered_expr') {
@@ -98,7 +97,6 @@ export const getPricingTableColumns = ({
   displayPrice,
   showRatio,
 }) => {
-  const isMobile = useIsMobile();
   const priceDataCache = new WeakMap();
 
   const getPriceData = (record) => {
@@ -187,7 +185,6 @@ export const getPricingTableColumns = ({
   columns.push({
     title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('模型价格'),
     dataIndex: 'model_price',
-    ...(isMobile ? {} : { fixed: 'right' }),
     render: (text, record) => {
       const priceData = getPriceData(record);
       if (priceData.isDynamicPricing) {

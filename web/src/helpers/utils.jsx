@@ -1194,7 +1194,8 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
   if (hasRequestCondition) tags.push(t('含请求条件'));
 
   const unitSuffix = ' / 1M Tokens';
-  const lineStyle = { color: 'var(--semi-color-text-1)' };
+  // block 级独占一行：避免行内 span 在 max-content 计算时排成一行，把表格价格列撑得过宽
+  const lineStyle = { color: 'var(--semi-color-text-1)', display: 'block' };
 
   return (
     <>
