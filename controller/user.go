@@ -123,7 +123,7 @@ func establishUserSession(c *gin.Context, user *model.User, rememberMe bool) err
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   common.SessionCookieSecure && common.IPRequestAddress(c.Request) == "",
 		SameSite: http.SameSiteStrictMode,
 	})
 	if err := session.Save(); err != nil {
@@ -194,7 +194,7 @@ func clearLegacySessionCookies(c *gin.Context) {
 	}
 	for _, path := range legacyPaths {
 		http.SetCookie(c.Writer, &http.Cookie{
-			Name:     "session",
+			Name:     common.SessionCookieName(c.Request),
 			Value:    "",
 			Path:     path,
 			MaxAge:   -1,

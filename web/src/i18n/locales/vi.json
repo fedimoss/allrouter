@@ -1,5 +1,10 @@
 {
   "translation": {
+    "主地址必须使用域名": "Địa chỉ chính phải là tên miền",
+    "备用地址 {{index}}": "Địa chỉ dự phòng {{index}}",
+    "地址格式不正确，请填写域名或 HTTP 的 IP:端口": "Địa chỉ không hợp lệ. Nhập tên miền hoặc địa chỉ HTTP dạng IP:cổng",
+    "添加备用地址": "Thêm địa chỉ dự phòng",
+    "主地址必须使用域名，备用地址支持域名或 IP:端口。IP 备用入口使用 HTTP，需手动访问。": "Địa chỉ chính phải là tên miền. Địa chỉ dự phòng hỗ trợ tên miền hoặc IP:cổng. Địa chỉ IP dự phòng sử dụng HTTP và cần được truy cập thủ công.",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Gọi tạo hình ảnh {{symbol}}{{price}} / 1 lần * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + Tim kiem tep {{count}} lan / 1K lan * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Tìm kiếm tệp {{count}} lần / 1K lần * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

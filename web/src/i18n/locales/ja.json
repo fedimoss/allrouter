@@ -1,5 +1,10 @@
 {
   "translation": {
+    "主地址必须使用域名": "メインアドレスにはドメインを指定してください",
+    "备用地址 {{index}}": "予備アドレス {{index}}",
+    "地址格式不正确，请填写域名或 HTTP 的 IP:端口": "アドレスの形式が正しくありません。ドメインまたは HTTP の IP:ポートを入力してください",
+    "添加备用地址": "予備アドレスを追加",
+    "主地址必须使用域名，备用地址支持域名或 IP:端口。IP 备用入口使用 HTTP，需手动访问。": "メインアドレスにはドメインを指定してください。予備アドレスにはドメインまたは IP:ポートを指定できます。IP の予備アドレスは HTTP を使用し、手動でアクセスする必要があります。",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + 画像生成APIコール {{symbol}}{{price}} / 1回 * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + File search {{count}} calls / 1K calls * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + ファイル検索 {{count}}回 / 1K回 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one",

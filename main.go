@@ -26,8 +26,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 
@@ -218,16 +216,7 @@ func main() {
 	server.Use(middleware.PoweredBy())
 	server.Use(middleware.I18n())
 	middleware.SetUpLogger(server)
-	// Initialize session store
-	store := cookie.NewStore([]byte(common.SessionSecret))
-	store.Options(sessions.Options{
-		Path:     "/",
-		MaxAge:   common.SessionMaxAgeDefault, // 7 days
-		HttpOnly: true,
-		Secure:   common.SessionCookieSecure,
-		SameSite: http.SameSiteStrictMode,
-	})
-	server.Use(sessions.Sessions("session", store))
+	server.Use(middleware.SiteSessions())
 
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()

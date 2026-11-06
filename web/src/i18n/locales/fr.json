@@ -1,5 +1,10 @@
 {
   "translation": {
+    "主地址必须使用域名": "L’adresse principale doit être un nom de domaine",
+    "备用地址 {{index}}": "Adresse de secours {{index}}",
+    "地址格式不正确，请填写域名或 HTTP 的 IP:端口": "Adresse invalide. Saisissez un nom de domaine ou une adresse IP:port en HTTP",
+    "添加备用地址": "Ajouter une adresse de secours",
+    "主地址必须使用域名，备用地址支持域名或 IP:端口。IP 备用入口使用 HTTP，需手动访问。": "L’adresse principale doit être un nom de domaine. Les adresses de secours acceptent un domaine ou IP:port. Les accès de secours par IP utilisent HTTP et doivent être ouverts manuellement.",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Appel de génération d'image {{symbol}}{{price}} / 1 fois * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + Recherche de fichiers {{count}} appels / 1K appels * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Recherche de fichiers {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

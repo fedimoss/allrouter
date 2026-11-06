@@ -2,8 +2,6 @@ package model
 
 import (
 	"errors"
-	"net"
-	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -159,7 +157,7 @@ type childCountRow struct {
 }
 
 const (
-	providerDomainContextCacheNamespace = "new-api:provider_domain_context:v1"
+	providerDomainContextCacheNamespace = "new-api:provider_domain_context:v2"
 	providerPublicConfigCacheNamespace  = "new-api:provider_public_config:v1"
 	providerDomainContextCacheTTL       = 5 * time.Minute
 	providerDomainContextMissCacheTTL   = 1 * time.Minute
@@ -215,17 +213,31 @@ func getProviderPublicConfigCache() *cachex.HybridCache[providerPublicConfigCach
 }
 
 func NormalizeProviderDomain(domain string) string {
-	domain = strings.TrimSpace(strings.ToLower(domain))
-	if parsedURL, err := url.Parse(domain); err == nil && parsedURL.Host != "" {
-		domain = parsedURL.Host
+	address, err := common.ParseProviderAddress(domain)
+	if err != nil {
+		return ""
 	}
-	if host, _, err := net.SplitHostPort(domain); err == nil {
-		domain = host
+	return address.Key()
+}
+
+var ErrProviderPrimaryDomainRequired = errors.New("the primary address must be a domain; edit it or save a replacement primary domain together with the backup addresses")
+
+// ValidateProviderDomain is used for configuration, which requires explicit IP
+// ports and only permits HTTP IP backups. Requests use NormalizeProviderDomain.
+func ValidateProviderDomain(domain string, primary bool) (string, error) {
+	address, err := common.ParseProviderAddress(domain)
+	if err != nil {
+		return "", err
 	}
-	if idx := strings.Index(domain, "/"); idx > -1 {
-		domain = domain[:idx]
+	if address.IsIP {
+		if primary {
+			return "", ErrProviderPrimaryDomainRequired
+		}
+		if address.Port == "" || address.Scheme == "https" {
+			return "", common.ErrInvalidProviderAddress
+		}
 	}
-	return strings.Trim(strings.TrimSuffix(domain, "."), "[]")
+	return address.Key(), nil
 }
 
 func ProviderDomainLookupCandidates(domain string) []string {
@@ -234,6 +246,9 @@ func ProviderDomainLookupCandidates(domain string) []string {
 		return nil
 	}
 	candidates := []string{domain}
+	if address, err := common.ParseProviderAddress(domain); err == nil && address.IsIP {
+		return candidates
+	}
 	if strings.HasPrefix(domain, "www.") {
 		candidates = append(candidates, strings.TrimPrefix(domain, "www."))
 	} else {
@@ -409,8 +424,8 @@ func InvalidateProviderDomainCache(providerId int) {
 	if providerId <= 0 {
 		return
 	}
-	domains, err := GetProviderVerifiedDomains(providerId)
-	if err != nil {
+	var domains []string
+	if err := DB.Model(&ProviderDomain{}).Where("provider_id = ?", providerId).Pluck("domain", &domains).Error; err != nil {
 		common.SysLog("failed to list provider domains for cache invalidation: " + err.Error())
 		return
 	}
@@ -451,6 +466,12 @@ func GetProviderVerifiedDomains(providerId int) ([]string, error) {
 	verifiedDomains := make([]string, 0, len(domains))
 	seen := make(map[string]struct{}, len(domains))
 	for _, domain := range domains {
+		// Domain-only consumers keep using the primary/backup domains. IP
+		// addresses are manual access entries, not canonical site domains.
+		address, err := common.ParseProviderAddress(domain.Domain)
+		if err != nil || address.IsIP {
+			continue
+		}
 		for _, normalized := range ProviderDomainLookupCandidates(domain.Domain) {
 			if normalized == "" {
 				continue
