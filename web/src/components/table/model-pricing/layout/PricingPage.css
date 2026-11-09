@@ -1256,6 +1256,12 @@ html.dark .pricing-market-view-switch button.is-active {
   background: transparent !important;
 }
 
+/* 表格默认撑满容器（.semi-table 自带 width:100%）；
+   内容放不下时以内容最小宽度为准，在 .semi-table-body 内横向滚动 */
+.pricing-market-table .semi-table {
+  min-width: max-content;
+}
+
 .pricing-market-table .semi-table-container,
 .pricing-market-table .semi-table-middle,
 .pricing-market-table .semi-table-body,

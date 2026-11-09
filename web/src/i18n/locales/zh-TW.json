@@ -1,5 +1,10 @@
 {
   "translation": {
+    "主地址必须使用域名": "主要位址必須使用網域",
+    "备用地址 {{index}}": "備用位址 {{index}}",
+    "地址格式不正确，请填写域名或 HTTP 的 IP:端口": "位址格式不正確，請填寫網域或 HTTP 的 IP:連接埠",
+    "添加备用地址": "新增備用位址",
+    "主地址必须使用域名，备用地址支持域名或 IP:端口。IP 备用入口使用 HTTP，需手动访问。": "主要位址必須使用網域，備用位址支援網域或 IP:連接埠。IP 備用入口使用 HTTP，需手動存取。",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + 圖片生成調用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + 檔案搜尋 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + 檔案搜尋 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

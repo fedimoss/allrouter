@@ -1,5 +1,10 @@
 {
   "translation": {
+    "主地址必须使用域名": "The primary address must be a domain",
+    "备用地址 {{index}}": "Backup address {{index}}",
+    "地址格式不正确，请填写域名或 HTTP 的 IP:端口": "Invalid address. Enter a domain or an HTTP IP:port address",
+    "添加备用地址": "Add backup address",
+    "主地址必须使用域名，备用地址支持域名或 IP:端口。IP 备用入口使用 HTTP，需手动访问。": "The primary address must be a domain. Backup addresses support domains or IP:port. IP backups use HTTP and must be accessed manually.",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Image generation call {{symbol}}{{price}} / 1 time * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}": " + File search {{count}} calls / 1K calls * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + File search {{count}} time / 1K times * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

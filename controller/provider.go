@@ -1096,7 +1096,9 @@ func writeProviderDomainError(c *gin.Context, err error) {
 	if errors.Is(err, errProviderDomainRequired) ||
 		errors.Is(err, errProviderDomainConflict) ||
 		errors.Is(err, errProviderDomainDuplicated) ||
-		errors.Is(err, errProviderDomainInvalidId) {
+		errors.Is(err, errProviderDomainInvalidId) ||
+		errors.Is(err, model.ErrProviderPrimaryDomainRequired) ||
+		errors.Is(err, common.ErrInvalidProviderAddress) {
 		common.ApiErrorMsg(c, err.Error())
 		return
 	}
@@ -1152,6 +1154,9 @@ func ensureProviderDomainAvailable(c *gin.Context, domain string, currentDomainI
 }
 
 func prepareProviderDomainRows(providerId int, domains []model.ProviderDomain, allowVerified bool) ([]model.ProviderDomain, error) {
+	if len(domains) == 0 {
+		return nil, model.ErrProviderPrimaryDomainRequired
+	}
 	var existingDomains []model.ProviderDomain
 	if err := model.DB.Where("provider_id = ?", providerId).Find(&existingDomains).Error; err != nil {
 		return nil, err
@@ -1173,9 +1178,12 @@ func prepareProviderDomainRows(providerId int, domains []model.ProviderDomain, a
 			}
 		}
 
-		domain := model.NormalizeProviderDomain(item.Domain)
-		if domain == "" {
+		if strings.TrimSpace(item.Domain) == "" {
 			return nil, errProviderDomainRequired
+		}
+		domain, err := model.ValidateProviderDomain(item.Domain, len(rows) == 0)
+		if err != nil {
+			return nil, err
 		}
 		for _, candidate := range model.ProviderDomainLookupCandidates(domain) {
 			if _, ok := seenCandidates[candidate]; ok {
@@ -1200,6 +1208,31 @@ func prepareProviderDomainRows(providerId int, domains []model.ProviderDomain, a
 	}
 
 	return rows, nil
+}
+
+// The lowest ID is the primary address, matching the existing UI and batch-save
+// order. Individual endpoints must not remove it or replace it with an IP.
+func providerPrimaryDomainID(providerId, currentDomainId int) (int, error) {
+	var domains []model.ProviderDomain
+	if err := model.DB.Select("id").Where("provider_id = ?", providerId).Order("id asc").Find(&domains).Error; err != nil {
+		return 0, err
+	}
+	if currentDomainId > 0 {
+		found := false
+		for _, domain := range domains {
+			if domain.Id == currentDomainId {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return 0, errProviderDomainInvalidId
+		}
+	}
+	if len(domains) == 0 {
+		return 0, nil
+	}
+	return domains[0].Id, nil
 }
 
 func saveProviderDomains(c *gin.Context, providerId int, allowVerified bool) {
@@ -1250,9 +1283,14 @@ func createProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 		common.ApiError(c, err)
 		return
 	}
-	req.Domain = model.NormalizeProviderDomain(req.Domain)
-	if req.Domain == "" {
-		common.ApiErrorMsg(c, "domain is required")
+	primaryId, err := providerPrimaryDomainID(providerId, 0)
+	if err != nil {
+		writeProviderDomainError(c, err)
+		return
+	}
+	req.Domain, err = model.ValidateProviderDomain(req.Domain, primaryId == 0)
+	if err != nil {
+		writeProviderDomainError(c, err)
 		return
 	}
 	if !ensureProviderDomainAvailable(c, req.Domain, 0) {
@@ -1290,15 +1328,18 @@ func updateProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 		common.ApiError(c, err)
 		return
 	}
-	model.InvalidateProviderDomainCache(providerId)
-	req.Domain = model.NormalizeProviderDomain(req.Domain)
-	if req.Domain == "" {
-		if err := model.DB.Where("id = ? AND provider_id = ?", domainId, providerId).Delete(&model.ProviderDomain{}).Error; err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		model.InvalidateProviderDomainCache(providerId)
-		common.ApiSuccess(c, nil)
+	if strings.TrimSpace(req.Domain) == "" {
+		deleteProviderDomain(c, providerId)
+		return
+	}
+	primaryId, err := providerPrimaryDomainID(providerId, domainId)
+	if err != nil {
+		writeProviderDomainError(c, err)
+		return
+	}
+	req.Domain, err = model.ValidateProviderDomain(req.Domain, primaryId == domainId)
+	if err != nil {
+		writeProviderDomainError(c, err)
 		return
 	}
 	if !ensureProviderDomainAvailable(c, req.Domain, domainId) {
@@ -1308,6 +1349,7 @@ func updateProviderDomain(c *gin.Context, providerId int, allowVerified bool) {
 	if allowVerified {
 		status = normalizeProviderDomainStatus(req.Status)
 	}
+	model.InvalidateProviderDomainCache(providerId)
 	if err := model.DB.Model(&model.ProviderDomain{}).
 		Where("id = ? AND provider_id = ?", domainId, providerId).
 		Updates(map[string]interface{}{
@@ -1328,6 +1370,15 @@ func deleteProviderDomain(c *gin.Context, providerId int) {
 	domainId, err := strconv.Atoi(c.Param("domain_id"))
 	if err != nil || domainId <= 0 {
 		common.ApiErrorMsg(c, "invalid domain id")
+		return
+	}
+	primaryId, err := providerPrimaryDomainID(providerId, domainId)
+	if err != nil {
+		writeProviderDomainError(c, err)
+		return
+	}
+	if primaryId == domainId {
+		writeProviderDomainError(c, model.ErrProviderPrimaryDomainRequired)
 		return
 	}
 	model.InvalidateProviderDomainCache(providerId)

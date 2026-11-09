@@ -12,7 +12,7 @@ import (
 
 func TenantResolver() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		host := c.Request.Host
+		host := common.ProviderRequestHost(c.Request)
 		providerCtx, err := model.GetProviderContextByDomainCached(host)
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			common.SysLog("failed to resolve provider domain: " + err.Error())
