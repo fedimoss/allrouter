@@ -30,3 +30,10 @@ func ValidatePasswordAndHash(password string, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
+
+// 使用sha256加密
+func Sha256Encrypt(data string) string {
+	hash := sha256.New()
+	hash.Write([]byte(data))
+	return hex.EncodeToString(hash.Sum(nil))
+}
