@@ -409,7 +409,7 @@ const EditUserModal = (props) => {
                             field='invite_consume_rebate_enabled'
                             label={t('消费分佣资格')}
                             extraText={t(
-                              '开启后，该用户作为邀请人时可获得被邀请人消费产生的分佣。',
+                              '开启后，该用户作为邀请人时可获得被邀请人消费产生的分佣。提交保存后，若该用户已配置邮箱，将自动发送邮件通知其本次变更。',
                             )}
                           />
                         </Col>
