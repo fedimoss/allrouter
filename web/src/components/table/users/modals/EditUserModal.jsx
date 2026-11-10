@@ -23,6 +23,7 @@ import {
   API,
   showError,
   showSuccess,
+  showWarning,
   getCurrencyConfig,
 } from '../../../../helpers';
 import { quotaToDisplayAmount } from '../../../../helpers/quota';
@@ -197,6 +198,11 @@ const EditUserModal = (props) => {
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('用户信息更新成功！'));
+      // 消费分佣资格开关变化但未能发送通知邮件时（如用户未配置邮箱），
+      // 后端会返回提示信息，这里以警告形式展示，不影响保存结果
+      if (message) {
+        showWarning(message);
+      }
       props.refresh();
       props.handleClose();
     } else {

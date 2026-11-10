@@ -341,7 +341,16 @@ func UpdateProviderUser(c *gin.Context) {
 			return
 		}
 	}
-	common.ApiSuccess(c, nil)
+	// 消费分佣资格开关相对保存前发生变化时，查询用户邮箱发送变更通知；
+	// 邮件发送结果不影响开关保存，仅在未发送时把提示带回给前端展示
+	message := ""
+	// req.InviteConsumeRebateEnabled: 消费分佣资格开关，为 1 时开启，0 时关闭
+	// originUser.InviteConsumeRebateEnabled: 原始用户分佣资格开关，是否为 1 时开启，0 时关闭
+	// 仅当开关相对保存前发生变化时，才发送通知邮件
+	if (req.InviteConsumeRebateEnabled == 1) != (originUser.InviteConsumeRebateEnabled == 1) {
+		message = notifyInviteRebateChange(c, req.Id, req.InviteConsumeRebateEnabled == 1, provider.Id)
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": message})
 }
 
 func ManageProviderUser(c *gin.Context) {
