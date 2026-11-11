@@ -170,6 +170,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	defer func() {
 		if newAPIError != nil {
+			if newAPIError.StatusCode == http.StatusTooManyRequests {
+				c.Header("Retry-After", "1")
+			}
+			if newAPIError.StatusCode == http.StatusServiceUnavailable {
+				c.Header("Retry-After", "5")
+			}
 			logger.LogError(c, fmt.Sprintf("relay error: %s", newAPIError.Error()))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
@@ -194,7 +200,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
 			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
 		} else {
-			newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest)
+			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		return
 	}
@@ -260,7 +266,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 				return
 			}
 			if ownerQuota < providerImportCostPreConsume {
-				newAPIError = types.NewError(fmt.Errorf("provider quota is not enough"), types.ErrorCodeInsufficientUserQuota, types.ErrOptionWithStatusCode(http.StatusForbidden))
+				newAPIError = types.NewError(fmt.Errorf("provider quota is not enough"), types.ErrorCodeInsufficientUserQuota, types.ErrOptionWithStatusCode(http.StatusPaymentRequired))
 				return
 			}
 		}
@@ -546,9 +552,17 @@ func RelayMidjourney(c *gin.Context) {
 	log.Println(mjErr)
 	if mjErr != nil {
 		statusCode := http.StatusBadRequest
+		if mjErr.StatusCode != 0 {
+			statusCode = mjErr.StatusCode
+		}
 		if mjErr.Code == 30 {
 			mjErr.Result = "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 			statusCode = http.StatusTooManyRequests
+		}
+		if statusCode == http.StatusTooManyRequests {
+			c.Header("Retry-After", "1")
+		} else if statusCode == http.StatusServiceUnavailable {
+			c.Header("Retry-After", "5")
 		}
 		c.JSON(statusCode, gin.H{
 			"description": fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result),
@@ -830,7 +844,11 @@ func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 	taskErr.Message = service.SanitizeMiniMaxH3PublicMessage(taskErr.Message)
 	taskErr.Code = service.SanitizeMiniMaxH3PublicCode(taskErr.Code)
 	if taskErr.StatusCode == http.StatusTooManyRequests {
+		c.Header("Retry-After", "1")
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
+	}
+	if taskErr.StatusCode == http.StatusServiceUnavailable {
+		c.Header("Retry-After", "5")
 	}
 	c.JSON(taskErr.StatusCode, taskErr)
 }

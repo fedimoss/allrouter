@@ -24,10 +24,17 @@ func MidjourneyErrorWrapper(code int, desc string) *dto.MidjourneyResponse {
 	}
 }
 
+func MidjourneyErrorWrapperWithStatus(code int, desc string, statusCode int) *dto.MidjourneyResponse {
+	response := MidjourneyErrorWrapper(code, desc)
+	response.StatusCode = statusCode
+	return response
+}
+
 func MidjourneyErrorWithStatusCodeWrapper(code int, desc string, statusCode int) *dto.MidjourneyResponseWithStatusCode {
+	response := *MidjourneyErrorWrapperWithStatus(code, desc, statusCode)
 	return &dto.MidjourneyResponseWithStatusCode{
 		StatusCode: statusCode,
-		Response:   *MidjourneyErrorWrapper(code, desc),
+		Response:   response,
 	}
 }
 
@@ -84,7 +91,8 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 }
 
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
-	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+	upstreamStatus := NormalizeUpstreamStatusCode(resp.StatusCode)
+	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, upstreamStatus)
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -116,18 +124,38 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		// General format error (OpenAI, Anthropic, Gemini, etc.)
 		oaiError := errResponse.TryToOpenAIError()
 		if oaiError != nil {
-			newApiErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
+			newApiErr = types.WithOpenAIError(*oaiError, upstreamStatus)
 			if showBodyWhenFail {
 				newApiErr.Err = buildErrWithBody(newApiErr.Error())
 			}
 			return
 		}
 	}
-	newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+	newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, upstreamStatus)
 	if showBodyWhenFail {
 		newApiErr.Err = buildErrWithBody(newApiErr.Error())
 	}
 	return
+}
+
+func NormalizeUpstreamStatusCode(statusCode int) int {
+	if statusCode == http.StatusServiceUnavailable {
+		return http.StatusServiceUnavailable
+	}
+	if statusCode >= http.StatusInternalServerError {
+		return http.StatusBadGateway
+	}
+	return statusCode
+}
+
+func WriteNormalizedUpstreamStatus(w http.ResponseWriter, statusCode int) {
+	statusCode = NormalizeUpstreamStatusCode(statusCode)
+	if statusCode == http.StatusTooManyRequests {
+		w.Header().Set("Retry-After", "1")
+	} else if statusCode == http.StatusServiceUnavailable {
+		w.Header().Set("Retry-After", "5")
+	}
+	w.WriteHeader(statusCode)
 }
 
 func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) {

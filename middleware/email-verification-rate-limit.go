@@ -46,6 +46,7 @@ func redisEmailVerificationRateLimiter(c *gin.Context) {
 	if err == nil && ttl > 0 {
 		waitSeconds = int64(ttl.Seconds())
 	}
+	setRetryAfter(c, int(waitSeconds))
 
 	c.JSON(http.StatusTooManyRequests, gin.H{
 		"success": false,
@@ -58,6 +59,7 @@ func memoryEmailVerificationRateLimiter(c *gin.Context) {
 	key := EmailVerificationRateLimitMark + ":" + c.ClientIP()
 
 	if !inMemoryRateLimiter.Request(key, EmailVerificationMaxRequests, EmailVerificationDuration) {
+		setRetryAfter(c, EmailVerificationDuration)
 		c.JSON(http.StatusTooManyRequests, gin.H{
 			"success": false,
 			"message": "发送过于频繁，请稍后再试",

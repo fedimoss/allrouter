@@ -114,7 +114,7 @@ func cfHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response)
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
-	c.Writer.WriteHeader(resp.StatusCode)
+	service.WriteNormalizedUpstreamStatus(c.Writer, resp.StatusCode)
 	_, _ = c.Writer.Write(jsonResponse)
 	return nil, usage
 }
@@ -140,7 +140,7 @@ func cfSTTHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
-	c.Writer.WriteHeader(resp.StatusCode)
+	service.WriteNormalizedUpstreamStatus(c.Writer, resp.StatusCode)
 	_, _ = c.Writer.Write(jsonResponse)
 
 	usage := service.ResponseText2Usage(c, cfResp.Result.Text, info.UpstreamModelName, info.GetEstimatePromptTokens())

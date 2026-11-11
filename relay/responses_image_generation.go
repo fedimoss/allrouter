@@ -1143,7 +1143,7 @@ func executeResponsesImagePlanner(
 		)
 	}
 	if openAIError := response.GetOpenAIError(); openAIError != nil && openAIError.Type != "" {
-		return nil, nil, types.WithOpenAIError(*openAIError, recorder.Code)
+		return nil, nil, types.WithOpenAIError(*openAIError, service.NormalizeUpstreamStatusCode(recorder.Code))
 	}
 	return &response, rawResponse, nil
 }

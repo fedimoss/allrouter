@@ -35,7 +35,7 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 		}
 		c.Writer.Header().Set(k, v[0])
 	}
-	c.Writer.WriteHeader(resp.StatusCode)
+	service.WriteNormalizedUpstreamStatus(c.Writer, resp.StatusCode)
 
 	if info.IsStream {
 		helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
