@@ -211,6 +211,7 @@ func TestModelStatusHiddenModelExcludedFromMainPricingData(t *testing.T) {
 		}
 	}
 	require.Equal(t, 1, versionCount)
+	// 数组项上的版本串是历史兼容标记，测试只确认输出层仍按原契约携带它。
 	for _, item := range response.Data {
 		if item.ModelName == testVisibleModelName {
 			require.Equal(t, "b2c5fbb11278d477f8141196fd56208a31cb25dfdb04e0dc866e3fc4b8f0ae21", item.PricingVersion)

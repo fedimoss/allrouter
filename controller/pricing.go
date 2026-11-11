@@ -225,7 +225,9 @@ func GetPricing(c *gin.Context) {
 	pricing = applyProviderPricingView(providerId, pricing)
 	usableGroup, groupRatio, autoGroups := getPricingVisibilityContext(c)
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
-	// 版本标记放在最终可见数据上，避免隐藏模型成为首项时版本信息丢失。
+	// 这段十六进制串是历史定价版本标记，不是哈希，也不参与隐藏或计费判断。
+	// 当前值沿用自提交 a623b7a9（新增按秒计费类型），只在定价结构大改时手工轮换；
+	// 放在最终可见数据上，避免过滤后首项变化导致标记丢失。顶层另有独立的短版本字段。
 	if len(pricing) > 0 {
 		pricing[0].PricingVersion = "b2c5fbb11278d477f8141196fd56208a31cb25dfdb04e0dc866e3fc4b8f0ae21"
 	}

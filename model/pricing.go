@@ -44,7 +44,9 @@ type Pricing struct {
 	// fixed surcharge separately because it is settled from total token usage.
 	ProviderPricingType     string  `json:"provider_pricing_type,omitempty"`
 	ProviderDeltaModelRatio float64 `json:"provider_delta_model_ratio,omitempty"`
-	PricingVersion          string  `json:"pricing_version,omitempty"`
+	// PricingVersion 是定价列表的历史版本标记：定价字段大改时由维护者手工轮换，
+	// 不是运行时哈希；当前只在 /api/pricing 的首条可见数据上返回。
+	PricingVersion string `json:"pricing_version,omitempty"`
 	// MarketplaceHidden 标记模型是否在模型广场隐藏；仅供内部计算，不序列化到 API。
 	MarketplaceHidden bool `json:"-"`
 }
