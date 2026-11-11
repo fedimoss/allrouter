@@ -45,6 +45,8 @@ type Pricing struct {
 	ProviderPricingType     string  `json:"provider_pricing_type,omitempty"`
 	ProviderDeltaModelRatio float64 `json:"provider_delta_model_ratio,omitempty"`
 	PricingVersion          string  `json:"pricing_version,omitempty"`
+	// MarketplaceHidden 标记模型是否在模型广场隐藏；仅供内部计算，不序列化到 API。
+	MarketplaceHidden bool `json:"-"`
 }
 
 type PricingVendor struct {
@@ -302,12 +304,9 @@ func updatePricing() {
 			SupportedEndpointTypes: modelSupportEndpointTypes[model],
 		}
 
-		// 补充模型元数据（描述、标签、供应商、状态）
+		// 补充模型元数据；status 只用于标记模型广场隐藏，不再把模型移出注册表。
 		if meta, ok := metaMap[model]; ok {
-			// 若模型被禁用(status!=1)，则直接跳过，不返回给前端
-			if meta.Status != 1 {
-				continue
-			}
+			pricing.MarketplaceHidden = meta.Status != ModelStatusVisible
 			pricing.Description = meta.Description
 			pricing.DescriptionI18n = meta.DescriptionI18n
 			pricing.Icon = meta.Icon
@@ -357,11 +356,6 @@ func updatePricing() {
 			}
 		}
 		pricingMap = append(pricingMap, pricing)
-	}
-
-	// 防止大更新后数据不通用
-	if len(pricingMap) > 0 {
-		pricingMap[0].PricingVersion = "b2c5fbb11278d477f8141196fd56208a31cb25dfdb04e0dc866e3fc4b8f0ae21"
 	}
 
 	// 刷新缓存映射，供高并发快速查询
