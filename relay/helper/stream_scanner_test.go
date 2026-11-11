@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -543,6 +544,45 @@ func TestStreamScannerHandler_StreamStatus_Timeout(t *testing.T) {
 	require.NotNil(t, info.StreamStatus)
 	assert.Equal(t, relaycommon.StreamEndReasonTimeout, info.StreamStatus.EndReason)
 	assert.False(t, info.StreamStatus.IsNormalEnd())
+	assert.Contains(t, recorder.Body.String(), "upstream stream timed out")
+}
+
+func TestStreamScannerHandler_ClientCancellationClosesUpstream(t *testing.T) {
+	pr, pw := io.Pipe()
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	requestCtx, cancel := context.WithCancel(context.Background())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(requestCtx)
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, &http.Response{Body: pr}, info, func(data string, sr *StreamResult) {})
+		close(done)
+	}()
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("stream did not stop after client cancellation")
+	}
+	require.Equal(t, relaycommon.StreamEndReasonClientGone, info.StreamStatus.EndReason)
+	_, err := pw.Write([]byte("data: should-not-block\n"))
+	require.Error(t, err)
+	_ = pw.Close()
+}
+
+func TestStreamScannerHandler_UpstreamErrorEventTerminatesStream(t *testing.T) {
+	body := "data: {\"error\":{\"message\":\"upstream failed\"}}\n" + buildSSEBody(5)
+	c, resp, info := setupStreamTest(t, strings.NewReader(body))
+	var handled int
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		handled++
+	})
+
+	require.Equal(t, 0, handled)
+	require.Equal(t, relaycommon.StreamEndReasonHandlerStop, info.StreamStatus.EndReason)
 }
 
 func TestStreamScannerHandler_StreamStatus_SoftErrors(t *testing.T) {

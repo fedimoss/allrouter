@@ -127,6 +127,20 @@ func TestGetEnabledModelsUsesRedisCacheAndInvalidatesOnBatchDeleteChannels(t *te
 	require.Empty(t, GetEnabledModels())
 }
 
+func TestHasEnabledModel(t *testing.T) {
+	setupModelListCacheTest(t)
+	require.NoError(t, DB.Create(&Ability{Group: "default", Model: "gpt-4o-gizmo-*", ChannelId: 1, Enabled: true}).Error)
+	require.NoError(t, DB.Create(&Ability{Group: "default", Model: "disabled-model", ChannelId: 1, Enabled: false}).Error)
+
+	exists, err := HasEnabledModel("gpt-4o-gizmo-abc")
+	require.NoError(t, err)
+	require.True(t, exists)
+
+	exists, err = HasEnabledModel("disabled-model")
+	require.NoError(t, err)
+	require.False(t, exists)
+}
+
 func TestGetPreferredModelOwnerChannelTypesUsesRedisCacheAndInvalidatesOnChannelUpdate(t *testing.T) {
 	setupModelListCacheTest(t)
 

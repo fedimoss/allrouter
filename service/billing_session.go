@@ -515,7 +515,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	// ---- 1) 预扣令牌额度 ----
 	if effectiveQuota > 0 && s.tokenQuotaRequired() {
 		if err := PreConsumeTokenQuota(s.relayInfo, effectiveQuota); err != nil {
-			return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			return tokenPreConsumeError(err)
 		}
 		s.tokenConsumed = effectiveQuota
 	}
@@ -562,7 +562,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		// aggregate-period variants as well.
 		errMsg := err.Error()
 		if isSubscriptionQuotaUnavailable(errMsg) {
-			return types.NewErrorWithStatusCode(fmt.Errorf("%s", subscriptionQuotaUnavailableMessage(errMsg)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			return types.NewErrorWithStatusCode(fmt.Errorf("%s", subscriptionQuotaUnavailableMessage(errMsg)), types.ErrorCodeInsufficientUserQuota, http.StatusPaymentRequired, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 	}
@@ -692,7 +692,7 @@ func newBillingUnavailableError(reasons ...string) *types.NewAPIError {
 	return types.NewErrorWithStatusCode(
 		fmt.Errorf("可用额度不足：%s", strings.Join(parts, "；")),
 		types.ErrorCodeInsufficientUserQuota,
-		http.StatusForbidden,
+		http.StatusPaymentRequired,
 		types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(),
 	)
 }
@@ -714,13 +714,13 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if userQuota <= 0 {
 			return nil, types.NewErrorWithStatusCode(
 				fmt.Errorf("用户额度不足, 剩余额度: %s", logger.FormatQuota(userQuota)),
-				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
+				types.ErrorCodeInsufficientUserQuota, http.StatusPaymentRequired,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		if userQuota-preConsumedQuota < 0 {
 			return nil, types.NewErrorWithStatusCode(
 				fmt.Errorf("预扣费额度失败, 用户剩余额度: %s, 需要预扣费额度: %s", logger.FormatQuota(userQuota), logger.FormatQuota(preConsumedQuota)),
-				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
+				types.ErrorCodeInsufficientUserQuota, http.StatusPaymentRequired,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		relayInfo.UserQuota = userQuota

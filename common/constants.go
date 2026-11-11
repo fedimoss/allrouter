@@ -253,6 +253,7 @@ var (
 	GlobalApiRateLimitEnable   bool
 	GlobalApiRateLimitNum      int
 	GlobalApiRateLimitDuration int64
+	RelayMaxConcurrency        int
 
 	GlobalWebRateLimitEnable   bool
 	GlobalWebRateLimitNum      int

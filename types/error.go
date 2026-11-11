@@ -1,10 +1,13 @@
 package types
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -253,11 +256,18 @@ func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPI
 		}
 		return newErr
 	}
+	statusCode := http.StatusInternalServerError
+	switch errorCode {
+	case ErrorCodeInvalidRequest:
+		statusCode = http.StatusBadRequest
+	case ErrorCodeInsufficientUserQuota:
+		statusCode = http.StatusPaymentRequired
+	}
 	e := &NewAPIError{
 		Err:        err,
 		RelayError: nil,
 		errorType:  ErrorTypeNewAPIError,
-		StatusCode: http.StatusInternalServerError,
+		StatusCode: classifyOutboundRequestError(err, statusCode),
 		errorCode:  errorCode,
 	}
 	for _, op := range ops {
@@ -288,7 +298,26 @@ func NewOpenAIError(err error, errorCode ErrorCode, statusCode int, ops ...NewAP
 		Type:    string(errorCode),
 		Code:    errorCode,
 	}
+	statusCode = classifyOutboundRequestError(err, statusCode)
 	return WithOpenAIError(openaiError, statusCode, ops...)
+}
+
+func classifyOutboundRequestError(err error, statusCode int) int {
+	if statusCode != http.StatusInternalServerError || err == nil {
+		return statusCode
+	}
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) {
+		return statusCode
+	}
+	if errors.Is(err, context.DeadlineExceeded) || urlErr.Timeout() {
+		return http.StatusRequestTimeout
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return http.StatusRequestTimeout
+	}
+	return http.StatusBadGateway
 }
 
 func InitOpenAIError(errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {

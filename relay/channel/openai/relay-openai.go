@@ -239,7 +239,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	}
 
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
-		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+		return nil, types.WithOpenAIError(*oaiError, service.NormalizeUpstreamStatusCode(resp.StatusCode))
 	}
 	// 如果请求格式为 Responses API，记录上游 Chat Completions 响应体日志（用于兼容性调试），
 	// 并将非流式 Chat Completions 响应转换为 Responses 响应格式

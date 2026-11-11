@@ -245,7 +245,7 @@ func zhipuHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
-	c.Writer.WriteHeader(resp.StatusCode)
+	service.WriteNormalizedUpstreamStatus(c.Writer, resp.StatusCode)
 	_, err = c.Writer.Write(jsonResponse)
 	return &fullTextResponse.Usage, nil
 }

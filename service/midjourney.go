@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -172,7 +173,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	if c.Request.Method != "GET" {
 		err := json.NewDecoder(c.Request.Body).Decode(&mapResult)
 		if err != nil {
-			return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "read_request_body_failed", http.StatusInternalServerError), nullBytes, err
+			return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "read_request_body_failed", http.StatusBadRequest), nullBytes, err
 		}
 		if !setting.MjAccountFilterEnabled {
 			delete(mapResult, "accountFilter")
@@ -200,7 +201,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	if err != nil {
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "create_request_failed", http.StatusInternalServerError), nullBytes, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 	// 使用带有超时的 context 创建新的请求
 	req = req.WithContext(ctx)
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
@@ -214,44 +215,53 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	resp, err := GetHttpClient().Do(req)
 	if err != nil {
 		common.SysLog("do request failed: " + err.Error())
-		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "do_request_failed", http.StatusInternalServerError), nullBytes, err
+		statusCode := types.NewError(err, types.ErrorCodeDoRequestFailed).StatusCode
+		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "do_request_failed", statusCode), nullBytes, err
 	}
-	statusCode := resp.StatusCode
+	statusCode := NormalizeUpstreamStatusCode(resp.StatusCode)
 	defer CloseResponseBodyGracefully(resp)
 	//if statusCode != 200  {
 	//	return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "bad_response_status_code", statusCode), nullBytes, nil
 	//}
 	err = req.Body.Close()
 	if err != nil {
-		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "close_request_body_failed", statusCode), nullBytes, err
+		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "close_request_body_failed", http.StatusInternalServerError), nullBytes, err
 	}
 	err = c.Request.Body.Close()
 	if err != nil {
-		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "close_request_body_failed", statusCode), nullBytes, err
+		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "close_request_body_failed", http.StatusInternalServerError), nullBytes, err
 	}
 	var midjResponse dto.MidjourneyResponse
 	var midjourneyUploadsResponse dto.MidjourneyUploadResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "read_response_body_failed", statusCode), nullBytes, err
+		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "read_response_body_failed", midjourneyBadResponseStatus(statusCode)), nullBytes, err
 	}
 	logger.LogDebug(c, "midjourney response body: %s", responseBody)
 	if len(responseBody) == 0 {
-		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "empty_response_body", statusCode), responseBody, nil
+		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "empty_response_body", midjourneyBadResponseStatus(statusCode)), responseBody, nil
 	} else {
 		err = json.Unmarshal(responseBody, &midjResponse)
 		if err != nil {
 			err2 := json.Unmarshal(responseBody, &midjourneyUploadsResponse)
 			if err2 != nil {
-				return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "unmarshal_response_body_failed", statusCode), responseBody, err
+				return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "unmarshal_response_body_failed", midjourneyBadResponseStatus(statusCode)), responseBody, err
 			}
 		}
 	}
 	//for k, v := range resp.Header {
 	//	c.Writer.Header().Set(k, v[0])
 	//}
+	midjResponse.StatusCode = statusCode
 	return &dto.MidjourneyResponseWithStatusCode{
 		StatusCode: statusCode,
 		Response:   midjResponse,
 	}, responseBody, nil
+}
+
+func midjourneyBadResponseStatus(statusCode int) int {
+	if statusCode >= http.StatusBadRequest {
+		return statusCode
+	}
+	return http.StatusBadGateway
 }

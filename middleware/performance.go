@@ -18,6 +18,7 @@ func SystemPerformanceCheck() gin.HandlerFunc {
 		path := c.Request.URL.Path
 		if strings.HasPrefix(path, "/v1/messages") {
 			if err := checkSystemPerformance(); err != nil {
+				setRetryAfterForStatus(c, err.StatusCode)
 				c.JSON(err.StatusCode, gin.H{
 					"error": err.ToClaudeError(),
 				})
@@ -26,6 +27,7 @@ func SystemPerformanceCheck() gin.HandlerFunc {
 			}
 		} else {
 			if err := checkSystemPerformance(); err != nil {
+				setRetryAfterForStatus(c, err.StatusCode)
 				c.JSON(err.StatusCode, gin.H{
 					"error": err.ToOpenAIError(),
 				})

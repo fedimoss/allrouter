@@ -3,6 +3,8 @@ package helper
 import (
 	"bufio"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
 
@@ -59,6 +62,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	}()
 
 	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
+	if streamingTimeout <= 0 {
+		streamingTimeout = 5 * time.Minute
+	}
 
 	var (
 		stopChan   = make(chan bool, 3) // 增加缓冲区避免阻塞
@@ -90,6 +96,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	defer func() {
 		// 通知所有 goroutine 停止
 		common.SafeSendBool(stopChan, true)
+		if resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 
 		ticker.Stop()
 		if pingTicker != nil {
@@ -110,6 +119,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		}
 
 		close(stopChan)
+		writeStreamTerminalError(c, info)
 	}()
 
 	scanner.Split(bufio.ScanLines)
@@ -248,6 +258,10 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			if data == "" {
 				continue
 			}
+			if isUpstreamStreamError(data) {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonHandlerStop, errors.New("upstream sent a stream error event"))
+				return
+			}
 			if !strings.HasPrefix(data, "[DONE]") {
 				info.SetFirstResponseTime()
 				info.ReceivedResponseCount++
@@ -278,7 +292,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	// 主循环等待完成或超时
 	select {
 	case <-ticker.C:
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, context.DeadlineExceeded)
 	case <-stopChan:
 		// EndReason already set by the goroutine that triggered stopChan
 	case <-c.Request.Context().Done():
@@ -290,4 +304,45 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	} else {
 		logger.LogError(c, fmt.Sprintf("stream ended: %s, received=%d", info.StreamStatus.Summary(), info.ReceivedResponseCount))
 	}
+}
+
+func isUpstreamStreamError(data string) bool {
+	var event struct {
+		Type  string          `json:"type"`
+		Error json.RawMessage `json:"error"`
+	}
+	if err := common.Unmarshal([]byte(data), &event); err != nil {
+		return false
+	}
+	return strings.EqualFold(event.Type, "error") || (len(event.Error) > 0 && string(event.Error) != "null")
+}
+
+func writeStreamTerminalError(c *gin.Context, info *relaycommon.RelayInfo) {
+	if c == nil || info == nil || info.StreamStatus == nil || info.StreamStatus.IsNormalEnd() ||
+		info.StreamStatus.EndReason == relaycommon.StreamEndReasonClientGone ||
+		(c.Request != nil && c.Request.Context().Err() != nil) {
+		return
+	}
+
+	message := "upstream stream ended unexpectedly"
+	if info.StreamStatus.EndReason == relaycommon.StreamEndReasonTimeout {
+		message = "upstream stream timed out"
+	}
+	code := "upstream_error"
+	payload := gin.H{"error": gin.H{"message": message, "type": "server_error", "code": code}}
+	event := ""
+	switch info.GetFinalRequestRelayFormat() {
+	case types.RelayFormatClaude:
+		payload = gin.H{"type": "error", "error": gin.H{"type": "api_error", "message": message}}
+		event = "event: error\n"
+	case types.RelayFormatOpenAIResponses, types.RelayFormatOpenAIResponsesCompaction:
+		payload = gin.H{"type": "error", "error": gin.H{"message": message, "type": "server_error", "code": code}}
+		event = "event: error\n"
+	}
+	data, err := common.Marshal(payload)
+	if err != nil {
+		return
+	}
+	_, _ = c.Writer.Write([]byte(event + "data: " + string(data) + "\n\n"))
+	_ = FlushWriter(c)
 }

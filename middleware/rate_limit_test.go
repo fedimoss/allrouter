@@ -82,6 +82,7 @@ func TestUploadRateLimitReturnsMessage(t *testing.T) {
 			second := httptest.NewRecorder()
 			router.ServeHTTP(second, secondRequest)
 			require.Equal(t, http.StatusTooManyRequests, second.Code)
+			require.Equal(t, "1", second.Header().Get("Retry-After"))
 			var response struct {
 				Success bool   `json:"success"`
 				Message string `json:"message"`
