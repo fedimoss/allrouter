@@ -23,6 +23,7 @@ import {
   API,
   showError,
   showSuccess,
+  showWarning,
   getCurrencyConfig,
 } from '../../../../helpers';
 import { quotaToDisplayAmount } from '../../../../helpers/quota';
@@ -197,6 +198,11 @@ const EditUserModal = (props) => {
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('用户信息更新成功！'));
+      // 消费分佣资格开关变化但未能发送通知邮件时（如用户未配置邮箱），
+      // 后端会返回提示信息，这里以警告形式展示，不影响保存结果
+      if (message) {
+        showWarning(message);
+      }
       props.refresh();
       props.handleClose();
     } else {
@@ -403,7 +409,7 @@ const EditUserModal = (props) => {
                             field='invite_consume_rebate_enabled'
                             label={t('消费分佣资格')}
                             extraText={t(
-                              '开启后，该用户作为邀请人时可获得被邀请人消费产生的分佣。',
+                              '开启后，该用户作为邀请人时可获得被邀请人消费产生的分佣。提交保存后，若该用户已配置邮箱，将自动发送邮件通知其本次变更。',
                             )}
                           />
                         </Col>

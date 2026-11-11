@@ -1139,6 +1139,9 @@ func UpdateUser(c *gin.Context) {
 	// Edit() 是指针接收者方法，内部会用数据库旧值回写整个结构体，
 	// 必须先捕获请求提交的模块权限，否则保存的是旧值
 	requestPermissions := updatedUser.Permissions
+	// 消费分佣资格同样先捕获提交值，用于保存后的变更检测与邮件通知
+	newRebateEnabled := updatedUser.InviteConsumeRebateEnabled == 1   // 更新消费分佣资格开关, 1 表示开启
+	originRebateEnabled := originUser.InviteConsumeRebateEnabled == 1 // 旧值,  1 表示开启
 	if err := updatedUser.Edit(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return
@@ -1156,9 +1159,16 @@ func UpdateUser(c *gin.Context) {
 			return
 		}
 	}
+	// 服务商站点用户的消费分佣资格开关变化时发送变更通知
+	// （发件配置跟随用户所属服务商，与分站内编辑的行为保持一致）；
+	// 邮件发送结果不影响开关保存，仅在未发送时把提示带回给前端展示
+	message := ""
+	if originUser.ProviderId > 0 && newRebateEnabled != originRebateEnabled {
+		message = notifyInviteRebateChange(c, updatedUser.Id, newRebateEnabled, originUser.ProviderId)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": message,
 	})
 	return
 }
