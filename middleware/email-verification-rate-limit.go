@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -19,6 +18,7 @@ func EmailVerificationRateLimit(c *gin.Context, email string) (*registrationcapt
 	reservation, wait, err := registrationcaptcha.ReserveEmailSend(c.Request.Context(), providerID, c.ClientIP(), email)
 	if err != nil {
 		common.SysLog("email verification rate limiter: " + err.Error())
+		setRetryAfterForStatus(c, http.StatusServiceUnavailable)
 		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgRetryLater),
@@ -27,7 +27,7 @@ func EmailVerificationRateLimit(c *gin.Context, email string) (*registrationcapt
 	}
 	if wait > 0 {
 		seconds := int((wait + time.Second - 1) / time.Second)
-		c.Header("Retry-After", strconv.Itoa(seconds))
+		setRetryAfter(c, seconds)
 		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 			"success":     false,
 			"retry_after": seconds,

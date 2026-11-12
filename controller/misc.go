@@ -30,6 +30,7 @@ import (
 func TestStatus(c *gin.Context) {
 	err := model.PingDB()
 	if err != nil {
+		c.Header("Retry-After", "5")
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"success": false,
 			"message": "数据库连接失败",

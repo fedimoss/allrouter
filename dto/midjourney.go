@@ -31,6 +31,7 @@ type MidjourneyResponse struct {
 	Description string      `json:"description"`
 	Properties  interface{} `json:"properties"`
 	Result      string      `json:"result"`
+	StatusCode  int         `json:"-"`
 }
 
 type MidjourneyUploadResponse struct {

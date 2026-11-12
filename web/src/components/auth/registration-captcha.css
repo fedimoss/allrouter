@@ -1,0 +1,119 @@
+.registration-captcha {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.registration-captcha-instructions {
+  margin: 0;
+  color: var(--semi-color-text-0);
+  line-height: 1.6;
+}
+
+.registration-captcha-loading {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--semi-color-text-2);
+}
+
+.registration-captcha-prompt,
+.registration-captcha-board {
+  overflow: hidden;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 10px;
+  background: #f6f8fc;
+}
+
+.registration-captcha-prompt img,
+.registration-captcha-board img {
+  display: block;
+  width: 100%;
+  user-select: none;
+  pointer-events: none;
+}
+
+.registration-captcha-order {
+  display: grid;
+  text-align: center;
+  padding-top: 8px;
+  color: #485b82;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.registration-captcha-board {
+  position: relative;
+  cursor: crosshair;
+  touch-action: none;
+  outline-offset: 3px;
+}
+
+.registration-captcha-board[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.registration-captcha-board:focus-visible {
+  outline: 2px solid var(--semi-color-primary);
+}
+
+.registration-captcha-marker,
+.registration-captcha-cursor {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.registration-captcha-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 1px 5px #0003;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.registration-captcha-cursor {
+  color: #dc2626;
+  font-size: 28px;
+  line-height: 1;
+  text-shadow: 0 0 2px white;
+}
+
+.registration-captcha-progress,
+.registration-captcha-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.registration-captcha-footer {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.registration-captcha-hint,
+.registration-captcha-note {
+  margin: 0;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.registration-captcha-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--semi-color-danger-light-default);
+  color: var(--semi-color-danger);
+  line-height: 1.5;
+}

@@ -10,6 +10,7 @@ import (
 )
 
 func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string, code ...types.ErrorCode) {
+	setRetryAfterForStatus(c, statusCode)
 	codeStr := ""
 	if len(code) > 0 {
 		codeStr = string(code[0])

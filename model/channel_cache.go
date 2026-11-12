@@ -202,6 +202,19 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	return nil, errors.New("channel not found")
 }
 
+func HasEnabledModel(modelName string) (bool, error) {
+	matchedName := ratio_setting.FormatMatchingModelName(modelName)
+	modelNames := []string{modelName}
+	if matchedName != modelName {
+		modelNames = append(modelNames, matchedName)
+	}
+	var count int64
+	err := DB.Model(&Ability{}).
+		Where("model IN ? AND enabled = ?", modelNames, true).
+		Count(&count).Error
+	return count > 0, err
+}
+
 func CacheGetChannel(id int) (*Channel, error) {
 	if !common.MemoryCacheEnabled {
 		return GetChannelById(id, true)
