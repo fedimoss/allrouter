@@ -40,6 +40,14 @@ const (
 	MsgAuthInsufficientPrivilege = "auth.insufficient_privilege"
 )
 
+// Registration human verification and email sending.
+const (
+	MsgRegistrationCaptchaRequired  = "registration.captcha_required"
+	MsgRegistrationCaptchaInvalid   = "registration.captcha_invalid"
+	MsgRegistrationCaptchaRateLimit = "registration.captcha_rate_limit"
+	MsgEmailVerificationRateLimit   = "registration.email_rate_limit"
+)
+
 // Token related messages
 const (
 	MsgTokenNameTooLong          = "token.name_too_long"

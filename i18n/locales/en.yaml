@@ -24,6 +24,11 @@ common.name_cannot_be_empty: "Name cannot be empty"
 common.batch_too_many: "Too many items in batch request, maximum is {{.Max}}"
 
 # Auth middleware messages
+registration.captcha_required: "Please complete human verification again before continuing"
+registration.captcha_invalid: "Human verification failed or expired. Refresh the challenge and try again"
+registration.captcha_rate_limit: "Too many verification challenges. Please wait {{.Seconds}} seconds"
+registration.email_rate_limit: "Please wait {{.Seconds}} seconds before sending another email verification code"
+
 auth.not_logged_in: "Unauthorized, not logged in and no access token provided"
 auth.access_token_invalid: "Unauthorized, invalid access token"
 auth.user_info_invalid: "Unauthorized, invalid user info"

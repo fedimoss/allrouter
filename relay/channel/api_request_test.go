@@ -1,8 +1,13 @@
 package channel
 
 import (
+	"errors"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	projectconstant "github.com/QuantumNous/new-api/constant"
@@ -10,6 +15,44 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestBuildHTTPRequestErrorLog_RecordsStageWithoutSensitiveHeadersOrQuery(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/responses?api_key=secret", nil)
+	req.Header.Set("Authorization", "Bearer secret-token")
+	req.Header.Set("Cookie", "session=secret-cookie")
+	state := newHTTPRequestTraceState()
+	state.setStage("tls_handshake")
+	err := &url.Error{Op: "Post", URL: req.URL.String(), Err: &net.OpError{Op: "remote error", Net: "tcp", Err: errors.New("tls failure")}}
+
+	logText := buildHTTPRequestErrorLog(req, &http.Client{}, state, err)
+
+	require.Contains(t, logText, "stage=tls_handshake")
+	require.Contains(t, logText, "path=/v1/responses")
+	require.NotContains(t, logText, "secret-token")
+	require.NotContains(t, logText, "secret-cookie")
+	require.NotContains(t, logText, "api_key=secret")
+}
+
+type failingReadCloser struct{}
+
+func (failingReadCloser) Read([]byte) (int, error) { return 0, errors.New("connection reset") }
+func (failingReadCloser) Close() error             { return nil }
+
+func TestLoggingResponseBody_PreservesResponseReadError(t *testing.T) {
+	body := &loggingResponseBody{
+		ReadCloser: failingReadCloser{},
+		request:    httptest.NewRequest(http.MethodGet, "https://example.com/v1/models", nil),
+	}
+	_, err := body.Read(make([]byte, 8))
+	require.EqualError(t, err, "connection reset")
+}
+
+func TestLoggingResponseBody_DoesNotChangeEOF(t *testing.T) {
+	body := &loggingResponseBody{ReadCloser: io.NopCloser(strings.NewReader("ok"))}
+	data, err := io.ReadAll(body)
+	require.NoError(t, err)
+	require.Equal(t, "ok", string(data))
+}
 
 func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	t.Parallel()

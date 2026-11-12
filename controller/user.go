@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/registrationcaptcha"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/google/uuid"
@@ -233,6 +234,7 @@ func ensureGlobalUserIdentityAvailable(c *gin.Context, excludeUserId int, userna
 }
 
 func Register(c *gin.Context) {
+	registrationCaptchaNoCache(c)
 	if !common.RegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
 		return
@@ -241,17 +243,34 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
-	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	var request struct {
+		model.User
+		CaptchaToken string `json:"captcha_token"`
+	}
+	err := common.DecodeJson(c.Request.Body, &request)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	user := request.User
 	if err := common.Validate.Struct(&user); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	scope, ok := registrationCaptchaScope(c, user.Email, false)
+	if !ok {
+		return
+	}
+	verifiedCaptcha, captchaErr := registrationcaptcha.CheckGrant(c.Request.Context(), request.CaptchaToken, scope)
+	if captchaErr != nil {
+		registrationCaptchaUnavailable(c, captchaErr)
+		return
+	}
+	if !verifiedCaptcha {
+		registrationCaptchaRequired(c)
+		return
+	}
 	if common.EmailVerificationEnabled {
 		if user.Email == "" || user.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
@@ -286,6 +305,17 @@ func Register(c *gin.Context) {
 		RegisterIp: getRegistrationIP(c),
 	}
 	cleanUser.SignupSource = strings.TrimSpace(user.SignupSource)
+	// Keep the grant on form/email-code validation failures, but consume it
+	// atomically before insertion so concurrent registration cannot replay it.
+	consumed, captchaErr := registrationcaptcha.ConsumeGrant(c.Request.Context(), request.CaptchaToken, scope, registrationcaptcha.RegistrationPurpose)
+	if captchaErr != nil {
+		registrationCaptchaUnavailable(c, captchaErr)
+		return
+	}
+	if !consumed {
+		registrationCaptchaRequired(c)
+		return
+	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		common.ApiError(c, err)
 		return

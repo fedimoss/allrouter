@@ -50,3 +50,4 @@ docs/modelcontent/*
 *.tmp
 *.txt
 *.ps1
+!docs/registration-human-verification.md

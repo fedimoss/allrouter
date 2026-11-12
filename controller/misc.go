@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/pkg/registrationcaptcha"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
@@ -82,6 +84,8 @@ func GetStatus(c *gin.Context) {
 		"version":                     versionInfo,
 		"start_time":                  common.StartTime,
 		"email_verification":          common.EmailVerificationEnabled,
+		"registration_captcha":        true,
+		"email_verification_interval": int(registrationcaptcha.EmailSendInterval.Seconds()),
 		"github_oauth":                common.GitHubOAuthEnabled,
 		"github_client_id":            common.GitHubClientId,
 		"discord_oauth":               system_setting.GetDiscordSettings().Enabled,
@@ -373,7 +377,11 @@ func getRequestBaseURLForEmail(c *gin.Context) string {
 }
 
 func SendEmailVerification(c *gin.Context) {
-	email := strings.TrimSpace(c.Query("email"))
+	sendEmailVerification(c, strings.TrimSpace(c.Query("email")))
+}
+
+func sendEmailVerification(c *gin.Context, email string) {
+	registrationCaptchaNoCache(c)
 	if err := common.Validate.Var(email, "required,email"); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -426,6 +434,24 @@ func SendEmailVerification(c *gin.Context) {
 		})
 		return
 	}
+	reservation, allowed := middleware.EmailVerificationRateLimit(c, email)
+	if !allowed {
+		return
+	}
+	ctx := c.Request.Context()
+	mailSent := false
+	defer func() {
+		if mailSent {
+			return
+		}
+		// Delivery may finish after the browser disconnects. Roll back using a
+		// bounded context that remains usable when the request is canceled.
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := reservation.Release(cleanupCtx); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("failed to release email verification send reservation: %s", err.Error()))
+		}
+	}()
 	code := common.GenerateVerificationCode(6)
 	systemName := getRequestSystemName(c)
 	subject := fmt.Sprintf("%s邮箱验证邮件 / Email Verification", systemName)
@@ -438,7 +464,6 @@ func SendEmailVerification(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	ctx := c.Request.Context()
 	if err = common.RegisterVerificationCodeWithKey(ctx, providerId, email, code, common.EmailVerificationPurpose); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("failed to store email verification code: %s", err.Error()))
 		common.ApiErrorI18n(c, i18n.MsgRetryLater)
@@ -447,7 +472,9 @@ func SendEmailVerification(c *gin.Context) {
 
 	err = service.SendProviderMail(providerId, subject, email, content)
 	if err != nil {
-		if cleanupErr := common.InvalidateVerificationCodeWithKey(ctx, providerId, email, code, common.EmailVerificationPurpose); cleanupErr != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if cleanupErr := common.InvalidateVerificationCodeWithKey(cleanupCtx, providerId, email, code, common.EmailVerificationPurpose); cleanupErr != nil {
 			logger.LogError(ctx, fmt.Sprintf("failed to invalidate unsent email verification code: %s", cleanupErr.Error()))
 		}
 		// SMTP errors may contain the configured host, port, IP address, or
@@ -457,9 +484,11 @@ func SendEmailVerification(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgRetryLater)
 		return
 	}
+	mailSent = true
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
+		"success":     true,
+		"message":     "",
+		"retry_after": int(registrationcaptcha.EmailSendInterval.Seconds()),
 	})
 	return
 }

@@ -198,7 +198,7 @@ const PersonalSetting = () => {
   const [turnstileToken, setTurnstileToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [disableButton, setDisableButton] = useState(false);
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(60);
   const [systemToken, setSystemToken] = useState('');
   const [passkeyStatus, setPasskeyStatus] = useState({ enabled: false });
   const [passkeyRegisterLoading, setPasskeyRegisterLoading] = useState(false);
@@ -421,7 +421,7 @@ const PersonalSetting = () => {
       }, 1000);
     } else if (countdown === 0) {
       setDisableButton(false);
-      setCountdown(30);
+      setCountdown(60);
     }
     return () => clearInterval(countdownInterval);
   }, [disableButton, countdown]);
@@ -796,26 +796,38 @@ const PersonalSetting = () => {
   };
 
   const sendVerificationCode = async () => {
+    if (disableButton || loading) return;
     if (inputs.email === '') {
       showError(t('请输入邮箱！'));
       return;
     }
-    setDisableButton(true);
     if (turnstileEnabled && turnstileToken === '') {
       showInfo(t('请稍后几秒重试，Turnstile 正在检查用户环境！'));
       return;
     }
     setLoading(true);
-    const res = await API.get(
-      `/api/verification?email=${inputs.email}&turnstile=${turnstileToken}`,
-    );
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(t('验证码发送成功，请检查邮箱！'));
-    } else {
-      showError(message);
+    try {
+      const res = await API.get(
+        `/api/verification?email=${encodeURIComponent(inputs.email.trim())}&turnstile=${encodeURIComponent(turnstileToken)}`,
+        { skipErrorHandler: true, withCredentials: true },
+      );
+      const { success, message } = res.data;
+      if (success) {
+        setCountdown(res.data.retry_after || 60);
+        setDisableButton(true);
+        showSuccess(t('验证码发送成功，请检查邮箱！'));
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      if (error.response?.status === 429) {
+        setCountdown(Number(error.response.data?.retry_after) || 60);
+        setDisableButton(true);
+      }
+      showError(error.response?.data?.message || t('验证码发送失败，请重试'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const bindEmail = async () => {

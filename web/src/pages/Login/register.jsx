@@ -39,6 +39,8 @@ import {
   showSuccess,
 } from '../../helpers';
 import { SIGNUP_SOURCE } from '../../constants';
+import useRegistrationCaptcha from '../../hooks/auth/useRegistrationCaptcha';
+import useEmailVerificationCooldown from '../../hooks/auth/useEmailVerificationCooldown';
 import './auth-v2.css';
 
 const brandFeatureItems = [
@@ -56,7 +58,7 @@ const brandFeatureItems = [
     imgUrl: safeImg,
     title: '自营品质保障，99.9% 可用性',
     description: '端到端加密通信，确保您的核心业务数据隐私无虞。',
-  }
+  },
 ];
 
 function scorePasswordStrength(password) {
@@ -217,22 +219,20 @@ export default function RegisterPage() {
   const [registerLoading, setRegisterLoading] = useState(false);
 
   const [verificationCodeLoading, setVerificationCodeLoading] = useState(false);
-  const [disableSendCode, setDisableSendCode] = useState(false);
-  const [countdown, setCountdown] = useState(60);
+  const {
+    countdown,
+    isCoolingDown: disableSendCode,
+    startCooldown,
+    handleCooldownError,
+  } = useEmailVerificationCooldown();
+  const {
+    getCaptchaToken,
+    consumeEmailToken,
+    invalidateRegistrationToken,
+    captchaVisible,
+    captchaModal,
+  } = useRegistrationCaptcha(registerInputs.email);
   const [regEmailFlashError, setRegEmailFlashError] = useState(false);
-
-  useEffect(() => {
-    let timer = null;
-    if (disableSendCode && countdown > 0) {
-      timer = setInterval(() => setCountdown((s) => s - 1), 1000);
-    } else if (disableSendCode && countdown <= 0) {
-      setDisableSendCode(false);
-      setCountdown(60);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [disableSendCode, countdown]);
 
   const flashEmailError = () => {
     setRegEmailFlashError(true);
@@ -240,6 +240,13 @@ export default function RegisterPage() {
   };
 
   const sendVerificationCode = async () => {
+    if (
+      disableSendCode ||
+      verificationCodeLoading ||
+      registerLoading ||
+      captchaVisible
+    )
+      return;
     const email = String(registerInputs.email || '').trim();
     if (!email) {
       flashEmailError();
@@ -254,20 +261,24 @@ export default function RegisterPage() {
     if (!ensureTurnstileReady()) return;
     setVerificationCodeLoading(true);
     try {
-      const res = await API.get(
-        `/api/verification?email=${encodeURIComponent(
-          email,
-        )}&turnstile=${turnstileToken}`,
+      const captchaToken = await getCaptchaToken('email');
+      if (!captchaToken) return;
+      consumeEmailToken(captchaToken);
+      const res = await API.post(
+        `/api/user/register/verification?turnstile=${encodeURIComponent(turnstileToken)}`,
+        { email, captcha_token: captchaToken },
+        { skipErrorHandler: true, withCredentials: true },
       );
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('验证码发送成功，请检查邮箱！'));
-        setDisableSendCode(true);
+        startCooldown(res.data.retry_after || 60);
       } else {
         showError(message);
       }
-    } catch {
-      showError(t('验证码发送失败，请重试'));
+    } catch (error) {
+      handleCooldownError(error);
+      showError(error.response?.data?.message || t('验证码发送失败，请重试'));
     } finally {
       setVerificationCodeLoading(false);
     }
@@ -275,6 +286,7 @@ export default function RegisterPage() {
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
+    if (registerLoading || verificationCodeLoading || captchaVisible) return;
     if (!ensureTermsAccepted()) return;
     if (!ensureTurnstileReady()) return;
 
@@ -287,7 +299,7 @@ export default function RegisterPage() {
     ).trim();
 
     if (!username) return showInfo(t('请输入用户名'));
-    if(username.length > 20) return showInfo(t('用户名不能超过 20 个字符'));
+    if (username.length > 20) return showInfo(t('用户名不能超过 20 个字符'));
     if (!email) return showInfo(t('请输入邮箱地址'));
     if (!isValidEmail(email)) {
       flashEmailError();
@@ -310,9 +322,12 @@ export default function RegisterPage() {
 
     setRegisterLoading(true);
     try {
+      const captchaToken = await getCaptchaToken('register');
+      if (!captchaToken) return;
       const affCode = localStorage.getItem('aff') || '';
       const payload = {
         ...registerInputs,
+        captcha_token: captchaToken,
         signup_source: SIGNUP_SOURCE,
         aff_code: affCode || undefined,
         // 后端仍会二次校验；这里只按浏览器语言提供注册时区档位。
@@ -321,16 +336,22 @@ export default function RegisterPage() {
       const res = await API.post(
         `/api/user/register?turnstile=${turnstileToken}`,
         payload,
+        { skipErrorHandler: true, withCredentials: true },
       );
       const { success, message } = res.data;
       if (success) {
+        invalidateRegistrationToken();
         showSuccess(t('注册成功'));
         navigate('/login');
       } else {
+        if (res.data.code === 'registration_captcha_required') {
+          invalidateRegistrationToken();
+        }
         showError(message);
       }
-    } catch {
-      showError(t('注册失败，请重试'));
+    } catch (error) {
+      invalidateRegistrationToken();
+      showError(error.response?.data?.message || t('注册失败，请重试'));
     } finally {
       setRegisterLoading(false);
     }
@@ -385,7 +406,8 @@ export default function RegisterPage() {
 
         <div className='brand-quote-card'>
           <p>
-            { systemName }&nbsp;{t(
+            {systemName}&nbsp;
+            {t(
               '彻底改变了我们团队调用多模型的方式。它不再是单纯的技术工具，而是我们决策流中的核心。',
             )}
           </p>
@@ -461,7 +483,15 @@ export default function RegisterPage() {
                   maxLength={50}
                   value={registerInputs.email}
                   onChange={(value) =>
-                    setRegisterInputs((s) => ({ ...s, email: value }))
+                    setRegisterInputs((s) => ({
+                      ...s,
+                      email: value,
+                      verification_code:
+                        s.email.trim().toLowerCase() ===
+                        value.trim().toLowerCase()
+                          ? s.verification_code
+                          : '',
+                    }))
                   }
                   autoComplete='email'
                 />
@@ -496,11 +526,21 @@ export default function RegisterPage() {
                       size='large'
                       onClick={sendVerificationCode}
                       loading={verificationCodeLoading}
-                      disabled={disableSendCode || verificationCodeLoading}
+                      disabled={
+                        disableSendCode ||
+                        verificationCodeLoading ||
+                        registerLoading ||
+                        captchaVisible
+                      }
                     >
                       {disableSendCode ? `${countdown}s` : t('发送验证码')}
                     </Button>
                   </div>
+                  <p className='registration-captcha-note'>
+                    {t(
+                      'Complete human verification before sending a code. Resends require a new challenge and a 60-second wait.',
+                    )}
+                  </p>
                 </div>
               )}
 
@@ -557,6 +597,14 @@ export default function RegisterPage() {
 
               {renderTermsInline()}
 
+              {!showEmailVerification && (
+                <p className='registration-captcha-note'>
+                  {t(
+                    'Complete human verification before creating your account.',
+                  )}
+                </p>
+              )}
+
               <Button
                 htmlType='submit'
                 type='primary'
@@ -566,6 +614,8 @@ export default function RegisterPage() {
                 loading={registerLoading}
                 disabled={
                   registerLoading ||
+                  verificationCodeLoading ||
+                  captchaVisible ||
                   ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms)
                 }
               >
@@ -584,7 +634,8 @@ export default function RegisterPage() {
                 rel='noopener noreferrer'
               >
                 {t('用户协议')}
-              </a>{'、 '}
+              </a>
+              {'、 '}
               <a
                 href='/service-clause'
                 target='_blank'
@@ -612,6 +663,7 @@ export default function RegisterPage() {
               />
             </div>
           )}
+          {captchaModal}
         </div>
       </div>
     </div>
