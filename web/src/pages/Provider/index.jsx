@@ -46,6 +46,7 @@ import {
   IconGiftStroked,
   IconPlus,
   IconRefresh,
+  IconSearch,
   IconUpload,
   IconMinusCircleStroked,
 } from '@douyinfe/semi-icons';
@@ -508,6 +509,7 @@ const ProviderPage = () => {
   const [domainsSaving, setDomainsSaving] = useState(false);
   const [pricingRows, setPricingRows] = useState([]);
   const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingKeyword, setPricingKeyword] = useState('');
   const [smtpConfig, setSmtpConfig] = useState(emptySmtpConfig);
   const [smtpLoading, setSmtpLoading] = useState(false);
   const [smtpConfigLoaded, setSmtpConfigLoaded] = useState(false);
@@ -556,6 +558,16 @@ const ProviderPage = () => {
   const pricingFormRef = useRef(null);
   const smtpFormRef = useRef(null);
   const smtpRequestIdRef = useRef(0);
+
+  const filteredPricingRows = useMemo(() => {
+    const keyword = pricingKeyword.trim().toLowerCase();
+    if (!keyword) return pricingRows;
+    return pricingRows.filter((row) =>
+      [row.public_model_name, row.base_model_name].some((name) =>
+        String(name || '').toLowerCase().includes(keyword),
+      ),
+    );
+  }, [pricingRows, pricingKeyword]);
 
   const refreshSelfProvider = async () => {
     const res = await API.get('/api/provider/self');
@@ -946,6 +958,7 @@ const ProviderPage = () => {
 
   const openPricingList = (provider) => {
     setCurrentProvider(provider);
+    setPricingKeyword('');
     setPricingListVisible(true);
     fetchPricingRows(provider);
     // 打开模型定价弹窗时一并拉取自动同步配置，用于展示开关与上次同步结果
@@ -2930,10 +2943,19 @@ const ProviderPage = () => {
             </div>
           ) : null}
         </div>
+        <Input
+          prefix={<IconSearch />}
+          placeholder={t('搜索模型名称')}
+          aria-label={t('搜索模型名称')}
+          value={pricingKeyword}
+          onChange={setPricingKeyword}
+          showClear
+          style={{ width: 360, maxWidth: '100%', marginBottom: 12 }}
+        />
         <Table
           rowKey='id'
           columns={pricingColumns}
-          dataSource={pricingRows}
+          dataSource={filteredPricingRows}
           loading={pricingLoading}
           pagination={{ pageSize: 10 }}
         />

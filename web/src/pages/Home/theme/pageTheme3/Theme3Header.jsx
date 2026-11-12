@@ -234,7 +234,7 @@ const HeaderView = ({
 
   return (
     <>
-      <header className='site-header'>
+      <header className='site-header' lang={currentLang}>
         <BrandLockup logo={logo} name={name} />
         <nav className='desktop-nav' aria-label='主导航'>
           {navLinks.map((link) => {

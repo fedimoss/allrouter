@@ -505,6 +505,56 @@
   }
 }
 
+/* Compact only English navigation; keep the Chinese header spacing unchanged. */
+@media (min-width: 1200px) {
+  .t3-app .site-header:lang(en) {
+    column-gap: 24px;
+  }
+
+  .t3-app .site-header:lang(en) .brand-lockup {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .t3-app .site-header:lang(en) .desktop-nav {
+    flex: 0 1 auto;
+    margin-left: 0;
+    gap: clamp(12px, 1.15vw, 18px);
+    padding: 12px 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .t3-app .site-header:lang(en) .desktop-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .t3-app .site-header:lang(en) .header-actions {
+    padding-left: 0;
+    white-space: nowrap;
+  }
+
+  .t3-app .site-header:lang(en) .header-actions > * {
+    flex: none;
+  }
+}
+
+@media (min-width: 1200px) and (max-width: 1399px) {
+  .t3-app .site-header:lang(en) .desktop-nav {
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1200px) and (max-width: 1279px) {
+  .t3-app .site-header:lang(en) {
+    column-gap: 16px;
+  }
+
+  .t3-app .site-header:lang(en) .desktop-nav {
+    gap: 8px;
+  }
+}
+
 @media (min-width: 900px) and (max-width: 1199px) {
   .t3-app .site-header {
     justify-content: space-between;
