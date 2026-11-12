@@ -360,7 +360,7 @@ const getProviderDomainRoleLabel = (index, t) => {
   if (index === 0) {
     return t('主域名');
   }
-  return t('备用域名 {{index}}', { index });
+  return t('备用地址 {{index}}', { index });
 };
 
 const formatPriceNumber = (value) => {
@@ -882,6 +882,7 @@ const ProviderPage = () => {
   };
 
   const removeDomainRow = (rowKey) => {
+    if (domainRows[0]?.rowKey === rowKey) return;
     setDomainRows((rows) => rows.filter((row) => row.rowKey !== rowKey));
   };
 
@@ -1422,6 +1423,22 @@ const ProviderPage = () => {
       showError(t('域名不能为空'));
       return;
     }
+    try {
+      const primary = domains[0]?.domain || '';
+      const parsed = new URL(
+        primary.includes('://') ? primary : `http://${primary}`,
+      );
+      if (
+        parsed.hostname.includes(':') ||
+        /^\d+(\.\d+){3}$/.test(parsed.hostname)
+      ) {
+        showError(t('主地址必须使用域名'));
+        return;
+      }
+    } catch {
+      showError(t('地址格式不正确，请填写域名或 HTTP 的 IP:端口'));
+      return;
+    }
     const url = adminMode
       ? `/api/provider/admin/${currentProvider.id}/domains`
       : '/api/provider/domains';
@@ -1446,7 +1463,13 @@ const ProviderPage = () => {
         setDomainModalVisible(false);
         refreshAfterMutation();
       } else {
-        showError(res.data.message);
+        const addressErrors = {
+          'the primary address must be a domain; edit it or save a replacement primary domain together with the backup addresses':
+            t('主地址必须使用域名'),
+          'invalid address: use a domain or an HTTP IP address with a port from 1 to 65535':
+            t('地址格式不正确，请填写域名或 HTTP 的 IP:端口'),
+        };
+        showError(addressErrors[res.data.message] || res.data.message);
       }
     } catch (error) {
       showError(error);
@@ -2468,7 +2491,7 @@ const ProviderPage = () => {
             }}
           >
             <Button icon={<IconPlus />} onClick={addDomainRow}>
-              {t('域名管理')}
+              {t('添加备用地址')}
             </Button>
             <Space>
               <Button onClick={() => setDomainModalVisible(false)}>
@@ -2486,6 +2509,11 @@ const ProviderPage = () => {
         }
         width={1000}
       >
+        <Text type='tertiary' style={{ display: 'block', marginBottom: 16 }}>
+          {t(
+            '主地址必须使用域名，备用地址支持域名或 IP:端口。IP 备用入口使用 HTTP，需手动访问。',
+          )}
+        </Text>
         <div
           style={{
             display: 'flex',
@@ -2531,7 +2559,11 @@ const ProviderPage = () => {
               </Tag>
               <Input
                 value={row.domain}
-                placeholder='ai.example.com'
+                placeholder={
+                  index === 0
+                    ? 'ai.example.com'
+                    : 'ai.example.com / 203.0.113.10:8080'
+                }
                 onChange={(value) =>
                   updateDomainRow(row.rowKey, 'domain', value)
                 }
@@ -2557,7 +2589,11 @@ const ProviderPage = () => {
                 title={t('确认删除？')}
                 onConfirm={() => removeDomainRow(row.rowKey)}
               >
-                <Button type='danger' icon={<IconDeleteStroked />} />
+                <Button
+                  type='danger'
+                  icon={<IconDeleteStroked />}
+                  disabled={index === 0}
+                />
               </Popconfirm>
             </div>
           ))}

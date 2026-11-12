@@ -52,7 +52,7 @@ const UserQuestion = () => {
           screenshots: screenshots.filter(Boolean),
         },
         // 未登录时后端按此域名匹配服务商；已登录时以用户 provider_id 为准
-        domain: window.location.hostname,
+        domain: window.location.host,
       });
       if (res.data.success) {
         Toast.success(t('感谢您的反馈'));
@@ -84,7 +84,7 @@ const UserQuestion = () => {
     try {
       const formData = new FormData();
       formData.append('image', uploadFile);
-      formData.append('domain', window.location.hostname);
+      formData.append('domain', window.location.host);
       const res = await API.post(
         '/api/user/questionnaire/upload',
         formData,

@@ -25,6 +25,11 @@ common.name_cannot_be_empty: "名稱不能為空"
 common.batch_too_many: "批次請求數量過多，最多 {{.Max}} 條"
 
 # Auth middleware messages
+registration.captcha_required: "請先重新完成人機驗證後再繼續"
+registration.captcha_invalid: "人機驗證失敗或已過期，請重新整理題目後重試"
+registration.captcha_rate_limit: "取得驗證題目過於頻繁，請等待 {{.Seconds}} 秒後重試"
+registration.email_rate_limit: "傳送過於頻繁，請等待 {{.Seconds}} 秒後再傳送電子郵件驗證碼"
+
 auth.not_logged_in: "無權進行此操作，未登入且未提供 access token"
 auth.access_token_invalid: "無權進行此操作，access token 無效"
 auth.user_info_invalid: "無權進行此操作，使用者資訊無效"

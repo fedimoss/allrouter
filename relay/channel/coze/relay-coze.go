@@ -91,7 +91,7 @@ func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
-	c.Writer.WriteHeader(resp.StatusCode)
+	service.WriteNormalizedUpstreamStatus(c.Writer, resp.StatusCode)
 	_, _ = c.Writer.Write(jsonResponse)
 
 	return &usage, nil

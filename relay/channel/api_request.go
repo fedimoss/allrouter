@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -408,6 +409,12 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
+	//将用户的api token sha256后放入请求头中，避免泄露用户的api token 使用X-USER-ID作为header名
+	xUserId, err := GetUserIdFromApiKey(strconv.Itoa(info.UserId))
+	if err != nil {
+		return nil, fmt.Errorf("get user id from api key failed: %w", err)
+	}
+	req.Header.Set("X-USER-ID", xUserId)
 	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
 	// 这样可以覆盖默认的 Authorization header 设置
 	headerOverride, err := processHeaderOverride(info, c)
@@ -649,4 +656,13 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, req
 		return nil, fmt.Errorf("do request failed: %w", err)
 	}
 	return resp, nil
+}
+
+func GetUserIdFromApiKey(userId string) (string, error) {
+	//使用  sha 256 进行加密
+	if userId == "" {
+		return "", fmt.Errorf("userId is empty")
+	}
+	return common2.Sha256Encrypt(userId), nil
+
 }

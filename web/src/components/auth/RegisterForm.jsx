@@ -65,6 +65,8 @@ import { StatusContext } from '../../context/Status';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 import { SIGNUP_SOURCE } from '../../constants';
+import useRegistrationCaptcha from '../../hooks/auth/useRegistrationCaptcha';
+import useEmailVerificationCooldown from '../../hooks/auth/useEmailVerificationCooldown';
 
 const RegisterForm = () => {
   let navigate = useNavigate();
@@ -102,8 +104,19 @@ const RegisterForm = () => {
     useState(false);
   const [wechatCodeSubmitLoading, setWechatCodeSubmitLoading] = useState(false);
   const [customOAuthLoading, setCustomOAuthLoading] = useState({});
-  const [disableButton, setDisableButton] = useState(false);
-  const [countdown, setCountdown] = useState(30);
+  const {
+    countdown,
+    isCoolingDown: disableButton,
+    startCooldown,
+    handleCooldownError,
+  } = useEmailVerificationCooldown();
+  const {
+    getCaptchaToken,
+    consumeEmailToken,
+    invalidateRegistrationToken,
+    captchaVisible,
+    captchaModal,
+  } = useRegistrationCaptcha(inputs.email);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [hasUserAgreement, setHasUserAgreement] = useState(false);
   const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
@@ -157,19 +170,6 @@ const RegisterForm = () => {
   }, [status]);
 
   useEffect(() => {
-    let countdownInterval = null;
-    if (disableButton && countdown > 0) {
-      countdownInterval = setInterval(() => {
-        setCountdown(countdown - 1);
-      }, 1000);
-    } else if (countdown === 0) {
-      setDisableButton(false);
-      setCountdown(30);
-    }
-    return () => clearInterval(countdownInterval); // Clean up on unmount
-  }, [disableButton, countdown]);
-
-  useEffect(() => {
     return () => {
       if (githubTimeoutRef.current) {
         clearTimeout(githubTimeoutRef.current);
@@ -217,6 +217,12 @@ const RegisterForm = () => {
   }
 
   async function handleSubmit(e) {
+    e?.preventDefault();
+    if (registerLoading || verificationCodeLoading || captchaVisible) return;
+    if (showEmailVerification && !inputs.verification_code.trim()) {
+      showInfo(t('请输入邮箱验证码！'));
+      return;
+    }
     if (password.length < 8) {
       showInfo('密码长度不得小于 8 位！');
       return;
@@ -232,24 +238,35 @@ const RegisterForm = () => {
       }
       setRegisterLoading(true);
       try {
+        const captchaToken = await getCaptchaToken('register');
+        if (!captchaToken) return;
         if (!affCode) {
           affCode = localStorage.getItem('aff');
         }
-        inputs.aff_code = affCode;
-        inputs.signup_source = SIGNUP_SOURCE;
         const res = await API.post(
           `/api/user/register?turnstile=${turnstileToken}`,
-          inputs,
+          {
+            ...inputs,
+            aff_code: affCode,
+            signup_source: SIGNUP_SOURCE,
+            captcha_token: captchaToken,
+          },
+          { skipErrorHandler: true, withCredentials: true },
         );
         const { success, message } = res.data;
         if (success) {
+          invalidateRegistrationToken();
           navigate('/login');
           showSuccess('注册成功！');
         } else {
+          if (res.data.code === 'registration_captcha_required') {
+            invalidateRegistrationToken();
+          }
           showError(message);
         }
       } catch (error) {
-        showError('注册失败，请重试');
+        invalidateRegistrationToken();
+        showError(error.response?.data?.message || t('注册失败，请重试'));
       } finally {
         setRegisterLoading(false);
       }
@@ -257,6 +274,13 @@ const RegisterForm = () => {
   }
 
   const sendVerificationCode = async () => {
+    if (
+      disableButton ||
+      verificationCodeLoading ||
+      registerLoading ||
+      captchaVisible
+    )
+      return;
     if (inputs.email === '') return;
     if (turnstileEnabled && turnstileToken === '') {
       showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
@@ -264,18 +288,24 @@ const RegisterForm = () => {
     }
     setVerificationCodeLoading(true);
     try {
-      const res = await API.get(
-        `/api/verification?email=${encodeURIComponent(inputs.email)}&turnstile=${turnstileToken}`,
+      const captchaToken = await getCaptchaToken('email');
+      if (!captchaToken) return;
+      consumeEmailToken(captchaToken);
+      const res = await API.post(
+        `/api/user/register/verification?turnstile=${encodeURIComponent(turnstileToken)}`,
+        { email: inputs.email, captcha_token: captchaToken },
+        { skipErrorHandler: true, withCredentials: true },
       );
       const { success, message } = res.data;
       if (success) {
         showSuccess('验证码发送成功，请检查你的邮箱！');
-        setDisableButton(true); // 发送成功后禁用按钮，开始倒计时
+        startCooldown(res.data.retry_after || 60);
       } else {
         showError(message);
       }
     } catch (error) {
-      showError('发送验证码失败，请重试');
+      handleCooldownError(error);
+      showError(error.response?.data?.message || t('验证码发送失败，请重试'));
     } finally {
       setVerificationCodeLoading(false);
     }
@@ -618,7 +648,12 @@ const RegisterForm = () => {
                         <Button
                           onClick={sendVerificationCode}
                           loading={verificationCodeLoading}
-                          disabled={disableButton || verificationCodeLoading}
+                          disabled={
+                            disableButton ||
+                            verificationCodeLoading ||
+                            registerLoading ||
+                            captchaVisible
+                          }
                         >
                           {disableButton
                             ? `${t('重新发送')} (${countdown})`
@@ -626,6 +661,11 @@ const RegisterForm = () => {
                         </Button>
                       }
                     />
+                    <p className='registration-captcha-note'>
+                      {t(
+                        'Complete human verification before sending a code. Resends require a new challenge and a 60-second wait.',
+                      )}
+                    </p>
                     <Form.Input
                       field='verification_code'
                       label={t('验证码')}
@@ -678,6 +718,13 @@ const RegisterForm = () => {
                 )}
 
                 <div className='space-y-2 pt-2'>
+                  {!showEmailVerification && (
+                    <p className='registration-captcha-note'>
+                      {t(
+                        'Complete human verification before creating your account.',
+                      )}
+                    </p>
+                  )}
                   <Button
                     theme='solid'
                     className='w-full !rounded-full'
@@ -686,7 +733,10 @@ const RegisterForm = () => {
                     onClick={handleSubmit}
                     loading={registerLoading}
                     disabled={
-                      (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
+                      registerLoading ||
+                      verificationCodeLoading ||
+                      captchaVisible ||
+                      ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms)
                     }
                   >
                     {t('注册')}
@@ -783,11 +833,11 @@ const RegisterForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailRegister ||
-        !hasOAuthRegisterOptions
+        {showEmailRegister || !hasOAuthRegisterOptions
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
+        {captchaModal}
 
         {turnstileEnabled && (
           <div className='flex justify-center mt-6'>

@@ -118,7 +118,7 @@ const CooperationApplication = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('domain', window.location.hostname);
+      formData.append('domain', window.location.host);
       const res = await API.post(
         '/api/user/questionnaire/upload',
         formData,
@@ -185,7 +185,7 @@ const CooperationApplication = () => {
             .map((f) => ({ url: f.url, name: f.name, size: f.size })),
         },
         // 未登录时后端按此域名匹配服务商；已登录时以用户 provider_id 为准
-        domain: window.location.hostname,
+        domain: window.location.host,
       });
       if (res.data.success) {
         setSubmitted(true);

@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/registrationcaptcha"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/google/uuid"
@@ -123,7 +124,7 @@ func establishUserSession(c *gin.Context, user *model.User, rememberMe bool) err
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   common.SessionCookieSecure && common.IPRequestAddress(c.Request) == "",
 		SameSite: http.SameSiteStrictMode,
 	})
 	if err := session.Save(); err != nil {
@@ -194,7 +195,7 @@ func clearLegacySessionCookies(c *gin.Context) {
 	}
 	for _, path := range legacyPaths {
 		http.SetCookie(c.Writer, &http.Cookie{
-			Name:     "session",
+			Name:     common.SessionCookieName(c.Request),
 			Value:    "",
 			Path:     path,
 			MaxAge:   -1,
@@ -233,6 +234,7 @@ func ensureGlobalUserIdentityAvailable(c *gin.Context, excludeUserId int, userna
 }
 
 func Register(c *gin.Context) {
+	registrationCaptchaNoCache(c)
 	if !common.RegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
 		return
@@ -241,17 +243,34 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
-	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	var request struct {
+		model.User
+		CaptchaToken string `json:"captcha_token"`
+	}
+	err := common.DecodeJson(c.Request.Body, &request)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	user := request.User
 	if err := common.Validate.Struct(&user); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	scope, ok := registrationCaptchaScope(c, user.Email, false)
+	if !ok {
+		return
+	}
+	verifiedCaptcha, captchaErr := registrationcaptcha.CheckGrant(c.Request.Context(), request.CaptchaToken, scope)
+	if captchaErr != nil {
+		registrationCaptchaUnavailable(c, captchaErr)
+		return
+	}
+	if !verifiedCaptcha {
+		registrationCaptchaRequired(c)
+		return
+	}
 	if common.EmailVerificationEnabled {
 		if user.Email == "" || user.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
@@ -286,6 +305,17 @@ func Register(c *gin.Context) {
 		RegisterIp: getRegistrationIP(c),
 	}
 	cleanUser.SignupSource = strings.TrimSpace(user.SignupSource)
+	// Keep the grant on form/email-code validation failures, but consume it
+	// atomically before insertion so concurrent registration cannot replay it.
+	consumed, captchaErr := registrationcaptcha.ConsumeGrant(c.Request.Context(), request.CaptchaToken, scope, registrationcaptcha.RegistrationPurpose)
+	if captchaErr != nil {
+		registrationCaptchaUnavailable(c, captchaErr)
+		return
+	}
+	if !consumed {
+		registrationCaptchaRequired(c)
+		return
+	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		common.ApiError(c, err)
 		return
@@ -1139,6 +1169,9 @@ func UpdateUser(c *gin.Context) {
 	// Edit() 是指针接收者方法，内部会用数据库旧值回写整个结构体，
 	// 必须先捕获请求提交的模块权限，否则保存的是旧值
 	requestPermissions := updatedUser.Permissions
+	// 消费分佣资格同样先捕获提交值，用于保存后的变更检测与邮件通知
+	newRebateEnabled := updatedUser.InviteConsumeRebateEnabled == 1   // 更新消费分佣资格开关, 1 表示开启
+	originRebateEnabled := originUser.InviteConsumeRebateEnabled == 1 // 旧值,  1 表示开启
 	if err := updatedUser.Edit(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return
@@ -1156,9 +1189,16 @@ func UpdateUser(c *gin.Context) {
 			return
 		}
 	}
+	// 服务商站点用户的消费分佣资格开关变化时发送变更通知
+	// （发件配置跟随用户所属服务商，与分站内编辑的行为保持一致）；
+	// 邮件发送结果不影响开关保存，仅在未发送时把提示带回给前端展示
+	message := ""
+	if originUser.ProviderId > 0 && newRebateEnabled != originRebateEnabled {
+		message = notifyInviteRebateChange(c, updatedUser.Id, newRebateEnabled, originUser.ProviderId)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": message,
 	})
 	return
 }

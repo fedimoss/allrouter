@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,7 +31,7 @@ func RelayMidjourneyImage(c *gin.Context) {
 	taskId := c.Param("id")
 	midjourneyTask := model.GetByOnlyMJId(taskId)
 	if midjourneyTask == nil {
-		c.JSON(400, gin.H{
+		c.JSON(http.StatusNotFound, gin.H{
 			"error": "midjourney_task_not_found",
 		})
 		return
@@ -59,7 +60,8 @@ func RelayMidjourneyImage(c *gin.Context) {
 	}
 	resp, err := httpClient.Get(midjourneyTask.ImageUrl)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		statusCode := types.NewError(err, types.ErrorCodeDoRequestFailed).StatusCode
+		c.JSON(statusCode, gin.H{
 			"error": "http_get_image_failed",
 		})
 		return
@@ -67,7 +69,13 @@ func RelayMidjourneyImage(c *gin.Context) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
-		c.JSON(resp.StatusCode, gin.H{
+		statusCode := service.NormalizeUpstreamStatusCode(resp.StatusCode)
+		if statusCode == http.StatusTooManyRequests {
+			c.Header("Retry-After", "1")
+		} else if statusCode == http.StatusServiceUnavailable {
+			c.Header("Retry-After", "5")
+		}
+		c.JSON(statusCode, gin.H{
 			"error": string(responseBody),
 		})
 		return
@@ -106,6 +114,7 @@ func RelayMidjourneyNotify(c *gin.Context) *dto.MidjourneyResponse {
 			Description: "midjourney_task_not_found",
 			Properties:  nil,
 			Result:      "",
+			StatusCode:  http.StatusNotFound,
 		}
 	}
 	midjourneyTask.Progress = midjRequest.Progress
@@ -125,6 +134,7 @@ func RelayMidjourneyNotify(c *gin.Context) *dto.MidjourneyResponse {
 		return &dto.MidjourneyResponse{
 			Code:        4,
 			Description: "update_midjourney_task_failed",
+			StatusCode:  http.StatusInternalServerError,
 		}
 	}
 
@@ -204,7 +214,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 	if !priceData.FreeModel {
 		info.ForcePreConsume = true
 		if apiErr := service.PreConsumeBilling(c, priceData.Quota, info); apiErr != nil {
-			return service.MidjourneyErrorWrapper(constant.MjRequestError, apiErr.Error())
+			return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, apiErr.Error(), apiErr.StatusCode)
 		}
 	}
 
@@ -251,7 +261,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		if info.Billing != nil && info.Billing.NeedsRefund() {
 			info.Billing.Refund(c)
 		}
-		return service.MidjourneyErrorWrapper(constant.MjRequestError, "insert_midjourney_task_failed")
+		return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "insert_midjourney_task_failed", http.StatusInternalServerError)
 	}
 
 	if charged {
@@ -259,11 +269,11 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 			if info.Billing != nil && info.Billing.NeedsRefund() {
 				info.Billing.Refund(c)
 			}
-			return service.MidjourneyErrorWrapper(constant.MjRequestError, "settle_midjourney_billing_failed")
+			return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "settle_midjourney_billing_failed", http.StatusInternalServerError)
 		}
 		if err := service.RecordMidjourneyBilling(midjourneyTask, info); err != nil {
 			common.SysLog("error persisting Midjourney billing: " + err.Error())
-			return service.MidjourneyErrorWrapper(constant.MjRequestError, "persist_midjourney_billing_failed")
+			return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "persist_midjourney_billing_failed", http.StatusInternalServerError)
 		}
 		other := service.GenerateMjOtherInfo(info, priceData)
 		logContent := fmt.Sprintf("Midjourney fixed price %.2f, group ratio %.2f, action %s", priceData.ModelPrice, priceData.GroupRatioInfo.GroupRatio, constant.MjActionSwapFace)
@@ -285,7 +295,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		model.UpdateChannelUsedQuota(info.ChannelId, priceData.Quota)
 	}
 
-	c.Writer.WriteHeader(mjResp.StatusCode)
+	service.WriteNormalizedUpstreamStatus(c.Writer, mjResp.StatusCode)
 	respBody, err := common.Marshal(midjResponse)
 	if err != nil {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "marshal_response_body_failed")
@@ -301,14 +311,14 @@ func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
 	userId := c.GetInt("id")
 	originTask := model.GetByMJId(userId, taskId)
 	if originTask == nil {
-		return service.MidjourneyErrorWrapper(constant.MjRequestError, "task_no_found")
+		return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "task_no_found", http.StatusNotFound)
 	}
 	channel, err := model.GetChannelById(originTask.ChannelId, true)
 	if err != nil {
-		return service.MidjourneyErrorWrapper(constant.MjRequestError, "get_channel_info_failed")
+		return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "get_channel_info_failed", http.StatusInternalServerError)
 	}
 	if channel.Status != common.ChannelStatusEnabled {
-		return service.MidjourneyErrorWrapper(constant.MjRequestError, "该任务所属渠道已被禁用")
+		return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "该任务所属渠道已被禁用", http.StatusServiceUnavailable)
 	}
 	c.Set("channel_id", originTask.ChannelId)
 	c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
@@ -320,7 +330,7 @@ func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
 		return &midjResponseWithStatus.Response
 	}
 	midjResponse := &midjResponseWithStatus.Response
-	c.Writer.WriteHeader(midjResponseWithStatus.StatusCode)
+	service.WriteNormalizedUpstreamStatus(c.Writer, midjResponseWithStatus.StatusCode)
 	respBody, err := json.Marshal(midjResponse)
 	if err != nil {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "unmarshal_response_body_failed")
@@ -341,6 +351,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 			return &dto.MidjourneyResponse{
 				Code:        4,
 				Description: "task_no_found",
+				StatusCode:  http.StatusNotFound,
 			}
 		}
 		midjourneyTask := coverMidjourneyTaskDto(c, originTask)
@@ -349,6 +360,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 			return &dto.MidjourneyResponse{
 				Code:        4,
 				Description: "unmarshal_response_body_failed",
+				StatusCode:  http.StatusInternalServerError,
 			}
 		}
 	case relayconstant.RelayModeMidjourneyTaskFetchByCondition:
@@ -359,7 +371,8 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 		if err != nil {
 			return &dto.MidjourneyResponse{
 				Code:        4,
-				Description: "do_request_failed",
+				Description: "bind_request_body_failed",
+				StatusCode:  http.StatusBadRequest,
 			}
 		}
 		var tasks []dto.MidjourneyDto
@@ -378,6 +391,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 			return &dto.MidjourneyResponse{
 				Code:        4,
 				Description: "unmarshal_response_body_failed",
+				StatusCode:  http.StatusInternalServerError,
 			}
 		}
 	}
@@ -389,6 +403,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 		return &dto.MidjourneyResponse{
 			Code:        4,
 			Description: "copy_response_body_failed",
+			StatusCode:  http.StatusInternalServerError,
 		}
 	}
 	return nil
@@ -463,7 +478,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 
 		originTask := model.GetByMJId(relayInfo.UserId, mjId)
 		if originTask == nil {
-			return service.MidjourneyErrorWrapper(constant.MjRequestError, "task_not_found")
+			return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "task_not_found", http.StatusNotFound)
 		}
 		if setting.MjActionCheckSuccessEnabled {
 			if originTask.Status != "SUCCESS" && relayInfo.RelayMode != relayconstant.RelayModeMidjourneyModal {
@@ -472,10 +487,10 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		}
 		channel, err := model.GetChannelById(originTask.ChannelId, true)
 		if err != nil {
-			return service.MidjourneyErrorWrapper(constant.MjRequestError, "get_channel_info_failed")
+			return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "get_channel_info_failed", http.StatusInternalServerError)
 		}
 		if channel.Status != common.ChannelStatusEnabled {
-			return service.MidjourneyErrorWrapper(constant.MjRequestError, "origin task channel is disabled")
+			return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "origin task channel is disabled", http.StatusServiceUnavailable)
 		}
 		c.Set("base_url", channel.GetBaseURL())
 		c.Set("channel_id", originTask.ChannelId)
@@ -505,7 +520,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	if consumeQuota && !priceData.FreeModel {
 		relayInfo.ForcePreConsume = true
 		if apiErr := service.PreConsumeBilling(c, priceData.Quota, relayInfo); apiErr != nil {
-			return service.MidjourneyErrorWrapper(constant.MjRequestError, apiErr.Error())
+			return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, apiErr.Error(), apiErr.StatusCode)
 		}
 	}
 
@@ -580,7 +595,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		if relayInfo.Billing != nil && relayInfo.Billing.NeedsRefund() {
 			relayInfo.Billing.Refund(c)
 		}
-		return service.MidjourneyErrorWrapper(constant.MjRequestError, "insert_midjourney_task_failed")
+		return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "insert_midjourney_task_failed", http.StatusInternalServerError)
 	}
 
 	if billable {
@@ -590,13 +605,13 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 			if relayInfo.Billing != nil && relayInfo.Billing.NeedsRefund() {
 				relayInfo.Billing.Refund(c)
 			}
-			return service.MidjourneyErrorWrapper(constant.MjRequestError, "persist_midjourney_billing_failed")
+			return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "persist_midjourney_billing_failed", http.StatusInternalServerError)
 		}
 		if err := service.SettleBilling(c, relayInfo, priceData.Quota); err != nil {
 			if relayInfo.Billing != nil && relayInfo.Billing.NeedsRefund() {
 				relayInfo.Billing.Refund(c)
 			}
-			return service.MidjourneyErrorWrapper(constant.MjRequestError, "settle_midjourney_billing_failed")
+			return service.MidjourneyErrorWrapperWithStatus(constant.MjRequestError, "settle_midjourney_billing_failed", http.StatusInternalServerError)
 		}
 		if relayInfo.BillingSource == service.BillingSourceWallet && relayInfo.Billing != nil {
 			if err := service.RecordMidjourneyWalletFunding(midjourneyTask, relayInfo.WalletRewardConsumed, relayInfo.WalletPaidConsumed); err != nil {
@@ -636,7 +651,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	if responseCode == 22 {
 		responseBody = []byte(strings.Replace(string(responseBody), `"code":22`, `"code":1`, -1))
 	}
-	c.Writer.WriteHeader(midjResponseWithStatus.StatusCode)
+	service.WriteNormalizedUpstreamStatus(c.Writer, midjResponseWithStatus.StatusCode)
 	bodyReader := io.NopCloser(bytes.NewBuffer(responseBody))
 	_, err = io.Copy(c.Writer, bodyReader)
 	_ = bodyReader.Close()

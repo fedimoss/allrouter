@@ -159,6 +159,22 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 	return filtered
 }
 
+// filterHiddenMarketplacePricing 只过滤 /api/pricing 的展示数据。
+// 返回新切片，避免修改 model.GetPricing() 的共享缓存；同步、候选和启用校验仍使用完整注册表。
+func filterHiddenMarketplacePricing(pricing []model.Pricing) []model.Pricing {
+	if len(pricing) == 0 {
+		return pricing
+	}
+	filtered := make([]model.Pricing, 0, len(pricing))
+	for _, item := range pricing {
+		if item.MarketplaceHidden {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
+}
+
 func getPricingVisibilityContext(c *gin.Context) (map[string]string, map[string]float64, []string) {
 	usableGroup := map[string]string{}
 	groupRatio := map[string]float64{}
@@ -188,8 +204,8 @@ func getPricingVisibilityContext(c *gin.Context) (map[string]string, map[string]
 	return usableGroup, groupRatio, service.GetUserAutoGroup(group)
 }
 
-// getMarketplaceVisiblePricingForUserGroup 按指定用户分组计算主站市场可见的定价列表。
-// 不依赖 *gin.Context，供后台自动同步（goroutine）使用
+// getMarketplaceVisiblePricingForUserGroup 按指定用户分组计算主站可注册定价列表。
+// 不依赖 *gin.Context，供后台自动同步（goroutine）使用；模型广场隐藏状态在此不参与过滤。
 func getMarketplaceVisiblePricingForUserGroup(userGroup string) []model.Pricing {
 	pricing := model.GetPricing()
 	usableGroup := service.GetUserUsableGroups(userGroup)
@@ -203,11 +219,18 @@ func getMarketplaceVisiblePricing(c *gin.Context) []model.Pricing {
 }
 
 func GetPricing(c *gin.Context) {
-	pricing := model.GetPricing()
+	// 隐藏过滤只作用于模型广场 data；完整注册表继续供服务商视图、同步和启用校验使用。
+	pricing := filterHiddenMarketplacePricing(model.GetPricing())
 	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
 	pricing = applyProviderPricingView(providerId, pricing)
 	usableGroup, groupRatio, autoGroups := getPricingVisibilityContext(c)
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
+	// 这段十六进制串是历史定价版本标记，不是哈希，也不参与隐藏或计费判断。
+	// 当前值沿用自提交 a623b7a9（新增按秒计费类型），只在定价结构大改时手工轮换；
+	// 放在最终可见数据上，避免过滤后首项变化导致标记丢失。顶层另有独立的短版本字段。
+	if len(pricing) > 0 {
+		pricing[0].PricingVersion = "b2c5fbb11278d477f8141196fd56208a31cb25dfdb04e0dc866e3fc4b8f0ae21"
+	}
 	sortConfig := readPricingSortConfig(providerId)
 
 	c.JSON(200, gin.H{

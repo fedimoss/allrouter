@@ -16,6 +16,9 @@ const (
 	NameRuleSuffix
 )
 
+// ModelStatusVisible 是 models.status 的唯一可见值；其余值只表示模型广场隐藏。
+const ModelStatusVisible = 1
+
 type BoundChannel struct {
 	Name string `json:"name"`
 	Type int    `json:"type"`

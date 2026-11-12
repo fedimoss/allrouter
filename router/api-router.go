@@ -37,7 +37,9 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/web_colors", controller.GetWebColors) // 获取网站主题色（无需登录）
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
 		apiRouter.PUT("/pricing/sort", middleware.UserAuth(), controller.UpdatePricingSort)
-		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
+		// Registration mail uses the captcha-gated POST below. The legacy GET is
+		// retained only for authenticated account email binding, not as a bypass.
+		apiRouter.GET("/verification", middleware.UserAuth(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)
 		// OAuth routes - specific routes must come before :provider wildcard
@@ -86,6 +88,9 @@ func SetApiRouter(router *gin.Engine) {
 
 		userRoute := apiRouter.Group("/user")
 		{
+			userRoute.POST("/register/captcha", anonymousRequestBodyLimit, controller.CreateRegistrationCaptcha)
+			userRoute.POST("/register/captcha/verify", anonymousRequestBodyLimit, controller.VerifyRegistrationCaptcha)
+			userRoute.POST("/register/verification", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, middleware.TurnstileCheck(), controller.SendRegistrationEmailVerification)
 			userRoute.POST("/register", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, middleware.TurnstileCheck(), controller.Register)
 			userRoute.POST("/login", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, middleware.TurnstileCheck(), controller.Login)
 			userRoute.POST("/login/2fa", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.Verify2FALogin)

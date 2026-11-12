@@ -218,6 +218,7 @@ func StripeWebhook(c *gin.Context) {
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Printf("解析Stripe Webhook参数失败: %v\n", err)
+		c.Header("Retry-After", "1")
 		c.AbortWithStatus(http.StatusServiceUnavailable)
 		return
 	}
