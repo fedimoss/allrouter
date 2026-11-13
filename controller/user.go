@@ -1107,6 +1107,9 @@ func GetUserModels(c *gin.Context) {
 			}
 		}
 	}
+	if c.Query("visible_only") == "true" {
+		models = filterMarketplaceHiddenModelNames(models)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

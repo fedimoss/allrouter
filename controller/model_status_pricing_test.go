@@ -184,7 +184,60 @@ func TestModelStatusHiddenModelStaysInRegistry(t *testing.T) {
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
 	ctx.Set("id", 8103)
 	ListModels(ctx, constant.ChannelTypeOpenAI)
-	require.Contains(t, decodeListModelsResponse(t, recorder), testHiddenModelName)
+	listedModels := decodeListModelsResponse(t, recorder)
+	require.NotContains(t, listedModels, testHiddenModelName)
+
+	channel, err := model.GetChannel("default", testHiddenModelName, 0)
+	require.NoError(t, err)
+	require.NotNil(t, channel)
+	require.Equal(t, 1, channel.Id)
+
+	anthropicRecorder := httptest.NewRecorder()
+	anthropicCtx, _ := gin.CreateTestContext(anthropicRecorder)
+	anthropicCtx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	anthropicCtx.Set("id", 8103)
+	ListModels(anthropicCtx, constant.ChannelTypeAnthropic)
+	var anthropicResponse struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+		FirstID string `json:"first_id"`
+		LastID  string `json:"last_id"`
+	}
+	require.Equal(t, http.StatusOK, anthropicRecorder.Code)
+	require.NoError(t, common.Unmarshal(anthropicRecorder.Body.Bytes(), &anthropicResponse))
+	require.Empty(t, anthropicResponse.Data)
+	require.Empty(t, anthropicResponse.FirstID)
+	require.Empty(t, anthropicResponse.LastID)
+}
+
+func TestGetUserModelsVisibleOnlyIsOptIn(t *testing.T) {
+	setupModelStatusPricingTest(t)
+
+	getModels := func(query string) []string {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/models"+query, nil)
+		ctx.Set("id", 8103)
+		GetUserModels(ctx)
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		var response struct {
+			Success bool     `json:"success"`
+			Data    []string `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		require.True(t, response.Success)
+		return response.Data
+	}
+
+	defaultModels := getModels("")
+	require.Contains(t, defaultModels, testHiddenModelName)
+	require.Contains(t, defaultModels, testVisibleModelName)
+
+	visibleModels := getModels("?visible_only=true")
+	require.NotContains(t, visibleModels, testHiddenModelName)
+	require.Contains(t, visibleModels, testVisibleModelName)
 }
 
 // 主站只在 /api/pricing 的 data 中隐藏模型，版本标记不能污染共享缓存。

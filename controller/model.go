@@ -179,6 +179,27 @@ type modelListGroups struct {
 	ownerGroups []string
 }
 
+func filterMarketplaceHiddenModelNames(modelNames []string) []string {
+	if len(modelNames) == 0 {
+		return modelNames
+	}
+
+	hiddenModels := make(map[string]struct{})
+	for _, pricing := range model.GetPricing() {
+		if pricing.MarketplaceHidden {
+			hiddenModels[pricing.ModelName] = struct{}{}
+		}
+	}
+
+	visibleModels := make([]string, 0, len(modelNames))
+	for _, modelName := range modelNames {
+		if _, hidden := hiddenModels[modelName]; !hidden {
+			visibleModels = append(visibleModels, modelName)
+		}
+	}
+	return visibleModels
+}
+
 func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
 	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
@@ -271,6 +292,7 @@ func ListModels(c *gin.Context, modelType int) {
 			userModelNames = append(userModelNames, modelName)
 		}
 	}
+	userModelNames = filterMarketplaceHiddenModelNames(userModelNames)
 
 	ownerByModel := map[string]string{}
 	if len(ownerGroups) > 0 {
@@ -284,6 +306,7 @@ func ListModels(c *gin.Context, modelType int) {
 	switch modelType {
 	case constant.ChannelTypeAnthropic:
 		useranthropicModels := make([]dto.AnthropicModel, len(userOpenAiModels))
+		firstModelID, lastModelID := "", ""
 		for i, model := range userOpenAiModels {
 			useranthropicModels[i] = dto.AnthropicModel{
 				ID:          model.Id,
@@ -292,11 +315,15 @@ func ListModels(c *gin.Context, modelType int) {
 				Type:        "model",
 			}
 		}
+		if len(useranthropicModels) > 0 {
+			firstModelID = useranthropicModels[0].ID
+			lastModelID = useranthropicModels[len(useranthropicModels)-1].ID
+		}
 		c.JSON(200, gin.H{
 			"data":     useranthropicModels,
-			"first_id": useranthropicModels[0].ID,
+			"first_id": firstModelID,
 			"has_more": false,
-			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
+			"last_id":  lastModelID,
 		})
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
