@@ -297,6 +297,8 @@ func InitResources() error {
 	ratio_setting.InitRatioSettings()
 
 	service.InitHttpClient()
+	// 启动时探测 ffprobe，决定是否启用 Seedance 素材时长预校验。
+	// 探测失败不会阻断启动，后端会放行时长校验并交给上游兜底。
 	service.InitSeedanceDurationProbe()
 
 	service.InitTokenEncoders()

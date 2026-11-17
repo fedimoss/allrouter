@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 逻辑：公开模型名先经渠道 model_mapping 解析，再决定面板和能力。
-// 注意：这是“不使用模型名前缀判断”的核心回归用例。
+// 测试意图：公开模型名先经渠道 model_mapping 解析，再决定面板和能力。
+// 不能回退：若改回按模型名前缀判断，重定向后的模型会被误判。
 func TestBuildVideoCapabilitiesUsesResolvedUpstreamModel(t *testing.T) {
 	panels, capabilities := buildVideoCapabilities(
 		[]string{"seedance-model", "chat-model"},

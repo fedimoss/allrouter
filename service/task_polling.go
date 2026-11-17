@@ -671,6 +671,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if isDone && constant.IsMiniMaxH3Model(task.Properties.OriginModelName) {
 		CleanupMiniMaxH3TaskMedia(task.UserId, task.PrivateData.MiniMaxH3FrameIDs, task.PrivateData.MiniMaxH3ReferenceVideoIDs)
 	}
+	// Seedance 参考素材只在任务执行期间保留，终态后统一删除。
+	// 必须在任务成功/失败都执行，否则会持续占用上传目录。
 	if isDone {
 		CleanupSeedanceMedia(task.UserId, task.PrivateData.SeedanceMediaIDs)
 	}

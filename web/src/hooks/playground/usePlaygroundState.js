@@ -83,6 +83,7 @@ export const usePlaygroundState = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
+  // 缓存后端返回的模型面板类型和各模型能力限制。
   const [videoPanels, setVideoPanels] = useState({});
   const [videoCapabilities, setVideoCapabilities] = useState({});
   const [status, setStatus] = useState({});
@@ -268,6 +269,7 @@ export const usePlaygroundState = () => {
     showSettings,
     models,
     groups,
+    // 把面板映射和能力矩阵暴露给 Playground 页面消费。
     videoPanels,
     videoCapabilities,
     status,
@@ -298,6 +300,7 @@ export const usePlaygroundState = () => {
     setShowSettings,
     setModels,
     setGroups,
+    // 数据加载 hook 需要 setter 把接口结果写回全局页面状态。
     setVideoPanels,
     setVideoCapabilities,
     setStatus,

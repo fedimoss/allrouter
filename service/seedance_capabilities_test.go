@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 逻辑：锁定 2.0、2.0 fast、2.5 和未知模型的能力矩阵。
-// 注意：这里的数值必须与上游文档和前端面板提示同步。
+// 测试意图：锁定 2.0、2.0 fast、2.5 和未知模型的能力矩阵。
+// 这里的数值必须与上游文档和前端面板提示同步，改动代码时先改测试再改实现。
 func TestSeedanceCapabilitiesForModel(t *testing.T) {
 	caps := SeedanceCapabilitiesForModel("doubao-seedance-2-0-260128")
 	require.Equal(t, "2.0", caps.Family)

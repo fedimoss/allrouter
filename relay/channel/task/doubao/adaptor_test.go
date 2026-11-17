@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 逻辑：把提交请求转成上游 payload 并反序列化，便于断言默认值和字段裁剪。
+// 把提交请求转成上游 payload 并反序列化，便于断言默认值和字段裁剪。
 func marshalPayload(t *testing.T, req *relaycommon.TaskSubmitReq) map[string]any {
 	t.Helper()
 	adaptor := &TaskAdaptor{}
@@ -37,7 +37,7 @@ func marshalPayload(t *testing.T, req *relaycommon.TaskSubmitReq) map[string]any
 	return result
 }
 
-// 逻辑：覆盖 2.0 的默认值矩阵，以及不应发送的 1.x/2.5 专属字段。
+// 测试意图：覆盖 2.0 的默认值矩阵，以及不应发送的 1.x/2.5 专属字段。
 func TestSeedance20DefaultsAndUnsupportedFields(t *testing.T) {
 	payload := marshalPayload(t, &relaycommon.TaskSubmitReq{
 		Model:  "doubao-seedance-2-0-260128",
@@ -69,7 +69,7 @@ func TestSeedance20DefaultsAndUnsupportedFields(t *testing.T) {
 	require.Equal(t, "a test video", first["text"])
 }
 
-// 逻辑：无论生成中、成功还是失败，查询结果都要保留原始提示词。
+// 测试意图：无论生成中、成功还是失败，查询结果都要保留原始提示词。
 func TestConvertToOpenAIVideoKeepsPromptForEveryStatus(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -126,8 +126,8 @@ func TestSeedance25Defaults(t *testing.T) {
 	require.NotContains(t, payload, "service_tier")
 }
 
-// 逻辑：仅多模态参考场景携带 omni 参数，首帧请求不能携带。
-// 注意：上游会严格拒绝文生视频或首尾帧请求中的该字段。
+// 测试意图：仅多模态参考场景携带 omni 参数，首帧请求不能携带。
+// 风险：上游会严格拒绝文生视频或首尾帧请求中的该字段。
 func TestSeedance25OmniReferenceTaskTypeOnlyForReferenceMedia(t *testing.T) {
 	referencePayload := marshalPayload(t, &relaycommon.TaskSubmitReq{
 		Model:  "doubao-seedance-2-5-260628",
@@ -234,8 +234,8 @@ func TestHasVideoInMetadataWithContentItems(t *testing.T) {
 	}))
 }
 
-// 逻辑：成功结果先下载到本地，再把持久化 URL 写回任务。
-// 注意：下载失败会进入重试，达到上限后任务按失败处理。
+// 测试意图：成功结果先下载到本地，再把持久化 URL 写回任务。
+// 风险：下载失败会进入重试，达到上限后任务按失败处理。
 func TestProcessTaskResultBeforePersist(t *testing.T) {
 	previousDir := constant.MiniMaxH3ResultDir
 	previousPath := constant.MiniMaxH3ResultURLPath
@@ -283,8 +283,8 @@ func TestProcessTaskResultBeforePersist(t *testing.T) {
 	require.Equal(t, videoBytes, content)
 }
 
-// 逻辑：Playground multipart 请求会把参考图落盘并生成公网 URL。
-// 注意：测试会临时改写 H3 共享上传目录，结束后必须恢复。
+// 测试意图：Playground multipart 请求会把参考图落盘并生成公网 URL。
+// 风险：测试会临时改写 H3 共享上传目录，结束后必须恢复。
 func TestSeedanceMultipartValidationStoresMedia(t *testing.T) {
 	previousDir := constant.MiniMaxH3FrameUploadDir
 	previousPath := constant.MiniMaxH3FrameURLPath

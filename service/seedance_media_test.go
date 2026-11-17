@@ -14,7 +14,7 @@ import (
 
 const testPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
-// 逻辑：用真实 multipart 表单构造 FileHeader，贴近上传接口行为。
+// 用真实 multipart 表单构造 FileHeader，贴近上传接口行为。
 func multipartFileHeader(t *testing.T, fieldName, filename string, data []byte) *multipart.FileHeader {
 	t.Helper()
 	var body bytes.Buffer
@@ -32,8 +32,8 @@ func multipartFileHeader(t *testing.T, fieldName, filename string, data []byte) 
 	return form.File[fieldName][0]
 }
 
-// 逻辑：覆盖落盘、公网 URL 拼接和删除；测试结束恢复全局目录配置。
-// 注意：该测试会改写 H3 共享目录常量，必须使用 t.TempDir 隔离。
+// 测试意图：覆盖落盘、公网 URL 拼接和删除。
+// 该测试会改写 H3 共享目录常量，必须使用 t.TempDir 并恢复全局配置。
 func TestSaveSeedanceMediaFileAndPublicURL(t *testing.T) {
 	previousDir := constant.MiniMaxH3FrameUploadDir
 	previousPath := constant.MiniMaxH3FrameURLPath

@@ -12,7 +12,8 @@ const (
 
 // SeedanceCapabilities is the single source of truth for the public panel and
 // server-side request validation.
-// 逻辑：前端面板限制与后端校验共用这份能力矩阵，避免两套规则漂移。
+// 前端面板限制与后端校验共用这份能力矩阵，避免两套规则漂移。
+// 修改任何数值前必须同步核对上游文档和前端提示文案。
 type SeedanceCapabilities struct {
 	Panel           string   `json:"panel"`
 	Family          string   `json:"family"`
@@ -29,7 +30,8 @@ type SeedanceCapabilities struct {
 }
 
 func SeedanceFamilyForModel(modelName string) SeedanceModelFamily {
-	// 注意：这里只做版本归类；未知模型按 2.0 保守处理，宁可少放参数。
+	// 只做版本归类；未知模型按 2.0 保守处理。
+	// 宁可少放参数，也不要把 1.x/2.5 专属字段发给错误版本。
 	normalized := strings.ToLower(strings.TrimSpace(modelName))
 	switch {
 	case strings.Contains(normalized, "2-5") || strings.Contains(normalized, "2.5"):

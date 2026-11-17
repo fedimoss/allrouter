@@ -10,8 +10,8 @@ import (
 
 // ResolveMappedModelName follows the channel model mapping chain and returns
 // the final upstream model name. A self-mapping is treated as no mapping.
-// 逻辑：逐级解析渠道 model_mapping，返回最终上游模型名。
-// 注意：能力判断必须使用解析后的上游名，不能依赖公开模型名前缀。
+// 逐级解析渠道 model_mapping，返回最终上游模型名。
+// 能力判断必须使用解析后的上游名，不能依赖公开模型名前缀。
 func ResolveMappedModelName(mappingJSON, originModel string) (string, bool, error) {
 	originModel = strings.TrimSpace(originModel)
 	mappingJSON = strings.TrimSpace(mappingJSON)
@@ -33,7 +33,8 @@ func ResolveMappedModelName(mappingJSON, originModel string) (string, bool, erro
 		if !exists || next == "" || next == current {
 			break
 		}
-		// 兼容：映射可能链式配置；visited 用于阻止 A→B→A 死循环。
+		// 映射可能链式配置；visited 用于阻止 A→B→A 死循环。
+		// 不能删除这段检查，否则错误配置会让请求线程卡死。
 		if visited[next] {
 			return "", false, fmt.Errorf("model_mapping_contains_cycle")
 		}

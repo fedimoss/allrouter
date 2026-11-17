@@ -20,6 +20,7 @@
   --pg-code: #020617;
   --pg-range-active: var(--theme-primary);
   --pg-range-track: #e2e8f0;
+  /* 操练场占满路由容器，内部滚动而不是撑高外层页面。 */
   height: 100%;
   min-height: 100%;
   color: var(--pg-text);
@@ -70,6 +71,7 @@ html.dark .playground-v2 {
   min-height: 0;
   flex: 1;
   grid-template-columns: 320px minmax(0, 1fr);
+  /* 固定行轨道，防止左侧长表单把右侧结果区一起拉高。 */
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   background: var(--pg-surface);
@@ -85,6 +87,7 @@ html.dark .playground-v2 {
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--pg-border);
+  /* 隔离设置面板的绘制溢出，避免外层 main 出现可滚动空白。 */
   contain: paint;
 }
 
@@ -1185,6 +1188,7 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   background: transparent;
 }
 
+/* Seedance 表单采用独立纵向节奏，避免复用通用面板间距。 */
 .playground-v2-seedance-form {
   display: flex;
   flex-direction: column;
@@ -1256,6 +1260,7 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   display: none;
 }
 
+/* 素材数量提示紧跟标签，弱化显示避免干扰主信息。 */
 .playground-v2-field-count {
   margin-left: 6px;
   color: var(--pg-text-soft);
@@ -1263,12 +1268,14 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   font-weight: 500;
 }
 
+/* 参考图片使用自适应网格，数量变化时自动换行。 */
 .playground-v2-seedance-image-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
   gap: 8px;
 }
 
+/* 图片缩略图采用正方形裁切，保证多张素材排列整齐。 */
 .playground-v2-seedance-image-card {
   position: relative;
   aspect-ratio: 1;
@@ -1284,6 +1291,7 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   object-fit: cover;
 }
 
+/* 删除按钮叠在缩略图右上角，避免占用额外布局空间。 */
 .playground-v2-seedance-image-card .playground-v2-seedance-media-remove {
   position: absolute;
   top: 4px;
@@ -1293,6 +1301,7 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   border-color: transparent;
 }
 
+/* 图片和文件共用虚线添加入口，禁用时降低透明度。 */
 .playground-v2-seedance-image-add,
 .playground-v2-seedance-file-add {
   display: flex;
@@ -1321,6 +1330,7 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   opacity: 0.55;
 }
 
+/* 隐藏原生 file input，由外层 label 负责触发选择框。 */
 .playground-v2-seedance-file-input {
   position: absolute;
   width: 1px;
@@ -1333,12 +1343,14 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   border: 0;
 }
 
+/* 视频/音频文件以列表展示，长文件名需要省略避免撑破面板。 */
 .playground-v2-seedance-file-list {
   display: grid;
   gap: 6px;
   margin-bottom: 8px;
 }
 
+/* 单行素材信息：图标、文件名、大小和删除按钮。 */
 .playground-v2-seedance-file-row {
   display: flex;
   min-width: 0;
@@ -1352,6 +1364,7 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   font-size: 12px;
 }
 
+/* 文件名占据剩余宽度，超长时截断显示。 */
 .playground-v2-seedance-file-name {
   min-width: 0;
   flex: 1;
@@ -1360,18 +1373,21 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   white-space: nowrap;
 }
 
+/* 文件大小不换行，避免把删除按钮挤出可视区域。 */
 .playground-v2-seedance-file-size {
   color: var(--pg-text-soft);
   font-size: 10px;
   white-space: nowrap;
 }
 
+/* 视频/音频添加按钮横向铺满，和文件列表形成清晰层级。 */
 .playground-v2-seedance-file-add {
   min-height: 52px;
   flex-direction: row;
   width: 100%;
 }
 
+/* 素材删除按钮固定尺寸，避免不同内容导致布局跳动。 */
 .playground-v2-seedance-media-remove {
   display: grid;
   width: 24px;
@@ -1390,6 +1406,7 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   opacity: 0.55;
 }
 
+/* 时长输入与“自动”开关同一行，节省纵向空间。 */
 .playground-v2-seedance-duration-row {
   display: flex;
   align-items: center;
@@ -1400,6 +1417,7 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   flex: 1;
 }
 
+/* 自动时长开关与输入框并排，禁用时仍保留可读性。 */
 .playground-v2-seedance-auto-duration {
   display: inline-flex;
   align-items: center;
@@ -1409,6 +1427,7 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   white-space: nowrap;
 }
 
+/* 开关行使用两端对齐，让标签和开关位置稳定。 */
 .playground-v2-seedance-toggle-row {
   display: flex;
   align-items: center;
@@ -1430,6 +1449,7 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   outline: none;
 }
 
+/* 提示词输入框底部留白，避免文字贴住边框。 */
 .playground-v2-seedance-prompt {
   padding-bottom: 12px;
 }
@@ -1832,18 +1852,21 @@ html.dark .playground-v2-role-pill[data-active='true'] {
   font-size: 11px;
 }
 
+/* 结果区展示本次提交的参考素材，便于用户回看。 */
 .playground-v2-video-reference-display {
   display: grid;
   gap: 8px;
   width: 100%;
 }
 
+/* 参考素材缩略图横向换行排列，数量多时自动扩展高度。 */
 .playground-v2-video-reference-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
+/* 单个参考素材卡片限制宽度，图片/视频统一裁切展示。 */
 .playground-v2-video-reference-item {
   display: grid;
   width: 132px;

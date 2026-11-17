@@ -46,8 +46,8 @@ import { useTranslation } from 'react-i18next';
 import { API, copy } from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
 
-// 逻辑：Seedance 独立的操练场面板与任务状态机，不复用 H3 的控制器。
-// 注意：参考素材只在当前会话展示，刷新后依赖后端历史任务。
+// Seedance 独立的操练场面板与任务状态机，不复用 H3 的控制器。
+// 参考素材只在当前会话展示；刷新后文件已按 H3 生命周期清理，无法回放。
 const terminalStatuses = new Set(['completed', 'failed']);
 const activeStatuses = new Set(['queued', 'in_progress']);
 const seedancePlatforms = new Set(['54', '45']);
@@ -69,7 +69,8 @@ const defaultSeedanceCapabilities = {
 };
 
 const resolveCapabilities = (capabilities) => {
-  // 逻辑：后端能力优先，缺失字段用默认值补齐，数组字段单独兜底。
+  // 后端能力优先，缺失字段用默认值补齐，数组字段单独兜底。
+  // 这样旧接口或缺字段时仍按 2.0 保守限制，避免放开发送不支持参数。
   const merged = { ...defaultSeedanceCapabilities, ...(capabilities || {}) };
   if (!Array.isArray(merged.resolutions) || merged.resolutions.length === 0) {
     merged.resolutions = defaultSeedanceCapabilities.resolutions;
@@ -82,8 +83,9 @@ const resolveCapabilities = (capabilities) => {
 
 const readMediaDuration = (file, kind) =>
   new Promise((resolve) => {
-    // 逻辑：用浏览器 loadedmetadata 预读本地素材时长，失败返回 null。
-    // 注意：5 秒超时和 onerror 都按“未知时长”处理，最终由后端/上游校验。
+    // 用浏览器 loadedmetadata 预读本地素材时长，失败返回 null。
+    // 5 秒超时和 onerror 都按“未知时长”处理，最终由后端/上游校验。
+    // 不能因为本地读不出时长就阻止提交，否则部分编码格式会被误伤。
     const element = document.createElement(kind);
     const objectURL = URL.createObjectURL(file);
     let timer = null;
@@ -122,7 +124,7 @@ const normalizeVideoTask = (source) => {
 
   const model = source.model || source.properties?.origin_model_name || '';
   const rawStatus = String(source.status || '').toLowerCase();
-  // 兼容：内部任务状态、上游状态和旧接口状态统一映射到面板状态。
+  // 内部任务状态、上游状态和旧接口状态统一映射到面板状态。
   const status =
     {
       not_start: 'queued',
@@ -151,7 +153,7 @@ const normalizeVideoTask = (source) => {
   }
 
   const promptCandidates = [
-    // 兼容：查询接口、历史任务和旧数据可能把提示词放在不同字段。
+    // 查询接口、历史任务和旧数据可能把提示词放在不同字段，需要逐个兜底。
     source.prompt,
     source.metadata?.prompt,
     source.properties?.input,
@@ -164,7 +166,7 @@ const normalizeVideoTask = (source) => {
     ) || '';
 
   const urlCandidates =
-    // 注意：失败任务不展示旧结果 URL，避免用户误以为视频可用。
+    // 失败任务不展示旧结果 URL，避免用户误以为视频可用。
     status === 'failed'
       ? []
       : [
@@ -217,7 +219,8 @@ const getErrorMessage = (error, fallback) =>
   fallback;
 
 const buildTaskReferences = (images, videos, audios) => [
-  // 逻辑：保存本次提交的 File 引用，供当前会话结果区预览参考素材。
+  // 保存本次提交的 File 引用，供当前会话结果区预览参考素材。
+  // 只存在内存中，不能把它当成可持久化的历史素材。
   ...images.map((file, index) => ({
     id: `image-${index}-${file.name}-${file.lastModified}`,
     kind: 'image',
@@ -253,9 +256,10 @@ const ToggleSwitch = ({ checked, disabled, onChange }) => (
 const ImagePicker = ({ files, max, disabled, onChange }) => {
   const { t } = useTranslation();
   const inputId = useId();
+  // 后端能力缺失时回退到 9 张，避免 max=0 让上传入口直接消失。
   const limit = Number(max) > 0 ? Number(max) : 9;
   const previews = useMemo(
-    // 注意：objectURL 必须随 files 变化或卸载时释放，避免内存泄漏。
+    // objectURL 必须随 files 变化或卸载时释放，避免内存泄漏。
     () => files.map((file) => URL.createObjectURL(file)),
     [files],
   );
@@ -319,6 +323,7 @@ const ImagePicker = ({ files, max, disabled, onChange }) => {
         onChange={(event) => {
           const selected = Array.from(event.target.files || []);
           const next = [...files, ...selected];
+          // 超出上限只截断并提示，不丢弃用户已选的全部文件。
           if (next.length > limit) {
             Toast.warning(t('At most {{count}} images', { count: limit }));
           }
@@ -342,6 +347,7 @@ const FilePicker = ({
 }) => {
   const { t } = useTranslation();
   const inputId = useId();
+  // 视频/音频默认上限 3，和后端 2.0 能力保持一致。
   const limit = Number(max) > 0 ? Number(max) : 3;
 
   return (
@@ -381,7 +387,7 @@ const FilePicker = ({
         </div>
       )}
       {files.length < limit && (
-        /* 逻辑：用原生 label 触发隐藏 input，避免脚本 click 被浏览器拦截。 */
+        /* 用原生 label 触发隐藏 input，避免脚本 click 被浏览器拦截。 */
         <label
           className='playground-v2-seedance-file-add'
           htmlFor={inputId}
@@ -405,6 +411,7 @@ const FilePicker = ({
         onChange={(event) => {
           const selected = Array.from(event.target.files || []);
           const next = [...files, ...selected];
+          // 超出上限截断，避免用户误以为所有文件都会提交。
           if (next.length > limit) {
             Toast.warning(t('Too many files'));
           }
@@ -423,8 +430,8 @@ export const useSeedanceVideoGeneration = ({
   model,
   capabilities,
 }) => {
-  // 逻辑：该 hook 负责表单状态、历史加载、轮询合并、校验和提交。
-  // 注意：H3 使用独立 hook，这里不要引入 H3 的任务字段或清理逻辑。
+  // 该 hook 负责表单状态、历史加载、轮询合并、校验和提交。
+  // H3 使用独立 hook，这里不要引入 H3 的任务字段或清理逻辑。
   const { t } = useTranslation();
   const resolvedCapabilities = useMemo(
     () => resolveCapabilities(capabilities),
@@ -455,7 +462,7 @@ export const useSeedanceVideoGeneration = ({
   const tasksRef = useRef([]);
 
   useEffect(() => {
-    // 逻辑：切换模型时清空表单和素材，避免把旧模型参数带到新模型。
+    // 切换模型时清空表单和素材，避免把旧模型参数带到新模型。
     setPrompt('');
     setRatio('adaptive');
     setResolution('720p');
@@ -472,7 +479,7 @@ export const useSeedanceVideoGeneration = ({
   }, [tasks]);
 
   useEffect(() => {
-    // 逻辑：能力变化后收敛非法选项，保证 UI 不会提交超出模型范围的值。
+    // 能力变化后收敛非法选项，保证 UI 不会提交超出模型范围的值。
     if (!resolvedCapabilities.resolutions.includes(resolution)) {
       setResolution(resolvedCapabilities.resolutions[0] || '720p');
     }
@@ -495,7 +502,8 @@ export const useSeedanceVideoGeneration = ({
   }, [duration, outputFormat, resolution, resolvedCapabilities]);
 
   useEffect(() => {
-    // 逻辑：本地读取参考视频/音频总时长；读取失败的素材只提示、不阻断。
+    // 本地读取参考视频/音频总时长；读取失败的素材只提示、不阻断。
+    // 后端/上游仍是最终校验方，这里只做体验优化。
     if (videos.length === 0 && audios.length === 0) {
       setDurationCheck({
         videoSeconds: 0,
@@ -552,7 +560,8 @@ export const useSeedanceVideoGeneration = ({
         const merged = {
           ...previous[existingIndex],
           ...normalized,
-          // 注意：轮询结果可能缺 prompt，必须保留提交时写入的值。
+          // 轮询结果可能缺 prompt，必须保留提交时写入的值。
+          // 否则任务进入生成中后，结果区提示词会突然消失。
           prompt: normalized.prompt || previous[existingIndex].prompt || '',
         };
         return previous.map((item, index) =>
@@ -579,7 +588,7 @@ export const useSeedanceVideoGeneration = ({
       const history = (payload?.items || [])
         .map(normalizeVideoTask)
         .filter((item) => {
-          // 逻辑：只保留当前模型和 Seedance 平台的任务，避免混入其他渠道。
+          // 只保留当前模型和 Seedance 平台的任务，避免混入其他渠道。
           if (!item || item.model !== model) return false;
           return !item.platform || seedancePlatforms.has(String(item.platform));
         })
@@ -608,7 +617,8 @@ export const useSeedanceVideoGeneration = ({
   useEffect(() => {
     if (!enabled) return undefined;
 
-    // 逻辑：仅轮询活跃任务，5 秒一轮；组件卸载或任务终态后停止。
+    // 仅轮询活跃任务，5 秒一轮；组件卸载或任务终态后停止。
+    // 不要在终态后继续轮询，否则会持续打上游并浪费配额。
     let cancelled = false;
     let timer = null;
     const refresh = async () => {
@@ -653,7 +663,7 @@ export const useSeedanceVideoGeneration = ({
   const durationBlocked = videoDurationExceeded || audioDurationExceeded;
 
   const buildSubmissionForm = () => {
-    // 逻辑：Playground 使用 multipart，参考文件由后端落盘后转成公网 URL。
+    // Playground 使用 multipart，参考文件由后端落盘后转成公网 URL。
     const formData = new FormData();
     formData.append('model', model);
     formData.append('prompt', prompt.trim());
@@ -702,7 +712,7 @@ export const useSeedanceVideoGeneration = ({
         {
           ...createdTask,
           prompt: prompt.trim(),
-          // 注意：references 只存在前端内存，刷新页面后不会恢复。
+          // references 只存在前端内存，刷新页面后不会恢复。
           references: buildTaskReferences(images, videos, audios),
         },
         { select: true },
@@ -727,7 +737,7 @@ export const useSeedanceVideoGeneration = ({
   };
 
   const isActive = submitting || (task && !terminalStatuses.has(task.status));
-  // 逻辑：优先使用持久化结果/上游 URL，缺失时回退到网关内容代理。
+  // 优先使用持久化结果/上游 URL，缺失时回退到网关内容代理。
   const directVideoURL =
     (typeof task?.url === 'string' && task.url.trim()) ||
     (typeof task?.result_url === 'string' && task.result_url.trim()) ||
@@ -812,7 +822,7 @@ export const useSeedanceVideoGeneration = ({
   };
 };
 
-// 逻辑：桌面端在左侧设置栏以 compact 模式渲染，移动端渲染在结果区顶部。
+// 桌面端在左侧设置栏以 compact 模式渲染，移动端渲染在结果区顶部。
 export const SeedanceVideoForm = ({ controller, compact = false }) => {
   const { t } = useTranslation();
   const {
@@ -845,6 +855,7 @@ export const SeedanceVideoForm = ({ controller, compact = false }) => {
   } = controller;
 
   const resolutionOptions = capabilities.resolutions;
+  // “自动”时长用 -1 表示，此时数字输入框禁用但仍显示占位符。
   const durationDisabled = submitting || duration === '-1';
 
   return (
@@ -1023,6 +1034,7 @@ export const SeedanceVideoForm = ({ controller, compact = false }) => {
           type='button'
           className='playground-v2-primary-command'
           disabled={
+            // 前端只拦截明显非法状态；像素、时长等最终仍由后端/上游校验。
             !prompt.trim() ||
             submitting ||
             durationBlocked ||
@@ -1122,7 +1134,7 @@ const VideoTaskHistory = ({
 const ReferenceMediaDisplay = ({ references }) => {
   const { t } = useTranslation();
   const previews = useMemo(
-    // 注意：历史任务没有 File，只能展示后端可能返回的 url。
+    // 历史任务没有 File，只能展示后端可能返回的 url。
     () =>
       (references || []).map((reference) =>
         reference.file
@@ -1188,7 +1200,7 @@ const SeedanceVideoArea = ({ controller, styleState, onToggleSettings }) => {
     handleSelectTask,
   } = controller;
   const statusLabel =
-    // 逻辑：结果区在排队、生成中、完成和失败阶段都显示提示词与状态。
+    // 结果区在排队、生成中、完成和失败阶段都显示提示词与状态。
     {
       queued: t('Queued'),
       in_progress: t('Generating'),

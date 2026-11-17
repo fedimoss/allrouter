@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 逻辑：覆盖真人隐私、通用敏感内容和图片像素不足三类上游错误。
-// 注意：未识别的错误必须保持原样，不能被误归类。
+// 测试意图：覆盖真人隐私、通用敏感内容和图片像素不足三类上游错误。
+// 未识别的错误必须保持原样，不能被误归类。
 func TestClassifyTaskErrorMessage(t *testing.T) {
 	key, code := classifyTaskErrorMessage(`{"error":{"code":"InputImageSensitiveContentDetected.PrivacyInformation","message":"may contain real person","param":"content[1]","type":"BadRequest"}}`)
 	require.Equal(t, i18n.MsgTaskContentSensitiveRealPerson, key)

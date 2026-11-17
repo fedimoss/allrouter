@@ -40,6 +40,7 @@ export const useDataLoader = (
         success,
         message,
         data,
+        // 模型列表接口同时返回面板映射和能力矩阵，前端按需消费。
         video_panels: videoPanels,
         video_capabilities: videoCapabilities,
       } = res.data;
@@ -50,6 +51,7 @@ export const useDataLoader = (
           inputs.model,
         );
         setModels(modelOptions);
+        // 即使后端字段缺失也要写空对象，避免旧接口导致状态为 undefined。
         setVideoPanels(videoPanels || {});
         setVideoCapabilities(videoCapabilities || {});
 

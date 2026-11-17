@@ -1100,8 +1100,10 @@ func GetUserModels(c *gin.Context) {
 	}
 	groups := service.GetUserUsableGroups(user.Group)
 	var models []string
+	// 收集用户可用分组；后续按分组筛选首选渠道，避免跨分组误判。
 	groupNames := make([]string, 0, len(groups))
 	for group := range groups {
+		// 同时保留分组名列表，供后续批量查询首选渠道。
 		groupNames = append(groupNames, group)
 		for _, g := range model.GetGroupEnabledModels(group) {
 			if !common.StringsContains(models, g) {
@@ -1112,12 +1114,17 @@ func GetUserModels(c *gin.Context) {
 	if c.Query("visible_only") == "true" {
 		models = filterMarketplaceHiddenModelNames(models)
 	}
+	// 一次性批量查询首选渠道，避免逐个模型查库。
+	// 查询失败只降级为空映射，不能因此阻断整个模型列表。
 	owners, err := model.GetPreferredModelOwnerChannels(models, groupNames)
 	if err != nil {
+		// 查询失败不能阻断模型列表；降级为空映射即可。
 		common.SysLog("GetPreferredModelOwnerChannels error: " + err.Error())
 		owners = map[string]model.PreferredModelOwnerChannel{}
 	}
+	// 根据首选渠道和模型映射生成面板/能力矩阵，随模型列表一起返回。
 	videoPanels, videoCapabilities := buildVideoCapabilities(models, owners)
+	// 兼容：新增字段保持同级返回，不改变原有 data 数组结构。
 	c.JSON(http.StatusOK, gin.H{
 		"success":            true,
 		"message":            "",
@@ -1132,20 +1139,29 @@ func buildVideoCapabilities(modelNames []string, owners map[string]model.Preferr
 	panels := make(map[string]string)
 	capabilities := make(map[string]service.SeedanceCapabilities)
 	for _, modelName := range modelNames {
+		// 没有首选渠道信息时 owner 为零值，后续会按模型名兜底判断。
 		owner := owners[modelName]
 		upstreamModel := modelName
+		// 公开模型名可能被渠道重定向；能力必须按真实上游名判断。
+		// 解析失败时保留公开名，避免因配置错误直接丢弃模型。
 		if owner.ModelMapping != "" {
 			resolved, _, resolveErr := model.ResolveMappedModelName(owner.ModelMapping, modelName)
 			if resolveErr != nil {
+				// 映射配置错误只记录日志，继续用公开名判断。
 				common.SysLog("resolve model mapping for " + modelName + " failed: " + resolveErr.Error())
 			} else {
+				// 解析成功才覆盖上游模型名。
 				upstreamModel = resolved
 			}
 		}
+		// 豆包视频渠道直接进入视频面板；其他渠道只识别 Seedance 上游名。
+		// 这里刻意不按公开模型名前缀判断，避免自定义别名误入面板。
 		if owner.ChannelType != constant.ChannelTypeDoubaoVideo && !service.IsSeedanceModelName(upstreamModel) {
 			continue
 		}
+		// 同一份能力矩阵同时供前端限制和后端校验使用，避免两套规则漂移。
 		panelCapabilities := service.SeedanceCapabilitiesForModel(upstreamModel)
+		// 面板类型和能力都按公开模型名作为 key，前端直接用模型名索引。
 		panels[modelName] = panelCapabilities.Panel
 		capabilities[modelName] = panelCapabilities
 	}

@@ -378,6 +378,7 @@ const (
 
 // Task related messages
 const (
+	// 任务类错误通过稳定 key 返回本地化文案；前端据此展示友好提示。
 	MsgTaskContentSensitive           = "task.content_sensitive"
 	MsgTaskContentSensitiveRealPerson = "task.content_sensitive_real_person"
 	MsgTaskImageResolutionTooLow      = "task.image_resolution_too_low"

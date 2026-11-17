@@ -36,6 +36,7 @@ import {
   MESSAGE_ROLES,
   ERROR_MESSAGES,
   MINIMAX_H3_MODELS,
+  // 用后端返回的面板类型区分 Seedance，不依赖模型名前缀。
   SEEDANCE_VIDEO_PANEL,
 } from '../../constants/playground.constants';
 import {
@@ -59,6 +60,7 @@ import ChatArea from '../../components/playground/ChatArea';
 import VideoGenerationArea, {
   useMiniMaxH3VideoGeneration,
 } from '../../components/playground/VideoGenerationArea';
+// Seedance 使用独立组件和 hook，避免影响既有 H3 逻辑。
 import SeedanceVideoArea, {
   useSeedanceVideoGeneration,
 } from '../../components/playground/SeedanceVideoArea';
@@ -113,6 +115,7 @@ const Playground = () => {
     showSettings,
     models,
     groups,
+    // 模型列表接口附带的面板类型与能力矩阵。
     videoPanels,
     videoCapabilities,
     message,
@@ -130,6 +133,7 @@ const Playground = () => {
     setShowSettings,
     setModels,
     setGroups,
+    // 加载模型列表后写回面板与能力状态。
     setVideoPanels,
     setVideoCapabilities,
     setMessage,
@@ -141,6 +145,7 @@ const Playground = () => {
     setCustomRequestBody,
   } = state;
   const isMiniMaxH3 = MINIMAX_H3_MODELS.includes(inputs.model);
+  // 只有后端明确标记为 seedance 的模型才启用该面板。
   const isSeedanceVideo = videoPanels[inputs.model] === SEEDANCE_VIDEO_PANEL;
   const miniMaxH3VideoController = useMiniMaxH3VideoGeneration({
     enabled: isMiniMaxH3,
@@ -148,6 +153,7 @@ const Playground = () => {
     userId: userState?.user?.id,
     model: inputs.model,
   });
+  // 能力矩阵按当前公开模型名索引，内部再解析映射后的上游名。
   const seedanceVideoController = useSeedanceVideoGeneration({
     enabled: isSeedanceVideo,
     group: inputs.group,
@@ -172,6 +178,7 @@ const Playground = () => {
     handleInputChange,
     setModels,
     setGroups,
+    // 把模型面板和能力 setter 注入数据加载 hook。
     setVideoPanels,
     setVideoCapabilities,
   );
@@ -515,6 +522,7 @@ const Playground = () => {
           <div className='playground-v2-content'>
             {!isMobile && (
               <div className='min-h-0'>
+                {/* 仅当前模型命中 Seedance 时传递控制器，避免无谓渲染。 */}
                 <OptimizedSettingsPanel
                   inputs={inputs}
                   parameterEnabled={parameterEnabled}
@@ -546,6 +554,7 @@ const Playground = () => {
             )}
 
             <div className='min-h-0'>
+              {/* Seedance 模型替换通用聊天区，渲染视频任务面板。 */}
               {isMiniMaxH3 ? (
                 <VideoGenerationArea
                   controller={miniMaxH3VideoController}

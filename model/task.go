@@ -104,6 +104,8 @@ func (m Properties) Value() (driver.Value, error) {
 	return common.Marshal(m)
 }
 
+// 任务私有数据统一存 JSON 列；Seedance 素材 ID 和落盘重试次数也在这里。
+// 这些字段不会直接返回给用户，避免泄露上游临时文件信息。
 type TaskPrivateData struct {
 	Key                        string          `json:"key,omitempty"`
 	UpstreamTaskID             string          `json:"upstream_task_id,omitempty"` // 上游真实 task ID
@@ -677,6 +679,8 @@ func (Task *Task) Insert() error {
 	return err
 }
 
+// 快照用于判断任务是否真的发生变化；Seedance 重试次数也必须纳入。
+// 若漏掉该字段，重试次数变化不会触发落库，失败重试会失效。
 type taskSnapshot struct {
 	Action                        string
 	Status                        TaskStatus
@@ -707,10 +711,12 @@ func (s taskSnapshot) Equal(other taskSnapshot) bool {
 		s.MiniMaxH3UpscaleStatus == other.MiniMaxH3UpscaleStatus &&
 		s.MiniMaxH3UpscaleURL == other.MiniMaxH3UpscaleURL &&
 		s.MiniMaxH3PersistFailures == other.MiniMaxH3PersistFailures &&
+		// 注意：漏掉这个字段会导致重试次数无法持久化。
 		s.SeedanceResultPersistFailures == other.SeedanceResultPersistFailures &&
 		bytes.Equal(s.Data, other.Data)
 }
 
+// 读取私有字段生成快照，但 PrivateData 本身不会返回给用户。
 func (t *Task) Snapshot() taskSnapshot {
 	return taskSnapshot{
 		Action:                        t.Action,

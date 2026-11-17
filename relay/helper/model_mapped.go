@@ -26,10 +26,13 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Reque
 	// map model name
 	modelMapping := c.GetString("model_mapping")
 	if modelMapping != "" && modelMapping != "{}" {
+		// 统一复用 model 层解析器，保证此处与能力判断的映射规则一致。
+		// 不能在这里复制一套链式解析逻辑，否则两处行为会漂移。
 		mappedModelName, mapped, err := model.ResolveMappedModelName(modelMapping, mappingModelName)
 		if err != nil {
 			return err
 		}
+		// 解析结果为空时保留原模型名，避免把空值传给上游。
 		if mappedModelName != "" {
 			info.UpstreamModelName = mappedModelName
 		}

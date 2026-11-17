@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 逻辑：覆盖单跳、链式、自映射、未命中、循环和非法 JSON。
-// 注意：链式解析与循环检测是能力判断正确性的前提。
+// 测试意图：覆盖单跳、链式、自映射、未命中、循环和非法 JSON。
+// 链式解析与循环检测是能力判断正确性的前提，不能删减这些用例。
 func TestResolveMappedModelName(t *testing.T) {
 	mapped, changed, err := ResolveMappedModelName(
 		`{"public-seedance":"doubao-seedance-2-5-260628"}`,

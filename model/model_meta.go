@@ -214,6 +214,7 @@ func getPreferredModelOwnerChannelTypesFromDB(modelNames []string, groups []stri
 		Order("abilities.channel_id ASC")
 
 	if len(groups) > 0 {
+		// 只在用户有可用分组时过滤，避免空分组导致查询无结果。
 		query = query.Where("abilities."+commonGroupCol+" IN ?", groups)
 	}
 
@@ -238,6 +239,8 @@ type PreferredModelOwnerChannel struct {
 // GetPreferredModelOwnerChannels returns the preferred channel type and model
 // mapping for each model. It is used by the model list API to resolve the real
 // upstream model name when the public model name is remapped.
+// 按优先级/权重排序后，每个模型只取第一条可用渠道。
+// 该结果用于模型列表面板判断，不能随意改成按 channel_id 取最小。
 func GetPreferredModelOwnerChannels(modelNames []string, groups []string) (map[string]PreferredModelOwnerChannel, error) {
 	result := make(map[string]PreferredModelOwnerChannel)
 	modelNames = normalizeLookupValues(modelNames)
@@ -253,6 +256,8 @@ func GetPreferredModelOwnerChannels(modelNames []string, groups []string) (map[s
 	}
 	var rows []row
 
+	// 排序顺序决定“首选渠道”；后续同模型重复行会被跳过。
+	// 修改排序会直接改变 Seedance 能力判断结果。
 	query := DB.Table("abilities").
 		Select("abilities.model as model, channels.type as channel_type, COALESCE(channels.model_mapping, '') as model_mapping").
 		Joins("JOIN channels ON abilities.channel_id = channels.id").
@@ -270,7 +275,9 @@ func GetPreferredModelOwnerChannels(modelNames []string, groups []string) (map[s
 	}
 
 	for _, r := range rows {
+		// 保留排序后的第一条，确保同一模型只返回一个所有者渠道。
 		if _, exists := result[r.Model]; exists {
+			// 后续同模型记录直接跳过，不覆盖更高优先级的渠道。
 			continue
 		}
 		result[r.Model] = PreferredModelOwnerChannel{
