@@ -254,6 +254,15 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 		return nil, err
 	}
 
+	if textRequest.ReasoningEffort == "" && len(textRequest.THINKING) > 0 {
+		var thinking struct {
+			Type string `json:"type"`
+		}
+		if err := common.Unmarshal(textRequest.THINKING, &thinking); err == nil && thinking.Type == "enabled" {
+			textRequest.ReasoningEffort = "high"
+		}
+	}
+
 	if relayMode == relayconstant.RelayModeModerations && textRequest.Model == "" {
 		textRequest.Model = "text-moderation-latest"
 	}
