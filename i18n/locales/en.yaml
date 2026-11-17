@@ -307,3 +307,8 @@ provider.main_model_unavailable: "This main-site model is currently unavailable 
 
 # VersionLog messages
 version_log.not_found: "Version log not found"
+
+# Task messages
+task.content_sensitive: "The reference media did not pass the upstream content safety check. Please replace it and try again."
+task.content_sensitive_real_person: "The reference media may contain a real person, which is not allowed by the upstream content safety policy. Please use material without real people and try again."
+task.image_resolution_too_low: "The reference image resolution is too low to meet the upstream requirement. Please upload a larger image and try again."

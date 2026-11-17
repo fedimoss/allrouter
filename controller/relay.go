@@ -616,6 +616,7 @@ func RelayTaskFetch(c *gin.Context) {
 func RelayTask(c *gin.Context) {
 	retainMiniMaxH3Frames := false
 	retainMiniMaxH3ReferenceVideos := false
+	retainSeedanceMedia := false
 	defer func() {
 		if !retainMiniMaxH3Frames {
 			for _, frameID := range c.GetStringSlice(service.MiniMaxH3FrameIDsContextKey) {
@@ -626,6 +627,9 @@ func RelayTask(c *gin.Context) {
 			for _, videoID := range c.GetStringSlice(service.MiniMaxH3ReferenceVideoIDsContextKey) {
 				_ = service.DeleteMiniMaxH3ReferenceVideo(c.GetInt("id"), videoID)
 			}
+		}
+		if !retainSeedanceMedia {
+			service.CleanupSeedanceMedia(c.GetInt("id"), c.GetStringSlice(service.SeedanceMediaIDsContextKey))
 		}
 	}()
 
@@ -749,10 +753,18 @@ func RelayTask(c *gin.Context) {
 				task.Properties.Input = request.Prompt
 			}
 		}
+		if relayInfo.ChannelType == constant.ChannelTypeDoubaoVideo ||
+			(relayInfo.ChannelType == constant.ChannelTypeVolcEngine &&
+				strings.Contains(strings.ToLower(relayInfo.OriginModelName), "seedance")) {
+			if request, requestErr := relaycommon.GetTaskRequest(c); requestErr == nil {
+				task.Properties.Input = request.Prompt
+			}
+		}
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 		task.PrivateData.PublicBaseURL = common.GetRequestBaseURL(c, system_setting.ServerAddress)
 		task.PrivateData.MiniMaxH3FrameIDs = c.GetStringSlice(service.MiniMaxH3FrameIDsContextKey)
 		task.PrivateData.MiniMaxH3ReferenceVideoIDs = c.GetStringSlice(service.MiniMaxH3ReferenceVideoIDsContextKey)
+		task.PrivateData.SeedanceMediaIDs = c.GetStringSlice(service.SeedanceMediaIDsContextKey)
 		if result.Queued {
 			task.Status = model.TaskStatusNotStart
 			task.Progress = "0%"
@@ -824,6 +836,9 @@ func RelayTask(c *gin.Context) {
 		if task.Action == constant.TaskActionMiniMaxH3Generate && len(c.GetStringSlice(service.MiniMaxH3ReferenceVideoIDsContextKey)) > 0 {
 			retainMiniMaxH3ReferenceVideos = true
 		}
+		if len(task.PrivateData.SeedanceMediaIDs) > 0 {
+			retainSeedanceMedia = true
+		}
 		service.LogTaskConsumption(c, relayInfo)
 		if result.Queued {
 			c.Data(http.StatusOK, "application/json", result.TaskData)
@@ -841,6 +856,7 @@ func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 	if taskErr == nil {
 		return
 	}
+	service.LocalizeTaskError(c, taskErr)
 	taskErr.Message = service.SanitizeMiniMaxH3PublicMessage(taskErr.Message)
 	taskErr.Code = service.SanitizeMiniMaxH3PublicCode(taskErr.Code)
 	if taskErr.StatusCode == http.StatusTooManyRequests {

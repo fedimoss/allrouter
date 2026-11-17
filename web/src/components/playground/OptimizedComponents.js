@@ -76,7 +76,10 @@ export const OptimizedSettingsPanel = React.memo(
         JSON.stringify(nextProps.previewPayload) &&
       JSON.stringify(prevProps.messages) ===
         JSON.stringify(nextProps.messages) &&
-      prevProps.miniMaxH3VideoController === nextProps.miniMaxH3VideoController
+      prevProps.miniMaxH3VideoController ===
+        nextProps.miniMaxH3VideoController &&
+      prevProps.isSeedanceVideo === nextProps.isSeedanceVideo &&
+      prevProps.seedanceVideoController === nextProps.seedanceVideoController
     );
   },
 );

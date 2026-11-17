@@ -1100,7 +1100,9 @@ func GetUserModels(c *gin.Context) {
 	}
 	groups := service.GetUserUsableGroups(user.Group)
 	var models []string
+	groupNames := make([]string, 0, len(groups))
 	for group := range groups {
+		groupNames = append(groupNames, group)
 		for _, g := range model.GetGroupEnabledModels(group) {
 			if !common.StringsContains(models, g) {
 				models = append(models, g)
@@ -1110,12 +1112,44 @@ func GetUserModels(c *gin.Context) {
 	if c.Query("visible_only") == "true" {
 		models = filterMarketplaceHiddenModelNames(models)
 	}
+	owners, err := model.GetPreferredModelOwnerChannels(models, groupNames)
+	if err != nil {
+		common.SysLog("GetPreferredModelOwnerChannels error: " + err.Error())
+		owners = map[string]model.PreferredModelOwnerChannel{}
+	}
+	videoPanels, videoCapabilities := buildVideoCapabilities(models, owners)
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    models,
+		"success":            true,
+		"message":            "",
+		"data":               models,
+		"video_panels":       videoPanels,
+		"video_capabilities": videoCapabilities,
 	})
 	return
+}
+
+func buildVideoCapabilities(modelNames []string, owners map[string]model.PreferredModelOwnerChannel) (map[string]string, map[string]service.SeedanceCapabilities) {
+	panels := make(map[string]string)
+	capabilities := make(map[string]service.SeedanceCapabilities)
+	for _, modelName := range modelNames {
+		owner := owners[modelName]
+		upstreamModel := modelName
+		if owner.ModelMapping != "" {
+			resolved, _, resolveErr := model.ResolveMappedModelName(owner.ModelMapping, modelName)
+			if resolveErr != nil {
+				common.SysLog("resolve model mapping for " + modelName + " failed: " + resolveErr.Error())
+			} else {
+				upstreamModel = resolved
+			}
+		}
+		if owner.ChannelType != constant.ChannelTypeDoubaoVideo && !service.IsSeedanceModelName(upstreamModel) {
+			continue
+		}
+		panelCapabilities := service.SeedanceCapabilitiesForModel(upstreamModel)
+		panels[modelName] = panelCapabilities.Panel
+		capabilities[modelName] = panelCapabilities
+	}
+	return panels, capabilities
 }
 
 func UpdateUser(c *gin.Context) {

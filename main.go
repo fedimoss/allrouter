@@ -297,6 +297,7 @@ func InitResources() error {
 	ratio_setting.InitRatioSettings()
 
 	service.InitHttpClient()
+	service.InitSeedanceDurationProbe()
 
 	service.InitTokenEncoders()
 

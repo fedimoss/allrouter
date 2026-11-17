@@ -36,6 +36,7 @@ import {
   MESSAGE_ROLES,
   ERROR_MESSAGES,
   MINIMAX_H3_MODELS,
+  SEEDANCE_VIDEO_PANEL,
 } from '../../constants/playground.constants';
 import {
   getLogo,
@@ -58,6 +59,9 @@ import ChatArea from '../../components/playground/ChatArea';
 import VideoGenerationArea, {
   useMiniMaxH3VideoGeneration,
 } from '../../components/playground/VideoGenerationArea';
+import SeedanceVideoArea, {
+  useSeedanceVideoGeneration,
+} from '../../components/playground/SeedanceVideoArea';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 
 // 生成头像
@@ -109,6 +113,8 @@ const Playground = () => {
     showSettings,
     models,
     groups,
+    videoPanels,
+    videoCapabilities,
     message,
     debugData,
     activeDebugTab,
@@ -124,6 +130,8 @@ const Playground = () => {
     setShowSettings,
     setModels,
     setGroups,
+    setVideoPanels,
+    setVideoCapabilities,
     setMessage,
     setDebugData,
     setActiveDebugTab,
@@ -133,11 +141,19 @@ const Playground = () => {
     setCustomRequestBody,
   } = state;
   const isMiniMaxH3 = MINIMAX_H3_MODELS.includes(inputs.model);
+  const isSeedanceVideo = videoPanels[inputs.model] === SEEDANCE_VIDEO_PANEL;
   const miniMaxH3VideoController = useMiniMaxH3VideoGeneration({
     enabled: isMiniMaxH3,
     group: inputs.group,
     userId: userState?.user?.id,
     model: inputs.model,
+  });
+  const seedanceVideoController = useSeedanceVideoGeneration({
+    enabled: isSeedanceVideo,
+    group: inputs.group,
+    userId: userState?.user?.id,
+    model: inputs.model,
+    capabilities: videoCapabilities[inputs.model] || null,
   });
 
   // API 请求相关
@@ -150,7 +166,15 @@ const Playground = () => {
   );
 
   // 数据加载
-  useDataLoader(userState, inputs, handleInputChange, setModels, setGroups);
+  useDataLoader(
+    userState,
+    inputs,
+    handleInputChange,
+    setModels,
+    setGroups,
+    setVideoPanels,
+    setVideoCapabilities,
+  );
 
   // 消息编辑
   const {
@@ -513,6 +537,10 @@ const Playground = () => {
                   miniMaxH3VideoController={
                     isMiniMaxH3 ? miniMaxH3VideoController : null
                   }
+                  isSeedanceVideo={isSeedanceVideo}
+                  seedanceVideoController={
+                    isSeedanceVideo ? seedanceVideoController : null
+                  }
                 />
               </div>
             )}
@@ -521,6 +549,12 @@ const Playground = () => {
               {isMiniMaxH3 ? (
                 <VideoGenerationArea
                   controller={miniMaxH3VideoController}
+                  styleState={styleState}
+                  onToggleSettings={() => setShowSettings(true)}
+                />
+              ) : isSeedanceVideo ? (
+                <SeedanceVideoArea
+                  controller={seedanceVideoController}
                   styleState={styleState}
                   onToggleSettings={() => setShowSettings(true)}
                 />
@@ -573,12 +607,16 @@ const Playground = () => {
                 miniMaxH3VideoController={
                   isMiniMaxH3 ? miniMaxH3VideoController : null
                 }
+                isSeedanceVideo={isSeedanceVideo}
+                seedanceVideoController={
+                  isSeedanceVideo ? seedanceVideoController : null
+                }
               />
             </div>
           </>
         )}
 
-        {showDebugPanel && !isMiniMaxH3 && (
+        {showDebugPanel && !isMiniMaxH3 && !isSeedanceVideo && (
           <>
             <div
               className='playground-v2-overlay'

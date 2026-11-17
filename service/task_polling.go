@@ -671,6 +671,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if isDone && constant.IsMiniMaxH3Model(task.Properties.OriginModelName) {
 		CleanupMiniMaxH3TaskMedia(task.UserId, task.PrivateData.MiniMaxH3FrameIDs, task.PrivateData.MiniMaxH3ReferenceVideoIDs)
 	}
+	if isDone {
+		CleanupSeedanceMedia(task.UserId, task.PrivateData.SeedanceMediaIDs)
+	}
 	if isDone && task.Action == constant.TaskActionMiniMaxH3Generate {
 		TriggerMiniMaxH3Dispatch()
 	}

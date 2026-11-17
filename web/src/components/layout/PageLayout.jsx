@@ -90,9 +90,11 @@ const PageLayout = () => {
     '/cooperationApplication',
     '/wechat/login/confirm',
   ];
+  const isPlaygroundRoute = location.pathname === '/console/playground';
   const shouldHideFooter =
     cardProPages.includes(location.pathname) ||
-    selfContainedPages.includes(location.pathname);
+    selfContainedPages.includes(location.pathname) ||
+    isPlaygroundRoute;
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -100,7 +102,6 @@ const PageLayout = () => {
     location.pathname !== '/console/playground';
 
   const isConsoleRoute = location.pathname.startsWith('/console');
-  const isPlaygroundRoute = location.pathname === '/console/playground';
   const isDocsRoute =
     location.pathname === '/docs' || location.pathname.startsWith('/docs/');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
@@ -229,7 +230,11 @@ const PageLayout = () => {
           <Content
             style={{
               flex: '1 1 auto',
-              overflowY: isDocsRoute ? 'visible' : 'auto',
+              overflowY: isPlaygroundRoute
+                ? 'hidden'
+                : isDocsRoute
+                  ? 'visible'
+                  : 'auto',
               WebkitOverflowScrolling: 'touch',
               padding: shouldInnerPadding ? '24px' : '0',
               position: 'relative',
@@ -247,8 +252,9 @@ const PageLayout = () => {
             >
               <div
                 style={{
-                  flex: '1 0 auto',
+                  flex: isPlaygroundRoute ? '1 1 auto' : '1 0 auto',
                   height: isPlaygroundRoute ? '100%' : undefined,
+                  minHeight: isPlaygroundRoute ? 0 : undefined,
                   overflow: isPlaygroundRoute ? 'hidden' : undefined,
                 }}
               >
@@ -342,8 +348,12 @@ const PageLayout = () => {
         >
           <Content
             style={{
-              flex: '1 0 auto',
-              overflowY: isMobile || isDocsRoute ? 'visible' : 'hidden',
+              flex: isPlaygroundRoute ? '1 1 auto' : '1 0 auto',
+              overflowY: isPlaygroundRoute
+                ? 'hidden'
+                : isMobile || isDocsRoute
+                  ? 'visible'
+                  : 'hidden',
               WebkitOverflowScrolling: 'touch',
               padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
               position: 'relative',
@@ -360,8 +370,9 @@ const PageLayout = () => {
             >
               <div
                 style={{
-                  flex: '1 0 auto',
+                  flex: isPlaygroundRoute ? '1 1 auto' : '1 0 auto',
                   height: isPlaygroundRoute ? '100%' : undefined,
+                  minHeight: isPlaygroundRoute ? 0 : undefined,
                   overflow: isPlaygroundRoute ? 'hidden' : undefined,
                 }}
               >

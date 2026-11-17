@@ -28,13 +28,21 @@ export const useDataLoader = (
   handleInputChange,
   setModels,
   setGroups,
+  setVideoPanels,
+  setVideoCapabilities,
 ) => {
   const { t } = useTranslation();
 
   const loadModels = useCallback(async () => {
     try {
       const res = await API.get(API_ENDPOINTS.USER_MODELS);
-      const { success, message, data } = res.data;
+      const {
+        success,
+        message,
+        data,
+        video_panels: videoPanels,
+        video_capabilities: videoCapabilities,
+      } = res.data;
 
       if (success) {
         const { modelOptions, selectedModel } = processModelsData(
@@ -42,6 +50,8 @@ export const useDataLoader = (
           inputs.model,
         );
         setModels(modelOptions);
+        setVideoPanels(videoPanels || {});
+        setVideoCapabilities(videoCapabilities || {});
 
         if (selectedModel !== inputs.model) {
           handleInputChange('model', selectedModel);
@@ -52,7 +62,14 @@ export const useDataLoader = (
     } catch (error) {
       showError(t('加载模型失败'));
     }
-  }, [inputs.model, handleInputChange, setModels, t]);
+  }, [
+    inputs.model,
+    handleInputChange,
+    setModels,
+    setVideoPanels,
+    setVideoCapabilities,
+    t,
+  ]);
 
   const loadGroups = useCallback(async () => {
     try {

@@ -375,3 +375,10 @@ const (
 const (
 	MsgVersionLogNotFound = "version_log.not_found"
 )
+
+// Task related messages
+const (
+	MsgTaskContentSensitive           = "task.content_sensitive"
+	MsgTaskContentSensitiveRealPerson = "task.content_sensitive_real_person"
+	MsgTaskImageResolutionTooLow      = "task.image_resolution_too_low"
+)

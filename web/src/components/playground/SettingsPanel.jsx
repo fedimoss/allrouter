@@ -27,6 +27,7 @@ import ImageUrlInput from './ImageUrlInput';
 import ConfigManager from './ConfigManager';
 import CustomRequestEditor from './CustomRequestEditor';
 import { MiniMaxH3VideoForm } from './VideoGenerationArea';
+import { SeedanceVideoForm } from './SeedanceVideoArea';
 import { MINIMAX_H3_MODELS } from '../../constants/playground.constants';
 
 const ToggleSwitch = ({ checked, disabled, onChange }) => {
@@ -62,10 +63,13 @@ const SettingsPanel = ({
   previewPayload,
   messages,
   miniMaxH3VideoController,
+  isSeedanceVideo,
+  seedanceVideoController,
 }) => {
   const { t } = useTranslation();
   console.log('groups==', groups);
   const isMiniMaxH3 = MINIMAX_H3_MODELS.includes(inputs.model);
+  const isVideoPanel = isMiniMaxH3 || isSeedanceVideo;
 
   const currentConfig = {
     inputs,
@@ -148,7 +152,13 @@ const SettingsPanel = ({
             <MiniMaxH3VideoForm controller={miniMaxH3VideoController} compact />
           )}
 
-          {!isMiniMaxH3 && (
+          {isSeedanceVideo &&
+            !styleState.isMobile &&
+            seedanceVideoController && (
+              <SeedanceVideoForm controller={seedanceVideoController} compact />
+            )}
+
+          {!isVideoPanel && (
             <>
               <ImageUrlInput
                 imageUrls={inputs.imageUrls}
@@ -178,7 +188,7 @@ const SettingsPanel = ({
             </>
           )}
 
-          {!isMiniMaxH3 && (
+          {!isVideoPanel && (
             <div className='playground-v2-settings-section'>
               <div className='playground-v2-section-kicker'>Configuration</div>
               <ConfigManager
@@ -191,7 +201,7 @@ const SettingsPanel = ({
             </div>
           )}
 
-          {!isMiniMaxH3 && (
+          {!isVideoPanel && (
             <div className='playground-v2-settings-section'>
               <div className='playground-v2-toggle-row'>
                 <div>

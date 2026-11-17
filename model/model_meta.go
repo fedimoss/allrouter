@@ -230,6 +230,57 @@ func getPreferredModelOwnerChannelTypesFromDB(modelNames []string, groups []stri
 	return result, nil
 }
 
+type PreferredModelOwnerChannel struct {
+	ChannelType  int
+	ModelMapping string
+}
+
+// GetPreferredModelOwnerChannels returns the preferred channel type and model
+// mapping for each model. It is used by the model list API to resolve the real
+// upstream model name when the public model name is remapped.
+func GetPreferredModelOwnerChannels(modelNames []string, groups []string) (map[string]PreferredModelOwnerChannel, error) {
+	result := make(map[string]PreferredModelOwnerChannel)
+	modelNames = normalizeLookupValues(modelNames)
+	if len(modelNames) == 0 {
+		return result, nil
+	}
+	groups = normalizeLookupValues(groups)
+
+	type row struct {
+		Model        string
+		ChannelType  int
+		ModelMapping string
+	}
+	var rows []row
+
+	query := DB.Table("abilities").
+		Select("abilities.model as model, channels.type as channel_type, COALESCE(channels.model_mapping, '') as model_mapping").
+		Joins("JOIN channels ON abilities.channel_id = channels.id").
+		Where("abilities.model IN ? AND abilities.enabled = ? AND channels.status = ?", modelNames, true, common.ChannelStatusEnabled).
+		Order("COALESCE(abilities.priority, 0) DESC").
+		Order("abilities.weight DESC").
+		Order("abilities.channel_id ASC")
+
+	if len(groups) > 0 {
+		query = query.Where("abilities."+commonGroupCol+" IN ?", groups)
+	}
+
+	if err := query.Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	for _, r := range rows {
+		if _, exists := result[r.Model]; exists {
+			continue
+		}
+		result[r.Model] = PreferredModelOwnerChannel{
+			ChannelType:  r.ChannelType,
+			ModelMapping: r.ModelMapping,
+		}
+	}
+	return result, nil
+}
+
 func SearchModels(keyword string, vendor string, offset int, limit int) ([]*Model, int64, error) {
 	var models []*Model
 	db := DB.Model(&Model{})

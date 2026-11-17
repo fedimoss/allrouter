@@ -113,13 +113,15 @@ type TaskPrivateData struct {
 	MiniMaxH3FrameIDs          []string        `json:"minimax_h3_frame_ids,omitempty"`
 	MiniMaxH3ReferenceVideoIDs []string        `json:"minimax_h3_reference_video_ids,omitempty"`
 	// AutoDL result uploads retry across polling cycles. Stored in the existing JSON column.
-	AutoDLResultUploadFailures int    `json:"autodl_result_upload_failures,omitempty"`
-	MiniMaxH3UpscaleTaskID     string `json:"minimax_h3_upscale_task_id,omitempty"`
-	MiniMaxH3UpscaleStatus     string `json:"minimax_h3_upscale_status,omitempty"`
-	MiniMaxH3UpscaleURL        string `json:"minimax_h3_upscale_url,omitempty"`
-	MiniMaxH3PersistFailures   int    `json:"minimax_h3_persist_failures,omitempty"`
-	MiniMaxH3OutputShortEdge   int    `json:"minimax_h3_output_short_edge,omitempty"`
-	MiniMaxH3TaskType          string `json:"minimax_h3_task_type,omitempty"`
+	AutoDLResultUploadFailures    int      `json:"autodl_result_upload_failures,omitempty"`
+	MiniMaxH3UpscaleTaskID        string   `json:"minimax_h3_upscale_task_id,omitempty"`
+	MiniMaxH3UpscaleStatus        string   `json:"minimax_h3_upscale_status,omitempty"`
+	MiniMaxH3UpscaleURL           string   `json:"minimax_h3_upscale_url,omitempty"`
+	MiniMaxH3PersistFailures      int      `json:"minimax_h3_persist_failures,omitempty"`
+	MiniMaxH3OutputShortEdge      int      `json:"minimax_h3_output_short_edge,omitempty"`
+	MiniMaxH3TaskType             string   `json:"minimax_h3_task_type,omitempty"`
+	SeedanceMediaIDs              []string `json:"seedance_media_ids,omitempty"`
+	SeedanceResultPersistFailures int      `json:"seedance_result_persist_failures,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource           string              `json:"billing_source,omitempty"` // "wallet" 或 "subscription"
 	TokenUsageSettled       bool                `json:"token_usage_settled,omitempty"`
@@ -676,19 +678,20 @@ func (Task *Task) Insert() error {
 }
 
 type taskSnapshot struct {
-	Action                     string
-	Status                     TaskStatus
-	Progress                   string
-	StartTime                  int64
-	FinishTime                 int64
-	FailReason                 string
-	ResultURL                  string
-	AutoDLResultUploadFailures int
-	MiniMaxH3UpscaleTaskID     string
-	MiniMaxH3UpscaleStatus     string
-	MiniMaxH3UpscaleURL        string
-	MiniMaxH3PersistFailures   int
-	Data                       json.RawMessage
+	Action                        string
+	Status                        TaskStatus
+	Progress                      string
+	StartTime                     int64
+	FinishTime                    int64
+	FailReason                    string
+	ResultURL                     string
+	AutoDLResultUploadFailures    int
+	MiniMaxH3UpscaleTaskID        string
+	MiniMaxH3UpscaleStatus        string
+	MiniMaxH3UpscaleURL           string
+	MiniMaxH3PersistFailures      int
+	SeedanceResultPersistFailures int
+	Data                          json.RawMessage
 }
 
 func (s taskSnapshot) Equal(other taskSnapshot) bool {
@@ -704,24 +707,26 @@ func (s taskSnapshot) Equal(other taskSnapshot) bool {
 		s.MiniMaxH3UpscaleStatus == other.MiniMaxH3UpscaleStatus &&
 		s.MiniMaxH3UpscaleURL == other.MiniMaxH3UpscaleURL &&
 		s.MiniMaxH3PersistFailures == other.MiniMaxH3PersistFailures &&
+		s.SeedanceResultPersistFailures == other.SeedanceResultPersistFailures &&
 		bytes.Equal(s.Data, other.Data)
 }
 
 func (t *Task) Snapshot() taskSnapshot {
 	return taskSnapshot{
-		Action:                     t.Action,
-		Status:                     t.Status,
-		Progress:                   t.Progress,
-		StartTime:                  t.StartTime,
-		FinishTime:                 t.FinishTime,
-		FailReason:                 t.FailReason,
-		ResultURL:                  t.PrivateData.ResultURL,
-		AutoDLResultUploadFailures: t.PrivateData.AutoDLResultUploadFailures,
-		MiniMaxH3UpscaleTaskID:     t.PrivateData.MiniMaxH3UpscaleTaskID,
-		MiniMaxH3UpscaleStatus:     t.PrivateData.MiniMaxH3UpscaleStatus,
-		MiniMaxH3UpscaleURL:        t.PrivateData.MiniMaxH3UpscaleURL,
-		MiniMaxH3PersistFailures:   t.PrivateData.MiniMaxH3PersistFailures,
-		Data:                       t.Data,
+		Action:                        t.Action,
+		Status:                        t.Status,
+		Progress:                      t.Progress,
+		StartTime:                     t.StartTime,
+		FinishTime:                    t.FinishTime,
+		FailReason:                    t.FailReason,
+		ResultURL:                     t.PrivateData.ResultURL,
+		AutoDLResultUploadFailures:    t.PrivateData.AutoDLResultUploadFailures,
+		MiniMaxH3UpscaleTaskID:        t.PrivateData.MiniMaxH3UpscaleTaskID,
+		MiniMaxH3UpscaleStatus:        t.PrivateData.MiniMaxH3UpscaleStatus,
+		MiniMaxH3UpscaleURL:           t.PrivateData.MiniMaxH3UpscaleURL,
+		MiniMaxH3PersistFailures:      t.PrivateData.MiniMaxH3PersistFailures,
+		SeedanceResultPersistFailures: t.PrivateData.SeedanceResultPersistFailures,
+		Data:                          t.Data,
 	}
 }
 
