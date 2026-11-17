@@ -970,7 +970,13 @@ export const getLogsColumns = ({
                 rows: 2,
                 showTooltip: {
                   type: 'popover',
-                  opts: { style: { width: 240 } },
+                  opts: {
+                    style: {
+                      width: 240,
+                      whiteSpace: 'pre-wrap',
+                      overflowWrap: 'anywhere',
+                    },
+                  },
                 },
               }}
               style={{ maxWidth: 200, marginBottom: 0 }}
