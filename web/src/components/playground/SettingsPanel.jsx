@@ -27,6 +27,8 @@ import ImageUrlInput from './ImageUrlInput';
 import ConfigManager from './ConfigManager';
 import CustomRequestEditor from './CustomRequestEditor';
 import { MiniMaxH3VideoForm } from './VideoGenerationArea';
+// Seedance 表单独立于 H3，避免两套模型的参数和状态互相耦合。
+import { SeedanceVideoForm } from './SeedanceVideoArea';
 import { MINIMAX_H3_MODELS } from '../../constants/playground.constants';
 
 const ToggleSwitch = ({ checked, disabled, onChange }) => {
@@ -62,10 +64,15 @@ const SettingsPanel = ({
   previewPayload,
   messages,
   miniMaxH3VideoController,
+  // 由 Playground 传入当前模型是否命中 Seedance 面板及其控制器。
+  isSeedanceVideo,
+  seedanceVideoController,
 }) => {
   const { t } = useTranslation();
   console.log('groups==', groups);
   const isMiniMaxH3 = MINIMAX_H3_MODELS.includes(inputs.model);
+  // 视频面板统一隐藏通用聊天参数，只保留模型专用表单。
+  const isVideoPanel = isMiniMaxH3 || isSeedanceVideo;
 
   const currentConfig = {
     inputs,
@@ -148,7 +155,15 @@ const SettingsPanel = ({
             <MiniMaxH3VideoForm controller={miniMaxH3VideoController} compact />
           )}
 
-          {!isMiniMaxH3 && (
+          {/* 桌面端把 Seedance 表单放在左侧设置栏的 compact 区域。 */}
+          {isSeedanceVideo &&
+            !styleState.isMobile &&
+            seedanceVideoController && (
+              <SeedanceVideoForm controller={seedanceVideoController} compact />
+            )}
+
+          {/* 视频模型不展示图片 URL、采样参数等通用聊天配置。 */}
+          {!isVideoPanel && (
             <>
               <ImageUrlInput
                 imageUrls={inputs.imageUrls}
@@ -178,7 +193,7 @@ const SettingsPanel = ({
             </>
           )}
 
-          {!isMiniMaxH3 && (
+          {!isVideoPanel && (
             <div className='playground-v2-settings-section'>
               <div className='playground-v2-section-kicker'>Configuration</div>
               <ConfigManager
@@ -191,7 +206,7 @@ const SettingsPanel = ({
             </div>
           )}
 
-          {!isMiniMaxH3 && (
+          {!isVideoPanel && (
             <div className='playground-v2-settings-section'>
               <div className='playground-v2-toggle-row'>
                 <div>

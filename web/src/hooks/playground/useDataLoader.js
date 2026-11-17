@@ -28,13 +28,22 @@ export const useDataLoader = (
   handleInputChange,
   setModels,
   setGroups,
+  setVideoPanels,
+  setVideoCapabilities,
 ) => {
   const { t } = useTranslation();
 
   const loadModels = useCallback(async () => {
     try {
       const res = await API.get(API_ENDPOINTS.USER_MODELS);
-      const { success, message, data } = res.data;
+      const {
+        success,
+        message,
+        data,
+        // 模型列表接口同时返回面板映射和能力矩阵，前端按需消费。
+        video_panels: videoPanels,
+        video_capabilities: videoCapabilities,
+      } = res.data;
 
       if (success) {
         const { modelOptions, selectedModel } = processModelsData(
@@ -42,6 +51,9 @@ export const useDataLoader = (
           inputs.model,
         );
         setModels(modelOptions);
+        // 即使后端字段缺失也要写空对象，避免旧接口导致状态为 undefined。
+        setVideoPanels(videoPanels || {});
+        setVideoCapabilities(videoCapabilities || {});
 
         if (selectedModel !== inputs.model) {
           handleInputChange('model', selectedModel);
@@ -52,7 +64,14 @@ export const useDataLoader = (
     } catch (error) {
       showError(t('加载模型失败'));
     }
-  }, [inputs.model, handleInputChange, setModels, t]);
+  }, [
+    inputs.model,
+    handleInputChange,
+    setModels,
+    setVideoPanels,
+    setVideoCapabilities,
+    t,
+  ]);
 
   const loadGroups = useCallback(async () => {
     try {

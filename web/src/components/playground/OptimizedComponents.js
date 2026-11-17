@@ -76,7 +76,12 @@ export const OptimizedSettingsPanel = React.memo(
         JSON.stringify(nextProps.previewPayload) &&
       JSON.stringify(prevProps.messages) ===
         JSON.stringify(nextProps.messages) &&
-      prevProps.miniMaxH3VideoController === nextProps.miniMaxH3VideoController
+      prevProps.miniMaxH3VideoController ===
+        nextProps.miniMaxH3VideoController &&
+      // Seedance 面板依赖的 props 变化时必须重新渲染，否则控件会卡住。
+      // 这是 memo 比较器，漏掉任一 prop 都会让上传/下拉等交互看似失效。
+      prevProps.isSeedanceVideo === nextProps.isSeedanceVideo &&
+      prevProps.seedanceVideoController === nextProps.seedanceVideoController
     );
   },
 );

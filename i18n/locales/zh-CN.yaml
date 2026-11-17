@@ -308,3 +308,9 @@ provider.main_model_unavailable: "该主站模型当前不可用，无法启用"
 
 # VersionLog messages
 version_log.not_found: "版本日志不存在"
+
+# Task messages
+# 任务错误统一由后端归一化后返回，前端只展示该文案。
+task.content_sensitive: "参考素材未通过上游内容安全校验，请更换素材后重试。"
+task.content_sensitive_real_person: "参考素材可能包含真人，已被上游内容安全策略拦截。请更换不含真人的图片或视频后重试。"
+task.image_resolution_too_low: "参考图片分辨率过低，未达到上游要求。请上传尺寸更大的图片后重试。"

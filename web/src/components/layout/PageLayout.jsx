@@ -90,9 +90,13 @@ const PageLayout = () => {
     '/cooperationApplication',
     '/wechat/login/confirm',
   ];
+  // 操练场使用整屏 flex 布局，不能渲染页脚或外层滚动。
+  // 否则打开文件选择框或滚动设置面板时，页面会被外层滚动带出空白。
+  const isPlaygroundRoute = location.pathname === '/console/playground';
   const shouldHideFooter =
     cardProPages.includes(location.pathname) ||
-    selfContainedPages.includes(location.pathname);
+    selfContainedPages.includes(location.pathname) ||
+    isPlaygroundRoute;
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -100,7 +104,6 @@ const PageLayout = () => {
     location.pathname !== '/console/playground';
 
   const isConsoleRoute = location.pathname.startsWith('/console');
-  const isPlaygroundRoute = location.pathname === '/console/playground';
   const isDocsRoute =
     location.pathname === '/docs' || location.pathname.startsWith('/docs/');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
@@ -229,7 +232,12 @@ const PageLayout = () => {
           <Content
             style={{
               flex: '1 1 auto',
-              overflowY: isDocsRoute ? 'visible' : 'auto',
+              // 操练场内部自己滚动，外层必须隐藏 overflow。
+              overflowY: isPlaygroundRoute
+                ? 'hidden'
+                : isDocsRoute
+                  ? 'visible'
+                  : 'auto',
               WebkitOverflowScrolling: 'touch',
               padding: shouldInnerPadding ? '24px' : '0',
               position: 'relative',
@@ -247,8 +255,12 @@ const PageLayout = () => {
             >
               <div
                 style={{
-                  flex: '1 0 auto',
+                  // 操练场撑满剩余高度；普通页面保持内容自然高度。
+                  flex: isPlaygroundRoute ? '1 1 auto' : '1 0 auto',
                   height: isPlaygroundRoute ? '100%' : undefined,
+                  // minHeight:0 允许子级滚动容器在 flex 中收缩。
+                  // 去掉它会让设置面板把外层 main 撑高，重新出现底部空白。
+                  minHeight: isPlaygroundRoute ? 0 : undefined,
                   overflow: isPlaygroundRoute ? 'hidden' : undefined,
                 }}
               >
@@ -342,8 +354,14 @@ const PageLayout = () => {
         >
           <Content
             style={{
-              flex: '1 0 auto',
-              overflowY: isMobile || isDocsRoute ? 'visible' : 'hidden',
+              // 非分栏布局同样让操练场占满视口剩余高度。
+              flex: isPlaygroundRoute ? '1 1 auto' : '1 0 auto',
+              // 屏蔽外层滚动，避免打开文件选择框时页面被滚动。
+              overflowY: isPlaygroundRoute
+                ? 'hidden'
+                : isMobile || isDocsRoute
+                  ? 'visible'
+                  : 'hidden',
               WebkitOverflowScrolling: 'touch',
               padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
               position: 'relative',
@@ -360,8 +378,11 @@ const PageLayout = () => {
             >
               <div
                 style={{
-                  flex: '1 0 auto',
+                  // 与分栏布局保持一致的高度约束。
+                  flex: isPlaygroundRoute ? '1 1 auto' : '1 0 auto',
                   height: isPlaygroundRoute ? '100%' : undefined,
+                  // 必须允许收缩，否则设置面板会把外层撑高。
+                  minHeight: isPlaygroundRoute ? 0 : undefined,
                   overflow: isPlaygroundRoute ? 'hidden' : undefined,
                 }}
               >
