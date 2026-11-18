@@ -299,6 +299,12 @@ func TestModelStatusHiddenModelExcludedFromProviderPricingData(t *testing.T) {
 // 分站操练场必须与模型广场使用同一批可见 public model，未同步模型不能回退到主站列表。
 func TestGetUserModelsProviderMatchesMarketplaceVisibility(t *testing.T) {
 	db := setupModelStatusPricingTest(t)
+	// /v1/models 仍会校验 billing 配置；测试用 SelfUseMode 跳过价格配置依赖。
+	previousSelfUseMode := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() {
+		operation_setting.SelfUseModeEnabled = previousSelfUseMode
+	})
 	require.NoError(t, db.Create(&model.Ability{
 		Group: "default", Model: testUnsyncedModel, ChannelId: 1, Enabled: true,
 	}).Error)
@@ -353,6 +359,40 @@ func TestGetUserModelsProviderMatchesMarketplaceVisibility(t *testing.T) {
 	require.ElementsMatch(t, marketplaceModels, response.Data)
 	require.NotContains(t, response.Data, testUnsyncedModel)
 	require.NotContains(t, response.Data, testHiddenModelName+"-public")
+
+	listCtx, listRecorder := func() (*gin.Context, *httptest.ResponseRecorder) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+		ctx.Set("id", 8103)
+		common.SetContextKey(ctx, constant.ContextKeyProviderId, testProviderID)
+		return ctx, recorder
+	}()
+	ListModels(listCtx, constant.ChannelTypeOpenAI)
+	listModels := decodeListModelsResponse(t, listRecorder)
+	require.Len(t, listModels, len(marketplaceModels))
+	require.Contains(t, listModels, publicVisible)
+	require.NotContains(t, listModels, testUnsyncedModel)
+	require.NotContains(t, listModels, testHiddenModelName+"-public")
+
+	limitCtx, limitRecorder := func() (*gin.Context, *httptest.ResponseRecorder) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+		ctx.Set("id", 8103)
+		common.SetContextKey(ctx, constant.ContextKeyProviderId, testProviderID)
+		common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+		common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
+			publicVisible:     true,
+			testUnsyncedModel: true,
+		})
+		return ctx, recorder
+	}()
+	ListModels(limitCtx, constant.ChannelTypeOpenAI)
+	limitModels := decodeListModelsResponse(t, limitRecorder)
+	require.Len(t, limitModels, len(marketplaceModels))
+	require.Contains(t, limitModels, publicVisible)
+	require.NotContains(t, limitModels, testUnsyncedModel)
 }
 
 // 分站没有任何定价行时，操练场必须返回空列表，不能泄漏主站全量模型。
