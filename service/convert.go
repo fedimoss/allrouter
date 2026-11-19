@@ -314,6 +314,7 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 	usage := &dto.ClaudeUsage{
 		InputTokens:              inputTokens,
 		OutputTokens:             oaiUsage.CompletionTokens,
+		ReasoningTokens:          max(0, oaiUsage.CompletionTokenDetails.ReasoningTokens), // 过滤负值，不把思考明细再加到总输出。
 		CacheCreationInputTokens: cacheCreation,
 		CacheReadInputTokens:     cacheRead,
 	}
@@ -331,7 +332,8 @@ func NormalizeCacheCreationSplit(totalTokens int, tokens5m int, tokens1h int) (i
 	return tokens5m + remainder, tokens1h
 }
 
-func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo) []*dto.ClaudeResponse {
+// StreamResponseOpenAI2Claude 逐帧转换内容；deferFinish 仅推迟最后的用量和结束事件。
+func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo, deferFinish bool) []*dto.ClaudeResponse {
 	if info == nil || info.ClaudeConvertInfo == nil || openAIResponse == nil {
 		return nil
 	}
@@ -491,6 +493,10 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 	// chunks; callers can therefore invoke this closure later from a
 	// choices-empty usage chunk or finalization pass.
 	finishMessage := func(reason string, usage *dto.Usage) {
+		// 继续等后续用量帧，不在这里关闭内容块或标记消息结束。
+		if deferFinish {
+			return
+		}
 		if reason != "" {
 			info.FinishReason = reason
 		}

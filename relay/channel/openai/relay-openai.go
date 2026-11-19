@@ -21,6 +21,7 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/tidwall/gjson"
 )
 
 func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
@@ -133,13 +134,16 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var streamItems []string // store stream items
 	var lastStreamData string
 	var secondLastStreamData string // 存储倒数第二个stream data，用于音频模型
+	// DeepSeek 可能在结束原因之后补发用量，先决定是否延迟 Messages 流的结束事件。
+	deferClaudeFinish := usesDeepSeekMessagesChat(info)
 
 	// 检查是否为音频模型
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if lastStreamData != "" {
-			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
+			// 转换上一帧的内容，但把延迟收尾的决定传给 Messages 转换器。
+			if err := handleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent, deferClaudeFinish); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
 				sr.Error(err)
 			}
@@ -179,6 +183,14 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		&containStreamUsage, info, &shouldSendLastResp); err != nil {
 		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
 	}
+	// 末帧没有用量时，采用此前保留且已归一的 DeepSeek 用量。
+	useEarlierUsage := !containStreamUsage && deferClaudeFinish && info.ClaudeConvertInfo != nil &&
+		service.ValidUsage(info.ClaudeConvertInfo.Usage)
+	if useEarlierUsage {
+		// 保证响应最终事件和后结算使用同一份权威 usage。
+		usage = info.ClaudeConvertInfo.Usage
+		containStreamUsage = true // 已有上游用量，不再按文本估算。
+	}
 
 	if info.RelayFormat == types.RelayFormatOpenAI {
 		if shouldSendLastResp {
@@ -199,7 +211,10 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	service.SetModelContentAuditResponseText(c, responseTextBuilder.String())
 	service.SetModelContentAuditReasoningText(c, reasoningTextBuilder.String())
 
-	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
+	// 选择较早用量时它已按原始帧归一，不能再用末帧字段覆盖。
+	if !useEarlierUsage {
+		applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
+	}
 
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
@@ -273,6 +288,8 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	usageModified := false
 	if simpleResponse.Usage.PromptTokens == 0 {
 		completionTokens := simpleResponse.Usage.CompletionTokens
+		// 输入计数缺失时会重建用量，先保留上游独立报告的思考计数。
+		reasoningTokens := simpleResponse.Usage.CompletionTokenDetails.ReasoningTokens
 		if completionTokens == 0 {
 			for _, choice := range simpleResponse.Choices {
 				ctkm := service.CountTextToken(choice.Message.StringContent()+choice.Message.GetReasoningContent(), info.UpstreamModelName)
@@ -283,6 +300,10 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			PromptTokens:     info.GetEstimatePromptTokens(),
 			CompletionTokens: completionTokens,
 			TotalTokens:      info.GetEstimatePromptTokens() + completionTokens,
+		}
+		if info.RelayFormat == types.RelayFormatClaude {
+			// 只对 Messages 回填明细，保持原有 Chat 回包行为。
+			simpleResponse.Usage.CompletionTokenDetails.ReasoningTokens = reasoningTokens
 		}
 		usageModified = true
 	}
@@ -655,6 +676,10 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 	if info == nil || usage == nil {
 		return
 	}
+	// 仅在 DeepSeek Messages→Chat 路径补充其顶层专有计数字段。
+	if usesDeepSeekMessagesChat(info) && usage.CompletionTokenDetails.ReasoningTokens == 0 {
+		normalizeDeepSeekReasoningTokens(usage, responseBody) // 检查原始 JSON，区分缺失字段与显式零值。
+	}
 
 	switch info.ChannelType {
 	case constant.ChannelTypeDeepSeek:
@@ -691,6 +716,23 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 				usage.PromptTokensDetails.CachedTokens = cachedTokens
 			}
 		}
+	}
+}
+
+func normalizeDeepSeekReasoningTokens(usage *dto.Usage, responseBody []byte) {
+	// 明细字段显式为 0 时也以它为准，只有缺失时才取 DeepSeek 的顶层计数。
+	if gjson.GetBytes(responseBody, "usage.completion_tokens_details.reasoning_tokens").Exists() {
+		return
+	}
+	// 顶层字段缺失或类型不为数字时，不从答案长度或总输出量推算思考计数。
+	count := gjson.GetBytes(responseBody, "usage.reasoning_tokens")
+	if count.Type != gjson.Number {
+		return
+	}
+	// 只接受正整数计数，零和负数都表示没有可报告的独立思考用量。
+	var tokens int
+	if err := common.UnmarshalJsonStr(count.Raw, &tokens); err == nil && tokens > 0 {
+		usage.CompletionTokenDetails.ReasoningTokens = tokens // 响应转换与用量日志都读取这个内部字段。
 	}
 }
 

@@ -3534,6 +3534,10 @@
                 },
                 "text": {
                   "type": "string"
+                },
+                "thinking": {
+                  "type": "string",
+                  "description": "当块类型为 thinking 时提供的公开思考内容。最终答案仍在 text 块中。"
                 }
               }
             }
@@ -3558,6 +3562,12 @@
               },
               "output_tokens": {
                 "type": "integer"
+              },
+              "reasoning_tokens": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "网关兼容转换扩展。仅当上游报告正数时返回；它是输出 Token 的明细，不会另行计费。流式响应在最终 message_delta.usage 中提供。同请求用量日志的 other.reasoning_tokens 使用相同计数。",
+                "example": 345
               },
               "cache_creation_input_tokens": {
                 "type": "integer"
