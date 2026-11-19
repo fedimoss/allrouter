@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -65,6 +66,39 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 		err = relay.GeminiHelper(c, info)
 	}
 	return err
+}
+
+func invalidRequestParamFromDecodeError(err error) string {
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) {
+		return ""
+	}
+
+	field := strings.ToLower(typeErr.Field)
+	for _, separator := range []string{".", "["} {
+		if index := strings.LastIndex(field, separator); index >= 0 {
+			field = field[index+1:]
+			break
+		}
+	}
+	switch field {
+	case "temperature":
+		return "temperature"
+	case "top_p", "topp":
+		return "top_p"
+	default:
+		return ""
+	}
+}
+
+func invalidRelayRequestError(err error) *types.NewAPIError {
+	if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
+		return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
+	}
+	if param := invalidRequestParamFromDecodeError(err); param != "" {
+		return types.NewInvalidRequestParamError(err, param)
+	}
+	return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 }
 
 func applyProviderRelayModel(c *gin.Context, request dto.Request) *types.NewAPIError {
@@ -196,12 +230,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	request, err := helper.GetAndValidateRequest(c, relayFormat)
 	if err != nil {
-		// Map "request body too large" to 413 so clients can handle it correctly
-		if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
-			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
-		} else {
-			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-		}
+		newAPIError = invalidRelayRequestError(err)
 		return
 	}
 	if apiErr := applyProviderRelayModel(c, request); apiErr != nil {

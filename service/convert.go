@@ -565,6 +565,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 
 func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relaycommon.RelayInfo) *dto.ClaudeResponse {
 	var stopReason string
+	var matchedStopSequence string
 	contents := make([]dto.ClaudeMediaMessage, 0)
 	claudeResponse := &dto.ClaudeResponse{
 		Id:    openAIResponse.Id,
@@ -574,6 +575,11 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 	}
 	for _, choice := range openAIResponse.Choices {
 		stopReason = stopReasonOpenAI2Claude(choice.FinishReason)
+		if choice.FinishReason == "stop" {
+			if matchedStop, ok := matchedClaudeStopSequence(choice.MatchedStop, openAIResponse.MatchedStop, info); ok {
+				matchedStopSequence = matchedStop
+			}
+		}
 		if reasoningContent := choice.Message.GetReasoningContent(); reasoningContent != "" {
 			contents = append(contents, dto.ClaudeMediaMessage{
 				Type:     "thinking",
@@ -607,11 +613,42 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 			contents = append(contents, claudeContent)
 		}
 	}
+	if matchedStopSequence != "" {
+		stopReason = "stop_sequence"
+		claudeResponse.StopSequence = common.GetPointer(matchedStopSequence)
+	}
 	claudeResponse.Content = contents
 	claudeResponse.StopReason = stopReason
 	claudeResponse.Usage = buildClaudeUsageFromOpenAIUsage(&openAIResponse.Usage)
 
 	return claudeResponse
+}
+
+// matchedClaudeStopSequence only accepts a string that was explicitly requested
+// by the original Messages request. Some upstreams use a numeric sentinel (1)
+// for "no stop matched", which must not be exposed as a Claude stop sequence.
+func matchedClaudeStopSequence(choiceStop, responseStop any, info *relaycommon.RelayInfo) (string, bool) {
+	var matched string
+	if value, ok := choiceStop.(string); ok {
+		matched = value
+	} else if value, ok := responseStop.(string); ok {
+		matched = value
+	}
+	if matched == "" || info == nil {
+		return "", false
+	}
+
+	var stopSequences []string
+	switch request := info.Request.(type) {
+	case *dto.ClaudeRequest:
+		stopSequences = request.StopSequences
+	}
+	for _, stopSequence := range stopSequences {
+		if matched == stopSequence {
+			return matched, true
+		}
+	}
+	return "", false
 }
 
 func stopReasonOpenAI2Claude(reason string) string {

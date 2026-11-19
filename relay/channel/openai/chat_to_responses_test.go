@@ -108,6 +108,63 @@ func TestOaiChatToResponsesHandlerOrdersMessageBeforeToolCalls(t *testing.T) {
 
 // TestChatStreamToResponsesResponseIncludesReasoningItem 验证非流式 Responses 响应
 // 在带推理内容时，会在 message 之前输出 reasoning 条目（对齐 cc-switch）。
+func TestOaiChatToResponsesHandlerMarksLengthAsIncomplete(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	maxOutputTokens := uint(16)
+	chatResponse := &dto.OpenAITextResponse{
+		Id:      "chatcmpl_truncated",
+		Created: 123,
+		Model:   "deepseek-v4.1-flash",
+		Choices: []dto.OpenAITextResponseChoice{{
+			Message:      dto.Message{Role: "assistant", Content: "partial output"},
+			FinishReason: "length",
+		}},
+	}
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest("POST", "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{},
+		Request:     &dto.GeneralOpenAIRequest{MaxTokens: &maxOutputTokens},
+	}
+
+	_, relayErr := OaiChatToResponsesHandler(ctx, info, chatResponse)
+	require.Nil(t, relayErr)
+
+	var response dto.OpenAIResponsesResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.JSONEq(t, `"incomplete"`, string(response.Status))
+	require.Equal(t, &dto.IncompleteDetails{Reason: "max_output_tokens"}, response.IncompleteDetails)
+	require.Equal(t, 16, response.MaxOutputTokens)
+	require.Len(t, response.Output, 1)
+	require.Equal(t, "incomplete", response.Output[0].Status)
+}
+
+func TestOaiChatToResponsesHandlerKeepsCompletedForStop(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	chatResponse := &dto.OpenAITextResponse{
+		Id:      "chatcmpl_complete",
+		Created: 123,
+		Model:   "deepseek-v4.1-flash",
+		Choices: []dto.OpenAITextResponseChoice{{
+			Message:      dto.Message{Role: "assistant", Content: "complete output"},
+			FinishReason: "stop",
+		}},
+	}
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest("POST", "/v1/responses", nil)
+
+	_, relayErr := OaiChatToResponsesHandler(ctx, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}, chatResponse)
+	require.Nil(t, relayErr)
+
+	var response dto.OpenAIResponsesResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.JSONEq(t, `"completed"`, string(response.Status))
+	require.Nil(t, response.IncompleteDetails)
+	require.Equal(t, "completed", response.Output[0].Status)
+}
+
 func TestChatStreamToResponsesResponseIncludesReasoningItem(t *testing.T) {
 	resp := chatStreamToResponsesResponse("resp_123", 1700000000, "gpt-test", "hello", &dto.Usage{}, true, 1, nil, "think...", 0)
 

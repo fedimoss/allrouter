@@ -402,12 +402,10 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if !strings.HasPrefix(info.UpstreamModelName, "gpt") {
 
 		if request.Temperature != nil && (*request.Temperature < 0.0 || *request.Temperature > 1.0) {
-
-			return nil, fmt.Errorf("temperature must be between 0.0 and 1.0")
+			return nil, types.NewInvalidRequestParamError(fmt.Errorf("temperature must be between 0.0 and 1.0"), "temperature")
 		}
 		if request.TopP != nil && (*request.TopP < 0.0 || *request.TopP > 1.0) {
-
-			return nil, fmt.Errorf("top_p must be between 0.0 and 1.0")
+			return nil, types.NewInvalidRequestParamError(fmt.Errorf("top_p must be between 0.0 and 1.0"), "top_p")
 		} else if strings.HasPrefix(strings.ToLower(info.UpstreamModelName), "kimi") && request.TopP != nil && (*request.TopP != 0.95) {
 			return nil, fmt.Errorf("top_p must be0.95 for kimi model")
 		}
