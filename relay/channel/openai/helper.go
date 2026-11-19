@@ -230,6 +230,10 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		}
 
 		info.ClaudeConvertInfo.Usage = usage
+		// 转换器优先取末帧自己的用量，避免末帧原始值覆盖渠道归一后的缓存计数。
+		if usage != nil {
+			streamResponse.Usage = usage
+		}
 
 		claudeResponses := service.StreamResponseOpenAI2Claude(&streamResponse, info)
 		for _, resp := range claudeResponses {

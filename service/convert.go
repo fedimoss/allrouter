@@ -289,6 +289,7 @@ func generateStopBlock(index int) *dto.ClaudeResponse {
 	}
 }
 
+// buildClaudeUsageFromOpenAIUsage 只转换对外的用量口径，结算仍使用原始用量。
 func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 	if oaiUsage == nil {
 		return nil
@@ -298,11 +299,23 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 		oaiUsage.ClaudeCacheCreation5mTokens,
 		oaiUsage.ClaudeCacheCreation1hTokens,
 	)
+	// 写入总数取归一后的 TTL 分项之和，不把上游聚合值重复加进去。
+	cacheCreation := cacheCreation5m + cacheCreation1h
+	cacheRead := oaiUsage.PromptTokensDetails.CachedTokens
+	inputTokens := oaiUsage.PromptTokens
+	// OpenAI 的总输入包含缓存读写，Anthropic 的 input_tokens 已排除这两项。
+	if oaiUsage.UsageSemantic != "anthropic" {
+		inputTokens -= cacheRead + cacheCreation
+		if inputTokens < 0 {
+			common.SysError(fmt.Sprintf("Chat to Messages usage: prompt_tokens=%d is less than cache read (%d) plus cache creation (%d)", oaiUsage.PromptTokens, cacheRead, cacheCreation))
+			inputTokens = 0
+		}
+	}
 	usage := &dto.ClaudeUsage{
-		InputTokens:              oaiUsage.PromptTokens,
+		InputTokens:              inputTokens,
 		OutputTokens:             oaiUsage.CompletionTokens,
-		CacheCreationInputTokens: oaiUsage.PromptTokensDetails.CachedCreationTokens,
-		CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
+		CacheCreationInputTokens: cacheCreation,
+		CacheReadInputTokens:     cacheRead,
 	}
 	if cacheCreation5m > 0 || cacheCreation1h > 0 {
 		usage.CacheCreation = &dto.ClaudeCacheCreationUsage{
