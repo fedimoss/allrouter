@@ -151,7 +151,7 @@ const Exchange = () => {
       key: 'name',
       render: (text) => (
         <span className='text-slate-600 dark:text-slate-300'>
-          {text || t('兑换码')}
+          {t(text || '兑换码')}
         </span>
       ),
     },
