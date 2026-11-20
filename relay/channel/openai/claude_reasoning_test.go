@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,14 +20,27 @@ import (
 func TestConvertClaudeRequestDeepSeekThinking(t *testing.T) {
 	// 对照显式开关和缺省行为，同时覆盖非目标模型与 OpenRouter 的隔离边界。
 	tests := []struct {
-		name, model, thinking, wantThinking, wantEffort string
-		channel                                         int
+		name, model, thinking, wantThinking, wantEffort, outputConfig string
+		channel                                                       int
 	}{
-		{"enabled", "deepseek-v4.1-flash-arm-210", "enabled", `{"type":"enabled"}`, "high", constant.ChannelTypeOpenAI},
-		{"disabled", "deepseek-v4-flash", "disabled", `{"type":"disabled"}`, "", constant.ChannelTypeOpenAI},
-		{"omitted", "deepseek-v4.1-flash-arm-210", "", "", "", constant.ChannelTypeOpenAI},
-		{"different upstream family", "llama-test", "enabled", "", "", constant.ChannelTypeOpenAI},
-		{"OpenRouter retains its mapping", "deepseek-v4-flash", "enabled", "", "", constant.ChannelTypeOpenRouter},
+		// 显式 enabled 带预算时，预算被忽略并使用默认 high。
+		{"enabled ignores budget", "deepseek-v4.1-flash-arm-210", "enabled", `{"type":"enabled"}`, "high", "", constant.ChannelTypeOpenAI},
+		// 显式 effort 应覆盖默认 high，不能被适配器改回 high。
+		{"enabled keeps explicit effort", "deepseek-v4.1-flash-arm-210", "enabled", `{"type":"enabled"}`, "max", `{"effort":"max"}`, constant.ChannelTypeOpenAI},
+		// adaptive 同样视为 enabled，并保留显式 max。
+		{"adaptive keeps explicit effort", "deepseek-v4.1-flash-arm-210", "adaptive", `{"type":"enabled"}`, "max", `{"effort":"max"}`, constant.ChannelTypeOpenAI},
+		// 未给 effort 时，adaptive 使用默认 high。
+		{"adaptive defaults effort", "deepseek-v4.1-flash-arm-210", "adaptive", `{"type":"enabled"}`, "high", "", constant.ChannelTypeOpenAI},
+		// 关闭思考优先，预算和 effort 都不应生效。
+		{"disabled ignores budget and effort", "deepseek-v4.1-flash-arm-210", "disabled", `{"type":"disabled"}`, "", `{"effort":"max"}`, constant.ChannelTypeOpenAI},
+		// 非 Flash 的 DeepSeek 模型明确关闭时，不生成 effort。
+		{"disabled", "deepseek-v4-flash", "disabled", `{"type":"disabled"}`, "", "", constant.ChannelTypeOpenAI},
+		// 客户端未传 thinking 时，不额外生成上游思考参数。
+		{"omitted", "deepseek-v4.1-flash-arm-210", "", "", "", "", constant.ChannelTypeOpenAI},
+		// 非 DeepSeek 模型不应命中这套专用映射。
+		{"different upstream family", "llama-test", "enabled", "", "", "", constant.ChannelTypeOpenAI},
+		// OpenRouter 继续使用自己的 reasoning 对象，不进入专用映射。
+		{"OpenRouter retains its mapping", "deepseek-v4-flash", "enabled", "", "", "", constant.ChannelTypeOpenRouter},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -40,6 +54,10 @@ func TestConvertClaudeRequestDeepSeekThinking(t *testing.T) {
 			req := &dto.ClaudeRequest{Model: test.model, MaxTokens: common.GetPointer(uint(3072))}
 			if test.thinking != "" {
 				req.Thinking = &dto.Thinking{Type: test.thinking, BudgetTokens: common.GetPointer(2048)}
+			}
+			if test.outputConfig != "" {
+				// 模拟客户端显式指定推理强度。
+				req.OutputConfig = json.RawMessage(test.outputConfig)
 			}
 			converted, err := (&Adaptor{}).ConvertClaudeRequest(ctx, info, req)
 			require.NoError(t, err)

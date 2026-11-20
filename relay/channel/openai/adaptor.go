@@ -66,13 +66,20 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 	// 仅将明确给 DeepSeek V4/V4.1 Messages 的开关覆盖到 Chat 请求，其他模型沿用通用转换结果。
 	if request.Thinking != nil && usesDeepSeekMessagesChat(info) {
+		// 按客户端 thinking.type 选择上游 Chat 的开关语义。
 		switch request.Thinking.Type { // 未匹配的类型仍沿用通用转换结果。
-		case "enabled":
-			aiRequest.THINKING = json.RawMessage(`{"type":"enabled"}`) // 只转发开关，不把 Messages 的 Token 预算传给 Chat。
-			aiRequest.ReasoningEffort = "high"                         // 使用已验证能开启 DeepSeek Chat 思考的档位。
+		case "enabled", "adaptive":
+			// adaptive 和 enabled 都按官方兼容规则映射为上游 enabled。
+			aiRequest.THINKING = json.RawMessage(`{"type":"enabled"}`)
+			if aiRequest.ReasoningEffort == "" {
+				// 只有客户端没有显式给 effort 时才补默认 high。
+				aiRequest.ReasoningEffort = "high"
+			}
 		case "disabled":
 			// 显式关闭时只传关闭开关，不额外发送推理档位。
 			aiRequest.THINKING = json.RawMessage(`{"type":"disabled"}`)
+			// 关闭优先，清空客户端可能同时传入的 effort。
+			aiRequest.ReasoningEffort = ""
 		}
 	}
 	//if common.DebugEnabled {
