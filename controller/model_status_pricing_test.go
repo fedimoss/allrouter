@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -19,6 +20,7 @@ import (
 const (
 	testVisibleModelName = "zz-model-status-visible"
 	testHiddenModelName  = "zz-model-status-hidden"
+	testUnsyncedModel    = "zz-model-status-unsynced"
 	testProviderID       = 8101
 	testProviderOwnerID  = 8102
 )
@@ -292,6 +294,146 @@ func TestModelStatusHiddenModelExcludedFromProviderPricingData(t *testing.T) {
 	require.NotContains(t, byName, testHiddenModelName+"-public")
 	require.NotContains(t, pricingByModelName(model.GetPricing()), testHiddenModelName+"-public")
 	require.NotEmpty(t, response.SupportedEndpoint)
+}
+
+// 分站操练场必须与模型广场使用同一批可见 public model，未同步模型不能回退到主站列表。
+func TestGetUserModelsProviderMatchesMarketplaceVisibility(t *testing.T) {
+	db := setupModelStatusPricingTest(t)
+	// /v1/models 仍会校验 billing 配置；测试用 SelfUseMode 跳过价格配置依赖。
+	previousSelfUseMode := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() {
+		operation_setting.SelfUseModeEnabled = previousSelfUseMode
+	})
+	require.NoError(t, db.Create(&model.Ability{
+		Group: "default", Model: testUnsyncedModel, ChannelId: 1, Enabled: true,
+	}).Error)
+	require.NoError(t, db.Create(&model.Model{
+		ModelName: testUnsyncedModel, Status: model.ModelStatusVisible, NameRule: model.NameRuleExact,
+	}).Error)
+	model.InvalidatePricingCache()
+
+	publicVisible := testVisibleModelName + "-public"
+	require.NoError(t, db.Create(&[]model.ProviderModelPricing{
+		{
+			ProviderId:      testProviderID,
+			PublicModelName: publicVisible,
+			BaseModelName:   testVisibleModelName,
+			Enabled:         true,
+			PricingType:     model.ProviderPricingTypeRatio,
+			Ratio:           1.5,
+		},
+		{
+			ProviderId:      testProviderID,
+			PublicModelName: testHiddenModelName + "-public",
+			BaseModelName:   testHiddenModelName,
+			Enabled:         true,
+			PricingType:     model.ProviderPricingTypeRatio,
+			Ratio:           1.5,
+		},
+	}).Error)
+
+	pricingCtx, pricingRecorder := modelStatusPricingContext(t, testProviderID)
+	GetPricing(pricingCtx)
+	pricingResponse := decodePricingResponse(t, pricingRecorder)
+	marketplaceModels := make([]string, 0, len(pricingResponse.Data))
+	for _, item := range pricingResponse.Data {
+		marketplaceModels = append(marketplaceModels, item.ModelName)
+	}
+	require.ElementsMatch(t, []string{publicVisible}, marketplaceModels)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/models?visible_only=true", nil)
+	ctx.Set("id", 8103)
+	common.SetContextKey(ctx, constant.ContextKeyProviderId, testProviderID)
+	GetUserModels(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success bool     `json:"success"`
+		Data    []string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.ElementsMatch(t, marketplaceModels, response.Data)
+	require.NotContains(t, response.Data, testUnsyncedModel)
+	require.NotContains(t, response.Data, testHiddenModelName+"-public")
+
+	listCtx, listRecorder := func() (*gin.Context, *httptest.ResponseRecorder) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+		ctx.Set("id", 8103)
+		common.SetContextKey(ctx, constant.ContextKeyProviderId, testProviderID)
+		return ctx, recorder
+	}()
+	ListModels(listCtx, constant.ChannelTypeOpenAI)
+	listModels := decodeListModelsResponse(t, listRecorder)
+	require.Len(t, listModels, len(marketplaceModels))
+	require.Contains(t, listModels, publicVisible)
+	require.NotContains(t, listModels, testUnsyncedModel)
+	require.NotContains(t, listModels, testHiddenModelName+"-public")
+
+	limitCtx, limitRecorder := func() (*gin.Context, *httptest.ResponseRecorder) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+		ctx.Set("id", 8103)
+		common.SetContextKey(ctx, constant.ContextKeyProviderId, testProviderID)
+		common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+		common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
+			publicVisible:     true,
+			testUnsyncedModel: true,
+		})
+		return ctx, recorder
+	}()
+	ListModels(limitCtx, constant.ChannelTypeOpenAI)
+	limitModels := decodeListModelsResponse(t, limitRecorder)
+	require.Len(t, limitModels, len(marketplaceModels))
+	require.Contains(t, limitModels, publicVisible)
+	require.NotContains(t, limitModels, testUnsyncedModel)
+}
+
+// 分站没有任何定价行时，操练场必须返回空列表，不能泄漏主站全量模型。
+func TestGetUserModelsProviderWithoutPricingReturnsEmpty(t *testing.T) {
+	setupModelStatusPricingTest(t)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/models?visible_only=true", nil)
+	ctx.Set("id", 8103)
+	common.SetContextKey(ctx, constant.ContextKeyProviderId, testProviderID)
+	GetUserModels(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success           bool                                    `json:"success"`
+		Data              []string                                `json:"data"`
+		VideoPanels       map[string]string                       `json:"video_panels"`
+		VideoCapabilities map[string]service.SeedanceCapabilities `json:"video_capabilities"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Empty(t, response.Data)
+	require.Empty(t, response.VideoPanels)
+	require.Empty(t, response.VideoCapabilities)
+}
+
+// 视频能力按 base model 判断，但结果 key 必须是分站 public model。
+func TestBuildVideoCapabilitiesForPublicModelsUsesBaseModel(t *testing.T) {
+	owners := map[string]model.PreferredModelOwnerChannel{
+		"doubao-seedance-2-0-260128": {
+			ChannelType: constant.ChannelTypeDoubaoVideo,
+		},
+	}
+	panels, capabilities := buildVideoCapabilitiesForPublicModels(
+		[]string{"provider-seedance"},
+		map[string]string{"provider-seedance": "doubao-seedance-2-0-260128"},
+		owners,
+	)
+	require.Equal(t, "seedance", panels["provider-seedance"])
+	require.Contains(t, capabilities, "provider-seedance")
 }
 
 // 手动新增依赖 base_models 候选和启用校验使用完整注册表。

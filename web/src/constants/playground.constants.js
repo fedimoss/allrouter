@@ -85,6 +85,8 @@ export const API_ENDPOINTS = {
 export const MINIMAX_H3_MODEL = 'MiniMax-H3';
 export const MINIMAX_H3_REF2VA_MODEL = 'MiniMax-H3-Ref2va';
 export const MINIMAX_H3_MODELS = [MINIMAX_H3_MODEL, MINIMAX_H3_REF2VA_MODEL];
+// 后端 video_panels 返回该值时，操练场渲染 Seedance 专用面板。
+export const SEEDANCE_VIDEO_PANEL = 'seedance';
 
 // ========== 配置默认值 ==========
 export const DEFAULT_CONFIG = {

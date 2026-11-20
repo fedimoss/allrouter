@@ -57,6 +57,11 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			}
 			openAIRequest.Reasoning = reasoningJSON
 		}
+	} else if relaycommon.UsesDeepSeekFlashChatThinking(info.ChannelType, claudeRequest.Model) {
+		if err := convertDeepSeekFlashMessagesThinking(&claudeRequest, &openAIRequest); err != nil {
+			return nil, err
+		}
+		info.ReasoningEffort = openAIRequest.ReasoningEffort
 	} else {
 		thinkingSuffix := "-thinking"
 		if strings.HasSuffix(info.OriginModelName, thinkingSuffix) &&
@@ -289,6 +294,7 @@ func generateStopBlock(index int) *dto.ClaudeResponse {
 	}
 }
 
+// buildClaudeUsageFromOpenAIUsage 只转换对外的用量口径，结算仍使用原始用量。
 func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 	if oaiUsage == nil {
 		return nil
@@ -298,11 +304,24 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 		oaiUsage.ClaudeCacheCreation5mTokens,
 		oaiUsage.ClaudeCacheCreation1hTokens,
 	)
+	// 写入总数取归一后的 TTL 分项之和，不把上游聚合值重复加进去。
+	cacheCreation := cacheCreation5m + cacheCreation1h
+	cacheRead := oaiUsage.PromptTokensDetails.CachedTokens
+	inputTokens := oaiUsage.PromptTokens
+	// OpenAI 的总输入包含缓存读写，Anthropic 的 input_tokens 已排除这两项。
+	if oaiUsage.UsageSemantic != "anthropic" {
+		inputTokens -= cacheRead + cacheCreation
+		if inputTokens < 0 {
+			common.SysError(fmt.Sprintf("Chat to Messages usage: prompt_tokens=%d is less than cache read (%d) plus cache creation (%d)", oaiUsage.PromptTokens, cacheRead, cacheCreation))
+			inputTokens = 0
+		}
+	}
 	usage := &dto.ClaudeUsage{
-		InputTokens:              oaiUsage.PromptTokens,
+		InputTokens:              inputTokens,
 		OutputTokens:             oaiUsage.CompletionTokens,
-		CacheCreationInputTokens: oaiUsage.PromptTokensDetails.CachedCreationTokens,
-		CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
+		ReasoningTokens:          max(0, oaiUsage.CompletionTokenDetails.ReasoningTokens), // 过滤负值，不把思考明细再加到总输出。
+		CacheCreationInputTokens: cacheCreation,
+		CacheReadInputTokens:     cacheRead,
 	}
 	if cacheCreation5m > 0 || cacheCreation1h > 0 {
 		usage.CacheCreation = &dto.ClaudeCacheCreationUsage{
@@ -318,7 +337,8 @@ func NormalizeCacheCreationSplit(totalTokens int, tokens5m int, tokens1h int) (i
 	return tokens5m + remainder, tokens1h
 }
 
-func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo) []*dto.ClaudeResponse {
+// StreamResponseOpenAI2Claude 逐帧转换内容；deferFinish 仅推迟最后的用量和结束事件。
+func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo, deferFinish bool) []*dto.ClaudeResponse {
 	if info == nil || info.ClaudeConvertInfo == nil || openAIResponse == nil {
 		return nil
 	}
@@ -478,6 +498,10 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 	// chunks; callers can therefore invoke this closure later from a
 	// choices-empty usage chunk or finalization pass.
 	finishMessage := func(reason string, usage *dto.Usage) {
+		// 继续等后续用量帧，不在这里关闭内容块或标记消息结束。
+		if deferFinish {
+			return
+		}
 		if reason != "" {
 			info.FinishReason = reason
 		}
@@ -546,6 +570,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 
 func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relaycommon.RelayInfo) *dto.ClaudeResponse {
 	var stopReason string
+	var matchedStopSequence string
 	contents := make([]dto.ClaudeMediaMessage, 0)
 	claudeResponse := &dto.ClaudeResponse{
 		Id:    openAIResponse.Id,
@@ -555,6 +580,11 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 	}
 	for _, choice := range openAIResponse.Choices {
 		stopReason = stopReasonOpenAI2Claude(choice.FinishReason)
+		if choice.FinishReason == "stop" {
+			if matchedStop, ok := matchedClaudeStopSequence(choice.MatchedStop, openAIResponse.MatchedStop, info); ok {
+				matchedStopSequence = matchedStop
+			}
+		}
 		if reasoningContent := choice.Message.GetReasoningContent(); reasoningContent != "" {
 			contents = append(contents, dto.ClaudeMediaMessage{
 				Type:     "thinking",
@@ -588,11 +618,42 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 			contents = append(contents, claudeContent)
 		}
 	}
+	if matchedStopSequence != "" {
+		stopReason = "stop_sequence"
+		claudeResponse.StopSequence = common.GetPointer(matchedStopSequence)
+	}
 	claudeResponse.Content = contents
 	claudeResponse.StopReason = stopReason
 	claudeResponse.Usage = buildClaudeUsageFromOpenAIUsage(&openAIResponse.Usage)
 
 	return claudeResponse
+}
+
+// matchedClaudeStopSequence only accepts a string that was explicitly requested
+// by the original Messages request. Some upstreams use a numeric sentinel (1)
+// for "no stop matched", which must not be exposed as a Claude stop sequence.
+func matchedClaudeStopSequence(choiceStop, responseStop any, info *relaycommon.RelayInfo) (string, bool) {
+	var matched string
+	if value, ok := choiceStop.(string); ok {
+		matched = value
+	} else if value, ok := responseStop.(string); ok {
+		matched = value
+	}
+	if matched == "" || info == nil {
+		return "", false
+	}
+
+	var stopSequences []string
+	switch request := info.Request.(type) {
+	case *dto.ClaudeRequest:
+		stopSequences = request.StopSequences
+	}
+	for _, stopSequence := range stopSequences {
+		if matched == stopSequence {
+			return matched, true
+		}
+	}
+	return "", false
 }
 
 func stopReasonOpenAI2Claude(reason string) string {

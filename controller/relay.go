@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -65,6 +66,39 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 		err = relay.GeminiHelper(c, info)
 	}
 	return err
+}
+
+func invalidRequestParamFromDecodeError(err error) string {
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) {
+		return ""
+	}
+
+	field := strings.ToLower(typeErr.Field)
+	for _, separator := range []string{".", "["} {
+		if index := strings.LastIndex(field, separator); index >= 0 {
+			field = field[index+1:]
+			break
+		}
+	}
+	switch field {
+	case "temperature":
+		return "temperature"
+	case "top_p", "topp":
+		return "top_p"
+	default:
+		return ""
+	}
+}
+
+func invalidRelayRequestError(err error) *types.NewAPIError {
+	if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
+		return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
+	}
+	if param := invalidRequestParamFromDecodeError(err); param != "" {
+		return types.NewInvalidRequestParamError(err, param)
+	}
+	return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 }
 
 func applyProviderRelayModel(c *gin.Context, request dto.Request) *types.NewAPIError {
@@ -196,12 +230,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	request, err := helper.GetAndValidateRequest(c, relayFormat)
 	if err != nil {
-		// Map "request body too large" to 413 so clients can handle it correctly
-		if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
-			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
-		} else {
-			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-		}
+		newAPIError = invalidRelayRequestError(err)
 		return
 	}
 	if apiErr := applyProviderRelayModel(c, request); apiErr != nil {
@@ -616,6 +645,8 @@ func RelayTaskFetch(c *gin.Context) {
 func RelayTask(c *gin.Context) {
 	retainMiniMaxH3Frames := false
 	retainMiniMaxH3ReferenceVideos := false
+	// 标记 Seedance 素材是否已经交给任务；只有入库成功才延迟到轮询终态清理。
+	retainSeedanceMedia := false
 	defer func() {
 		if !retainMiniMaxH3Frames {
 			for _, frameID := range c.GetStringSlice(service.MiniMaxH3FrameIDsContextKey) {
@@ -626,6 +657,10 @@ func RelayTask(c *gin.Context) {
 			for _, videoID := range c.GetStringSlice(service.MiniMaxH3ReferenceVideoIDsContextKey) {
 				_ = service.DeleteMiniMaxH3ReferenceVideo(c.GetInt("id"), videoID)
 			}
+		}
+		// 提交失败或任务未入库时必须立即清理，否则会留下孤儿文件。
+		if !retainSeedanceMedia {
+			service.CleanupSeedanceMedia(c.GetInt("id"), c.GetStringSlice(service.SeedanceMediaIDsContextKey))
 		}
 	}()
 
@@ -749,10 +784,20 @@ func RelayTask(c *gin.Context) {
 				task.Properties.Input = request.Prompt
 			}
 		}
+		if relayInfo.ChannelType == constant.ChannelTypeDoubaoVideo ||
+			(relayInfo.ChannelType == constant.ChannelTypeVolcEngine &&
+				strings.Contains(strings.ToLower(relayInfo.OriginModelName), "seedance")) {
+			// 上游查询响应通常不带提示词；这里保存原始 prompt 供后续回显。
+			if request, requestErr := relaycommon.GetTaskRequest(c); requestErr == nil {
+				task.Properties.Input = request.Prompt
+			}
+		}
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 		task.PrivateData.PublicBaseURL = common.GetRequestBaseURL(c, system_setting.ServerAddress)
 		task.PrivateData.MiniMaxH3FrameIDs = c.GetStringSlice(service.MiniMaxH3FrameIDsContextKey)
 		task.PrivateData.MiniMaxH3ReferenceVideoIDs = c.GetStringSlice(service.MiniMaxH3ReferenceVideoIDsContextKey)
+		// 素材 ID 随任务持久化；轮询拿到终态后才能安全删除参考文件。
+		task.PrivateData.SeedanceMediaIDs = c.GetStringSlice(service.SeedanceMediaIDsContextKey)
 		if result.Queued {
 			task.Status = model.TaskStatusNotStart
 			task.Progress = "0%"
@@ -824,6 +869,10 @@ func RelayTask(c *gin.Context) {
 		if task.Action == constant.TaskActionMiniMaxH3Generate && len(c.GetStringSlice(service.MiniMaxH3ReferenceVideoIDsContextKey)) > 0 {
 			retainMiniMaxH3ReferenceVideos = true
 		}
+		// 任务已成功入库，必须保留素材到轮询终态，否则上游可能读不到文件。
+		if len(task.PrivateData.SeedanceMediaIDs) > 0 {
+			retainSeedanceMedia = true
+		}
 		service.LogTaskConsumption(c, relayInfo)
 		if result.Queued {
 			c.Data(http.StatusOK, "application/json", result.TaskData)
@@ -841,6 +890,9 @@ func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 	if taskErr == nil {
 		return
 	}
+	// 先把已知上游错误归一成友好文案，再做 H3 脱敏和响应。
+	// 顺序不能反：未知错误仍保持原样，便于排障。
+	service.LocalizeTaskError(c, taskErr)
 	taskErr.Message = service.SanitizeMiniMaxH3PublicMessage(taskErr.Message)
 	taskErr.Code = service.SanitizeMiniMaxH3PublicCode(taskErr.Code)
 	if taskErr.StatusCode == http.StatusTooManyRequests {

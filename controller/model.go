@@ -155,8 +155,17 @@ func getPreferredModelOwners(modelNames []string, groups []string) map[string]st
 }
 
 func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.OpenAIModels {
+	return buildOpenAIModelWithBaseModel(modelName, modelName, ownerByModel)
+}
+
+// buildOpenAIModelWithBaseModel 用 base model 查询静态元数据和 endpoint 能力，
+// 但对外暴露的 id 始终使用调用方传入的 public model。
+func buildOpenAIModelWithBaseModel(modelName, baseModelName string, ownerByModel map[string]string) dto.OpenAIModels {
+	if strings.TrimSpace(baseModelName) == "" {
+		baseModelName = modelName
+	}
 	var oaiModel dto.OpenAIModels
-	if staticModel, ok := openAIModelsMap[modelName]; ok {
+	if staticModel, ok := openAIModelsMap[baseModelName]; ok {
 		oaiModel = staticModel
 	} else {
 		oaiModel = dto.OpenAIModels{
@@ -166,10 +175,12 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 			OwnedBy: "custom",
 		}
 	}
+	// 兼容：provider public name 可能只是别名，响应 id 必须使用分站名称。
+	oaiModel.Id = modelName
 	if owner, ok := ownerByModel[modelName]; ok && owner != "" {
 		oaiModel.OwnedBy = owner
 	}
-	oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+	oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(baseModelName)
 	return oaiModel
 }
 
@@ -252,6 +263,32 @@ func ListModels(c *gin.Context, modelType int) {
 		return
 	}
 	ownerGroups := groups.ownerGroups
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	var providerBaseByPublic map[string]string
+	var providerVisibleModels []string
+	var providerVisibleSet map[string]struct{}
+	if providerId > 0 {
+		// 分站 /v1/models 必须与模型广场、操练场共用同一批可见 public model。
+		visiblePricing, baseByPublic, viewErr := loadProviderPricingView(
+			providerId,
+			filterHiddenMarketplacePricing(model.GetPricing()),
+		)
+		if viewErr != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "get provider pricing failed",
+			})
+			return
+		}
+		usableGroup, _, _ := getPricingVisibilityContext(c)
+		visiblePricing = filterPricingByUsableGroups(visiblePricing, usableGroup)
+		providerVisibleModels = visiblePricingModelNames(visiblePricing)
+		providerBaseByPublic = baseByPublic
+		providerVisibleSet = make(map[string]struct{}, len(providerVisibleModels))
+		for _, modelName := range providerVisibleModels {
+			providerVisibleSet[modelName] = struct{}{}
+		}
+	}
 	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
 	if modelLimitEnable {
 		s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
@@ -262,45 +299,87 @@ func ListModels(c *gin.Context, modelType int) {
 			tokenModelLimit = map[string]bool{}
 		}
 		for allowModel, _ := range tokenModelLimit {
-			if !acceptUnsetRatioModel {
-				if !helper.HasModelBillingConfig(allowModel) {
+			modelName := strings.TrimSpace(allowModel)
+			if modelName == "" {
+				continue
+			}
+			baseModelName := modelName
+			if providerId > 0 {
+				// 分站 token 白名单按 public name 匹配；未同步模型直接忽略。
+				if _, visible := providerVisibleSet[modelName]; !visible {
 					continue
 				}
-			}
-			userModelNames = append(userModelNames, allowModel)
-		}
-	} else {
-		var models []string
-		if groups.tokenGroup == "auto" {
-			for _, autoGroup := range ownerGroups {
-				groupModels := model.GetGroupEnabledModels(autoGroup)
-				for _, g := range groupModels {
-					if !common.StringsContains(models, g) {
-						models = append(models, g)
-					}
+				resolvedBase, ok := providerBaseByPublic[modelName]
+				if !ok {
+					continue
 				}
+				baseModelName = resolvedBase
 			}
-		} else {
-			models = model.GetGroupEnabledModels(ownerGroups[0])
-		}
-		for _, modelName := range models {
 			if !acceptUnsetRatioModel {
-				if !helper.HasModelBillingConfig(modelName) {
+				if !helper.HasModelBillingConfig(baseModelName) {
 					continue
 				}
 			}
 			userModelNames = append(userModelNames, modelName)
 		}
+	} else {
+		if providerId > 0 {
+			// 分站只使用 provider 定价视图，不能回退主站整组 abilities。
+			for _, modelName := range providerVisibleModels {
+				baseModelName := providerBaseByPublic[modelName]
+				if !acceptUnsetRatioModel && !helper.HasModelBillingConfig(baseModelName) {
+					continue
+				}
+				userModelNames = append(userModelNames, modelName)
+			}
+		} else {
+			var models []string
+			if groups.tokenGroup == "auto" {
+				for _, autoGroup := range ownerGroups {
+					groupModels := model.GetGroupEnabledModels(autoGroup)
+					for _, g := range groupModels {
+						if !common.StringsContains(models, g) {
+							models = append(models, g)
+						}
+					}
+				}
+			} else {
+				models = model.GetGroupEnabledModels(ownerGroups[0])
+			}
+			for _, modelName := range models {
+				if !acceptUnsetRatioModel && !helper.HasModelBillingConfig(modelName) {
+					continue
+				}
+				userModelNames = append(userModelNames, modelName)
+			}
+			userModelNames = filterMarketplaceHiddenModelNames(userModelNames)
+		}
 	}
-	userModelNames = filterMarketplaceHiddenModelNames(userModelNames)
 
 	ownerByModel := map[string]string{}
 	if len(ownerGroups) > 0 {
-		ownerByModel = getPreferredModelOwners(userModelNames, ownerGroups)
+		if providerId > 0 {
+			// owner 查询按 base model 进行，再把结果映射回 public model。
+			baseModels := providerBaseModelNames(userModelNames, providerBaseByPublic)
+			ownersByBase := getPreferredModelOwners(baseModels, ownerGroups)
+			for _, publicModel := range userModelNames {
+				baseModel := providerBaseByPublic[publicModel]
+				if owner := ownersByBase[baseModel]; owner != "" {
+					ownerByModel[publicModel] = owner
+				}
+			}
+		} else {
+			ownerByModel = getPreferredModelOwners(userModelNames, ownerGroups)
+		}
 	}
 	userOpenAiModels := make([]dto.OpenAIModels, 0, len(userModelNames))
 	for _, modelName := range userModelNames {
-		userOpenAiModels = append(userOpenAiModels, buildOpenAIModel(modelName, ownerByModel))
+		if providerId > 0 {
+			baseModelName := providerBaseByPublic[modelName]
+			userOpenAiModels = append(userOpenAiModels, buildOpenAIModelWithBaseModel(modelName, baseModelName, ownerByModel))
+		} else {
+			userOpenAiModels = append(userOpenAiModels, buildOpenAIModel(modelName, ownerByModel))
+		}
 	}
 
 	switch modelType {

@@ -19,29 +19,44 @@ import (
 
 // 辅助函数
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
+	// 公共流式入口保持原有语义，不延迟 Claude 消息结束事件。
+	return handleStreamFormat(c, info, data, forceFormat, thinkToContent, false)
+}
+
+func handleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool, deferClaudeFinish bool) error {
 	info.SendResponseCount++
 
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
 		return sendStreamData(c, info, data, forceFormat, thinkToContent)
 	case types.RelayFormatClaude:
-		return handleClaudeFormat(c, data, info)
+		return handleClaudeFormat(c, data, info, deferClaudeFinish) // 只有 Messages 转换使用延迟收尾标记。
 	case types.RelayFormatGemini:
 		return handleGeminiFormat(c, data, info)
 	}
 	return nil
 }
 
-func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo) error {
+func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo, deferFinish bool) error {
 	var streamResponse dto.ChatCompletionsStreamResponse
 	if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
 		return err
 	}
 
+	// DeepSeek usage 可晚于 finish_reason 到达，因此未确认最终帧前暂缓结束消息。
+	if deferFinish {
+		if !service.ValidUsage(streamResponse.Usage) {
+			streamResponse.Usage = nil // 不让空用量覆盖前一帧保存的有效计数。
+		} else {
+			// 归一化当前 usage 后保存，使后续流帧与最终结算复用同一计数。
+			applyUsagePostProcessing(info, streamResponse.Usage, common.StringToByteSlice(data))
+		}
+	}
 	if streamResponse.Usage != nil {
 		info.ClaudeConvertInfo.Usage = streamResponse.Usage
 	}
-	claudeResponses := service.StreamResponseOpenAI2Claude(&streamResponse, info)
+	// 内容增量照常输出，专用模式把最终用量和收尾事件留到流结束时处理。
+	claudeResponses := service.StreamResponseOpenAI2Claude(&streamResponse, info, deferFinish)
 	for _, resp := range claudeResponses {
 		helper.ClaudeData(c, *resp)
 	}
@@ -230,8 +245,13 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		}
 
 		info.ClaudeConvertInfo.Usage = usage
+		// 转换器优先取末帧自己的用量，避免末帧原始值覆盖渠道归一后的缓存计数。
+		if usage != nil {
+			streamResponse.Usage = usage
+		}
 
-		claudeResponses := service.StreamResponseOpenAI2Claude(&streamResponse, info)
+		// 最终事件已经由调用方选择了权威 usage，此处不再延迟收尾。
+		claudeResponses := service.StreamResponseOpenAI2Claude(&streamResponse, info, false)
 		for _, resp := range claudeResponses {
 			_ = helper.ClaudeData(c, *resp)
 		}

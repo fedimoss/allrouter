@@ -35,16 +35,18 @@ type OpenAITextResponseChoice struct {
 	Index        int `json:"index"`
 	Message      `json:"message"`
 	FinishReason string `json:"finish_reason"`
+	MatchedStop  any    `json:"matched_stop,omitempty"`
 }
 
 type OpenAITextResponse struct {
-	Id      string                     `json:"id"`
-	Model   string                     `json:"model"`
-	Object  string                     `json:"object"`
-	Created any                        `json:"created"`
-	Choices []OpenAITextResponseChoice `json:"choices"`
-	Error   any                        `json:"error,omitempty"`
-	Usage   `json:"usage"`
+	Id          string                     `json:"id"`
+	Model       string                     `json:"model"`
+	Object      string                     `json:"object"`
+	Created     any                        `json:"created"`
+	Choices     []OpenAITextResponseChoice `json:"choices"`
+	MatchedStop any                        `json:"matched_stop,omitempty"`
+	Error       any                        `json:"error,omitempty"`
+	Usage       `json:"usage"`
 }
 
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构
@@ -334,7 +336,8 @@ func (o *OpenAIResponsesResponse) GetSize() string {
 }
 
 type IncompleteDetails struct {
-	Reasoning string `json:"reasoning"`
+	Reason    string `json:"reason,omitempty"`
+	Reasoning string `json:"reasoning,omitempty"`
 }
 
 type ResponsesOutput struct {

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1099,23 +1100,160 @@ func GetUserModels(c *gin.Context) {
 		return
 	}
 	groups := service.GetUserUsableGroups(user.Group)
-	var models []string
+	// 收集用户可用分组；后续按分组筛选首选渠道，避免跨分组误判。
+	groupNames := make([]string, 0, len(groups))
 	for group := range groups {
-		for _, g := range model.GetGroupEnabledModels(group) {
-			if !common.StringsContains(models, g) {
-				models = append(models, g)
+		groupNames = append(groupNames, group)
+	}
+
+	providerId := common.GetContextKeyInt(c, constant.ContextKeyProviderId)
+	var (
+		models            []string
+		videoPanels       map[string]string
+		videoCapabilities map[string]service.SeedanceCapabilities
+	)
+	if providerId > 0 {
+		// 分站必须复用模型广场的可见定价链路，不能从主站全量 abilities 回退。
+		visiblePricing, baseByPublic, viewErr := loadProviderPricingView(
+			providerId,
+			filterHiddenMarketplacePricing(model.GetPricing()),
+		)
+		if viewErr != nil {
+			common.ApiError(c, viewErr)
+			return
+		}
+		usableGroup, _, _ := getPricingVisibilityContext(c)
+		visiblePricing = filterPricingByUsableGroups(visiblePricing, usableGroup)
+		models = visiblePricingModelNames(visiblePricing)
+		baseModels := providerBaseModelNames(models, baseByPublic)
+		owners := loadPreferredModelOwnerChannels(baseModels, groupNames)
+		// 视频能力按 base model 判断，但面板和能力的 key 必须使用分站 public model。
+		videoPanels, videoCapabilities = buildVideoCapabilitiesForPublicModels(models, baseByPublic, owners)
+	} else {
+		// 主站保持原有逻辑：按用户分组读取 abilities，visible_only 控制广场隐藏过滤。
+		for group := range groups {
+			for _, g := range model.GetGroupEnabledModels(group) {
+				if !common.StringsContains(models, g) {
+					models = append(models, g)
+				}
 			}
 		}
+		if c.Query("visible_only") == "true" {
+			models = filterMarketplaceHiddenModelNames(models)
+		}
+		owners := loadPreferredModelOwnerChannels(models, groupNames)
+		videoPanels, videoCapabilities = buildVideoCapabilities(models, owners)
 	}
-	if c.Query("visible_only") == "true" {
-		models = filterMarketplaceHiddenModelNames(models)
-	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    models,
+		"success":            true,
+		"message":            "",
+		"data":               models,
+		"video_panels":       videoPanels,
+		"video_capabilities": videoCapabilities,
 	})
 	return
+}
+
+// loadPreferredModelOwnerChannels 查询首选渠道；失败时降级为空映射，不能阻断模型列表。
+func loadPreferredModelOwnerChannels(modelNames []string, groups []string) map[string]model.PreferredModelOwnerChannel {
+	owners, err := model.GetPreferredModelOwnerChannels(modelNames, groups)
+	if err != nil {
+		common.SysLog("GetPreferredModelOwnerChannels error: " + err.Error())
+		return map[string]model.PreferredModelOwnerChannel{}
+	}
+	return owners
+}
+
+// visiblePricingModelNames 提取并排序分站可见模型名；分站展示的是 public model。
+func visiblePricingModelNames(pricing []model.Pricing) []string {
+	seen := make(map[string]struct{}, len(pricing))
+	models := make([]string, 0, len(pricing))
+	for _, item := range pricing {
+		name := strings.TrimSpace(item.ModelName)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		models = append(models, name)
+	}
+	sort.Strings(models)
+	return models
+}
+
+// providerBaseModelNames 把 public model 列表转换成去重后的主站 base model 列表。
+func providerBaseModelNames(publicModels []string, baseByPublic map[string]string) []string {
+	seen := make(map[string]struct{}, len(publicModels))
+	baseModels := make([]string, 0, len(publicModels))
+	for _, publicModel := range publicModels {
+		baseModel := strings.TrimSpace(baseByPublic[publicModel])
+		if baseModel == "" {
+			// 兼容：映射缺失时保留 public 名称，避免整个模型被误删。
+			baseModel = publicModel
+		}
+		if _, ok := seen[baseModel]; ok {
+			continue
+		}
+		seen[baseModel] = struct{}{}
+		baseModels = append(baseModels, baseModel)
+	}
+	return baseModels
+}
+
+func buildVideoCapabilities(modelNames []string, owners map[string]model.PreferredModelOwnerChannel) (map[string]string, map[string]service.SeedanceCapabilities) {
+	return buildVideoCapabilitiesWithBaseModel(modelNames, owners, func(modelName string) string {
+		return modelName
+	})
+}
+
+// buildVideoCapabilitiesForPublicModels 用 public model 作为返回 key，用 base model 判断视频能力。
+func buildVideoCapabilitiesForPublicModels(publicModels []string, baseByPublic map[string]string, owners map[string]model.PreferredModelOwnerChannel) (map[string]string, map[string]service.SeedanceCapabilities) {
+	return buildVideoCapabilitiesWithBaseModel(publicModels, owners, func(publicModel string) string {
+		if baseModel := strings.TrimSpace(baseByPublic[publicModel]); baseModel != "" {
+			return baseModel
+		}
+		return publicModel
+	})
+}
+
+func buildVideoCapabilitiesWithBaseModel(modelNames []string, owners map[string]model.PreferredModelOwnerChannel, baseModelFor func(string) string) (map[string]string, map[string]service.SeedanceCapabilities) {
+	panels := make(map[string]string)
+	capabilities := make(map[string]service.SeedanceCapabilities)
+	for _, modelName := range modelNames {
+		baseModelName := strings.TrimSpace(baseModelFor(modelName))
+		if baseModelName == "" {
+			baseModelName = modelName
+		}
+		// 没有首选渠道信息时 owner 为零值，后续会按模型名兜底判断。
+		owner := owners[baseModelName]
+		upstreamModel := baseModelName
+		// 公开模型名可能被渠道重定向；能力必须按真实上游名判断。
+		// 解析失败时保留公开名，避免因配置错误直接丢弃模型。
+		if owner.ModelMapping != "" {
+			resolved, _, resolveErr := model.ResolveMappedModelName(owner.ModelMapping, baseModelName)
+			if resolveErr != nil {
+				// 映射配置错误只记录日志，继续用公开名判断。
+				common.SysLog("resolve model mapping for " + modelName + " failed: " + resolveErr.Error())
+			} else {
+				// 解析成功才覆盖上游模型名。
+				upstreamModel = resolved
+			}
+		}
+		// 豆包视频渠道直接进入视频面板；其他渠道只识别 Seedance 上游名。
+		// 这里刻意不按公开模型名前缀判断，避免自定义别名误入面板。
+		if owner.ChannelType != constant.ChannelTypeDoubaoVideo && !service.IsSeedanceModelName(upstreamModel) {
+			continue
+		}
+		// 同一份能力矩阵同时供前端限制和后端校验使用，避免两套规则漂移。
+		panelCapabilities := service.SeedanceCapabilitiesForModel(upstreamModel)
+		// 面板类型和能力都按公开模型名作为 key，前端直接用模型名索引。
+		panels[modelName] = panelCapabilities.Panel
+		capabilities[modelName] = panelCapabilities
+	}
+	return panels, capabilities
 }
 
 func UpdateUser(c *gin.Context) {

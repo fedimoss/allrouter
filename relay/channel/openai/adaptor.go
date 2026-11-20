@@ -64,6 +64,24 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	// 仅将明确给 DeepSeek V4/V4.1 Messages 的开关覆盖到 Chat 请求，其他模型沿用通用转换结果。
+	if request.Thinking != nil && usesDeepSeekMessagesChat(info) {
+		// 按客户端 thinking.type 选择上游 Chat 的开关语义。
+		switch request.Thinking.Type { // 未匹配的类型仍沿用通用转换结果。
+		case "enabled", "adaptive":
+			// adaptive 和 enabled 都按官方兼容规则映射为上游 enabled。
+			aiRequest.THINKING = json.RawMessage(`{"type":"enabled"}`)
+			if aiRequest.ReasoningEffort == "" {
+				// 只有客户端没有显式给 effort 时才补默认 high。
+				aiRequest.ReasoningEffort = "high"
+			}
+		case "disabled":
+			// 显式关闭时只传关闭开关，不额外发送推理档位。
+			aiRequest.THINKING = json.RawMessage(`{"type":"disabled"}`)
+			// 关闭优先，清空客户端可能同时传入的 effort。
+			aiRequest.ReasoningEffort = ""
+		}
+	}
 	//if common.DebugEnabled {
 	//	println(fmt.Sprintf("convert claude to openai request result: %s", common.GetJsonString(aiRequest)))
 	//	// Save request body to file for debugging
@@ -79,6 +97,25 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 	return a.ConvertOpenAIRequest(c, info, aiRequest)
+}
+
+// usesDeepSeekMessagesChat 统一限定思考开关、计数归一与流式收尾的适用范围。
+func usesDeepSeekMessagesChat(info *relaycommon.RelayInfo) bool {
+	// 缺少路由信息或当前请求不是 Messages 时不启用这项专用映射。
+	if info == nil || info.ChannelMeta == nil || info.RelayFormat != types.RelayFormatClaude {
+		return false
+	}
+	// OpenAI 与 Responses→Chat 都复用 OpenAI 兼容适配器处理 Messages。
+	switch info.ApiType {
+	case constant.APITypeOpenAI, constant.APITypeResponsesChat:
+	default:
+		// 原生协议或其他适配器不接收这套 Chat 思考参数。
+		return false
+	}
+	// 使用模型映射后的上游名称判断，避免只匹配公开别名或误改其他模型。
+	model := strings.ToLower(info.UpstreamModelName)
+	// V4 与 V4.1 使用各自明确前缀，其他 DeepSeek 系列不受影响。
+	return strings.HasPrefix(model, "deepseek-v4-") || strings.HasPrefix(model, "deepseek-v4.1-")
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -372,12 +409,10 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if !strings.HasPrefix(info.UpstreamModelName, "gpt") {
 
 		if request.Temperature != nil && (*request.Temperature < 0.0 || *request.Temperature > 1.0) {
-
-			return nil, fmt.Errorf("temperature must be between 0.0 and 1.0")
+			return nil, types.NewInvalidRequestParamError(fmt.Errorf("temperature must be between 0.0 and 1.0"), "temperature")
 		}
 		if request.TopP != nil && (*request.TopP < 0.0 || *request.TopP > 1.0) {
-
-			return nil, fmt.Errorf("top_p must be between 0.0 and 1.0")
+			return nil, types.NewInvalidRequestParamError(fmt.Errorf("top_p must be between 0.0 and 1.0"), "top_p")
 		} else if strings.HasPrefix(strings.ToLower(info.UpstreamModelName), "kimi") && request.TopP != nil && (*request.TopP != 0.95) {
 			return nil, fmt.Errorf("top_p must be0.95 for kimi model")
 		}

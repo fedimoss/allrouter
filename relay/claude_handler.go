@@ -163,7 +163,11 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	var requestBody io.Reader
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	// Flash Chat channels require a protocol conversion for Messages thinking controls.
+	flashThinkingConversion := info.ChannelType != constant.ChannelTypeDeepSeek &&
+		relaycommon.UsesDeepSeekFlashChatThinking(info.ChannelType, request.Model) &&
+		(request.Thinking != nil || len(request.OutputConfig) > 0)
+	if !flashThinkingConversion && (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())

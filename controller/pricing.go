@@ -103,9 +103,21 @@ func applyProviderPricingRule(item model.Pricing, rule model.ProviderModelPricin
 	return item
 }
 
+// applyProviderPricingView 保持模型广场原有行为：provider 视图失败时只记录日志并返回空列表。
 func applyProviderPricingView(providerId int, pricing []model.Pricing) []model.Pricing {
+	result, _, err := loadProviderPricingView(providerId, pricing)
+	if err != nil {
+		common.SysLog("failed to get provider pricing: " + err.Error())
+		return []model.Pricing{}
+	}
+	return result
+}
+
+// loadProviderPricingView 构造分站可见定价，并返回 public model 到主站 base model 的映射。
+// 注意：模型广场和分站操练场必须共用这一套过滤，避免两处展示范围再次漂移。
+func loadProviderPricingView(providerId int, pricing []model.Pricing) ([]model.Pricing, map[string]string, error) {
 	if providerId == 0 || len(pricing) == 0 {
-		return pricing
+		return pricing, nil, nil
 	}
 	base := make(map[string]model.Pricing, len(pricing))
 	for _, item := range pricing {
@@ -113,8 +125,7 @@ func applyProviderPricingView(providerId int, pricing []model.Pricing) []model.P
 	}
 	var rules []model.ProviderModelPricing
 	if err := model.DB.Where("provider_id = ? AND enabled = ?", providerId, true).Find(&rules).Error; err != nil {
-		common.SysLog("failed to get provider pricing: " + err.Error())
-		return []model.Pricing{}
+		return nil, nil, err
 	}
 	importPriceRatio := 1.0
 	cacheImportRatio := 0.0
@@ -124,15 +135,18 @@ func applyProviderPricingView(providerId int, pricing []model.Pricing) []model.P
 		cacheImportRatio = cfg.ImportCachePriceRatio
 	}
 	result := make([]model.Pricing, 0, len(rules))
+	baseByPublic := make(map[string]string, len(rules))
 	for _, rule := range rules {
 		item, ok := base[rule.BaseModelName]
 		if !ok {
+			// 兼容：主站模型被隐藏或未注册时，分站定价行必须一起失效。
 			continue
 		}
 		effectiveImportRatio := model.EffectiveProviderImportPriceRatio(rule.ImportPriceRatio, importPriceRatio)
 		result = append(result, applyProviderPricingRule(item, rule, effectiveImportRatio, cacheImportRatio))
+		baseByPublic[rule.PublicModelName] = rule.BaseModelName
 	}
-	return result
+	return result, baseByPublic, nil
 }
 
 func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string]string) []model.Pricing {

@@ -1,4 +1,4 @@
-FROM oven/bun:1.3 AS builder
+FROM oven/bun:1.4.4 AS builder
 
 WORKDIR /build
 COPY web/package.json .
@@ -8,7 +8,7 @@ COPY ./web .
 COPY ./VERSION .
 RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat VERSION) bun run build
 
-FROM golang:1.26.4-alpine3.24 AS builder2
+FROM golang:1.27.4-alpine3.24 AS builder2
 ENV GO111MODULE=on CGO_ENABLED=0
 
 ARG TARGETOS
@@ -31,7 +31,7 @@ FROM debian:bookworm-slim
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
     && sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tzdata libasan8 wget \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata libasan8 wget ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 

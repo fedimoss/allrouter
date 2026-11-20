@@ -104,6 +104,8 @@ func (m Properties) Value() (driver.Value, error) {
 	return common.Marshal(m)
 }
 
+// 任务私有数据统一存 JSON 列；Seedance 素材 ID 和落盘重试次数也在这里。
+// 这些字段不会直接返回给用户，避免泄露上游临时文件信息。
 type TaskPrivateData struct {
 	Key                        string          `json:"key,omitempty"`
 	UpstreamTaskID             string          `json:"upstream_task_id,omitempty"` // 上游真实 task ID
@@ -113,13 +115,15 @@ type TaskPrivateData struct {
 	MiniMaxH3FrameIDs          []string        `json:"minimax_h3_frame_ids,omitempty"`
 	MiniMaxH3ReferenceVideoIDs []string        `json:"minimax_h3_reference_video_ids,omitempty"`
 	// AutoDL result uploads retry across polling cycles. Stored in the existing JSON column.
-	AutoDLResultUploadFailures int    `json:"autodl_result_upload_failures,omitempty"`
-	MiniMaxH3UpscaleTaskID     string `json:"minimax_h3_upscale_task_id,omitempty"`
-	MiniMaxH3UpscaleStatus     string `json:"minimax_h3_upscale_status,omitempty"`
-	MiniMaxH3UpscaleURL        string `json:"minimax_h3_upscale_url,omitempty"`
-	MiniMaxH3PersistFailures   int    `json:"minimax_h3_persist_failures,omitempty"`
-	MiniMaxH3OutputShortEdge   int    `json:"minimax_h3_output_short_edge,omitempty"`
-	MiniMaxH3TaskType          string `json:"minimax_h3_task_type,omitempty"`
+	AutoDLResultUploadFailures    int      `json:"autodl_result_upload_failures,omitempty"`
+	MiniMaxH3UpscaleTaskID        string   `json:"minimax_h3_upscale_task_id,omitempty"`
+	MiniMaxH3UpscaleStatus        string   `json:"minimax_h3_upscale_status,omitempty"`
+	MiniMaxH3UpscaleURL           string   `json:"minimax_h3_upscale_url,omitempty"`
+	MiniMaxH3PersistFailures      int      `json:"minimax_h3_persist_failures,omitempty"`
+	MiniMaxH3OutputShortEdge      int      `json:"minimax_h3_output_short_edge,omitempty"`
+	MiniMaxH3TaskType             string   `json:"minimax_h3_task_type,omitempty"`
+	SeedanceMediaIDs              []string `json:"seedance_media_ids,omitempty"`
+	SeedanceResultPersistFailures int      `json:"seedance_result_persist_failures,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource           string              `json:"billing_source,omitempty"` // "wallet" 或 "subscription"
 	TokenUsageSettled       bool                `json:"token_usage_settled,omitempty"`
@@ -675,20 +679,23 @@ func (Task *Task) Insert() error {
 	return err
 }
 
+// 快照用于判断任务是否真的发生变化；Seedance 重试次数也必须纳入。
+// 若漏掉该字段，重试次数变化不会触发落库，失败重试会失效。
 type taskSnapshot struct {
-	Action                     string
-	Status                     TaskStatus
-	Progress                   string
-	StartTime                  int64
-	FinishTime                 int64
-	FailReason                 string
-	ResultURL                  string
-	AutoDLResultUploadFailures int
-	MiniMaxH3UpscaleTaskID     string
-	MiniMaxH3UpscaleStatus     string
-	MiniMaxH3UpscaleURL        string
-	MiniMaxH3PersistFailures   int
-	Data                       json.RawMessage
+	Action                        string
+	Status                        TaskStatus
+	Progress                      string
+	StartTime                     int64
+	FinishTime                    int64
+	FailReason                    string
+	ResultURL                     string
+	AutoDLResultUploadFailures    int
+	MiniMaxH3UpscaleTaskID        string
+	MiniMaxH3UpscaleStatus        string
+	MiniMaxH3UpscaleURL           string
+	MiniMaxH3PersistFailures      int
+	SeedanceResultPersistFailures int
+	Data                          json.RawMessage
 }
 
 func (s taskSnapshot) Equal(other taskSnapshot) bool {
@@ -704,24 +711,28 @@ func (s taskSnapshot) Equal(other taskSnapshot) bool {
 		s.MiniMaxH3UpscaleStatus == other.MiniMaxH3UpscaleStatus &&
 		s.MiniMaxH3UpscaleURL == other.MiniMaxH3UpscaleURL &&
 		s.MiniMaxH3PersistFailures == other.MiniMaxH3PersistFailures &&
+		// 注意：漏掉这个字段会导致重试次数无法持久化。
+		s.SeedanceResultPersistFailures == other.SeedanceResultPersistFailures &&
 		bytes.Equal(s.Data, other.Data)
 }
 
+// 读取私有字段生成快照，但 PrivateData 本身不会返回给用户。
 func (t *Task) Snapshot() taskSnapshot {
 	return taskSnapshot{
-		Action:                     t.Action,
-		Status:                     t.Status,
-		Progress:                   t.Progress,
-		StartTime:                  t.StartTime,
-		FinishTime:                 t.FinishTime,
-		FailReason:                 t.FailReason,
-		ResultURL:                  t.PrivateData.ResultURL,
-		AutoDLResultUploadFailures: t.PrivateData.AutoDLResultUploadFailures,
-		MiniMaxH3UpscaleTaskID:     t.PrivateData.MiniMaxH3UpscaleTaskID,
-		MiniMaxH3UpscaleStatus:     t.PrivateData.MiniMaxH3UpscaleStatus,
-		MiniMaxH3UpscaleURL:        t.PrivateData.MiniMaxH3UpscaleURL,
-		MiniMaxH3PersistFailures:   t.PrivateData.MiniMaxH3PersistFailures,
-		Data:                       t.Data,
+		Action:                        t.Action,
+		Status:                        t.Status,
+		Progress:                      t.Progress,
+		StartTime:                     t.StartTime,
+		FinishTime:                    t.FinishTime,
+		FailReason:                    t.FailReason,
+		ResultURL:                     t.PrivateData.ResultURL,
+		AutoDLResultUploadFailures:    t.PrivateData.AutoDLResultUploadFailures,
+		MiniMaxH3UpscaleTaskID:        t.PrivateData.MiniMaxH3UpscaleTaskID,
+		MiniMaxH3UpscaleStatus:        t.PrivateData.MiniMaxH3UpscaleStatus,
+		MiniMaxH3UpscaleURL:           t.PrivateData.MiniMaxH3UpscaleURL,
+		MiniMaxH3PersistFailures:      t.PrivateData.MiniMaxH3PersistFailures,
+		SeedanceResultPersistFailures: t.PrivateData.SeedanceResultPersistFailures,
+		Data:                          t.Data,
 	}
 }
 

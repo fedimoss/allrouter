@@ -811,6 +811,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		// to cache_creation_tokens.
 		other["cache_write_tokens"] = cacheWriteTokens
 	}
+	// 思考计数是总输出的明细，只写入用量日志，不作为额外扣费项。
+	if relayInfo.RelayFormat == types.RelayFormatClaude && usage != nil && usage.CompletionTokenDetails.ReasoningTokens > 0 {
+		// 只记录正数，缺失或为零时不在明细中伪造该字段。
+		other["reasoning_tokens"] = usage.CompletionTokenDetails.ReasoningTokens
+	}
 	if relayInfo.GetFinalRequestRelayFormat() != types.RelayFormatClaude && usage != nil && usage.UsageSource != "" && usage.InputTokens > 0 {
 		// input_tokens_total: explicit normalized total input used by the usage log UI.
 		// Only write this field when upstream/current conversion has already provided a
