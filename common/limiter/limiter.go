@@ -4,7 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"sync"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/go-redis/redis/v8"
@@ -14,29 +14,26 @@ import (
 var rateLimitScript string
 
 type RedisLimiter struct {
-	client         *redis.Client
-	limitScriptSHA string
+	client *redis.Client
 }
 
-var (
-	instance *RedisLimiter
-	once     sync.Once
-)
+var cachedRateLimitScript = redis.NewScript(rateLimitScript)
 
-func New(ctx context.Context, r *redis.Client) *RedisLimiter {
-	once.Do(func() {
-		// 预加载脚本
-		limitSHA, err := r.ScriptLoad(ctx, rateLimitScript).Result()
-		if err != nil {
-			common.SysLog(fmt.Sprintf("Failed to load rate limit script: %v", err))
-		}
-		instance = &RedisLimiter{
-			client:         r,
-			limitScriptSHA: limitSHA,
-		}
-	})
+func New(_ context.Context, r *redis.Client) *RedisLimiter {
+	return &RedisLimiter{client: r}
+}
 
-	return instance
+// EvalScript preserves SCRIPT LOAD + EVALSHA ACL compatibility. Script.Run
+// falls back to EVAL, which existing deployments may deliberately disallow.
+func EvalScript(ctx context.Context, client *redis.Client, script *redis.Script, keys []string, args ...interface{}) *redis.Cmd {
+	result := script.EvalSha(ctx, client, keys, args...)
+	if err := result.Err(); err != nil && strings.HasPrefix(err.Error(), "NOSCRIPT ") {
+		if err := script.Load(ctx, client).Err(); err != nil {
+			return redis.NewCmdResult(nil, err)
+		}
+		return script.EvalSha(ctx, client, keys, args...)
+	}
+	return result
 }
 
 func (rl *RedisLimiter) Allow(ctx context.Context, key string, opts ...Option) (bool, error) {
@@ -53,16 +50,26 @@ func (rl *RedisLimiter) Allow(ctx context.Context, key string, opts ...Option) (
 	}
 
 	// 执行限流
-	result, err := rl.client.EvalSha(
+	keys := []string{key}
+	member := ""
+	if config.Window > 0 {
+		keys = append(keys, key+":window")
+		member = common.GetUUID()
+	}
+	result, err := EvalScript(
 		ctx,
-		rl.limitScriptSHA,
-		[]string{key},
+		rl.client,
+		cachedRateLimitScript,
+		keys,
 		config.Requested,
 		config.Rate,
 		config.Capacity,
+		config.Window,
+		member,
 	).Int()
 
 	if err != nil {
+		common.SysLog(fmt.Sprintf("Failed to run rate limit script: %v", err))
 		return false, fmt.Errorf("rate limit failed: %w", err)
 	}
 	return result == 1, nil
@@ -73,6 +80,7 @@ type Config struct {
 	Capacity  int64
 	Rate      int64
 	Requested int64
+	Window    int64
 }
 
 type Option func(*Config)
@@ -87,4 +95,10 @@ func WithRate(r int64) Option {
 
 func WithRequested(n int64) Option {
 	return func(cfg *Config) { cfg.Requested = n }
+}
+
+// WithWindow adds a strict rolling-window cap (in seconds) in addition to the
+// legacy token bucket, preserving its existing state during an upgrade.
+func WithWindow(seconds int64) Option {
+	return func(cfg *Config) { cfg.Window = seconds }
 }

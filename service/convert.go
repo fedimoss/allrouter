@@ -57,6 +57,11 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			}
 			openAIRequest.Reasoning = reasoningJSON
 		}
+	} else if relaycommon.UsesDeepSeekFlashChatThinking(info.ChannelType, claudeRequest.Model) {
+		if err := convertDeepSeekFlashMessagesThinking(&claudeRequest, &openAIRequest); err != nil {
+			return nil, err
+		}
+		info.ReasoningEffort = openAIRequest.ReasoningEffort
 	} else {
 		thinkingSuffix := "-thinking"
 		if strings.HasSuffix(info.OriginModelName, thinkingSuffix) &&

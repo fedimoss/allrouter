@@ -130,10 +130,14 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return nil
 	}
 
+	deepSeekFlashChat := info.RelayMode == relayconstant.RelayModeChatCompletions &&
+		info.RelayFormat == types.RelayFormatOpenAI &&
+		relaycommon.UsesDeepSeekFlashChatThinking(info.ChannelType, request.Model)
 	var requestBody io.Reader
+	var jsonData []byte
 
 	if passThroughBodyEnabled {
-		// 透传模式：直接读取客户端原始请求体，不做任何格式转换
+		// 透传保留原始字段；Flash 的思考参数仍需校验和补默认值。
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -144,7 +148,14 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				logger.LogDebug(c, "requestBody: %s", debugBytes)
 			}
 		}
-		requestBody = common.ReaderOnly(storage)
+		if deepSeekFlashChat && len(request.THINKING) > 0 {
+			jsonData, err = storage.Bytes()
+			if err != nil {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+		} else {
+			requestBody = common.ReaderOnly(storage)
+		}
 	} else {
 		// 转换模式：通过适配器将请求转换为上游供应商所需的格式
 		convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
@@ -200,7 +211,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		}
 
 		// 将转换后的请求序列化为 JSON
-		jsonData, err := common.Marshal(convertedRequest)
+		jsonData, err = common.Marshal(convertedRequest)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeJsonMarshalFailed, types.ErrOptionWithSkipRetry())
 		}
@@ -229,10 +240,18 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		// if info.ForceRequestBodyConversion {
 		// 	helper.DumpResponsesCompatSection(c, helper.ResponsesCompatDumpRequestAfter, jsonData)
 		// }
-
-		logger.LogDebug(c, "text request body: %s", jsonData)
-
-		requestBody = bytes.NewBuffer(jsonData)
+	}
+	if jsonData != nil {
+		if deepSeekFlashChat {
+			jsonData, err = relaycommon.NormalizeDeepSeekFlashChatThinking(jsonData)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+			}
+		}
+		if !passThroughBodyEnabled {
+			logger.LogDebug(c, "text request body: %s", jsonData)
+		}
+		requestBody = bytes.NewReader(jsonData)
 	}
 
 	var httpResp *http.Response
