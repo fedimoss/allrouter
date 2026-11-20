@@ -346,6 +346,18 @@ func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int, ops 
 	return e
 }
 
+func NewInvalidRequestParamError(err error, param string) *NewAPIError {
+	if err == nil {
+		err = errors.New("invalid request parameter")
+	}
+	return WithOpenAIError(OpenAIError{
+		Message: err.Error(),
+		Type:    "invalid_request_error",
+		Param:   param,
+		Code:    ErrorCodeInvalidRequest,
+	}, http.StatusBadRequest, ErrOptionWithSkipRetry())
+}
+
 func WithOpenAIError(openAIError OpenAIError, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
 	code, ok := openAIError.Code.(string)
 	if !ok {

@@ -201,6 +201,14 @@ func sendResponsesEvent(c *gin.Context, event dto.ResponsesStreamResponse) error
 // 构建一个完整的 Responses API 非流式响应对象。
 // 按索引顺序排列 reasoning / message / function_call 输出条目。
 func chatStreamToResponsesResponse(responseID string, createdAt int64, model string, text string, usage *dto.Usage, sentMessage bool, messageOutputIndex int, toolCalls map[int]*responsesToolCallState, reasoningText string, reasoningOutputIndex int) *dto.OpenAIResponsesResponse {
+	return chatStreamToResponsesResponseWithMetadata(responseID, createdAt, model, text, usage, sentMessage, messageOutputIndex, toolCalls, reasoningText, reasoningOutputIndex, "", 0)
+}
+
+func chatStreamToResponsesResponseWithMetadata(responseID string, createdAt int64, model string, text string, usage *dto.Usage, sentMessage bool, messageOutputIndex int, toolCalls map[int]*responsesToolCallState, reasoningText string, reasoningOutputIndex int, finishReason string, maxOutputTokens int) *dto.OpenAIResponsesResponse {
+	outputStatus := "completed"
+	if finishReason == "length" {
+		outputStatus = "incomplete"
+	}
 	// 按索引构建输出条目映射
 	outputByIndex := map[int]dto.ResponsesOutput{}
 	// 若有推理内容，构建 reasoning 输出条目（位于 message 之前）
@@ -209,7 +217,7 @@ func chatStreamToResponsesResponse(responseID string, createdAt int64, model str
 		outputByIndex[reasoningOutputIndex] = dto.ResponsesOutput{
 			Type:   "reasoning",
 			ID:     "rs_" + responseID,
-			Status: "completed",
+			Status: outputStatus,
 			Summary: []dto.ResponsesReasoningSummaryPart{
 				{Type: "summary_text", Text: reasoningText},
 			},
@@ -226,7 +234,7 @@ func chatStreamToResponsesResponse(responseID string, createdAt int64, model str
 		outputByIndex[messageOutputIndex] = dto.ResponsesOutput{
 			Type:   "message",
 			ID:     "msg_" + responseID,
-			Status: "completed",
+			Status: outputStatus,
 			Role:   "assistant",
 			Content: []dto.ResponsesOutputContent{
 				{
@@ -244,7 +252,7 @@ func chatStreamToResponsesResponse(responseID string, createdAt int64, model str
 	// custom_tool_call / tool_search_call / namespace function_call（对齐 cc-switch）。
 	for _, state := range toolCalls {
 		outputByIndex[state.OutputIndex] = responsesToolItemFromChat(
-			state.ID, "completed", state.CallID, state.Name, state.Arguments, reasoningText, state.Spec,
+			state.ID, outputStatus, state.CallID, state.Name, state.Arguments, reasoningText, state.Spec,
 		)
 		if state.OutputIndex > maxOutputIndex {
 			maxOutputIndex = state.OutputIndex
@@ -259,14 +267,22 @@ func chatStreamToResponsesResponse(responseID string, createdAt int64, model str
 		}
 		output = append(output, item)
 	}
+	responseStatus := "completed"
+	var incompleteDetails *dto.IncompleteDetails
+	if finishReason == "length" {
+		responseStatus = "incomplete"
+		incompleteDetails = &dto.IncompleteDetails{Reason: "max_output_tokens"}
+	}
 	return &dto.OpenAIResponsesResponse{
-		ID:        responseID,                    // 响应 ID
-		Object:    "response",                    // 对象类型
-		CreatedAt: int(createdAt),                // 创建时间戳
-		Status:    responsesStatus("completed"),  // 响应状态
-		Model:     model,                         // 使用的模型名称
-		Output:    output,                        // 按序排列的输出条目
-		Usage:     responsesUsageFromChat(usage), // token 用量
+		ID:                responseID, // 响应 ID
+		Object:            "response", // 对象类型
+		CreatedAt:         int(createdAt),
+		Status:            responsesStatus(responseStatus),
+		IncompleteDetails: incompleteDetails,
+		MaxOutputTokens:   maxOutputTokens,
+		Model:             model,                         // 使用的模型名称
+		Output:            output,                        // 按序排列的输出条目
+		Usage:             responsesUsageFromChat(usage), // token 用量
 	}
 }
 
@@ -894,7 +910,9 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, chat
 	// 提取文本内容和推理内容
 	text := ""
 	reasoningText := ""
+	finishReason := ""
 	if len(chatResp.Choices) > 0 {
+		finishReason = chatResp.Choices[0].FinishReason
 		text = chatResp.Choices[0].Message.StringContent()
 		reasoningText = chatResp.Choices[0].Message.GetReasoningContent()
 		// 如果配置了将推理内容合并到正文输出
@@ -946,7 +964,23 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, chat
 			placed++
 		}
 	}
-	responsesResp := chatStreamToResponsesResponse(responseID, createdAt, model, text, usage, text != "", msgIdx, toolCalls, reasoningItemText, reasoningIdx)
+	maxOutputTokens := 0
+	if info != nil {
+		switch request := info.Request.(type) {
+		case *dto.GeneralOpenAIRequest:
+			maxOutputTokens = common.SafeIntFromUint(request.GetMaxTokens())
+		case *dto.OpenAIResponsesRequest:
+			if request.MaxOutputTokens != nil {
+				maxOutputTokens = common.SafeIntFromUint(*request.MaxOutputTokens)
+			}
+		}
+	}
+	responsesResp := chatStreamToResponsesResponseWithMetadata(responseID, createdAt, model, text, usage, text != "", msgIdx, toolCalls, reasoningItemText, reasoningIdx, finishReason, maxOutputTokens)
+	if finishReason == "length" {
+		responsesResp.Status = responsesStatus("incomplete")
+		responsesResp.IncompleteDetails = &dto.IncompleteDetails{Reason: "max_output_tokens"}
+	}
+	responsesResp.MaxOutputTokens = maxOutputTokens
 	if info != nil && info.RelayFormat == types.RelayFormatOpenAIResponses {
 		service.RememberResponsesChatToolHistory(responsesResp.ID, responsesResp.Output)
 	}
