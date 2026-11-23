@@ -128,7 +128,9 @@ const EditTokenModal = (props) => {
   };
 
   const loadModels = async () => {
-    let res = await API.get(`/api/user/models`);
+    // 与操练场一致：模型广场隐藏的模型不出现在令牌可选模型中。
+    // 编辑时已选中的隐藏模型由 Select 以原值 tag 保留，不会被静默丢弃。
+    let res = await API.get(`/api/user/models?visible_only=true`);
     const { success, message, data } = res.data;
     if (success) {
       const categories = getModelCategories(t);
