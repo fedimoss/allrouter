@@ -457,7 +457,7 @@ const Invitation = () => {
             block
             className='!mt-4 !rounded-lg relative z-10 dark:text-cyan-300 dark:border-cyan-300'
             style={{
-              width: '60%',
+              width: 'auto',
               border: '1px solid var(--theme-primary-20)',
               background: 'var(--theme-primary-10)',
               color: 'var(--theme-primary-btn-color)',
