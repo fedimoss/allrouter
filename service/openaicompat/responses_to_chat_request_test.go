@@ -8,8 +8,41 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
+
+func TestResponsesChatCompatFinalChatRequestPreservesTopLevelTools(t *testing.T) {
+	raw := []byte(`{
+		"model":"kimi-k3.1-pro",
+		"input":[
+			{"type":"message","role":"system","content":[{"type":"input_text","text":"You are Kimi."}]},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"Calculate fuel consumption."}]}
+		],
+		"tools":[
+			{"type":"function","name":"Calculator","description":"calculate an expression","parameters":{"type":"object","properties":{"expr":{"type":"string"}},"required":["expr"]}}
+		],
+		"tool_choice":"required"
+	}`)
+
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	chatReq, err := ResponsesRequestToChatCompletionsCompatRequest(&req)
+	require.NoError(t, err)
+	encoded, err := common.Marshal(chatReq)
+	require.NoError(t, err)
+
+	// Responses→Chat 的源请求没有消息级 tools；这里确认最终 Chat 请求仍走共享序列化器，
+	// 并保持请求级 tools/tool_choice 契约不被破坏。
+	assert.Equal(t, "required", gjson.GetBytes(encoded, "tool_choice").String())
+	assert.Equal(t, "Calculator", gjson.GetBytes(encoded, "tools.0.function.name").String())
+	assert.Len(t, gjson.GetBytes(encoded, "messages").Array(), 2)
+	assert.Equal(t, "system", gjson.GetBytes(encoded, "messages.0.role").String())
+	assert.Equal(t, "You are Kimi.", gjson.GetBytes(encoded, "messages.0.content").String())
+	assert.True(t, gjson.GetBytes(encoded, "messages.0.content").Exists())
+}
 
 func TestResponsesChatCompatPreservesStandardToolResultContinuation(t *testing.T) {
 	longInstructions := strings.Repeat("system guidance ", 2000)

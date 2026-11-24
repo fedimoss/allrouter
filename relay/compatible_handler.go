@@ -164,50 +164,9 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 
-		// 处理通道级系统提示词的注入/覆盖
-		if info.ChannelSetting.SystemPrompt != "" {
-			// 如果有系统提示，则将其添加到请求中
-			request, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
-			if ok {
-				containSystemPrompt := false
-				// 检查消息列表中是否已存在系统提示
-				for _, message := range request.Messages {
-					if message.Role == request.GetSystemRoleName() {
-						containSystemPrompt = true
-						break
-					}
-				}
-				if !containSystemPrompt {
-					// 如果没有系统提示，则在消息列表头部插入系统提示
-					systemMessage := dto.Message{
-						Role:    request.GetSystemRoleName(),
-						Content: info.ChannelSetting.SystemPrompt,
-					}
-					request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
-				} else if info.ChannelSetting.SystemPromptOverride {
-					// 如果已有系统提示且允许覆盖，则将通道系统提示拼接到原有内容前面
-					common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
-					for i, message := range request.Messages {
-						if message.Role == request.GetSystemRoleName() {
-							if message.IsStringContent() {
-								// 字符串内容：直接拼接
-								request.Messages[i].SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
-							} else {
-								// 多媒体内容：在内容数组头部插入文本部件
-								contents := message.ParseContent()
-								contents = append([]dto.MediaContent{
-									{
-										Type: dto.ContentTypeText,
-										Text: info.ChannelSetting.SystemPrompt,
-									},
-								}, contents...)
-								request.Messages[i].Content = contents
-							}
-							break
-						}
-					}
-				}
-			}
+		// 与 Chat→Responses 兼容路径共用同一套系统提示注入规则，避免两处逻辑分叉。
+		if req, ok := convertedRequest.(*dto.GeneralOpenAIRequest); ok {
+			applySystemPromptIfNeeded(c, info, req)
 		}
 
 		// 将转换后的请求序列化为 JSON

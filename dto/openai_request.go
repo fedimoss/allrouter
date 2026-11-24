@@ -108,6 +108,52 @@ type GeneralOpenAIRequest struct {
 	ReasoningSplit json.RawMessage `json:"reasoning_split,omitempty"`
 }
 
+// MarshalJSON 保证 Kimi 动态工具消息在 DTO 往返后仍能原样发往 Chat 上游。
+// 工具加载消息不能携带 content 键，而其它消息仍需保留既有的 content 表示。
+func (r GeneralOpenAIRequest) MarshalJSON() ([]byte, error) {
+	type Alias GeneralOpenAIRequest
+
+	// 普通请求不进入逐条消息重编码，避免为所有 Chat 请求增加额外开销。
+	hasToolLoadingMessage := false
+	for _, message := range r.Messages {
+		if len(message.Tools) > 0 && message.Content == nil {
+			hasToolLoadingMessage = true
+			break
+		}
+	}
+	if !hasToolLoadingMessage {
+		return common.Marshal((*Alias)(&r))
+	}
+
+	// 外层 Content 覆盖嵌入的 Message.Content，仅用于让工具加载消息省略 content 键。
+	// 其它消息仍按 Message 原样序列化，assistant tool call 的 "content": null 不会被改变。
+	type toolLoadingMessage struct {
+		Message
+		Content any `json:"content,omitempty"`
+	}
+	messages := make([]json.RawMessage, 0, len(r.Messages))
+	for _, message := range r.Messages {
+		var encoded []byte
+		var err error
+		if len(message.Tools) > 0 && message.Content == nil {
+			encoded, err = common.Marshal(toolLoadingMessage{Message: message})
+		} else {
+			encoded, err = common.Marshal(message)
+		}
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, encoded)
+	}
+	return common.Marshal(struct {
+		*Alias
+		Messages []json.RawMessage `json:"messages,omitempty"`
+	}{
+		Alias:    (*Alias)(&r),
+		Messages: messages,
+	})
+}
+
 func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var tokenCountMeta types.TokenCountMeta
 	var texts = make([]string, 0)
@@ -141,9 +187,17 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		tokenCountMeta.MaxTokens = common.SafeIntFromUint(maxTokens)
 	}
 
+	// 消息级工具同样会占用输入 token，必须先收集起来参与预算。
+	var dynamicTools []ToolCallRequest
 	for _, message := range r.Messages {
 		tokenCountMeta.MessagesCount++
 		texts = append(texts, message.Role)
+		if len(message.Tools) > 0 {
+			var messageTools []ToolCallRequest
+			if err := common.Unmarshal(message.Tools, &messageTools); err == nil {
+				dynamicTools = append(dynamicTools, messageTools...)
+			}
+		}
 		if message.Content != nil {
 			if message.Name != nil {
 				tokenCountMeta.NameCount++
@@ -175,22 +229,24 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		}
 	}
 
-	if r.Tools != nil {
-		openaiTools := r.Tools
-		for _, tool := range openaiTools {
-			tokenCountMeta.ToolsCount++
-			texts = append(texts, tool.Function.Name)
-			if tool.Function.Description != "" {
-				texts = append(texts, tool.Function.Description)
-			}
-			if tool.Function.Parameters != nil {
-				texts = append(texts, fmt.Sprintf("%v", tool.Function.Parameters))
-			}
-		}
-		//toolTokens := CountTokenInput(countStr, request.Model)
-		//tkm += 8
-		//tkm += toolTokens
+	tools := r.Tools
+	if len(dynamicTools) > 0 {
+		// 动态工具与顶层工具并存；计费口径按模型实际可见的全部工具计算。
+		tools = append(dynamicTools, r.Tools...)
 	}
+	for _, tool := range tools {
+		tokenCountMeta.ToolsCount++
+		texts = append(texts, tool.Function.Name)
+		if tool.Function.Description != "" {
+			texts = append(texts, tool.Function.Description)
+		}
+		if tool.Function.Parameters != nil {
+			texts = append(texts, fmt.Sprintf("%v", tool.Function.Parameters))
+		}
+	}
+	//toolTokens := CountTokenInput(countStr, request.Model)
+	//tkm += 8
+	//tkm += toolTokens
 	tokenCountMeta.CombineText = strings.Join(texts, "\n")
 	tokenCountMeta.Files = fileMeta
 	return &tokenCountMeta
@@ -283,7 +339,10 @@ type Message struct {
 	Reasoning        *string         `json:"reasoning,omitempty"`
 	ToolCalls        json.RawMessage `json:"tool_calls,omitempty"`
 	ToolCallId       string          `json:"tool_call_id,omitempty"`
-	parsedContent    []MediaContent
+	// Tools 承载 Kimi K3 在 system 消息中动态加载的工具声明。
+	// 结构与顶层 tools 一致，网关只负责透传，不在这里扩展协议语义。
+	Tools         json.RawMessage `json:"tools,omitempty"`
+	parsedContent []MediaContent
 	//parsedStringContent *string
 }
 

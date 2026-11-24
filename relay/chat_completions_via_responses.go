@@ -29,9 +29,11 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 
 	systemRole := request.GetSystemRoleName()
 
+	// Kimi 动态工具消息虽然角色是 system，但它声明的是工具而不是系统提示。
+	// 检测真实系统提示时必须跳过它，否则会误判为已有提示或给它补上 content。
 	containSystemPrompt := false
 	for _, message := range request.Messages {
-		if message.Role == systemRole {
+		if message.Role == systemRole && len(message.Tools) == 0 {
 			containSystemPrompt = true
 			break
 		}
@@ -51,7 +53,7 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 
 	common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
 	for i, message := range request.Messages {
-		if message.Role != systemRole {
+		if message.Role != systemRole || len(message.Tools) > 0 {
 			continue
 		}
 		if message.IsStringContent() {
